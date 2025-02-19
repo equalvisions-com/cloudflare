@@ -2,6 +2,7 @@
 import { Redis } from '@upstash/redis';
 import { XMLParser } from 'fast-xml-parser';
 import orderBy from 'lodash/orderBy';
+import { cache } from 'react';
 
 // Initialize Redis client
 export const redis = new Redis({
@@ -113,7 +114,7 @@ function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] =
 }
 
 // Get RSS entries with caching
-export async function getRSSEntries(postTitle: string, feedUrl: string): Promise<RSSItem[]> {
+export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): Promise<RSSItem[]> => {
   try {
     const cacheKey = formatRSSKey(postTitle);
     console.log(`[RSS Cache] Checking cache for key: ${cacheKey}`);
@@ -176,7 +177,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
     console.error(`[RSS Cache] Error in getRSSEntries for key ${formatRSSKey(postTitle)}:`, error);
     return [];
   }
-}
+});
 
 // Function to fetch multiple RSS feeds and merge their entries
 export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]> {

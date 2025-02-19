@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
 import { PostMainContent } from "@/components/postpage/MainContent";
 import { getRSSEntries } from "@/lib/redis";
+import { cache } from 'react';
+import { Suspense } from 'react';
 
 // Configure the segment for dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -18,7 +20,7 @@ interface PostPageProps {
 }
 
 // Server-side data fetching using Convex
-async function getPostBySlug(categorySlug: string, postSlug: string) {
+const getPostBySlug = cache(async (categorySlug: string, postSlug: string) => {
   try {
     const post = await fetchQuery(api.posts.getBySlug, { categorySlug, postSlug });
     if (!post) return null;
@@ -27,31 +29,26 @@ async function getPostBySlug(categorySlug: string, postSlug: string) {
     console.error('Failed to fetch post:', error);
     return null;
   }
+});
+
+// Separate RSS fetching into its own component
+async function RSSFeedLoader({ title, feedUrl }: { title: string; feedUrl: string }) {
+  await getRSSEntries(title, feedUrl);
+  return null;
 }
 
 // Reuse the fetched data for both metadata and the page component
-async function getPost(params: PostPageProps['params']) {
+const getPost = cache(async (params: PostPageProps['params']) => {
   try {
     const { categorySlug, postSlug } = await params;
     const post = await getPostBySlug(categorySlug, postSlug);
     if (!post) notFound();
-    
-    // If there's a feedUrl, fetch RSS entries (Redis handles caching)
-    if (post.feedUrl) {
-      try {
-        await getRSSEntries(post.title, post.feedUrl);
-      } catch (error) {
-        console.error('Failed to fetch RSS feed:', error);
-        // Don't throw the error - we still want to show the post
-      }
-    }
-    
     return post;
   } catch (error) {
     console.error('Error in getPost:', error);
     notFound();
   }
-}
+});
 
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
@@ -77,6 +74,11 @@ export default async function PostPage({ params }: PostPageProps) {
 
   return (
     <PostLayoutManager post={post}>
+      {post.feedUrl && (
+        <Suspense>
+          <RSSFeedLoader title={post.title} feedUrl={post.feedUrl} />
+        </Suspense>
+      )}
       <PostMainContent
         title={post.title}
         body={post.body}

@@ -2,7 +2,7 @@ import { getRSSEntries } from "@/lib/redis";
 import { formatDistanceToNow, format, differenceInHours } from "date-fns";
 import { decode } from 'html-entities';
 import Image from 'next/image';
-import { memo } from 'react';
+import { memo, Suspense } from 'react';
 import { LikeButtonServer } from "@/components/like-button/LikeButtonServer";
 import { CommentSectionServer } from "@/components/comment-section/CommentSectionServer";
 
@@ -81,17 +81,21 @@ const RSSEntry = memo(({
             <div className="text-sm text-muted-foreground">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <LikeButtonServer
-                    entryGuid={guid}
-                    feedUrl={feedUrl}
-                    title={title}
-                    pubDate={pubDate}
-                    link={link}
-                  />
-                  <CommentSectionServer
-                    entryGuid={guid}
-                    feedUrl={feedUrl}
-                  />
+                  <Suspense>
+                    <LikeButtonServer
+                      entryGuid={guid}
+                      feedUrl={feedUrl}
+                      title={title}
+                      pubDate={pubDate}
+                      link={link}
+                    />
+                  </Suspense>
+                  <Suspense>
+                    <CommentSectionServer
+                      entryGuid={guid}
+                      feedUrl={feedUrl}
+                    />
+                  </Suspense>
                 </div>
                 <time 
                   dateTime={pubDate}
@@ -111,30 +115,38 @@ const RSSEntry = memo(({
 
 RSSEntry.displayName = 'RSSEntry';
 
-export async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
+// Separate async entries fetcher
+async function RSSEntriesFetcher({ postTitle, feedUrl }: RSSFeedProps) {
   const entries = await getRSSEntries(postTitle, feedUrl);
-
+  
   if (!entries?.length) {
     return null;
   }
 
   return (
-    <section className="mt-12 border-t pt-4">
+    <div className="space-y-6">
+      {entries.map((entry) => (
+        <RSSEntry
+          key={entry.guid}
+          guid={entry.guid}
+          title={entry.title}
+          description={entry.description}
+          link={entry.link}
+          pubDate={entry.pubDate}
+          image={entry.image}
+          feedUrl={entry.feedUrl}
+        />
+      ))}
+    </div>
+  );
+}
 
-      <div className="space-y-6">
-        {entries.map((entry) => (
-          <RSSEntry
-            key={entry.guid}
-            guid={entry.guid}
-            title={entry.title}
-            description={entry.description}
-            link={entry.link}
-            pubDate={entry.pubDate}
-            image={entry.image}
-            feedUrl={entry.feedUrl}
-          />
-        ))}
-      </div>
+export async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
+  return (
+    <section className="mt-12 border-t pt-4">
+      <Suspense fallback={<div>Loading RSS feed...</div>}>
+        <RSSEntriesFetcher postTitle={postTitle} feedUrl={feedUrl} />
+      </Suspense>
     </section>
   );
 } 
