@@ -24,11 +24,12 @@ interface RSSItem {
 export default async function RSSEntriesDisplay() {
   const token = await convexAuthNextjsToken();
   
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated 
   if (!token) {
     redirect("/signin");
   }
 
+  
   // Get RSS keys from Convex 
   const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
 
