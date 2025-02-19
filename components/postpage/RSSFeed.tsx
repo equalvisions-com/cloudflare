@@ -5,11 +5,9 @@ import Image from 'next/image';
 import { memo } from 'react';
 import { LikeButtonServer } from "@/components/like-button/LikeButtonServer";
 import { CommentSectionServer } from "@/components/comment-section/CommentSectionServer";
-import { Id } from "@/convex/_generated/dataModel";
 
 interface RSSFeedProps {
   postTitle: string;
-  postId: Id<"posts">;
   feedUrl: string;
 }
 
@@ -113,7 +111,7 @@ const RSSEntry = memo(({
 
 RSSEntry.displayName = 'RSSEntry';
 
-export async function RSSFeed({ postTitle, postId, feedUrl }: RSSFeedProps) {
+export async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
   const entries = await getRSSEntries(postTitle, feedUrl);
 
   if (!entries?.length) {

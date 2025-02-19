@@ -4,14 +4,26 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { CommentButtonFallback } from "./CommentButtonFallback";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface CommentSectionServerProps {
   entryGuid: string;
   feedUrl: string;
 }
 
+interface CommentData {
+  _id: Id<"comments">;
+  content: string;
+  createdAt: number;
+  username: string;
+  userId: Id<"users">;
+  user?: {
+    _id: Id<"users">;
+  } | null;
+}
+
 // Sanitize comment data for client use
-function sanitizeComment(comment: any) {
+function sanitizeComment(comment: CommentData) {
   return {
     id: comment._id,
     content: comment.content,

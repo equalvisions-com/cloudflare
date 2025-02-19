@@ -56,7 +56,6 @@ export const PostMainContent = ({
       {/* RSS Feed Entries */}
       <RSSFeed 
         postTitle={title}
-        postId={postId}
         feedUrl={feedUrl}
       />
 

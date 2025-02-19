@@ -11,16 +11,6 @@ import { CommentSectionServer } from "@/components/comment-section/CommentSectio
 import { decode } from 'html-entities';
 import { getMergedRSSEntries } from "@/lib/redis";
 
-interface RSSItem {
-  title: string;
-  link: string;
-  description?: string;
-  pubDate: string;
-  guid: string;
-  image?: string;
-  feedUrl: string;
-}
-
 export default async function RSSEntriesDisplay() {
   const token = await convexAuthNextjsToken();
   

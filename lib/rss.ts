@@ -31,6 +31,20 @@ export interface RSSItem {
   feedUrl: string;
 }
 
+interface RawRSSItem {
+  title?: string;
+  link?: string;
+  description?: string;
+  pubDate?: string;
+  guid?: string | { "#text": string };
+  enclosure?: { "@_url": string };
+  "media:content"?: { "@_url": string };
+}
+
+function isGuidObject(guid: string | { "#text": string } | undefined): guid is { "#text": string } {
+  return typeof guid === 'object' && guid !== null && "#text" in guid;
+}
+
 interface RSSCache {
   lastFetched: number;
   entries: RSSItem[];
@@ -46,7 +60,7 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   try {
     const response = await fetch(feedUrl, {
       headers: { 'Accept': 'application/rss+xml, application/xml' },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
+      next: { revalidate: 14400 }, // 4 hours
     });
 
     if (!response.ok) {
@@ -63,12 +77,12 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
 
     const items = Array.isArray(channel.item) ? channel.item : [channel.item];
     
-    return items.map((item: any) => ({
+    return items.map((item: RawRSSItem) => ({
       title: item.title || 'Untitled',
       link: item.link || '',
       description: item.description || '',
       pubDate: item.pubDate || new Date().toISOString(),
-      guid: item.guid?.["#text"] || item.guid || item.link,
+      guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || item.link || ''),
       image: item.enclosure?.["@_url"] || item["media:content"]?.["@_url"] || null,
       feedUrl,
     }));
