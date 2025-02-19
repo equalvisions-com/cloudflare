@@ -6,6 +6,10 @@ import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
 import { PostMainContent } from "@/components/postpage/MainContent";
 import { getRSSEntries } from "@/lib/redis";
 
+// Configure the segment for dynamic rendering
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 interface PostPageProps {
   params: Promise<{
     categorySlug: string;
@@ -23,12 +27,6 @@ async function getPostBySlug(categorySlug: string, postSlug: string) {
     console.error('Failed to fetch post:', error);
     return null;
   }
-}
-
-export const dynamicParams = true;
-
-export async function generateStaticParams() {
-  return [];
 }
 
 // Reuse the fetched data for both metadata and the page component
