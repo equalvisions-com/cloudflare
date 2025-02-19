@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         images: post.featuredImg ? [post.featuredImg] : [],
       },
     };
-  } catch (error) {
+  } catch {
     return {
       title: 'Post Not Found',
       description: 'The requested post could not be found.',
