@@ -27,15 +27,15 @@ export const SidebarContent = ({
   return (
     <>
       {/* Interactive sidebar toggle */}
-      <CollapsibleSidebar onCollapse={setSidebarCollapsed} />
+      <CollapsibleSidebar onCollapse={setSidebarCollapsed} className="hidden md:block" />
       
       {/* Main content with responsive width */}
-      <div className={mainContentClass}>
+      <div className={`w-full md:${mainContentClass} overflow-y-auto custom-scrollbar`}>
         {children}
       </div>
 
       {/* Sidebar content with responsive width */}
-      <ProfileSidebarWrapper className={sidebarClass}>
+      <ProfileSidebarWrapper className={`hidden md:block ${sidebarClass}`}>
         {sidebarContent}
       </ProfileSidebarWrapper>
     </>

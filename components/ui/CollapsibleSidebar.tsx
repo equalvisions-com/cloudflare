@@ -14,9 +14,10 @@ import { useState, useCallback } from "react";
 
 interface CollapsibleSidebarProps {
   onCollapse: (isCollapsed: boolean) => void;
+  className?: string;
 }
 
-export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
+export const CollapsibleSidebar = ({ onCollapse, className = "" }: CollapsibleSidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleCollapse = useCallback(() => {
@@ -26,12 +27,12 @@ export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
   }, [isCollapsed, onCollapse]);
 
   return (
-    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6`}>
+    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6 ${className}`}>
       <CardContent className="p-4">
         <nav className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Button variant="ghost" className="w-full justify-start gap-2 px-2" asChild>
-              <Link href="/dashboard">
+              <Link href="/">
                 <HomeIcon className="h-4 w-4 shrink-0" />
                 {!isCollapsed && <span>Dashboard</span>}
               </Link>
