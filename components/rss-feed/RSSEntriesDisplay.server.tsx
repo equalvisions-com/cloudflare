@@ -12,6 +12,7 @@ import { decode } from 'html-entities';
 import { getMergedRSSEntries } from "@/lib/redis";
 import { Suspense } from "react";
 import { cache } from "react";
+import type { RSSItem } from "@/lib/redis";
 
 // Cached function to get RSS keys
 const getRSSKeys = cache(async () => {
@@ -21,7 +22,7 @@ const getRSSKeys = cache(async () => {
 });
 
 // Memoized RSS entry component
-const RSSEntry = ({ entry }: { entry: any }) => (
+const RSSEntry = ({ entry }: { entry: RSSItem }) => (
   <Card key={entry.guid} className="overflow-hidden">
     <div className="group-hover:bg-muted/50 rounded-lg transition-colors group">
       <article className="p-4">

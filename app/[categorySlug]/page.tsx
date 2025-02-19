@@ -6,9 +6,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { cache } from "react";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface CategoryPageProps {
   params: Promise<{ categorySlug: string }>;
+}
+
+interface Post {
+  _id: Id<"posts">;
+  title: string;
+  category: string;
+  categorySlug: string;
+  postSlug: string;
+  featuredImg?: string;
 }
 
 // Cache the category fetch
@@ -44,7 +54,7 @@ export async function generateMetadata(props: CategoryPageProps): Promise<Metada
 }
 
 // Post card component with loading state
-function PostCard({ post }: { post: any }) {
+function PostCard({ post }: { post: Post }) {
   return (
     <Link
       href={`/${post.categorySlug}/${post.postSlug}`}
@@ -138,4 +148,4 @@ export default async function CategoryPage(props: CategoryPageProps) {
       </Suspense>
     </main>
   );
-} 
+}
