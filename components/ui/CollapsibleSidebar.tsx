@@ -10,7 +10,14 @@ import {
   HomeIcon,
 } from "@radix-ui/react-icons";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
+import { useState, useCallback, useMemo } from "react";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+}
 
 interface CollapsibleSidebarProps {
   onCollapse: (isCollapsed: boolean) => void;
@@ -18,6 +25,25 @@ interface CollapsibleSidebarProps {
 
 export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const pathname = usePathname();
+
+  const navItems = useMemo<NavItem[]>(() => [
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: <HomeIcon className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: "/analytics",
+      label: "Analytics",
+      icon: <BarChartIcon className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: "/settings",
+      label: "Settings",
+      icon: <GearIcon className="h-4 w-4 shrink-0" />,
+    },
+  ], []);
 
   const handleCollapse = useCallback(() => {
     const newCollapsed = !isCollapsed;
@@ -30,24 +56,24 @@ export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
       <CardContent className="p-4">
         <nav className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Button variant="ghost" className="w-full justify-start gap-2 px-2" asChild>
-              <Link href="/">
-                <HomeIcon className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Dashboard</span>}
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="w-full"
+                prefetch={true}
+              >
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start gap-2 px-2 ${
+                    pathname === item.href ? "bg-primary/10" : ""
+                  }`}
+                >
+                  {item.icon}
+                  {!isCollapsed && <span>{item.label}</span>}
+                </Button>
               </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start gap-2 px-2" asChild>
-              <Link href="/analytics">
-                <BarChartIcon className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Analytics</span>}
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start gap-2 px-2" asChild>
-              <Link href="/settings">
-                <GearIcon className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Settings</span>}
-              </Link>
-            </Button>
+            ))}
           </div>
           <Button
             variant="ghost"
