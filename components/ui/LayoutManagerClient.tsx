@@ -1,14 +1,23 @@
 "use client";
 
 import { useState, useMemo, ReactNode } from "react";
-import { CollapsibleSidebar } from "./CollapsibleSidebar";
+import { CollapsibleSidebarWithErrorBoundary } from "./CollapsibleSidebar";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface LayoutManagerClientProps {
   children: ReactNode;
 }
 
-export const LayoutManagerClient = ({ children }: LayoutManagerClientProps) => {
+export function LayoutManagerClientWithErrorBoundary(props: LayoutManagerClientProps) {
+  return (
+    <ErrorBoundary>
+      <LayoutManagerClient {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function LayoutManagerClient({ children }: LayoutManagerClientProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const mainContentClass = useMemo(() => {
@@ -21,11 +30,13 @@ export const LayoutManagerClient = ({ children }: LayoutManagerClientProps) => {
 
   return (
     <div className="container flex h-screen gap-6">
-      <CollapsibleSidebar onCollapse={setSidebarCollapsed} />
+      <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
       <main className={mainContentClass}>
         {children}
       </main>
       <RightSidebar className={rightSidebarClass} />
     </div>
   );
-}; 
+}
+
+export default LayoutManagerClient; 

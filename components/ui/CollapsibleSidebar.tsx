@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   BarChartIcon,
   ChevronLeftIcon,
@@ -23,7 +24,15 @@ interface CollapsibleSidebarProps {
   onCollapse: (isCollapsed: boolean) => void;
 }
 
-export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
+export function CollapsibleSidebarWithErrorBoundary(props: CollapsibleSidebarProps) {
+  return (
+    <ErrorBoundary>
+      <CollapsibleSidebar {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function CollapsibleSidebar({ onCollapse }: CollapsibleSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
 
@@ -92,4 +101,4 @@ export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
       </CardContent>
     </Card>
   );
-};
+}

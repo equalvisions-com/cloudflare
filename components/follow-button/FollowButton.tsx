@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Id } from "@/convex/_generated/dataModel";
 import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,14 @@ const fetcher = async (key: string) => {
   if (!res.ok) throw new Error('Failed to fetch follow status');
   return res.json();
 };
+
+export function FollowButtonWithErrorBoundary(props: FollowButtonProps) {
+  return (
+    <ErrorBoundary>
+      <FollowButton {...props} />
+    </ErrorBoundary>
+  );
+}
 
 export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }: FollowButtonProps) {
   const router = useRouter();

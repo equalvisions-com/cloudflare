@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { formatDistanceToNow, format } from "date-fns";
 import { decode } from 'html-entities';
@@ -101,6 +102,14 @@ interface RSSEntriesClientProps {
     entries: RSSEntryWithData[];
   };
   pageSize?: number;
+}
+
+export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+  return (
+    <ErrorBoundary>
+      <RSSEntriesClient {...props} />
+    </ErrorBoundary>
+  );
 }
 
 export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClientProps) {

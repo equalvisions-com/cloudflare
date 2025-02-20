@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { MessageCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
@@ -23,6 +24,14 @@ interface Comment {
   content: string;
   createdAt: number;
   parentId?: string;
+}
+
+export function CommentSectionClientWithErrorBoundary(props: CommentSectionProps) {
+  return (
+    <ErrorBoundary>
+      <CommentSectionClient {...props} />
+    </ErrorBoundary>
+  );
 }
 
 export function CommentSectionClient({ 

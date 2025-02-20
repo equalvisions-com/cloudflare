@@ -1,7 +1,8 @@
 "use client";
 
-import { ThemeToggle } from "@/components/user-menu/ThemeToggle";
+import { ThemeToggleWithErrorBoundary } from "@/components/user-menu/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,14 @@ import { useUserMenuState } from "./useUserMenuState";
 
 interface UserMenuClientProps {
   initialDisplayName: string;
+}
+
+export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
+  return (
+    <ErrorBoundary>
+      <UserMenuClient {...props} />
+    </ErrorBoundary>
+  );
 }
 
 export function UserMenuClient({ initialDisplayName }: UserMenuClientProps) {
@@ -36,7 +45,7 @@ export function UserMenuClient({ initialDisplayName }: UserMenuClientProps) {
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="flex items-center gap-2 py-0 font-normal">
             Theme
-            <ThemeToggle />
+            <ThemeToggleWithErrorBoundary />
           </DropdownMenuLabel>
           {!isAuthenticated ? (
             <DropdownMenuItem onClick={handleSignIn}>Sign in</DropdownMenuItem>

@@ -6,24 +6,10 @@ import { cache } from 'react';
 
 // Initialize Redis client
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || '',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   automaticDeserialization: true,
 });
-
-// Add error handling for Redis operations
-const handleRedisOperation = async <T>(operation: () => Promise<T>): Promise<T | null> => {
-  try {
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      console.warn('[Redis] Missing configuration. Some features may be unavailable.');
-      return null;
-    }
-    return await operation();
-  } catch (error) {
-    console.error('[Redis] Operation failed:', error);
-    return null;
-  }
-};
 
 // Initialize XML parser with options
 const parser = new XMLParser({
@@ -133,7 +119,7 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
     const cacheKey = formatRSSKey(postTitle);
     console.log(`[RSS Cache] Checking cache for key: ${cacheKey}`);
     
-    const cached = await handleRedisOperation(() => redis.get<RSSCache>(cacheKey));
+    const cached = await redis.get<RSSCache>(cacheKey);
     const now = Date.now();
 
     if (cached) {
@@ -159,14 +145,25 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
       // Use optimized merge function
       const mergedEntries = mergeAndSortEntries(cached?.entries, freshEntries);
       
+      // Store only essential fields to reduce cache size
+      const optimizedEntries = mergedEntries.map(({ title, link, description, pubDate, guid, image, feedUrl }) => ({
+        title,
+        link,
+        description: description?.slice(0, 500), // Limit description length
+        pubDate,
+        guid,
+        image,
+        feedUrl,
+      }));
+
       const newCache: RSSCache = {
         lastFetched: now,
-        entries: mergedEntries,
+        entries: optimizedEntries,
       };
       
-      await handleRedisOperation(() => redis.set(cacheKey, newCache));
-      console.log(`[RSS Cache] Updated cache for key: ${cacheKey} with ${mergedEntries.length} entries`);
-      return mergedEntries;
+      await redis.set(cacheKey, newCache);
+      console.log(`[RSS Cache] Updated cache for key: ${cacheKey} with ${optimizedEntries.length} entries`);
+      return optimizedEntries;
     }
 
     if (cached?.entries) {
@@ -177,7 +174,7 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
     console.log(`[RSS Cache] No entries available for key: ${cacheKey}`);
     return [];
   } catch (error) {
-    console.error(`[RSS Cache] Error in getRSSEntries:`, error);
+    console.error(`[RSS Cache] Error in getRSSEntries for key ${formatRSSKey(postTitle)}:`, error);
     return [];
   }
 });
@@ -188,8 +185,7 @@ export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]>
     console.log(`[RSS Cache] Fetching entries for ${rssKeys.length} feeds using MGET`);
     
     // Use MGET to fetch all keys in a single operation
-    const results = await handleRedisOperation(() => redis.mget<RSSCache[]>(...rssKeys));
-    if (!results) return [];
+    const results = await redis.mget<RSSCache[]>(...rssKeys);
     
     console.log(`[RSS Cache] Retrieved ${results.length} results from Redis`);
     
@@ -202,6 +198,7 @@ export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]>
       if (cached?.entries) {
         totalEntries += cached.entries.length;
         cached.entries.forEach((entry: RSSItem) => {
+          // Only store if entry is newer than existing one
           const existing = entriesMap.get(entry.guid);
           if (!existing || new Date(entry.pubDate) > new Date(existing.pubDate)) {
             entriesMap.set(entry.guid, entry);
@@ -214,6 +211,7 @@ export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]>
     console.log(`- Total entries before deduplication: ${totalEntries}`);
     console.log(`- Unique entries after deduplication: ${entriesMap.size}`);
 
+    // Sort by date using lodash orderBy
     const sortedEntries = orderBy(
       Array.from(entriesMap.values()),
       [(entry: RSSItem) => new Date(entry.pubDate).getTime()],

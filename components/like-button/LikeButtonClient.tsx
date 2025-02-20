@@ -4,6 +4,7 @@ import useSWR, { mutate as globalMutate } from 'swr';
 import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Heart } from "lucide-react";
 
 interface LikeButtonProps {
@@ -25,6 +26,14 @@ const fetcher = async (key: string) => {
   if (!res.ok) throw new Error('Failed to fetch like status');
   return res.json();
 };
+
+export function LikeButtonClientWithErrorBoundary(props: LikeButtonProps) {
+  return (
+    <ErrorBoundary>
+      <LikeButtonClient {...props} />
+    </ErrorBoundary>
+  );
+}
 
 export function LikeButtonClient({ 
   entryGuid, 
