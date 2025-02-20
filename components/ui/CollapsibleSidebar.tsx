@@ -14,10 +14,9 @@ import { useState, useCallback } from "react";
 
 interface CollapsibleSidebarProps {
   onCollapse: (isCollapsed: boolean) => void;
-  className?: string;
 }
 
-export const CollapsibleSidebar = ({ onCollapse, className = "" }: CollapsibleSidebarProps) => {
+export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleCollapse = useCallback(() => {
@@ -27,7 +26,7 @@ export const CollapsibleSidebar = ({ onCollapse, className = "" }: CollapsibleSi
   }, [isCollapsed, onCollapse]);
 
   return (
-    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6 ${className}`}>
+    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6`}>
       <CardContent className="p-4">
         <nav className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

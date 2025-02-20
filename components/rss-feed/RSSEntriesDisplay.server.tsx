@@ -13,12 +13,30 @@ import { getMergedRSSEntries } from "@/lib/redis";
 import { Suspense } from "react";
 import { cache } from "react";
 import type { RSSItem } from "@/lib/redis";
+import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
 
 // Cached function to get RSS keys
 const getRSSKeys = cache(async () => {
   const token = await convexAuthNextjsToken();
   if (!token) return null;
   return fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
+});
+
+// Function to get initial data for an entry
+const getEntryInitialData = cache(async (entryGuid: string) => {
+  const token = await convexAuthNextjsToken();
+  if (!token) return null;
+
+  const [isLiked, likeCount, commentCount] = await Promise.all([
+    fetchQuery(api.likes.isLiked, { entryGuid }, { token }),
+    fetchQuery(api.likes.getLikeCount, { entryGuid }, { token }),
+    fetchQuery(api.comments.getCommentCount, { entryGuid }, { token }),
+  ]);
+
+  return {
+    likes: { isLiked, count: likeCount },
+    comments: { count: commentCount },
+  };
 });
 
 // Memoized RSS entry component
@@ -92,40 +110,56 @@ const RSSEntry = ({ entry }: { entry: RSSItem }) => (
   </Card>
 );
 
+// Function to get initial entries
+async function getInitialEntries() {
+  const rssKeys = await getRSSKeys();
+  if (!rssKeys) return null;
+
+  // Use Redis-cached entries
+  const entries = await getMergedRSSEntries(rssKeys);
+  if (!entries || entries.length === 0) return null;
+
+  const pageSize = 10;
+  const initialEntries = entries.slice(0, pageSize);
+
+  // Get initial data for each entry
+  const entriesWithData = await Promise.all(
+    initialEntries.map(async (entry) => {
+      const initialData = await getEntryInitialData(entry.guid);
+      return {
+        entry,
+        initialData: initialData || {
+          likes: { isLiked: false, count: 0 },
+          comments: { count: 0 },
+        },
+      };
+    })
+  );
+
+  return {
+    entries: entriesWithData,
+    hasMore: entries.length > pageSize,
+    totalEntries: entries.length,
+  };
+}
+
 // Async component to fetch and display entries
 async function EntriesList() {
-  const rssKeys = await getRSSKeys();
+  const initialData = await getInitialEntries();
   
-  if (!rssKeys) {
-    redirect("/signin");
-  }
-
-  if (rssKeys.length === 0) {
+  if (!initialData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No RSS feeds found. Add some feeds to get started.
-      </div>
-    );
-  }
-
-  const entries = await getMergedRSSEntries(rssKeys);
-
-  if (!entries || entries.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in your RSS feeds.
+        No entries found. Please sign in and add some RSS feeds to get started.
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {entries.map((entry) => (
-        <Suspense key={entry.guid} fallback={<div className="h-32 animate-pulse bg-muted rounded-lg" />}>
-          <RSSEntry entry={entry} />
-        </Suspense>
-      ))}
-    </div>
+    <RSSEntriesClient
+      initialData={initialData}
+      pageSize={10}
+    />
   );
 }
 
