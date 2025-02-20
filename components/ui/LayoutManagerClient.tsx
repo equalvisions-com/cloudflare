@@ -37,6 +37,4 @@ function LayoutManagerClient({ children }: LayoutManagerClientProps) {
       <RightSidebar className={rightSidebarClass} />
     </div>
   );
-}
-
-export default LayoutManagerClient; 
+} 

@@ -1,10 +1,10 @@
 import RSSEntriesDisplay from "@/components/rss-feed/RSSEntriesDisplay.server";
-import { LayoutManagerClient } from "./LayoutManagerClient";
+import { LayoutManagerClientWithErrorBoundary } from "./LayoutManagerClient";
 
 export const LayoutManager = () => {
   return (
-    <LayoutManagerClient>
+    <LayoutManagerClientWithErrorBoundary>
       <RSSEntriesDisplay />
-    </LayoutManagerClient>
+    </LayoutManagerClientWithErrorBoundary>
   );
 };

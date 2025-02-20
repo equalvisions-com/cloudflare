@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { CollapsibleSidebar } from "@/components/ui/CollapsibleSidebar";
+import { CollapsibleSidebarWithErrorBoundary } from "@/components/ui/CollapsibleSidebar";
 import { ProfileSidebarWrapper } from "@/components/postpage/ProfileSidebarWrapper";
 
 interface SidebarContentProps {
@@ -27,7 +27,7 @@ export const SidebarContent = ({
   return (
     <>
       {/* Interactive sidebar toggle */}
-      <CollapsibleSidebar onCollapse={setSidebarCollapsed} />
+      <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
       
       {/* Main content with responsive width */}
       <div className={mainContentClass}>
