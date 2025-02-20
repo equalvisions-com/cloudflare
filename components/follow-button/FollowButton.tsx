@@ -61,7 +61,7 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
       if (success) {
         // After successful mutation, update all instances
         await mutate(newState, false); // Don't revalidate after success
-        await globalMutate('/api/feeds'); // Revalidate the feeds cache globally
+        await globalMutate('/api/rss'); // Revalidate the RSS entries cache globally
       } else {
         // Revert on error
         await mutate(undefined, true); // Force revalidate on error
