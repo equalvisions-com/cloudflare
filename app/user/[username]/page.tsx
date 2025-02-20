@@ -74,6 +74,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   if (!profile) {
     notFound();
   }
+  
 
   return (
     <div className="container mx-auto px-4 py-8">
