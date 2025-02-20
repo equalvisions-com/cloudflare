@@ -5,7 +5,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useFollowActions } from "./actions";
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 
 interface FollowButtonProps {
   postId: Id<"posts">;
@@ -61,6 +61,7 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
       if (success) {
         // After successful mutation, update all instances
         await mutate(newState, false); // Don't revalidate after success
+        await globalMutate('/api/feeds'); // Revalidate the feeds cache globally
       } else {
         // Revert on error
         await mutate(undefined, true); // Force revalidate on error
