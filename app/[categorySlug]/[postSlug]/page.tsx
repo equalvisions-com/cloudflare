@@ -93,11 +93,13 @@ export default async function PostPage({ params }: PostPageProps) {
             <header className="mb-8">
               <div className="flex items-center justify-between gap-4">
                 <h1 className="text-4xl font-bold mb-0">{post.title}</h1>
-                <FollowButtonServer 
-                  postId={post._id} 
-                  feedUrl={post.feedUrl} 
-                  postTitle={post.title} 
-                />
+                <Suspense>
+                  <FollowButtonServer 
+                    postId={post._id} 
+                    feedUrl={post.feedUrl} 
+                    postTitle={post.title} 
+                  />
+                </Suspense>
               </div>
             </header>
 

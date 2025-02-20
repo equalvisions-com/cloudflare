@@ -19,6 +19,7 @@ import type * as following from "../following.js";
 import type * as http from "../http.js";
 import type * as likes from "../likes.js";
 import type * as posts from "../posts.js";
+import type * as profiles from "../profiles.js";
 import type * as rssKeys from "../rssKeys.js";
 import type * as users from "../users.js";
 
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   likes: typeof likes;
   posts: typeof posts;
+  profiles: typeof profiles;
   rssKeys: typeof rssKeys;
   users: typeof users;
 }>;
