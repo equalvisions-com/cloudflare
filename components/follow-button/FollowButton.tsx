@@ -61,8 +61,14 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
       if (success) {
         // After successful mutation, update all instances
         await mutate(newState, false); // Don't revalidate after success
-        // Revalidate the RSS entries cache
-        await globalMutate('/api/rss');
+        
+        // Revalidate all relevant caches
+        await Promise.all([
+          globalMutate('/api/rss'),
+          globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/follows')),
+          globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/profile')),
+          router.refresh() // Force Next.js to revalidate server components
+        ]);
       } else {
         // Revert on error
         await mutate(undefined, true); // Force revalidate on error
