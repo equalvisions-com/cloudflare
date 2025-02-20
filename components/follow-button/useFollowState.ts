@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Id } from "@/convex/_generated/dataModel";
 import { useFollowActions } from "./actions";
+import { useRouter } from "next/navigation";
 
 export function useFollowState(
   postId: Id<"posts">, 
@@ -8,6 +9,7 @@ export function useFollowState(
   postTitle: string,
   initialIsFollowing: boolean
 ) {
+  const router = useRouter();
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [isInCooldown, setIsInCooldown] = useState(false);
   const { followPost, unfollowPost } = useFollowActions();
@@ -35,7 +37,10 @@ export function useFollowState(
       ? await unfollowPost(postId, postTitle)
       : await followPost(postId, feedUrl, postTitle);
 
-    if (!success) {
+    if (success) {
+      // Let Next.js handle the revalidation and partial rendering
+      router.refresh();
+    } else {
       // Revert state if the API call fails
       setIsFollowing((prev) => !prev);
       setIsInCooldown(false);

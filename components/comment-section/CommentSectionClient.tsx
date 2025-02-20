@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import useSWR, { mutate as globalMutate } from 'swr';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -26,14 +25,6 @@ interface Comment {
   parentId?: string;
 }
 
-const fetcher = async (key: string) => {
-  // Encode the key for use in URL
-  const encodedKey = encodeURIComponent(key);
-  const res = await fetch(`/api/comments/${encodedKey}`);
-  if (!res.ok) throw new Error('Failed to fetch comments');
-  return res.json();
-};
-
 export function CommentSectionClient({ 
   entryGuid, 
   feedUrl,
@@ -42,19 +33,6 @@ export function CommentSectionClient({
   const [isExpanded, setIsExpanded] = useState(false);
   const [newComment, setNewComment] = useState('');
   
-  const { data, error, mutate } = useSWR(
-    entryGuid,
-    fetcher,
-    {
-      fallbackData: initialData,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      dedupingInterval: 5000, // 5 seconds
-      revalidateIfStale: false,
-      revalidateOnMount: !initialData,
-    }
-  );
-
   // Fetch comments when expanded
   const comments = useQuery(
     api.comments.getComments,
@@ -82,11 +60,6 @@ export function CommentSectionClient({
       console.error('Error adding comment:', error);
     }
   };
-
-  if (error) {
-    console.error('Error fetching comments:', error);
-    return null;
-  }
 
   return (
     <div>

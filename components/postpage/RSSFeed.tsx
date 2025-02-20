@@ -1,152 +1,87 @@
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { Suspense } from "react";
+import { cache } from "react";
+import { RSSFeedClient } from "./RSSFeedClient";
 import { getRSSEntries } from "@/lib/redis";
-import { formatDistanceToNow, format, differenceInHours } from "date-fns";
-import { decode } from 'html-entities';
-import Image from 'next/image';
-import { memo, Suspense } from 'react';
-import { LikeButtonServer } from "@/components/like-button/LikeButtonServer";
-import { CommentSectionServer } from "@/components/comment-section/CommentSectionServer";
+
+// Function to get initial data for an entry
+const getEntryInitialData = cache(async (entryGuid: string) => {
+  const token = await convexAuthNextjsToken();
+  if (!token) {
+    return {
+      likes: { isLiked: false, count: 0 },
+      comments: { count: 0 },
+    };
+  }
+
+  const [isLiked, likeCount, commentCount] = await Promise.all([
+    fetchQuery(api.likes.isLiked, { entryGuid }, { token }),
+    fetchQuery(api.likes.getLikeCount, { entryGuid }, { token }),
+    fetchQuery(api.comments.getCommentCount, { entryGuid }, { token }),
+  ]);
+
+  return {
+    likes: { isLiked, count: likeCount },
+    comments: { count: commentCount },
+  };
+});
 
 interface RSSFeedProps {
   postTitle: string;
   feedUrl: string;
 }
 
-// Memoized date formatter for better performance
-const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '';
-  
-  const now = new Date();
-  const hoursDifference = differenceInHours(now, date);
-
-  if (hoursDifference < 24) {
-    return formatDistanceToNow(date, { addSuffix: true });
-  }
-
-  return format(date, 'MMM d, yyyy h:mm a');
-};
-
-// Memoized RSS entry component
-const RSSEntry = memo(({ 
-  title, 
-  description, 
-  link, 
-  pubDate, 
-  image,
-  guid,
-  feedUrl
-}: { 
-  title: string; 
-  description?: string; 
-  link: string; 
-  pubDate: string;
-  image?: string;
-  guid: string;
-  feedUrl: string;
-}) => (
-  <div className="group">
-    <article className="group-hover:bg-muted/50 rounded-lg transition-colors" data-entry-id={guid}>
-      <div className="p-4">
-        <div className="flex gap-4">
-          {image && (
-            <div className="flex-shrink-0 w-24 h-24 relative rounded-md overflow-hidden">
-              <Image
-                src={image}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="96px"
-                loading="lazy"
-              />
-            </div>
-          )}
-          <div className="flex-grow min-w-0 space-y-2">
-            <div className="flex items-start justify-between gap-4">
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block flex-grow"
-              >
-                <h3 className="text-lg font-medium group-hover:text-primary transition-colors">
-                  {decode(title)}
-                </h3>
-              </a>
-            </div>
-            {description && (
-              <p className="text-muted-foreground line-clamp-2">
-                {decode(description)}
-              </p>
-            )}
-            <div className="text-sm text-muted-foreground">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Suspense>
-                    <LikeButtonServer
-                      entryGuid={guid}
-                      feedUrl={feedUrl}
-                      title={title}
-                      pubDate={pubDate}
-                      link={link}
-                    />
-                  </Suspense>
-                  <Suspense>
-                    <CommentSectionServer
-                      entryGuid={guid}
-                      feedUrl={feedUrl}
-                    />
-                  </Suspense>
-                </div>
-                <time 
-                  dateTime={pubDate}
-                  title={format(new Date(pubDate), 'PPP p')}
-                >
-                  {formatDate(pubDate)}
-                </time>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id={`comments-${guid}`} className="border-t border-muted" />
-    </article>
-  </div>
-));
-
-RSSEntry.displayName = 'RSSEntry';
-
-// Separate async entries fetcher
-async function RSSEntriesFetcher({ postTitle, feedUrl }: RSSFeedProps) {
+// Function to get initial entries
+async function getInitialEntries(postTitle: string, feedUrl: string) {
+  // Use Redis-cached entries
   const entries = await getRSSEntries(postTitle, feedUrl);
+  if (!entries || entries.length === 0) return null;
+
+  // Get initial data for ALL entries
+  const entriesWithData = await Promise.all(
+    entries.map(async (entry) => {
+      const initialData = await getEntryInitialData(entry.guid);
+      return {
+        entry,
+        initialData,
+      };
+    })
+  );
+
+  return {
+    entries: entriesWithData,
+    totalEntries: entries.length,
+  };
+}
+
+// Async component to fetch and display entries
+async function FeedContent({ postTitle, feedUrl }: RSSFeedProps) {
+  const initialData = await getInitialEntries(postTitle, feedUrl);
   
-  if (!entries?.length) {
-    return null;
+  if (!initialData) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No entries found in this feed.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {entries.map((entry) => (
-        <RSSEntry
-          key={entry.guid}
-          guid={entry.guid}
-          title={entry.title}
-          description={entry.description}
-          link={entry.link}
-          pubDate={entry.pubDate}
-          image={entry.image}
-          feedUrl={entry.feedUrl}
-        />
-      ))}
-    </div>
+    <RSSFeedClient
+      postTitle={postTitle}
+      feedUrl={feedUrl}
+      initialData={initialData}
+      pageSize={10}
+    />
   );
 }
 
-export async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
+export default async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
   return (
-    <section className="mt-12 border-t pt-4">
-      <Suspense fallback={<div>Loading RSS feed...</div>}>
-        <RSSEntriesFetcher postTitle={postTitle} feedUrl={feedUrl} />
-      </Suspense>
-    </section>
+    <Suspense fallback={<div className="p-8 text-center">Loading feed entries...</div>}>
+      <FeedContent postTitle={postTitle} feedUrl={feedUrl} />
+    </Suspense>
   );
-} 
+}

@@ -3,6 +3,20 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
+interface BatchEntry {
+  likes: {
+    isLiked: boolean;
+    count: number;
+  };
+  comments: {
+    count: number;
+  };
+}
+
+interface BatchEntries {
+  [guid: string]: BatchEntry;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { guids } = await request.json();
@@ -10,7 +24,7 @@ export async function POST(request: NextRequest) {
     const token = await convexAuthNextjsToken();
     if (!token) {
       return NextResponse.json({
-        entries: guids.reduce((acc: any, guid: string) => ({
+        entries: guids.reduce((acc: BatchEntries, guid: string) => ({
           ...acc,
           [guid]: {
             likes: { isLiked: false, count: 0 },
@@ -36,7 +50,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Combine the results
-    const entries = guids.reduce((acc: any, guid: string, index: number) => ({
+    const entries = guids.reduce((acc: BatchEntries, guid: string, index: number) => ({
       ...acc,
       [guid]: {
         likes: { isLiked: likes[index][0], count: likes[index][1] },

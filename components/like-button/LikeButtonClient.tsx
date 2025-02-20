@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
@@ -38,7 +37,7 @@ export function LikeButtonClient({
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
   
-  const { data, error, mutate } = useSWR(
+  const { data, mutate } = useSWR(
     entryGuid,
     fetcher,
     {
@@ -82,7 +81,7 @@ export function LikeButtonClient({
         // Update the batch cache
         globalMutate(
           `/api/batch`,
-          (data: any) => {
+          (data) => {
             if (!data?.entries) return data;
             return {
               ...data,
@@ -98,16 +97,12 @@ export function LikeButtonClient({
           false
         )
       ]);
-    } catch (error) {
+    } catch (err) {
       // Revert on error
+      console.error('Error updating like status:', err);
       await mutate();
     }
   };
-
-  if (error) {
-    console.error('Error fetching like status:', error);
-    return null;
-  }
 
   return (
     <Button

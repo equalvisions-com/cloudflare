@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
@@ -17,7 +16,7 @@ async function getAllEntries() {
   return entries;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const entries = await getAllEntries();
     if (!entries) {

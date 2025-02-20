@@ -1,14 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
+interface RouteContext {
+  params: Promise<{ guid: string }>;
+}
+
 export async function GET(
-  request: NextRequest,
-  context: { params: { guid: string } }
-) {
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
-    // Await the params
+    // Await the params according to Next.js 15.1 async request APIs
     const { guid } = await context.params;
     
     const token = await convexAuthNextjsToken();

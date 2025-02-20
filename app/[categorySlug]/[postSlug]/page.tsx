@@ -3,10 +3,12 @@ import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
-import { PostMainContent } from "@/components/postpage/MainContent";
-import { getRSSEntries } from "@/lib/redis";
 import { cache } from 'react';
 import { Suspense } from 'react';
+import RSSFeed from "@/components/postpage/RSSFeed";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import Image from "next/image";
+import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
 
 // Configure the segment for dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -30,12 +32,6 @@ const getPostBySlug = cache(async (categorySlug: string, postSlug: string) => {
     return null;
   }
 });
-
-// Separate RSS fetching into its own component
-async function RSSFeedLoader({ title, feedUrl }: { title: string; feedUrl: string }) {
-  await getRSSEntries(title, feedUrl);
-  return null;
-}
 
 // Reuse the fetched data for both metadata and the page component
 const getPost = cache(async (params: PostPageProps['params']) => {
@@ -74,18 +70,58 @@ export default async function PostPage({ params }: PostPageProps) {
 
   return (
     <PostLayoutManager post={post}>
+      {/* Header Section with Body Content */}
+      <div className="max-w-4xl mx-auto px-0 py-8">
+        <div className="flex gap-8">
+          {/* Featured Image */}
+          {post.featuredImg && (
+            <div className="w-[150px] shrink-0">
+              <AspectRatio ratio={1}>
+                <Image
+                  src={post.featuredImg}
+                  alt={post.title}
+                  fill
+                  className="object-cover rounded-lg border"
+                  priority
+                />
+              </AspectRatio>
+            </div>
+          )}
+          
+          {/* Title, Follow Button, and Body Content */}
+          <div className="flex-1 min-w-0">
+            <header className="mb-8">
+              <div className="flex items-center justify-between gap-4">
+                <h1 className="text-4xl font-bold mb-0">{post.title}</h1>
+                <FollowButtonServer 
+                  postId={post._id} 
+                  feedUrl={post.feedUrl} 
+                  postTitle={post.title} 
+                />
+              </div>
+            </header>
+
+            <div
+              className="prose prose-lg prose-headings:scroll-mt-28"
+              dangerouslySetInnerHTML={{ __html: post.body }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* RSS Feed */}
       {post.feedUrl && (
-        <Suspense>
-          <RSSFeedLoader title={post.title} feedUrl={post.feedUrl} />
+        <Suspense fallback={<div className="p-8 text-center">Loading feed entries...</div>}>
+          <RSSFeed postTitle={post.title} feedUrl={post.feedUrl} />
         </Suspense>
       )}
-      <PostMainContent
-        title={post.title}
-        body={post.body}
-        feedUrl={post.feedUrl}
-        postId={post._id}
-        featuredImg={post.featuredImg}
-      />
+
+      {/* Source Footer */}
+      <div className="max-w-4xl mx-auto px-4 mt-8">
+        <footer className="text-sm text-muted-foreground">
+          <p>Source: {post.feedUrl}</p>
+        </footer>
+      </div>
     </PostLayoutManager>
   );
 }

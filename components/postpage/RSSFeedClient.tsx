@@ -96,34 +96,43 @@ const RSSEntry = ({ entryWithData: { entry, initialData } }: RSSEntryProps) => (
   </Card>
 );
 
-interface RSSEntriesClientProps {
+interface RSSFeedClientProps {
+  postTitle: string;
+  feedUrl: string;
   initialData: {
     entries: RSSEntryWithData[];
   };
   pageSize?: number;
 }
 
-export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClientProps) {
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10 }: RSSFeedClientProps) {
   const [isPending, startTransition] = useTransition();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(1);
   
-  const { data } = useSWR<{
+  const { data: allEntries } = useSWR<{
     entries: RSSEntryWithData[];
     totalEntries: number;
   }>(
-    '/api/rss',
+    `/api/rss/${encodeURIComponent(postTitle)}`,
     async (url: string) => {
-      const res = await fetch(url, {
+      const res = await fetch(`${url}?feedUrl=${encodeURIComponent(feedUrl)}`, {
         next: {
           revalidate: 300 // Revalidate every 5 minutes
         }
       });
       if (!res.ok) throw new Error('Failed to fetch RSS entries');
-      return res.json();
+      const data = await res.json();
+      return {
+        entries: data.entries,
+        totalEntries: data.entries.length
+      };
     },
     {
-      fallbackData: { entries: initialData.entries, totalEntries: initialData.entries.length },
+      fallbackData: {
+        entries: initialData.entries,
+        totalEntries: initialData.entries.length
+      },
       revalidateOnFocus: false,    // Don't revalidate on focus
       revalidateOnReconnect: true, // Keep revalidating on reconnect to catch new entries
       dedupingInterval: 300 * 1000, // Cache for 5 minutes
@@ -134,11 +143,16 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
 
   // Handle pagination locally with transition
   const paginatedEntries = useMemo(() => {
-    const entries = data?.entries || initialData.entries;
+    const entries = allEntries?.entries || [];
     return entries.slice(0, size * pageSize);
-  }, [data?.entries, initialData.entries, size, pageSize]);
+  }, [allEntries?.entries, size, pageSize]);
 
-  const hasMore = data?.entries && paginatedEntries.length < data.entries.length;
+  const hasMore = allEntries?.entries && paginatedEntries.length < allEntries.entries.length;
+
+  // Reset size when feed changes
+  useEffect(() => {
+    setSize(1);
+  }, [feedUrl]);
 
   useEffect(() => {
     const currentRef = loadMoreRef.current;
@@ -152,7 +166,7 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
           });
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 } // Lower threshold for earlier loading
     );
 
     observer.observe(currentRef);
@@ -162,7 +176,7 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
   if (!paginatedEntries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No entries found in your RSS feeds.
+        No entries found in this feed.
       </div>
     );
   }
@@ -182,4 +196,4 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
       </div>
     </div>
   );
-} 
+}
