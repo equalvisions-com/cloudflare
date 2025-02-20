@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useMemo } from "react";
+import { mutate } from 'swr';
 
 interface NavItem {
   href: string;
@@ -51,6 +52,13 @@ export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
     onCollapse(newCollapsed);
   }, [isCollapsed, onCollapse]);
 
+  const handleNavigation = useCallback((href: string) => {
+    // If navigating to dashboard, revalidate RSS cache
+    if (href === '/') {
+      mutate('/api/rss');
+    }
+  }, []);
+
   return (
     <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6`}>
       <CardContent className="p-4">
@@ -62,6 +70,7 @@ export const CollapsibleSidebar = ({ onCollapse }: CollapsibleSidebarProps) => {
                 href={item.href}
                 className="w-full"
                 prefetch={true}
+                onClick={() => handleNavigation(item.href)}
               >
                 <Button
                   variant="ghost"

@@ -49,7 +49,7 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
       return;
     }
 
-    // Optimistic update for the current component
+    // Optimistic update
     const newState = { isFollowing: !isFollowing };
     await mutate(newState, false);
 
@@ -60,10 +60,9 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
 
       if (success) {
         // After successful mutation, update all instances
-        await mutate(newState, false);
-        // Invalidate all feed-related caches to trigger revalidation
-        await globalMutate((key) => typeof key === 'string' && key.includes('/api/feeds'), undefined, { revalidate: true });
-        await globalMutate((key) => typeof key === 'string' && key.includes('/api/follows'), undefined, { revalidate: true });
+        await mutate(newState, false); // Don't revalidate after success
+        // Revalidate the RSS entries cache
+        await globalMutate('/api/rss');
       } else {
         // Revert on error
         await mutate(undefined, true); // Force revalidate on error
