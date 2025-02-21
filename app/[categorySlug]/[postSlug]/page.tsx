@@ -9,6 +9,8 @@ import RSSFeed from "@/components/postpage/RSSFeed";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
 import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
+import { EntryCount } from "@/components/postpage/EntryCount";
+import { getInitialEntries } from "@/components/postpage/RSSFeed";
 
 // Configure the segment for dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -67,6 +69,17 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
 // Separate component for post content to better manage suspense boundaries
 async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
+  // Called once here
+  const initialData = await getInitialEntries(post.title, post.feedUrl);
+
+  if (!initialData) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No entries found in this feed.
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Header Section with Body Content */}
@@ -104,13 +117,24 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
               className="prose prose-lg prose-headings:scroll-mt-28"
               dangerouslySetInnerHTML={{ __html: post.body }}
             />
+                  {/* EntryCount added here */}
+      <EntryCount 
+        count={initialData.totalEntries}
+        followerCount={post.followerCount} 
+      />
           </div>
         </div>
       </div>
 
-      {/* RSS Feed */}
+  
+      
+      {/* RSS Feed with initialData prop */}
       {post.feedUrl && (
-        <RSSFeed postTitle={post.title} feedUrl={post.feedUrl} />
+        <RSSFeed 
+          postTitle={post.title} 
+          feedUrl={post.feedUrl}
+          initialData={initialData}
+        />
       )}
 
       {/* Source Footer */}

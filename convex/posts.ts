@@ -23,6 +23,12 @@ export const getBySlug = query({
       .order("desc")
       .take(5);
     
+    // Get follower count in same query
+    const followerCount = (await ctx.db
+      .query("following")
+      .withIndex("by_post", q => q.eq("postId", post._id))
+      .collect()).length;
+
     return {
       ...post,
       relatedPosts: relatedPosts.map((p: typeof post) => ({
@@ -32,7 +38,8 @@ export const getBySlug = query({
         postSlug: p.postSlug,
         categorySlug: p.categorySlug,
         feedUrl: p.feedUrl
-      }))
+      })),
+      followerCount
     };
   },
 });

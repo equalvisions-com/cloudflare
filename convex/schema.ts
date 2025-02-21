@@ -24,7 +24,8 @@ export default defineSchema({
     userId: v.id("users"),
     postId: v.id("posts"),
     feedUrl: v.string(),  // New column to store the feedUrl from posts
-  }).index("by_user_post", ["userId", "postId"]),
+  }).index("by_user_post", ["userId", "postId"])
+  .index("by_post", ["postId"]),
   
   profiles: defineTable({
     userId: v.id("users"),

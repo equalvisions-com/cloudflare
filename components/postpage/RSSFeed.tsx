@@ -5,21 +5,14 @@ import { cache } from "react";
 import { RSSFeedClient } from "./RSSFeedClient";
 import { getRSSEntries } from "@/lib/redis";
 
-function EntryCount({ count }: { count: number }) {
-  return (
-    <div className="max-w-4xl mx-auto px-4 mb-4 text-sm text-muted-foreground">
-      {count} entries in feed
-    </div>
-  );
-}
-
 interface RSSFeedProps {
   postTitle: string;
   feedUrl: string;
+  initialData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>>;
 }
 
 // Function to get initial entries with batch data fetching
-const getInitialEntries = cache(async (postTitle: string, feedUrl: string) => {
+export const getInitialEntries = cache(async (postTitle: string, feedUrl: string) => {
   // Use Redis-cached entries first
   const entries = await getRSSEntries(postTitle, feedUrl);
   if (!entries || entries.length === 0) return null;
@@ -56,26 +49,13 @@ const getInitialEntries = cache(async (postTitle: string, feedUrl: string) => {
   };
 });
 
-export default async function RSSFeed({ postTitle, feedUrl }: RSSFeedProps) {
-  const initialData = await getInitialEntries(postTitle, feedUrl);
-  
-  if (!initialData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in this feed.
-      </div>
-    );
-  }
-
+export default async function RSSFeed({ postTitle, feedUrl, initialData }: RSSFeedProps) {
   return (
-    <>
-      <EntryCount count={initialData.totalEntries} />
-      <RSSFeedClient
-        postTitle={postTitle}
-        feedUrl={feedUrl}
-        initialData={initialData}
-        pageSize={10}
-      />
-    </>
+    <RSSFeedClient
+      postTitle={postTitle}
+      feedUrl={feedUrl}
+      initialData={initialData}
+      pageSize={10}
+    />
   );
 }
