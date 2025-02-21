@@ -3,65 +3,77 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { getMergedRSSEntries } from "@/lib/redis";
-import { Suspense } from "react";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
+import { headers } from 'next/headers';
 
-// Cached function to get RSS keys
-const getRSSKeys = cache(async () => {
-  const token = await convexAuthNextjsToken();
-  if (!token) return null;
-  return fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
+// Cached function to get RSS keys and auth token in parallel
+const getInitialData = cache(async () => {
+  // Start fetching token early
+  const tokenPromise = convexAuthNextjsToken();
+  
+  // Get headers in parallel but don't block on it
+  headers();
+  
+  const token = await tokenPromise;
+  if (!token) return { token: null, rssKeys: null };
+  
+  // Fetch RSS keys
+  const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
+  
+  return { token, rssKeys };
 });
 
-// Function to get initial data for an entry
-const getEntryInitialData = cache(async (entryGuid: string) => {
-  const token = await convexAuthNextjsToken();
-  if (!token) return null;
+// Function to get initial entries with optimized data fetching
+export const getInitialEntries = cache(async () => {
+  // Get initial data first to handle the rssKeys properly
+  const initialData = await getInitialData();
+  if (!initialData.rssKeys) return null;
 
-  const [isLiked, likeCount, commentCount] = await Promise.all([
-    fetchQuery(api.likes.isLiked, { entryGuid }, { token }),
-    fetchQuery(api.likes.getLikeCount, { entryGuid }, { token }),
-    fetchQuery(api.comments.getCommentCount, { entryGuid }, { token }),
-  ]);
+  // Start fetching entries early
+  const entriesPromise = getMergedRSSEntries(initialData.rssKeys);
 
-  return {
-    likes: { isLiked, count: likeCount },
-    comments: { count: commentCount },
-  };
-});
+  // Pre-warm the cache for likes and comments queries
+  await Promise.all([
+    fetchQuery(api.likes.getLikeCount, { entryGuid: '' }),
+    fetchQuery(api.comments.getCommentCount, { entryGuid: '' })
+  ]).catch(() => {}); // Ignore errors from pre-warming
 
-// Function to get initial entries
-async function getInitialEntries() {
-  const rssKeys = await getRSSKeys();
-  if (!rssKeys) return null;
-
-  // Use Redis-cached entries
-  const entries = await getMergedRSSEntries(rssKeys);
+  // Wait for entries
+  const entries = await entriesPromise;
   if (!entries || entries.length === 0) return null;
 
-  // Get initial data for ALL entries at once to avoid multiple Redis hits
-  const entriesWithData = await Promise.all(
-    entries.map(async (entry) => {
-      const initialData = await getEntryInitialData(entry.guid);
-      return {
-        entry,
-        initialData: initialData || {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-        },
-      };
-    })
-  );
+  // Batch fetch all public data in parallel
+  const publicDataPromises = entries.map(entry => Promise.all([
+    fetchQuery(api.likes.getLikeCount, { entryGuid: entry.guid }),
+    fetchQuery(api.comments.getCommentCount, { entryGuid: entry.guid }),
+    initialData.token ? 
+      fetchQuery(api.likes.isLiked, { entryGuid: entry.guid }, { token: initialData.token }) 
+      : false
+  ]));
+
+  // Wait for all public data to be fetched
+  const publicData = await Promise.all(publicDataPromises);
+
+  // Map the results back to entries
+  const entriesWithPublicData = entries.map((entry, index) => {
+    const [likeCount, commentCount, isLiked] = publicData[index];
+    return {
+      entry,
+      initialData: {
+        likes: { isLiked, count: likeCount },
+        comments: { count: commentCount }
+      }
+    };
+  });
 
   return {
-    entries: entriesWithData,
+    entries: entriesWithPublicData,
     totalEntries: entries.length,
   };
-}
+});
 
-// Async component to fetch and display entries
-async function EntriesList() {
+export default async function RSSEntriesDisplay() {
   const initialData = await getInitialEntries();
   
   if (!initialData) {
@@ -77,13 +89,5 @@ async function EntriesList() {
       initialData={initialData}
       pageSize={10}
     />
-  );
-}
-
-export default async function RSSEntriesDisplay() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center">Loading your feeds...</div>}>
-      <EntriesList />
-    </Suspense>
   );
 }

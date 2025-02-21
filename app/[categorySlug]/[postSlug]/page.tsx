@@ -65,13 +65,12 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
   }
 }
 
-export default async function PostPage({ params }: PostPageProps) {
-  const post = await getPost(params);
-
+// Separate component for post content to better manage suspense boundaries
+async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
   return (
-    <PostLayoutManager post={post}>
+    <>
       {/* Header Section with Body Content */}
-      <div className="max-w-4xl mx-auto px-0 py-8">
+      <div className="max-w-4xl mx-auto px-0 py-6">
         <div className="flex gap-8">
           {/* Featured Image */}
           {post.featuredImg && (
@@ -90,16 +89,14 @@ export default async function PostPage({ params }: PostPageProps) {
           
           {/* Title, Follow Button, and Body Content */}
           <div className="flex-1 min-w-0">
-            <header className="mb-8">
+            <header className="mb-6">
               <div className="flex items-center justify-between gap-4">
                 <h1 className="text-4xl font-bold mb-0">{post.title}</h1>
-                <Suspense>
-                  <FollowButtonServer 
-                    postId={post._id} 
-                    feedUrl={post.feedUrl} 
-                    postTitle={post.title} 
-                  />
-                </Suspense>
+                <FollowButtonServer 
+                  postId={post._id} 
+                  feedUrl={post.feedUrl} 
+                  postTitle={post.title} 
+                />
               </div>
             </header>
 
@@ -113,9 +110,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
       {/* RSS Feed */}
       {post.feedUrl && (
-        <Suspense fallback={<div className="p-8 text-center">Loading feed entries...</div>}>
-          <RSSFeed postTitle={post.title} feedUrl={post.feedUrl} />
-        </Suspense>
+        <RSSFeed postTitle={post.title} feedUrl={post.feedUrl} />
       )}
 
       {/* Source Footer */}
@@ -124,6 +119,32 @@ export default async function PostPage({ params }: PostPageProps) {
           <p>Source: {post.feedUrl}</p>
         </footer>
       </div>
+    </>
+  );
+}
+
+export default async function PostPage({ params }: PostPageProps) {
+  const post = await getPost(params);
+
+  return (
+    <PostLayoutManager 
+      post={{
+        ...post,
+        relatedPosts: post.relatedPosts
+      }}
+    >
+      <Suspense fallback={
+        <div className="animate-pulse space-y-8 p-8">
+          <div className="h-8 bg-muted rounded w-3/4" />
+          <div className="space-y-4">
+            <div className="h-4 bg-muted rounded w-full" />
+            <div className="h-4 bg-muted rounded w-5/6" />
+            <div className="h-4 bg-muted rounded w-4/6" />
+          </div>
+        </div>
+      }>
+        <PostContent post={post} />
+      </Suspense>
     </PostLayoutManager>
   );
 }

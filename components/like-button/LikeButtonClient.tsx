@@ -6,6 +6,8 @@ import { useMutation } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Heart } from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { useConvexAuth } from 'convex/react';
 
 interface LikeButtonProps {
   entryGuid: string;
@@ -43,6 +45,8 @@ export function LikeButtonClient({
   link,
   initialData = { isLiked: false, count: 0 }
 }: LikeButtonProps) {
+  const router = useRouter();
+  const { isAuthenticated } = useConvexAuth();
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
   
@@ -63,6 +67,11 @@ export function LikeButtonClient({
   const likeCount = data?.count ?? initialData.count;
 
   const handleClick = async () => {
+    if (!isAuthenticated) {
+      router.push('/signin');
+      return;
+    }
+
     const newState = {
       isLiked: !isLiked,
       count: likeCount + (isLiked ? -1 : 1)

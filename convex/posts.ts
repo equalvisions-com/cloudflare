@@ -13,7 +13,27 @@ export const getBySlug = query({
       .filter((q) => q.eq(q.field("postSlug"), postSlug))
       .first();
     
-    return post;
+    if (!post) return null;
+
+    // Get related posts from same category (excluding current post)
+    const relatedPosts = await ctx.db
+      .query("posts")
+      .filter((q) => q.eq(q.field("categorySlug"), categorySlug))
+      .filter((q) => q.neq(q.field("postSlug"), postSlug))
+      .order("desc")
+      .take(5);
+    
+    return {
+      ...post,
+      relatedPosts: relatedPosts.map((p: typeof post) => ({
+        _id: p._id,
+        title: p.title,
+        featuredImg: p.featuredImg,
+        postSlug: p.postSlug,
+        categorySlug: p.categorySlug,
+        feedUrl: p.feedUrl
+      }))
+    };
   },
 });
 

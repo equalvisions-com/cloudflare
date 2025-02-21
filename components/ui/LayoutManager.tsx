@@ -1,10 +1,11 @@
-import RSSEntriesDisplay from "@/components/rss-feed/RSSEntriesDisplay.server";
-import { LayoutManagerClientWithErrorBoundary } from "./LayoutManagerClient";
+import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
+import { LayoutManagerClient } from "./LayoutManagerClient";
 
-export const LayoutManager = () => {
+export async function LayoutManager() {
+  // Pre-fetch initial data
+  const initialData = await getInitialEntries();
+  
   return (
-    <LayoutManagerClientWithErrorBoundary>
-      <RSSEntriesDisplay />
-    </LayoutManagerClientWithErrorBoundary>
+    <LayoutManagerClient initialData={initialData} />
   );
-};
+}

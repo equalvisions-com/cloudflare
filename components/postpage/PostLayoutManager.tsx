@@ -15,6 +15,14 @@ type Post = {
   websiteUrl: string;
   platform: string;
   categorySlug: string;
+  relatedPosts?: Array<{
+    _id: Id<"posts">;
+    title: string;
+    featuredImg?: string;
+    postSlug: string;
+    categorySlug: string;
+    feedUrl: string;
+  }>;
 };
 
 interface PostLayoutManagerProps {
@@ -31,15 +39,14 @@ export const PostLayoutManager = ({
   // Server component that handles the main layout structure
   const sidebarContent = (
     <ProfileSidebarContent
-      title={post.title}
       category={post.category}
-      body={post.body}
       author={post.author}
       authorUrl={post.authorUrl}
       twitterUrl={post.twitterUrl}
       websiteUrl={post.websiteUrl}
       platform={post.platform}
       categorySlug={post.categorySlug}
+      relatedPosts={post.relatedPosts}
     />
   );
 
