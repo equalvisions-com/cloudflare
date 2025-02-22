@@ -126,11 +126,11 @@ export function LikeButtonClient({
     <Button
       variant="ghost"
       size="sm"
-      className="gap-2 px-3"
+      className="gap-2 px-0 hover:bg-transparent"
       onClick={handleClick}
     >
       <Heart 
-        className={`h-4 w-4 transition-colors ${isLiked ? 'fill-current text-primary' : ''}`}
+        className={`h-4 w-4 transition-colors ${isLiked ? 'fill-current text-[#f91880]' : ''}`}
       />
       <span>{likeCount}</span>
     </Button>

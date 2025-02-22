@@ -106,4 +106,34 @@ export const isFollowing = query({
 
     return !!following;
   },
+});
+
+export const getFollowers = query({
+  args: { postId: v.id("posts") },
+  handler: async (ctx, { postId }) => {
+    // Get all followers for this post
+    const followers = await ctx.db
+      .query("following")
+      .withIndex("by_post", q => q.eq("postId", postId))
+      .collect();
+
+    // Get profiles for all followers
+    const profiles = await Promise.all(
+      followers.map(async (follower) => {
+        return await ctx.db
+          .query("profiles")
+          .filter((q) => q.eq(q.field("userId"), follower.userId))
+          .first();
+      })
+    );
+
+    // Return only valid profiles with usernames
+    return profiles
+      .filter((profile): profile is NonNullable<typeof profile> => 
+        profile !== null && profile.username !== "")
+      .map(profile => ({
+        userId: profile.userId,
+        username: profile.username
+      }));
+  },
 }); 

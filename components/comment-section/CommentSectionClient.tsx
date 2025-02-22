@@ -75,7 +75,7 @@ export function CommentSectionClient({
       <Button
         variant="ghost"
         size="sm"
-        className="gap-2 px-3"
+        className="gap-2 px-0 hover:bg-transparent"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <MessageCircle className="h-4 w-4" />

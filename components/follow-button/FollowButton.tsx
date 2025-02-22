@@ -92,7 +92,7 @@ export function FollowButton({ postId, feedUrl, postTitle, initialIsFollowing }:
     <Button
       variant={isFollowing ? "secondary" : "default"}
       onClick={handleClick}
-      className="w-28 disabled:opacity-100"
+      className="rounded-full disabled:opacity-100"
       disabled={!isAuthenticated}
     >
       {isFollowing ? "Following" : "Follow"}

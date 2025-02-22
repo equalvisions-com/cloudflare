@@ -46,6 +46,8 @@
   or use the "Copy code" button at https://ui.shadcn.com/themes */
 @layer base {
   :root {
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
     --background: 0 0% 100%;
     --foreground: 20 14.3% 4.1%;
     --card: 0 0% 100%;
@@ -106,5 +108,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans);
   }
 }

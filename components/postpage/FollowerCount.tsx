@@ -29,10 +29,12 @@ export function FollowerCount({ followerCount, postId }: Props) {
     <div className="max-w-4xl mt-4 text-sm">
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-1 h-auto p-0">
+          <Button variant="ghost" className="flex items-center gap-1 h-auto p-0 hover:bg-transparent group">
             <Users className="h-4 w-4" />
-            <span className="text-primary font-semibold">{followerCount}</span>{' '}
-            <span className="text-muted-foreground">Followers</span>
+            <span className="group-hover:underline">
+              <span className="text-primary font-semibold">{followerCount}</span>{' '}
+              <span className="text-muted-foreground">Followers</span>
+            </span>
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">

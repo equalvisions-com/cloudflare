@@ -9,7 +9,7 @@ import RSSFeed from "@/components/postpage/RSSFeed";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
 import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
-import { EntryCount } from "@/components/postpage/EntryCount";
+import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { getInitialEntries } from "@/components/postpage/RSSFeed";
 
 // Configure the segment for dynamic rendering
@@ -83,7 +83,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
   return (
     <>
       {/* Header Section with Body Content */}
-      <div className="max-w-4xl mx-auto px-0 py-6">
+      <div className="max-w-4xl mx-auto p-6 border-b">
         <div className="flex gap-8">
           {/* Featured Image */}
           {post.featuredImg && (
@@ -117,11 +117,10 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
               className="prose prose-lg prose-headings:scroll-mt-28"
               dangerouslySetInnerHTML={{ __html: post.body }}
             />
-                  {/* EntryCount added here */}
-      <EntryCount 
-        count={initialData.totalEntries}
-        followerCount={post.followerCount} 
-      />
+            <FollowerCount 
+              followerCount={post.followerCount}
+              postId={post._id}
+            />
           </div>
         </div>
       </div>

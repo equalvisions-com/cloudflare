@@ -17,7 +17,7 @@ export const SidebarContent = ({
 
   // Memoize width calculations
   const mainContentClass = useMemo(() => {
-    return `${sidebarCollapsed ? "w-[62%]" : "w-[56%]"} overflow-y-auto custom-scrollbar`;
+    return `${sidebarCollapsed ? "w-[62%]" : "w-[56%]"} overflow-y-auto border bg-card rounded-lg mt-6`;
   }, [sidebarCollapsed]);
 
   const sidebarClass = useMemo(() => {

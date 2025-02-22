@@ -10,6 +10,7 @@ import useSWR from 'swr';
 import type { RSSItem } from "@/lib/redis";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
+import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -29,10 +30,10 @@ interface RSSEntryProps {
 }
 
 const RSSEntry = ({ entryWithData: { entry, initialData } }: RSSEntryProps) => (
-  <Card key={entry.guid} className="overflow-hidden">
+  <Card key={entry.guid} className="rounded-none shadow-none border-none">
     <div className="group-hover:bg-muted/50 rounded-lg transition-colors group">
-      <article className="p-4">
-        <div className="flex gap-4">
+      <article>
+        <div className="flex gap-6 p-6">
           {entry.image && (
             <div className="flex-shrink-0 w-24 h-24 relative rounded-md overflow-hidden">
               <Image
@@ -46,27 +47,29 @@ const RSSEntry = ({ entryWithData: { entry, initialData } }: RSSEntryProps) => (
               />
             </div>
           )}
-          <div className="flex-grow min-w-0 space-y-2">
-            <div className="flex items-start justify-between gap-4">
-              <a
-                href={entry.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block flex-grow"
-              >
-                <h3 className="text-lg font-medium group-hover:text-primary transition-colors">
-                  {decode(entry.title)}
-                </h3>
-              </a>
+          <div className="flex-grow flex flex-col justify-between h-24">
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <a
+                  href={entry.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block flex-grow"
+                >
+                  <h3 className="text-lg font-medium group-hover:text-primary transition-colors">
+                    {decode(entry.title)}
+                  </h3>
+                </a>
+              </div>
+              {entry.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                  {decode(entry.description)}
+                </p>
+              )}
             </div>
-            {entry.description && (
-              <p className="text-muted-foreground line-clamp-2">
-                {decode(entry.description)}
-              </p>
-            )}
             <div className="text-sm text-muted-foreground">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6">
                   <LikeButtonClient
                     entryGuid={entry.guid}
                     feedUrl={entry.feedUrl}
@@ -80,6 +83,10 @@ const RSSEntry = ({ entryWithData: { entry, initialData } }: RSSEntryProps) => (
                     feedUrl={entry.feedUrl}
                     initialData={initialData.comments}
                   />
+                  <ShareButtonClient
+                    url={entry.link}
+                    title={entry.title}
+                  />
                 </div>
                 <time 
                   dateTime={entry.pubDate}
@@ -92,7 +99,7 @@ const RSSEntry = ({ entryWithData: { entry, initialData } }: RSSEntryProps) => (
           </div>
         </div>
       </article>
-      <div id={`comments-${entry.guid}`} className="border-t border-muted" />
+      <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </div>
   </Card>
 );
@@ -191,7 +198,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10 }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
       {paginatedEntries.map((entryWithData) => (
         <RSSEntry
           key={entryWithData.entry.guid}

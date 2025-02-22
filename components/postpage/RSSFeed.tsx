@@ -45,7 +45,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
   return {
     entries: entriesWithPublicData,
-    totalEntries: entries.length,
   };
 });
 
