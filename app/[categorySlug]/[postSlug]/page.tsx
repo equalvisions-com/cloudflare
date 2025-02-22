@@ -104,7 +104,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
           <div className="flex-1 min-w-0">
             <header className="mb-6">
               <div className="flex items-center justify-between gap-4">
-                <h1 className="text-4xl font-bold mb-0">{post.title}</h1>
+                <h1 className="text-3xl font-bold mb-0">{post.title}</h1>
                 <FollowButtonServer 
                   postId={post._id} 
                   feedUrl={post.feedUrl} 

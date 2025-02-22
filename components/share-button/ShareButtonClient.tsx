@@ -52,11 +52,11 @@ export function ShareButtonClient({ url, title }: ShareButtonProps) {
     <Button
       variant="ghost"
       size="sm"
-      className="gap-2"
+      className="px-0 hover:bg-transparent"
       onClick={handleShare}
       disabled={isSharing}
     >
-      <Share className="h-4 w-4 p-0" />
+      <Share className="h-4 w-4" />
     </Button>
   );
 } 
