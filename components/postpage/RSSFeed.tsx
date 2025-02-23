@@ -22,28 +22,28 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   // Get auth token for Convex queries that need auth
   const token = await convexAuthNextjsToken();
 
-  // Fetch public data (like counts and comment counts) without auth
-  const entriesWithPublicData = await Promise.all(
-    entries.map(async (entry) => {
-      const [likeCount, commentCount] = await Promise.all([
-        fetchQuery(api.likes.getLikeCount, { entryGuid: entry.guid }),
-        fetchQuery(api.comments.getCommentCount, { entryGuid: entry.guid }),
-      ]);
+  // Extract all entry GUIDs
+  const guids = entries.map(entry => entry.guid);
 
-      // If authenticated, also fetch isLiked state
-      const isLiked = token 
-        ? await fetchQuery(api.likes.isLiked, { entryGuid: entry.guid }, { token })
-        : false;
+  // Batch fetch all data in parallel
+  const [likeData, commentCounts] = await Promise.all([
+    fetchQuery(api.likes.batchGetLikeData, { entryGuids: guids }, { token }),
+    fetchQuery(api.comments.batchGetCommentCounts, { entryGuids: guids })
+  ]);
 
-      return {
-        entry,
-        initialData: {
-          likes: { isLiked, count: likeCount },
-          comments: { count: commentCount }
-        }
-      };
-    })
-  );
+  // Map the batch results back to individual entries
+  const entriesWithPublicData = entries.map((entry, index) => ({
+    entry,
+    initialData: {
+      likes: {
+        isLiked: likeData[index].isLiked,
+        count: likeData[index].count
+      },
+      comments: {
+        count: commentCounts[index]
+      }
+    }
+  }));
 
   return {
     entries: entriesWithPublicData,

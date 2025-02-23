@@ -117,4 +117,110 @@ export const getCommentCount = query({
 
     return comments.length;
   },
+});
+
+export const batchGetCommentCounts = query({
+  args: {
+    entryGuids: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get all comments for the requested entries in a single query
+    const comments = await ctx.db
+      .query("comments")
+      .withIndex("by_entry")
+      .filter((q) => 
+        q.or(
+          ...args.entryGuids.map(guid => 
+            q.eq(q.field("entryGuid"), guid)
+          )
+        )
+      )
+      .collect();
+
+    // Count comments for each entry
+    const countMap = new Map<string, number>();
+    for (const comment of comments) {
+      const count = countMap.get(comment.entryGuid) || 0;
+      countMap.set(comment.entryGuid, count + 1);
+    }
+
+    // Return counts in the same order as input guids
+    return args.entryGuids.map(guid => countMap.get(guid) || 0);
+  },
+});
+
+// Define the type for a comment with user data
+type CommentWithUser = {
+  _id: Id<"comments">;
+  _creationTime: number;
+  parentId?: Id<"comments">;
+  feedUrl: string;
+  userId: Id<"users">;
+  username: string;
+  entryGuid: string;
+  content: string;
+  createdAt: number;
+  user?: {
+    userId: Id<"users">;
+    username: string;
+    [key: string]: any;
+  };
+};
+
+export const batchGetComments = query({
+  args: {
+    entryGuids: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get all comments for the requested entries in a single query
+    const comments = await ctx.db
+      .query("comments")
+      .withIndex("by_entry_time")
+      .filter((q) => 
+        q.or(
+          ...args.entryGuids.map(guid => 
+            q.eq(q.field("entryGuid"), guid)
+          )
+        )
+      )
+      .order("desc")
+      .collect();
+
+    if (comments.length === 0) {
+      return args.entryGuids.map(() => []);
+    }
+
+    // Get all unique user IDs
+    const userIds = new Set(comments.map(c => c.userId));
+    
+    // Fetch all user data in one query
+    const users = await ctx.db
+      .query("profiles")
+      .filter((q) => 
+        q.or(
+          ...Array.from(userIds).map(id => 
+            q.eq(q.field("userId"), id)
+          )
+        )
+      )
+      .collect();
+
+    // Create a map for quick user lookup
+    const userMap = new Map(users.map(u => [u.userId, u]));
+
+    // Group comments by entryGuid
+    const commentsByEntry = new Map<string, CommentWithUser[]>();
+    for (const comment of comments) {
+      const entryComments = commentsByEntry.get(comment.entryGuid) || [];
+      const commentWithUser: CommentWithUser = {
+        ...comment,
+        user: userMap.get(comment.userId),
+      };
+      entryComments.push(commentWithUser);
+      commentsByEntry.set(comment.entryGuid, entryComments);
+    }
+
+    // Return comments in the same order as input guids
+    return args.entryGuids.map(guid => commentsByEntry.get(guid) || []);
+  },
 }); 
