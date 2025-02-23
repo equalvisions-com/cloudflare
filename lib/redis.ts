@@ -21,6 +21,17 @@ const parser = new XMLParser({
   isArray: (tagName) => tagName === "item",
 });
 
+// Function to clean HTML content
+function cleanHtmlContent(html?: string): string {
+  if (!html) return '';
+  return html
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/&[^;]+;/g, '') // Remove other HTML entities
+    .trim();
+}
+
 // Function to extract first image from HTML content
 function extractImageFromHtml(html?: string): string | undefined {
   if (!html) return undefined;
@@ -102,7 +113,7 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
                 extractImageFromHtml(item.description || item["itunes:summary"]);
       }
 
-      const description = item.description || item["itunes:summary"] || '';
+      const description = cleanHtmlContent(item.description || item["itunes:summary"] || '');
 
       const entry = {
         title: item.title || 'Untitled',

@@ -1,9 +1,8 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 
-// Configure the segment for dynamic rendering with proper caching
-export const revalidate = 60; // Revalidate every 60 seconds
+// Configure the segment for dynamic rendering
 export const dynamic = 'force-dynamic';
-export const fetchCache = 'default-cache';
+export const fetchCache = 'force-no-store';
 
 // Add preload hints for critical resources
 export async function generateMetadata() {
