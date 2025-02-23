@@ -1,4 +1,4 @@
-/// <reference types="node" />
+// lib/redis.ts
 import { Redis } from '@upstash/redis';
 import { XMLParser } from 'fast-xml-parser';
 import orderBy from 'lodash/orderBy';
@@ -17,6 +17,8 @@ const parser = new XMLParser({
   attributeNamePrefix: "@_",
   parseAttributeValue: true,
   trimValues: true,
+  // Ensure we parse tag values for podcast-specific fields
+  parseTagValue: false,
 });
 
 export interface RSSItem {
@@ -38,22 +40,22 @@ interface RawRSSItem {
   title?: string;
   link?: string;
   description?: string;
+  "itunes:summary"?: string; // Podcast-specific
   pubDate?: string;
   guid?: string | { "#text": string };
-  enclosure?: { "@_url": string };
+  enclosure?: { "@_url": string; "@_type": string };
   "media:content"?: { "@_url": string };
+  "itunes:image"?: { "@_href": string }; // Podcast-specific
 }
 
 function isGuidObject(guid: string | { "#text": string } | undefined): guid is { "#text": string } {
   return typeof guid === 'object' && guid !== null && "#text" in guid;
 }
 
-// Format RSS key to match Convex schema
 export function formatRSSKey(postTitle: string): string {
   return `rss.${postTitle.replace(/\s+/g, '_')}`;
 }
 
-// Function to fetch and parse RSS feed
 async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   try {
     const response = await fetch(feedUrl, {
@@ -73,39 +75,41 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
       throw new Error('Invalid RSS feed format');
     }
 
-    const items = Array.isArray(channel.item) ? channel.item : [channel.item];
-    
-    return items.map((item: RawRSSItem) => ({
-      title: item.title || 'Untitled',
-      link: item.link || '',
-      description: item.description || '',
-      pubDate: item.pubDate || new Date().toISOString(),
-      guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || item.link || ''),
-      image: item.enclosure?.["@_url"] || item["media:content"]?.["@_url"] || null,
-      feedUrl,
-    }));
+    const items = Array.isArray(channel.item) ? channel.item : [channel.item].filter(Boolean);
+
+    return items.map((item: RawRSSItem) => {
+      // Determine image source: prefer itunes:image for podcasts, then media:content, then enclosure (if image type)
+      const image =
+        item["itunes:image"]?.["@_href"] ||
+        item["media:content"]?.["@_url"] ||
+        (item.enclosure?.["@_type"]?.startsWith("image/") ? item.enclosure["@_url"] : undefined);
+
+      // Use description or itunes:summary as fallback
+      const description = item.description || item["itunes:summary"];
+
+      return {
+        title: item.title || 'Untitled',
+        link: item.link || '',
+        description: description || '',
+        pubDate: item.pubDate || new Date().toISOString(),
+        guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || item.link || ''),
+        image,
+        feedUrl,
+      };
+    });
   } catch (error) {
     console.error(`Error fetching RSS feed ${feedUrl}:`, error);
     return [];
   }
 }
 
-// Optimized merge function using Map for O(1) lookups
+// Existing mergeAndSortEntries and getRSSEntries functions remain largely unchanged
 function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] = []): RSSItem[] {
-  // Use Map for O(1) lookups instead of Set
   const entriesMap = new Map<string, RSSItem>();
   
-  // Process old entries first (they'll be overwritten by newer ones if duplicates exist)
-  oldEntries.forEach((entry: RSSItem) => {
-    entriesMap.set(entry.guid, entry);
-  });
+  oldEntries.forEach((entry) => entriesMap.set(entry.guid, entry));
+  newEntries.forEach((entry) => entriesMap.set(entry.guid, entry));
   
-  // Add or update with new entries
-  newEntries.forEach((entry: RSSItem) => {
-    entriesMap.set(entry.guid, entry);
-  });
-  
-  // Convert to array and sort using lodash orderBy (more performant than fast-sort)
   return orderBy(
     Array.from(entriesMap.values()),
     [(entry: RSSItem) => new Date(entry.pubDate).getTime()],
@@ -113,7 +117,6 @@ function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] =
   );
 }
 
-// Get RSS entries with caching
 export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): Promise<RSSItem[]> => {
   try {
     const cacheKey = formatRSSKey(postTitle);
@@ -136,20 +139,17 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
       console.log(`[RSS Cache] MISS - Key: ${cacheKey}`);
     }
 
-    // Fetch fresh entries
     console.log(`[RSS Cache] Fetching fresh entries from: ${feedUrl}`);
     const freshEntries = await fetchRSSFeed(feedUrl);
     console.log(`[RSS Cache] Fetched ${freshEntries.length} fresh entries`);
     
     if (freshEntries.length > 0) {
-      // Use optimized merge function
       const mergedEntries = mergeAndSortEntries(cached?.entries, freshEntries);
       
-      // Store only essential fields to reduce cache size
       const optimizedEntries = mergedEntries.map(({ title, link, description, pubDate, guid, image, feedUrl }) => ({
         title,
         link,
-        description: description?.slice(0, 500), // Limit description length
+        description: description?.slice(0, 500),
         pubDate,
         guid,
         image,
@@ -179,26 +179,19 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
   }
 });
 
-// Function to fetch multiple RSS feeds and merge their entries
 export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]> {
   try {
     console.log(`[RSS Cache] Fetching entries for ${rssKeys.length} feeds using MGET`);
-    
-    // Use MGET to fetch all keys in a single operation
     const results = await redis.mget<RSSCache[]>(...rssKeys);
-    
     console.log(`[RSS Cache] Retrieved ${results.length} results from Redis`);
     
-    // Use Map for O(1) lookups
     const entriesMap = new Map<string, RSSItem>();
     let totalEntries = 0;
 
-    // Process results from MGET
     for (const cached of results) {
       if (cached?.entries) {
         totalEntries += cached.entries.length;
         cached.entries.forEach((entry: RSSItem) => {
-          // Only store if entry is newer than existing one
           const existing = entriesMap.get(entry.guid);
           if (!existing || new Date(entry.pubDate) > new Date(existing.pubDate)) {
             entriesMap.set(entry.guid, entry);
@@ -211,7 +204,6 @@ export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]>
     console.log(`- Total entries before deduplication: ${totalEntries}`);
     console.log(`- Unique entries after deduplication: ${entriesMap.size}`);
 
-    // Sort by date using lodash orderBy
     const sortedEntries = orderBy(
       Array.from(entriesMap.values()),
       [(entry: RSSItem) => new Date(entry.pubDate).getTime()],
@@ -224,4 +216,4 @@ export async function getMergedRSSEntries(rssKeys: string[]): Promise<RSSItem[]>
     console.error('[RSS Cache] Error in getMergedRSSEntries:', error);
     return [];
   }
-} 
+}

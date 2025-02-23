@@ -3,6 +3,7 @@ import Image from "next/image";
 import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
 import { Suspense } from "react";
 import { Id } from "@/convex/_generated/dataModel";
+import Link from "next/link";
 
 export interface RelatedPost {
   title: string;
@@ -29,22 +30,24 @@ export const RelatedPostsCard = ({ posts }: RelatedPostsCardProps) => {
             <div key={post._id} className="flex items-center gap-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {post.featuredImg && (
-                  <div className="relative w-9 h-9 shrink-0">
-                    <Image
-                      src={post.featuredImg}
-                      alt={post.title}
-                      fill
-                      className="object-cover rounded-full"
-                    />
-                  </div>
+                  <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+                    <div className="relative w-9 h-9 shrink-0">
+                      <Image
+                        src={post.featuredImg}
+                        alt={post.title}
+                        fill
+                        className="object-cover rounded-lg border"
+                      />
+                    </div>
+                  </Link>
                 )}
                 <div className="min-w-0 flex-1">
-                  <a
+                  <Link
                     href={`/${post.categorySlug}/${post.postSlug}`}
                     className="text-sm font-medium hover:underline line-clamp-2"
                   >
                     {post.title}
-                  </a>
+                  </Link>
                 </div>
               </div>
               <div className="shrink-0">

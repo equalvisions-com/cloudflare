@@ -93,7 +93,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
                   src={post.featuredImg}
                   alt={post.title}
                   fill
-                  className="object-cover rounded-lg border"
+                  className="object-cover rounded-xl border"
                   priority
                 />
               </AspectRatio>
