@@ -18,8 +18,8 @@ const parser = new XMLParser({
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
-  // Ensure we handle namespaces like content:encoded
-  isArray: (tagName, jPath) => tagName === "item", // Treat <item> as array explicitly
+  // Use _jPath to indicate it's intentionally unused
+  isArray: (tagName, _jPath) => tagName === "item", // Treat <item> as array explicitly
 });
 
 // Function to extract first image from HTML content
@@ -49,7 +49,7 @@ interface RawRSSItem {
   link?: string;
   description?: string;
   "itunes:summary"?: string;
-  "content:encoded"?: string; // Add support for content:encoded
+  "content:encoded"?: string;
   pubDate?: string;
   guid?: string | { "#text": string };
   enclosure?: { "@_url": string; "@_type": string; "@_length": string };
@@ -96,7 +96,6 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
         item["media:content"]?.["@_url"] ||
         (item.enclosure?.["@_type"]?.startsWith("image/") ? item.enclosure["@_url"] : undefined);
 
-      // If no image yet, try content:encoded, then description
       if (!image) {
         image = extractImageFromHtml(item["content:encoded"]) || extractImageFromHtml(item.description || item["itunes:summary"]);
       }
@@ -125,7 +124,6 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   }
 }
 
-// Rest of the file (mergeAndSortEntries, getRSSEntries, getMergedRSSEntries) remains unchanged
 function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] = []): RSSItem[] {
   const entriesMap = new Map<string, RSSItem>();
   oldEntries.forEach((entry) => entriesMap.set(entry.guid, entry));
