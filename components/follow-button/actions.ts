@@ -1,7 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useMutation } from "convex/react";
-import { formatRSSKey } from "@/lib/redis";
+import { formatRSSKey } from "@/lib/rss";
 
 export function useFollowActions() {
   const followMutation = useMutation(api.following.follow);
