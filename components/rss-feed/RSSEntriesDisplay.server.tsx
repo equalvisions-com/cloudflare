@@ -33,39 +33,32 @@ export const getInitialEntries = cache(async () => {
   // Start fetching entries early
   const entriesPromise = getMergedRSSEntries(initialData.rssKeys);
 
-  // Pre-warm the cache for likes and comments queries
-  await Promise.all([
-    fetchQuery(api.likes.getLikeCount, { entryGuid: '' }),
-    fetchQuery(api.comments.getCommentCount, { entryGuid: '' })
-  ]).catch(() => {}); // Ignore errors from pre-warming
-
   // Wait for entries
   const entries = await entriesPromise;
   if (!entries || entries.length === 0) return null;
 
-  // Batch fetch all public data in parallel
-  const publicDataPromises = entries.map(entry => Promise.all([
-    fetchQuery(api.likes.getLikeCount, { entryGuid: entry.guid }),
-    fetchQuery(api.comments.getCommentCount, { entryGuid: entry.guid }),
-    initialData.token ? 
-      fetchQuery(api.likes.isLiked, { entryGuid: entry.guid }, { token: initialData.token }) 
-      : false
-  ]));
+  // Extract all entry GUIDs
+  const guids = entries.map(entry => entry.guid);
 
-  // Wait for all public data to be fetched
-  const publicData = await Promise.all(publicDataPromises);
+  // Batch fetch all data in parallel
+  const [likeData, commentCounts] = await Promise.all([
+    fetchQuery(api.likes.batchGetLikeData, { entryGuids: guids }, { token: initialData.token }),
+    fetchQuery(api.comments.batchGetCommentCounts, { entryGuids: guids })
+  ]);
 
-  // Map the results back to entries
-  const entriesWithPublicData = entries.map((entry, index) => {
-    const [likeCount, commentCount, isLiked] = publicData[index];
-    return {
-      entry,
-      initialData: {
-        likes: { isLiked, count: likeCount },
-        comments: { count: commentCount }
+  // Map the batch results back to individual entries
+  const entriesWithPublicData = entries.map((entry, index) => ({
+    entry,
+    initialData: {
+      likes: {
+        isLiked: likeData[index].isLiked,
+        count: likeData[index].count
+      },
+      comments: {
+        count: commentCounts[index]
       }
-    };
-  });
+    }
+  }));
 
   return {
     entries: entriesWithPublicData,
