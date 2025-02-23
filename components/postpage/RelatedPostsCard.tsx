@@ -26,15 +26,15 @@ export const RelatedPostsCard = ({ posts }: RelatedPostsCardProps) => {
         <h2 className="text-lg font-semibold mb-4">You May Also Like</h2>
         <div className="space-y-4">
           {posts.map((post) => (
-            <div key={post._id} className="flex items-start gap-3">
+            <div key={post._id} className="flex items-center gap-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {post.featuredImg && (
-                  <div className="relative w-16 h-16 shrink-0">
+                  <div className="relative w-9 h-9 shrink-0">
                     <Image
                       src={post.featuredImg}
                       alt={post.title}
                       fill
-                      className="object-cover rounded-md"
+                      className="object-cover rounded-full"
                     />
                   </div>
                 )}
@@ -70,8 +70,8 @@ export const RelatedPostsCardSkeleton = () => (
       <h2 className="text-lg font-semibold mb-4">You May Also Like</h2>
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="flex items-start gap-3 animate-pulse">
-            <div className="w-16 h-16 bg-muted rounded-md shrink-0" />
+          <div key={i} className="flex items-center gap-3 animate-pulse">
+            <div className="w-9 h-9 bg-muted rounded-full shrink-0" />
             <div className="flex-1 space-y-2">
               <div className="h-4 bg-muted rounded w-3/4" />
               <div className="h-4 bg-muted rounded w-1/2" />

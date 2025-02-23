@@ -61,7 +61,7 @@ function CollapsibleSidebar({ onCollapse }: CollapsibleSidebarProps) {
   }, [isCollapsed, onCollapse]);
 
   return (
-    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6`}>
+    <Card className={`${isCollapsed ? "w-[60px]" : "w-[14%]"} h-fit min-w-fit shadow-none mt-6 hidden md:block`}>
       <CardContent className="p-4">
         <nav className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

@@ -9,6 +9,7 @@ interface RSSFeedProps {
   postTitle: string;
   feedUrl: string;
   initialData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>>;
+  featuredImg?: string;
 }
 
 // Function to get initial entries with batch data fetching
@@ -48,13 +49,14 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   };
 });
 
-export default async function RSSFeed({ postTitle, feedUrl, initialData }: RSSFeedProps) {
+export default async function RSSFeed({ postTitle, feedUrl, initialData, featuredImg }: RSSFeedProps) {
   return (
     <RSSFeedClient
       postTitle={postTitle}
       feedUrl={feedUrl}
       initialData={initialData}
       pageSize={10}
+      featuredImg={featuredImg}
     />
   );
 }

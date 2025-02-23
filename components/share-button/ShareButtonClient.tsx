@@ -52,7 +52,7 @@ export function ShareButtonClient({ url, title }: ShareButtonProps) {
     <Button
       variant="ghost"
       size="sm"
-      className="px-0 hover:bg-transparent"
+      className="px-0 hover:bg-transparent items-end"
       onClick={handleShare}
       disabled={isSharing}
     >

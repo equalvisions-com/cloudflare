@@ -17,11 +17,11 @@ export const SidebarContent = ({
 
   // Memoize width calculations
   const mainContentClass = useMemo(() => {
-    return `${sidebarCollapsed ? "w-[62%]" : "w-[56%]"} overflow-y-auto border bg-card rounded-lg mt-6`;
+    return `${sidebarCollapsed ? "w-[62%]" : "w-[56%]"} overflow-y-auto border bg-card rounded-xl mt-6`;
   }, [sidebarCollapsed]);
 
   const sidebarClass = useMemo(() => {
-    return `${sidebarCollapsed ? "w-[29%]" : "w-[26%]"} transition-[width] `;
+    return `${sidebarCollapsed ? "w-[29%]" : "w-[26%]"} transition-[width]`;
   }, [sidebarCollapsed]);
 
   return (

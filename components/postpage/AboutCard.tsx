@@ -25,7 +25,7 @@ export const AboutCard = ({
   if (!hasMetadata) return null;
 
   return (
-    <Card className="h-fit shadow-none mt-6">
+    <Card className="h-fit shadow-none">
       <CardContent className="p-4">
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold">About</h2>

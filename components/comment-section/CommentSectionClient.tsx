@@ -71,11 +71,11 @@ export function CommentSectionClient({
   };
 
   return (
-    <div>
+    <div className="flex items-center">
       <Button
         variant="ghost"
         size="sm"
-        className="gap-2 px-0 hover:bg-transparent"
+        className="gap-2 px-0 hover:bg-transparent items-end"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <MessageCircle className="h-4 w-4" />

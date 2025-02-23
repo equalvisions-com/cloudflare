@@ -84,7 +84,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
     <>
       {/* Header Section with Body Content */}
       <div className="max-w-4xl mx-auto p-6 border-b">
-        <div className="flex gap-8">
+        <div className="flex gap-6">
           {/* Featured Image */}
           {post.featuredImg && (
             <div className="w-[150px] shrink-0">
@@ -133,6 +133,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
           postTitle={post.title} 
           feedUrl={post.feedUrl}
           initialData={initialData}
+          featuredImg={post.featuredImg}
         />
       )}
 
