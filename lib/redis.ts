@@ -11,20 +11,21 @@ export const redis = new Redis({
   automaticDeserialization: true,
 });
 
-// Initialize XML parser with options, adding content namespace
+// Initialize XML parser with options
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
-  isArray: (tagName) => tagName === "item", // Removed _jPath
+  isArray: (tagName) => tagName === "item",
 });
 
 // Function to extract first image from HTML content
 function extractImageFromHtml(html?: string): string | undefined {
   if (!html) return undefined;
-  const match = html.match(/<img[^>]+src=["'](.*?)["']/i);
+  // Improved regex to match img src more reliably, ignoring data URLs or invalid sources
+  const match = html.match(/<img[^>]+src=["']((?!data:)[^"']+)["']/i);
   return match ? match[1] : undefined;
 }
 
@@ -89,14 +90,16 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
       const enclosureUrl = item.enclosure?.["@_type"]?.startsWith("audio/") ? item.enclosure["@_url"] : undefined;
       const link = enclosureUrl || item.link || '';
 
-      // Image handling: try media:content first, then content:encoded, then fallbacks
+      // Image handling: try explicit fields first, then fall back to HTML content
       let image =
         item["itunes:image"]?.["@_href"] ||
         item["media:content"]?.["@_url"] ||
         (item.enclosure?.["@_type"]?.startsWith("image/") ? item.enclosure["@_url"] : undefined);
 
+      // Fallback to content:encoded first, then description or itunes:summary
       if (!image) {
-        image = extractImageFromHtml(item["content:encoded"]) || extractImageFromHtml(item.description || item["itunes:summary"]);
+        image = extractImageFromHtml(item["content:encoded"]) || 
+                extractImageFromHtml(item.description || item["itunes:summary"]);
       }
 
       const description = item.description || item["itunes:summary"] || '';
