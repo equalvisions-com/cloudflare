@@ -18,8 +18,7 @@ const parser = new XMLParser({
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
-  // Use _jPath to indicate it's intentionally unused
-  isArray: (tagName, _jPath) => tagName === "item", // Treat <item> as array explicitly
+  isArray: (tagName) => tagName === "item", // Removed _jPath
 });
 
 // Function to extract first image from HTML content
