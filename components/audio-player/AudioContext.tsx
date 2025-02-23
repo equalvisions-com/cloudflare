@@ -7,31 +7,26 @@ interface AudioContextType {
   currentTrack: {
     src: string;
     title: string;
+    image?: string;
   } | null;
-  playTrack: (src: string, title: string) => void;
+  playTrack: (src: string, title: string, image?: string) => void;
   isPlaying: boolean;
   togglePlayPause: () => void;
   seek: number;
   duration: number;
-  volume: number;
-  setVolume: (value: number) => void;
-  muted: boolean;
-  toggleMute: () => void;
   handleSeek: (value: number) => void;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
-  const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
+  const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string; image?: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [seek, setSeek] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
   const howlerRef = useRef<Howl | null>(null);
 
-  const playTrack = (src: string, title: string) => {
+  const playTrack = (src: string, title: string, image?: string) => {
     // If there's an existing track, unload it
     if (howlerRef.current) {
       howlerRef.current.unload();
@@ -51,7 +46,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       onend: () => setIsPlaying(false),
     });
 
-    setCurrentTrack({ src, title });
+    setCurrentTrack({ src, title, image });
   };
 
   const togglePlayPause = () => {
@@ -67,17 +62,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!howlerRef.current) return;
     howlerRef.current.seek(value);
     setSeek(value);
-  };
-
-  const toggleMute = () => {
-    if (!howlerRef.current) return;
-    if (muted) {
-      howlerRef.current.volume(volume);
-      setMuted(false);
-    } else {
-      howlerRef.current.volume(0);
-      setMuted(true);
-    }
   };
 
   // Update seek position
@@ -109,10 +93,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         togglePlayPause,
         seek,
         duration,
-        volume,
-        setVolume,
-        muted,
-        toggleMute,
         handleSeek,
       }}
     >

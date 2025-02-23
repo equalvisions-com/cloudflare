@@ -54,7 +54,7 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
   const handleCardClick = (e: React.MouseEvent) => {
     if (mediaType === 'podcast') {
       e.preventDefault();
-      playTrack(entry.link, decode(entry.title));
+      playTrack(entry.link, decode(entry.title), entry.image);
     }
   };
 
