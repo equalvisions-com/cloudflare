@@ -17,13 +17,12 @@ const parser = new XMLParser({
   attributeNamePrefix: "@_",
   parseAttributeValue: true,
   trimValues: true,
-  // Ensure we parse tag values for podcast-specific fields
   parseTagValue: false,
 });
 
 export interface RSSItem {
   title: string;
-  link: string;
+  link: string; // Will now preferentially use enclosure URL for podcasts
   description?: string;
   pubDate: string;
   guid: string;
@@ -38,14 +37,14 @@ interface RSSCache {
 
 interface RawRSSItem {
   title?: string;
-  link?: string;
+  link?: string; // Webpage URL
   description?: string;
-  "itunes:summary"?: string; // Podcast-specific
+  "itunes:summary"?: string;
   pubDate?: string;
   guid?: string | { "#text": string };
-  enclosure?: { "@_url": string; "@_type": string };
+  enclosure?: { "@_url": string; "@_type": string; "@_length": string };
   "media:content"?: { "@_url": string };
-  "itunes:image"?: { "@_href": string }; // Podcast-specific
+  "itunes:image"?: { "@_href": string };
 }
 
 function isGuidObject(guid: string | { "#text": string } | undefined): guid is { "#text": string } {
@@ -78,21 +77,25 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
     const items = Array.isArray(channel.item) ? channel.item : [channel.item].filter(Boolean);
 
     return items.map((item: RawRSSItem) => {
-      // Determine image source: prefer itunes:image for podcasts, then media:content, then enclosure (if image type)
+      // Prefer enclosure URL for link if it's audio (for podcasts)
+      const enclosureUrl = item.enclosure?.["@_type"]?.startsWith("audio/") ? item.enclosure["@_url"] : undefined;
+      const link = enclosureUrl || item.link || ''; // Fallback to webpage link if no audio enclosure
+
+      // Image handling: itunes:image > media:content > enclosure (if image type)
       const image =
         item["itunes:image"]?.["@_href"] ||
         item["media:content"]?.["@_url"] ||
         (item.enclosure?.["@_type"]?.startsWith("image/") ? item.enclosure["@_url"] : undefined);
 
-      // Use description or itunes:summary as fallback
+      // Description fallback
       const description = item.description || item["itunes:summary"];
 
       return {
         title: item.title || 'Untitled',
-        link: item.link || '',
+        link,
         description: description || '',
         pubDate: item.pubDate || new Date().toISOString(),
-        guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || item.link || ''),
+        guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || link || ''),
         image,
         feedUrl,
       };
@@ -103,7 +106,7 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   }
 }
 
-// Existing mergeAndSortEntries and getRSSEntries functions remain largely unchanged
+// Rest of the file (mergeAndSortEntries, getRSSEntries, getMergedRSSEntries) remains unchanged
 function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] = []): RSSItem[] {
   const entriesMap = new Map<string, RSSItem>();
   
