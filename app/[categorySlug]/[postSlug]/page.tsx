@@ -125,8 +125,6 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
         </div>
       </div>
 
-  
-      
       {/* RSS Feed with initialData prop */}
       {post.feedUrl && (
         <RSSFeed 
@@ -134,6 +132,7 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
           feedUrl={post.feedUrl}
           initialData={initialData}
           featuredImg={post.featuredImg}
+          mediaType={post.mediaType}
         />
       )}
 

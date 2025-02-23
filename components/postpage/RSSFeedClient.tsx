@@ -12,6 +12,7 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { AudioPlayer } from "@/components/audio-player/AudioPlayer";
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -30,9 +31,10 @@ interface RSSEntryProps {
   entryWithData: RSSEntryWithData;
   featuredImg?: string;
   postTitle?: string;
+  mediaType?: string;
 }
 
-const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitle }: RSSEntryProps) => {
+const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
     const pubDate = new Date(entry.pubDate);
@@ -45,6 +47,17 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
       return format(pubDate, 'MMM d');
     }
   }, [entry.pubDate]);
+
+  // Add state for audio player visibility
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Handle card click for podcasts
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (mediaType === 'podcast') {
+      e.preventDefault();
+      setIsPlaying(true);
+    }
+  };
 
   return (
     <article>
@@ -82,41 +95,76 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
             </div>
           )}
           
-          {/* Entry Card */}
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block hover:opacity-80 transition-opacity"
-          >
-            <Card className="overflow-hidden shadow-none">
-              {entry.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={16/9}>
-                    <Image
-                      src={entry.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 768px"
-                      loading="lazy"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
+          {/* Entry Content - Different handling for podcasts */}
+          {mediaType === 'podcast' ? (
+            <div className="mb-4">
+              <div 
+                onClick={handleCardClick}
+                className={`cursor-pointer ${!isPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              >
+                <Card className="overflow-hidden shadow-none">
+                  <CardContent className="p-6 bg-secondary/60">
+                    <h3 className="text-lg font-semibold">
+                      {decode(entry.title)}
+                    </h3>
+                    {entry.description && !isPlaying && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                        {decode(entry.description)}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              {isPlaying && (
+                <div className="mt-4">
+                  <AudioPlayer
+                    src={entry.link}
+                    title={decode(entry.title)}
+                  />
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground mt-4">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </div>
               )}
-              <CardContent className="p-6 bg-secondary/60 border-t">
-                <h3 className="text-lg font-semibold">
-                  {decode(entry.title)}
-                </h3>
-                {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                    {decode(entry.description)}
-                  </p>
+            </div>
+          ) : (
+            <a
+              href={entry.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block hover:opacity-80 transition-opacity"
+            >
+              <Card className="overflow-hidden shadow-none">
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={16/9}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
                 )}
-              </CardContent>
-            </Card>
-          </a>
+                <CardContent className="p-6 bg-secondary/60 border-t">
+                  <h3 className="text-lg font-semibold">
+                    {decode(entry.title)}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          )}
 
           {/* Interaction Buttons */}
           <div className="flex items-center gap-6 mt-4">
@@ -155,6 +203,7 @@ interface RSSFeedClientProps {
   };
   pageSize?: number;
   featuredImg?: string;
+  mediaType?: string;
 }
 
 export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
@@ -165,7 +214,7 @@ export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
   );
 }
 
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, featuredImg }: RSSFeedClientProps) {
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, featuredImg, mediaType }: RSSFeedClientProps) {
   const [isPending, startTransition] = useTransition();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(1);
@@ -249,6 +298,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
           entryWithData={entryWithData}
           featuredImg={featuredImg}
           postTitle={postTitle}
+          mediaType={mediaType}
         />
       ))}
       <div ref={loadMoreRef} className="h-10">
