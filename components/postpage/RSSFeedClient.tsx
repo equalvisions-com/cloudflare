@@ -102,13 +102,30 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
                 className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
                 <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                  <CardContent className="p-6 bg-secondary/60">
+                  {entry.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={16/9}>
+                        <Image
+                          src={entry.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-6 bg-secondary/60 border-t">
                     <h3 className="text-lg font-semibold">
                       {decode(entry.title)}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {decode(entry.description)}
-                    </p>
+                    {entry.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                        {decode(entry.description)}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
