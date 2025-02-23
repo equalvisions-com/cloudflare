@@ -31,31 +31,33 @@ export function PersistentPlayer() {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg z-50">
       <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center gap-4">
-          {/* Image */}
-          {currentTrack.image && (
-            <div className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden border border-border">
-              <AspectRatio ratio={1}>
-                <Image
-                  src={currentTrack.image}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                />
-              </AspectRatio>
-            </div>
-          )}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Image */}
+            {currentTrack.image && (
+              <div className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden border border-border">
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={currentTrack.image}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                </AspectRatio>
+              </div>
+            )}
 
-          {/* Title */}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {currentTrack.title}
-            </p>
+            {/* Title */}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">
+                {currentTrack.title}
+              </p>
+            </div>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 sm:flex-1">
             <Button
               variant="ghost"
               size="icon"
@@ -70,7 +72,7 @@ export function PersistentPlayer() {
             </Button>
 
             {/* Time and Progress */}
-            <div className="flex items-center gap-4 min-w-[300px]">
+            <div className="flex items-center gap-4 flex-1">
               <span className="text-sm text-muted-foreground w-12 text-right">
                 {formatTime(seek)}
               </span>
