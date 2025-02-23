@@ -11,18 +11,27 @@ export const redis = new Redis({
   automaticDeserialization: true,
 });
 
-// Initialize XML parser with options
+// Initialize XML parser with options, adding content namespace
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
+  // Ensure we handle namespaces like content:encoded
+  isArray: (tagName, jPath) => tagName === "item", // Treat <item> as array explicitly
 });
+
+// Function to extract first image from HTML content
+function extractImageFromHtml(html?: string): string | undefined {
+  if (!html) return undefined;
+  const match = html.match(/<img[^>]+src=["'](.*?)["']/i);
+  return match ? match[1] : undefined;
+}
 
 export interface RSSItem {
   title: string;
-  link: string; // Will now preferentially use enclosure URL for podcasts
+  link: string;
   description?: string;
   pubDate: string;
   guid: string;
@@ -37,13 +46,14 @@ interface RSSCache {
 
 interface RawRSSItem {
   title?: string;
-  link?: string; // Webpage URL
+  link?: string;
   description?: string;
   "itunes:summary"?: string;
+  "content:encoded"?: string; // Add support for content:encoded
   pubDate?: string;
   guid?: string | { "#text": string };
   enclosure?: { "@_url": string; "@_type": string; "@_length": string };
-  "media:content"?: { "@_url": string };
+  "media:content"?: { "@_url": string; "@_medium"?: string };
   "itunes:image"?: { "@_href": string };
 }
 
@@ -77,28 +87,37 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
     const items = Array.isArray(channel.item) ? channel.item : [channel.item].filter(Boolean);
 
     return items.map((item: RawRSSItem) => {
-      // Prefer enclosure URL for link if it's audio (for podcasts)
       const enclosureUrl = item.enclosure?.["@_type"]?.startsWith("audio/") ? item.enclosure["@_url"] : undefined;
-      const link = enclosureUrl || item.link || ''; // Fallback to webpage link if no audio enclosure
+      const link = enclosureUrl || item.link || '';
 
-      // Image handling: itunes:image > media:content > enclosure (if image type)
-      const image =
+      // Image handling: try media:content first, then content:encoded, then fallbacks
+      let image =
         item["itunes:image"]?.["@_href"] ||
         item["media:content"]?.["@_url"] ||
         (item.enclosure?.["@_type"]?.startsWith("image/") ? item.enclosure["@_url"] : undefined);
 
-      // Description fallback
-      const description = item.description || item["itunes:summary"];
+      // If no image yet, try content:encoded, then description
+      if (!image) {
+        image = extractImageFromHtml(item["content:encoded"]) || extractImageFromHtml(item.description || item["itunes:summary"]);
+      }
 
-      return {
+      const description = item.description || item["itunes:summary"] || '';
+
+      const entry = {
         title: item.title || 'Untitled',
         link,
-        description: description || '',
+        description,
         pubDate: item.pubDate || new Date().toISOString(),
         guid: isGuidObject(item.guid) ? item.guid["#text"] : (item.guid || link || ''),
         image,
         feedUrl,
       };
+
+      if (!image) {
+        console.log(`[RSS Parse] No image found for item: ${entry.title} in feed: ${feedUrl}`);
+      }
+
+      return entry;
     });
   } catch (error) {
     console.error(`Error fetching RSS feed ${feedUrl}:`, error);
@@ -109,10 +128,8 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
 // Rest of the file (mergeAndSortEntries, getRSSEntries, getMergedRSSEntries) remains unchanged
 function mergeAndSortEntries(oldEntries: RSSItem[] = [], newEntries: RSSItem[] = []): RSSItem[] {
   const entriesMap = new Map<string, RSSItem>();
-  
   oldEntries.forEach((entry) => entriesMap.set(entry.guid, entry));
   newEntries.forEach((entry) => entriesMap.set(entry.guid, entry));
-  
   return orderBy(
     Array.from(entriesMap.values()),
     [(entry: RSSItem) => new Date(entry.pubDate).getTime()],
@@ -136,7 +153,6 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
         console.log(`[RSS Cache] HIT - Key: ${cacheKey}, Age: ${cacheAgeHours}h, Entries: ${cached.entries.length}`);
         return cached.entries;
       }
-      
       console.log(`[RSS Cache] STALE - Key: ${cacheKey}, Age: ${cacheAgeHours}h`);
     } else {
       console.log(`[RSS Cache] MISS - Key: ${cacheKey}`);
@@ -148,7 +164,6 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
     
     if (freshEntries.length > 0) {
       const mergedEntries = mergeAndSortEntries(cached?.entries, freshEntries);
-      
       const optimizedEntries = mergedEntries.map(({ title, link, description, pubDate, guid, image, feedUrl }) => ({
         title,
         link,
