@@ -7,6 +7,8 @@ import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
+import { ConvexLogo } from "@/public/ConvexLogo";
+import Link from "next/link";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,7 +47,10 @@ export default function RootLayout({
               <AudioProvider>
                 <header className="border-b">
                   <div className="container mx-auto px-4 py-4">
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                      <Link href="/" className="hover:opacity-80 transition-opacity">
+                        <ConvexLogo width={100} height={16} />
+                      </Link>
                       <UserMenuServer />
                     </div>
                   </div>
