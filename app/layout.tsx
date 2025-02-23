@@ -5,6 +5,8 @@ import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
+import { AudioProvider } from "@/components/audio-player/AudioContext";
+import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,14 +42,17 @@ export default function RootLayout({
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
-              <header className="border-b">
-                <div className="container mx-auto px-4 py-4">
-                  <div className="flex justify-end">
-                    <UserMenuServer />
+              <AudioProvider>
+                <header className="border-b">
+                  <div className="container mx-auto px-4 py-4">
+                    <div className="flex justify-end">
+                      <UserMenuServer />
+                    </div>
                   </div>
-                </div>
-              </header>
-              {children}
+                </header>
+                <main className="pb-24">{children}</main>
+                <PersistentPlayer />
+              </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
         </body>

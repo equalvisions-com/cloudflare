@@ -12,7 +12,7 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { AudioPlayer } from "@/components/audio-player/AudioPlayer";
+import { useAudio } from '@/components/audio-player/AudioContext';
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -35,6 +35,9 @@ interface RSSEntryProps {
 }
 
 const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
+  const { playTrack, currentTrack } = useAudio();
+  const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
     const pubDate = new Date(entry.pubDate);
@@ -48,14 +51,10 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
     }
   }, [entry.pubDate]);
 
-  // Add state for audio player visibility
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // Handle card click for podcasts
   const handleCardClick = (e: React.MouseEvent) => {
     if (mediaType === 'podcast') {
       e.preventDefault();
-      setIsPlaying(true);
+      playTrack(entry.link, decode(entry.title));
     }
   };
 
@@ -100,34 +99,19 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
             <div className="mb-4">
               <div 
                 onClick={handleCardClick}
-                className={`cursor-pointer ${!isPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
-                <Card className="overflow-hidden shadow-none">
+                <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                   <CardContent className="p-6 bg-secondary/60">
                     <h3 className="text-lg font-semibold">
                       {decode(entry.title)}
                     </h3>
-                    {entry.description && !isPlaying && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                        {decode(entry.description)}
-                      </p>
-                    )}
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {decode(entry.description)}
+                    </p>
                   </CardContent>
                 </Card>
               </div>
-              {isPlaying && (
-                <div className="mt-4">
-                  <AudioPlayer
-                    src={entry.link}
-                    title={decode(entry.title)}
-                  />
-                  {entry.description && (
-                    <p className="text-sm text-muted-foreground mt-4">
-                      {decode(entry.description)}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           ) : (
             <a
