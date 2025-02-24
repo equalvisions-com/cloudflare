@@ -11,7 +11,7 @@ import { FollowButtonServer } from "@/components/follow-button/FollowButtonServe
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 
 // Enable Incremental Static Regeneration (ISR) - revalidate every 60 seconds
-export const revalidate = 1440;
+export const revalidate = 60;
 
 // Configure dynamic rendering to auto (static by default unless dynamic data is detected)
 export const dynamic = "auto";
