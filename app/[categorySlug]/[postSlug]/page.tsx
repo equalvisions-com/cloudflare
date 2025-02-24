@@ -156,16 +156,7 @@ export default async function PostPage({ params }: PostPageProps) {
         relatedPosts: post.relatedPosts
       }}
     >
-      <Suspense fallback={
-        <div className="animate-pulse space-y-8 p-8">
-          <div className="h-8 bg-muted rounded w-3/4" />
-          <div className="space-y-4">
-            <div className="h-4 bg-muted rounded w-full" />
-            <div className="h-4 bg-muted rounded w-5/6" />
-            <div className="h-4 bg-muted rounded w-4/6" />
-          </div>
-        </div>
-      }>
+      <Suspense>
         <PostContent post={post} />
       </Suspense>
     </PostLayoutManager>
