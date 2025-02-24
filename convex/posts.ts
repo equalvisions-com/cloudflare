@@ -74,17 +74,17 @@ export const getAllCategories = query({
 export const getPostsByFeedUrls = query({
   args: { feedUrls: v.array(v.string()) },
   handler: async (ctx, { feedUrls }) => {
-    // Use Promise.all to fetch posts for each feedUrl in parallel
-    const postsArrays = await Promise.all(
-      feedUrls.map(feedUrl =>
-        ctx.db
-          .query("posts")
-          .withIndex("by_feedUrl", q => q.eq("feedUrl", feedUrl))
-          .collect()
+    // Use a single query with OR conditions instead of multiple parallel queries
+    return ctx.db
+      .query("posts")
+      .withIndex("by_feedUrl")
+      .filter((q) => 
+        q.or(
+          ...feedUrls.map(feedUrl => 
+            q.eq(q.field("feedUrl"), feedUrl)
+          )
+        )
       )
-    );
-
-    // Flatten the array of arrays into a single array
-    return postsArrays.flat();
+      .collect();
   },
 }); 
