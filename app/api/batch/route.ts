@@ -2,65 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-
-interface BatchEntry {
-  likes: {
-    isLiked: boolean;
-    count: number;
-  };
-  comments: {
-    count: number;
-  };
-}
-
-interface BatchEntries {
-  [guid: string]: BatchEntry;
-}
+import { getRSSEntries } from "@/lib/redis";
 
 export async function POST(request: NextRequest) {
   try {
-    const { guids } = await request.json();
-    
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json({
-        entries: guids.reduce((acc: BatchEntries, guid: string) => ({
-          ...acc,
-          [guid]: {
-            likes: { isLiked: false, count: 0 },
-            comments: { count: 0 }
-          }
-        }), {})
-      });
+    const { feedUrl, postTitle } = await request.json();
+
+    // Get entries from Redis
+    const entries = await getRSSEntries(postTitle, feedUrl);
+    if (!entries || entries.length === 0) {
+      return NextResponse.json({ entries: [] });
     }
 
-    // Fetch all likes and comments in parallel
-    const [likes, comments] = await Promise.all([
-      Promise.all(
-        guids.map((guid: string) => Promise.all([
-          fetchQuery(api.likes.isLiked, { entryGuid: guid }, { token }),
-          fetchQuery(api.likes.getLikeCount, { entryGuid: guid }, { token })
-        ]))
-      ),
-      Promise.all(
-        guids.map((guid: string) => 
-          fetchQuery(api.comments.getCommentCount, { entryGuid: guid }, { token })
-        )
-      )
-    ]);
+    // Get auth token for Convex queries
+    const token = await convexAuthNextjsToken();
+    
+    // Extract all entry GUIDs
+    const guids = entries.map(entry => entry.guid);
 
-    // Combine the results
-    const entries = guids.reduce((acc: BatchEntries, guid: string, index: number) => ({
-      ...acc,
-      [guid]: {
-        likes: { isLiked: likes[index][0], count: likes[index][1] },
-        comments: { count: comments[index] }
-      }
-    }), {});
+    // Fetch all entry data in a single batch query
+    const entryData = await fetchQuery(
+      api.entries.batchGetEntryData,
+      { entryGuids: guids },
+      { token }
+    );
 
-    return NextResponse.json({ entries });
+    // Map the results back to individual entries
+    const entriesWithData = entries.map((entry, index) => ({
+      entry,
+      initialData: entryData[index]
+    }));
+
+    return NextResponse.json({
+      entries: entriesWithData
+    });
+
   } catch (error) {
-    console.error('Error in batch fetch:', error);
+    console.error('Error in batch route:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 } 

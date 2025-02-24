@@ -1,10 +1,9 @@
-import { api } from "@/convex/_generated/api";
-import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
-import { LikeButton } from "./LikeButton";
-import { Suspense } from "react";
+import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { LikeButtonClient } from "./LikeButtonClient";
 
-interface LikeButtonServerProps {
+interface LikeButtonProps {
   entryGuid: string;
   feedUrl: string;
   title: string;
@@ -12,32 +11,47 @@ interface LikeButtonServerProps {
   link: string;
 }
 
-async function LikeStateLoader({ entryGuid, feedUrl, title, pubDate, link }: LikeButtonServerProps) {
-  const isAuthenticated = await isAuthenticatedNextjs();
-  let initialIsLiked = false;
-  let initialLikeCount = 0;
-  if (isAuthenticated) {
+export default async function LikeButtonServer({
+  entryGuid,
+  feedUrl,
+  title,
+  pubDate,
+  link,
+}: LikeButtonProps) {
+  // Default initial data
+  let initialData = {
+    isLiked: false,
+    count: 0
+  };
+
+  try {
+    // Get auth token for Convex queries
     const token = await convexAuthNextjsToken();
-    initialIsLiked = await fetchQuery(api.likes.isLiked, { entryGuid }, { token });
-    initialLikeCount = await fetchQuery(api.likes.getLikeCount, { entryGuid }, { token });
+    if (token) {
+      // Fetch metrics which includes like state and count
+      const metrics = await fetchQuery(
+        api.entries.getEntryMetrics,
+        { entryGuid },
+        { token }
+      );
+      
+      initialData = {
+        isLiked: metrics.likes.isLiked,
+        count: metrics.likes.count
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching initial like data:', error);
   }
+
   return (
-    <LikeButton
+    <LikeButtonClient
       entryGuid={entryGuid}
       feedUrl={feedUrl}
       title={title}
       pubDate={pubDate}
       link={link}
-      initialIsLiked={initialIsLiked}
-      initialLikeCount={initialLikeCount}
+      initialData={initialData}
     />
-  );
-}
-
-export function LikeButtonServer(props: LikeButtonServerProps) {
-  return (
-    <Suspense fallback={<LikeButton {...props} initialIsLiked={false} initialLikeCount={0} />}>
-      <LikeStateLoader {...props} />
-    </Suspense>
   );
 }

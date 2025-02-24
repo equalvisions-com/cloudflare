@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -17,13 +18,20 @@ interface CommentSectionProps {
   };
 }
 
-interface Comment {
-  _id: string;
-  userId: string;
+interface CommentWithUser {
+  _id: Id<"comments">;
+  userId: Id<"users">;
   username: string;
   content: string;
   createdAt: number;
-  parentId?: string;
+  parentId?: Id<"comments">;
+  user?: {
+    userId: Id<"users">;
+    username: string;
+    name?: string;
+    email?: string;
+    image?: string;
+  };
 }
 
 export function CommentSectionClientWithErrorBoundary(props: CommentSectionProps) {
@@ -42,17 +50,25 @@ export function CommentSectionClient({
   const [isExpanded, setIsExpanded] = useState(false);
   const [newComment, setNewComment] = useState('');
   
-  // Fetch comments when expanded
-  const comments = useQuery(
-    api.comments.getComments,
+  // Use lightweight metrics query when not expanded
+  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  
+  // Only fetch full data when expanded
+  const fullData = useQuery(
+    api.entries.getEntryWithComments,
     isExpanded ? { entryGuid } : "skip"
-  ) || [];
+  );
+
+  // Use metrics for count when not expanded, full data when expanded
+  const commentCount = isExpanded 
+    ? fullData?.comments.count ?? initialData.count
+    : metrics?.comments.count ?? initialData.count;
+
+  // Get comments array only when expanded
+  const comments = (fullData?.comments.items || []) as CommentWithUser[];
 
   const addComment = useMutation(api.comments.addComment);
-  const getCommentCount = useQuery(api.comments.getCommentCount, { entryGuid });
-
-  // Use the count from Convex instead of SWR
-  const commentCount = getCommentCount ?? initialData.count;
+  const deleteComment = useMutation(api.comments.deleteComment);
 
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
@@ -67,6 +83,14 @@ export function CommentSectionClient({
       setNewComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
+    }
+  };
+
+  const handleDelete = async (commentId: Id<"comments">) => {
+    try {
+      await deleteComment({ commentId });
+    } catch (error) {
+      console.error('Error deleting comment:', error);
     }
   };
 
@@ -85,13 +109,25 @@ export function CommentSectionClient({
       {isExpanded && (
         <div className="mt-4 space-y-4">
           <div className="space-y-4">
-            {comments.map((comment: Comment) => (
+            {comments.map((comment) => (
               <div key={comment._id} className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{comment.username}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
-                  </span>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{comment.user?.username || comment.username}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
+                    </span>
+                  </div>
+                  {comment.user?.userId === comment.userId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(comment._id)}
+                      className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
                 <p className="text-sm">{comment.content}</p>
               </div>

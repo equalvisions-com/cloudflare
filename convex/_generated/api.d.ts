@@ -15,6 +15,7 @@ import type {
 } from "convex/server";
 import type * as auth from "../auth.js";
 import type * as comments from "../comments.js";
+import type * as entries from "../entries.js";
 import type * as following from "../following.js";
 import type * as http from "../http.js";
 import type * as likes from "../likes.js";
@@ -34,6 +35,7 @@ import type * as users from "../users.js";
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   comments: typeof comments;
+  entries: typeof entries;
   following: typeof following;
   http: typeof http;
   likes: typeof likes;

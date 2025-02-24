@@ -105,50 +105,6 @@ export const getComments = query({
   },
 });
 
-export const getCommentCount = query({
-  args: {
-    entryGuid: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const comments = await ctx.db
-      .query("comments")
-      .withIndex("by_entry", (q) => q.eq("entryGuid", args.entryGuid))
-      .collect();
-
-    return comments.length;
-  },
-});
-
-export const batchGetCommentCounts = query({
-  args: {
-    entryGuids: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Get all comments for the requested entries in a single query
-    const comments = await ctx.db
-      .query("comments")
-      .withIndex("by_entry")
-      .filter((q) => 
-        q.or(
-          ...args.entryGuids.map(guid => 
-            q.eq(q.field("entryGuid"), guid)
-          )
-        )
-      )
-      .collect();
-
-    // Count comments for each entry
-    const countMap = new Map<string, number>();
-    for (const comment of comments) {
-      const count = countMap.get(comment.entryGuid) || 0;
-      countMap.set(comment.entryGuid, count + 1);
-    }
-
-    // Return counts in the same order as input guids
-    return args.entryGuids.map(guid => countMap.get(guid) || 0);
-  },
-});
-
 // Define the type for a comment with user data
 type CommentWithUser = {
   _id: Id<"comments">;

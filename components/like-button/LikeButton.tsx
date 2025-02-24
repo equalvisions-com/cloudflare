@@ -1,12 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useLikeActions } from "./actions";
 import { Heart, HeartFilled } from "./icons";
-import { useTransition } from "react";
 import { api } from "@/convex/_generated/api";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface LikeButtonProps {
   entryGuid: string;
@@ -14,45 +13,62 @@ interface LikeButtonProps {
   title: string;
   pubDate: string;
   link: string;
-  initialIsLiked: boolean;
-  initialLikeCount: number;
+  initialData?: {
+    isLiked: boolean;
+    count: number;
+  };
 }
 
-export function LikeButton({
+export function LikeButtonWithErrorBoundary(props: LikeButtonProps) {
+  return (
+    <ErrorBoundary>
+      <LikeButton {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export function LikeButton({ 
   entryGuid,
   feedUrl,
   title,
   pubDate,
   link,
-  initialIsLiked,
-  initialLikeCount,
+  initialData = { isLiked: false, count: 0 }
 }: LikeButtonProps) {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
-  const { likeEntry, unlikeEntry } = useLikeActions();
-  const [isPending, startTransition] = useTransition();
 
-  // Query for the like state and like count
-  const queriedIsLiked = useQuery(api.likes.isLiked, { entryGuid });
-  const queriedLikeCount = useQuery(api.likes.getLikeCount, { entryGuid });
+  // Query for entry metrics which includes like state and count
+  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
 
   // Use server-provided initial values if the query hasn't returned yet
-  const isLiked = queriedIsLiked === undefined ? initialIsLiked : queriedIsLiked;
-  const likeCount =
-    queriedLikeCount === undefined ? initialLikeCount : queriedLikeCount;
+  const isLiked = metrics?.likes.isLiked ?? initialData.isLiked;
+  const likeCount = metrics?.likes.count ?? initialData.count;
 
-  const handleClick = () => {
+  // Mutations for liking/unliking
+  const like = useMutation(api.likes.like);
+  const unlike = useMutation(api.likes.unlike);
+
+  const handleClick = async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
     }
-    startTransition(async () => {
+    try {
       if (isLiked) {
-        await unlikeEntry(entryGuid);
+        await unlike({ entryGuid });
       } else {
-        await likeEntry(entryGuid, feedUrl, title, pubDate, link);
+        await like({
+          entryGuid,
+          feedUrl,
+          title,
+          pubDate,
+          link,
+        });
       }
-    });
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
   };
 
   return (
@@ -61,7 +77,7 @@ export function LikeButton({
       size="icon"
       onClick={handleClick}
       className="h-8 flex items-center gap-1 px-2 disabled:opacity-100"
-      disabled={!isAuthenticated || isPending}
+      disabled={!isAuthenticated}
     >
       {isLiked ? (
         <HeartFilled className="h-5 w-5 text-red-500 transition scale-110" />

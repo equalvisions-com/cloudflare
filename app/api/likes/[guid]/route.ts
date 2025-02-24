@@ -1,36 +1,36 @@
-import { NextResponse } from 'next/server';
-import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
+// Define the route context type with async params
 interface RouteContext {
   params: Promise<{ guid: string }>;
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   context: RouteContext
-): Promise<Response> {
+): Promise<NextResponse> {
   try {
-    // Await the params according to Next.js 15.1 async request APIs
+    // Await the params to get the actual values
     const { guid } = await context.params;
-    
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json({ isLiked: false, count: 0 });
-    }
-
-    // Decode the URL-encoded guid
     const decodedGuid = decodeURIComponent(guid);
+    const token = await convexAuthNextjsToken();
 
-    const [isLiked, count] = await Promise.all([
-      fetchQuery(api.likes.isLiked, { entryGuid: decodedGuid }, { token }),
-      fetchQuery(api.likes.getLikeCount, { entryGuid: decodedGuid }, { token }),
-    ]);
+    // Use getEntryMetrics to get like data
+    const metrics = await fetchQuery(
+      api.entries.getEntryMetrics,
+      { entryGuid: decodedGuid },
+      { token }
+    );
 
-    return NextResponse.json({ isLiked, count });
+    return NextResponse.json({
+      isLiked: metrics.likes.isLiked,
+      count: metrics.likes.count
+    });
   } catch (error) {
-    console.error('Error fetching like status:', error);
+    console.error('Error fetching like data:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 } 

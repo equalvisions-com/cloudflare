@@ -1,37 +1,35 @@
-import { NextResponse } from 'next/server';
-import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
+// Define the route context type with async params
 interface RouteContext {
   params: Promise<{ guid: string }>;
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   context: RouteContext
-): Promise<Response> {
+): Promise<NextResponse> {
   try {
-    // Use await for params according to Next.js 15.1 async request APIs
+    // Await the params to get the actual values
     const { guid } = await context.params;
-    
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json({ count: 0 });
-    }
-
-    // Decode the URL-encoded guid
     const decodedGuid = decodeURIComponent(guid);
+    const token = await convexAuthNextjsToken();
 
-    const count = await fetchQuery(
-      api.comments.getCommentCount,
+    // Use getEntryMetrics to get comment count
+    const metrics = await fetchQuery(
+      api.entries.getEntryMetrics,
       { entryGuid: decodedGuid },
       { token }
     );
 
-    return NextResponse.json({ count });
+    return NextResponse.json({
+      count: metrics.comments.count
+    });
   } catch (error) {
     console.error('Error fetching comment count:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-} 
+}

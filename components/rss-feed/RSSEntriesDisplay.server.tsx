@@ -40,24 +40,17 @@ export const getInitialEntries = cache(async () => {
   // Extract all entry GUIDs
   const guids = entries.map(entry => entry.guid);
 
-  // Batch fetch all data in parallel
-  const [likeData, commentCounts] = await Promise.all([
-    fetchQuery(api.likes.batchGetLikeData, { entryGuids: guids }, { token: initialData.token }),
-    fetchQuery(api.comments.batchGetCommentCounts, { entryGuids: guids })
-  ]);
+  // Fetch all entry data in a single consistent query
+  const entryData = await fetchQuery(
+    api.entries.batchGetEntryData, 
+    { entryGuids: guids }, 
+    { token: initialData.token }
+  );
 
-  // Map the batch results back to individual entries
+  // Map the results back to individual entries
   const entriesWithPublicData = entries.map((entry, index) => ({
     entry,
-    initialData: {
-      likes: {
-        isLiked: likeData[index].isLiked,
-        count: likeData[index].count
-      },
-      comments: {
-        count: commentCounts[index]
-      }
-    }
+    initialData: entryData[index]
   }));
 
   return {
