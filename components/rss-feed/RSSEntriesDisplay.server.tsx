@@ -5,7 +5,6 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { getMergedRSSEntries } from "@/lib/redis";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
-import { Id } from "@/convex/_generated/dataModel";
 
 interface PostMetadata {
   title: string;
