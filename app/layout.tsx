@@ -45,7 +45,7 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
-                <header className="border-b">
+                <header className="block md:hidden border-b">
                   <div className="container mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                       <Link href="/" className="hover:opacity-80 transition-opacity">

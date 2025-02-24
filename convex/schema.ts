@@ -19,30 +19,39 @@ export default defineSchema({
     platform: v.string(),
     mediaType: v.string(),
     isFeatured: v.optional(v.boolean()),
-  }),
+  })
+  .index("by_feedUrl", ["feedUrl"])
+  .index("by_category", ["categorySlug"])
+  .index("by_slug", ["categorySlug", "postSlug"]),
+
   following: defineTable({
     userId: v.id("users"),
     postId: v.id("posts"),
-    feedUrl: v.string(),  // New column to store the feedUrl from posts
-  }).index("by_user_post", ["userId", "postId"])
-  .index("by_post", ["postId"]),
+    feedUrl: v.string(),
+  })
+  .index("by_user_post", ["userId", "postId"])
+  .index("by_post", ["postId"])
+  .index("by_feedUrl", ["feedUrl"]),
   
   profiles: defineTable({
     userId: v.id("users"),
     username: v.string(),
-    rssKeys: v.optional(v.array(v.string())), // Array of Redis keys for followed RSS feeds
-  }),
+    rssKeys: v.optional(v.array(v.string())),
+  })
+  .index("by_userId", ["userId"]),
 
   likes: defineTable({
     userId: v.id("users"),
-    entryGuid: v.string(),  // The unique identifier of the RSS entry
-    feedUrl: v.string(),    // The feed URL this entry belongs to
-    title: v.string(),      // The title of the liked entry
-    pubDate: v.string(),    // Publication date of the entry
-    link: v.string(),       // The link to the original article
-  }).index("by_user_entry", ["userId", "entryGuid"])
-    .index("by_user", ["userId"])
-    .index("by_entry", ["entryGuid"]),
+    entryGuid: v.string(),
+    feedUrl: v.string(),
+    title: v.string(),
+    pubDate: v.string(),
+    link: v.string(),
+  })
+  .index("by_user_entry", ["userId", "entryGuid"])
+  .index("by_user", ["userId"])
+  .index("by_entry", ["entryGuid"])
+  .index("by_feedUrl", ["feedUrl"]),
 
   comments: defineTable({
     userId: v.id("users"),

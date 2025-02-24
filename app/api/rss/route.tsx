@@ -1,3 +1,4 @@
+// app/api/rss/route.tsx
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
@@ -41,4 +42,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}

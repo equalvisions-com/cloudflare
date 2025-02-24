@@ -1,56 +1,72 @@
-// components/rss/RSSEntriesDisplay.server.tsx
+// components/rss-feed/RSSEntriesDisplay.server.tsx
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { getMergedRSSEntries } from "@/lib/redis";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
-import { headers } from 'next/headers';
+import { Id } from "@/convex/_generated/dataModel";
 
-// Cached function to get RSS keys and auth token in parallel
-const getInitialData = cache(async () => {
-  // Start fetching token early
-  const tokenPromise = convexAuthNextjsToken();
-  
-  // Get headers in parallel but don't block on it
-  headers();
-  
-  const token = await tokenPromise;
-  if (!token) return { token: null, rssKeys: null };
-  
-  // Fetch RSS keys
-  const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
-  
-  return { token, rssKeys };
-});
+interface PostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  postSlug: string;
+  categorySlug: string;
+}
 
-// Function to get initial entries with optimized data fetching
 export const getInitialEntries = cache(async () => {
-  // Get initial data first to handle the rssKeys properly
-  const initialData = await getInitialData();
-  if (!initialData.rssKeys) return null;
+  const token = await convexAuthNextjsToken();
+  if (!token) return null;
 
-  // Start fetching entries early
-  const entriesPromise = getMergedRSSEntries(initialData.rssKeys);
+  // 1. First, get the user's RSS keys
+  const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
+  if (!rssKeys || rssKeys.length === 0) return null;
 
-  // Wait for entries
-  const entries = await entriesPromise;
+  // 2. Fetch entries first to get the actual feedUrls
+  const entries = await getMergedRSSEntries(rssKeys);
   if (!entries || entries.length === 0) return null;
 
-  // Extract all entry GUIDs
-  const guids = entries.map(entry => entry.guid);
+  // 3. Get unique feedUrls from the entries
+  const feedUrls = [...new Set(entries.map(entry => entry.feedUrl))];
 
-  // Fetch all entry data in a single consistent query
-  const entryData = await fetchQuery(
-    api.entries.batchGetEntryData, 
-    { entryGuids: guids }, 
-    { token: initialData.token }
+  // 4. Fetch posts data using the actual feedUrls
+  const postsData = await fetchQuery(
+    api.posts.getPostsByFeedUrls,
+    { feedUrls },
+    { token }
   );
 
-  // Map the results back to individual entries
+  // 5. Create a map of feedUrl to post metadata for O(1) lookups
+  const postMetadataMap = new Map<string, PostMetadata>(
+    postsData.map(post => [post.feedUrl, {
+      title: post.title,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug
+    }])
+  );
+
+  // 6. Batch fetch entry data for all entries at once
+  const guids = entries.map(entry => entry.guid);
+  const entryData = await fetchQuery(
+    api.entries.batchGetEntryData,
+    { entryGuids: guids },
+    { token }
+  );
+
+  // 7. Combine all data efficiently
   const entriesWithPublicData = entries.map((entry, index) => ({
     entry,
-    initialData: entryData[index]
+    initialData: entryData[index],
+    postMetadata: postMetadataMap.get(entry.feedUrl) || {
+      title: '',
+      featuredImg: undefined,
+      mediaType: undefined,
+      postSlug: '',
+      categorySlug: ''
+    }
   }));
 
   return {

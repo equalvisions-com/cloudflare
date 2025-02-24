@@ -69,4 +69,22 @@ export const getAllCategories = query({
     
     return uniqueCategories;
   },
+});
+
+export const getPostsByFeedUrls = query({
+  args: { feedUrls: v.array(v.string()) },
+  handler: async (ctx, { feedUrls }) => {
+    // Use Promise.all to fetch posts for each feedUrl in parallel
+    const postsArrays = await Promise.all(
+      feedUrls.map(feedUrl =>
+        ctx.db
+          .query("posts")
+          .withIndex("by_feedUrl", q => q.eq("feedUrl", feedUrl))
+          .collect()
+      )
+    );
+
+    // Flatten the array of arrays into a single array
+    return postsArrays.flat();
+  },
 }); 
