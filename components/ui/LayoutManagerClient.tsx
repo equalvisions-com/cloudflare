@@ -23,6 +23,13 @@ interface EntryData {
       count: number;
     };
   };
+  postMetadata: {
+    title: string;
+    featuredImg?: string;
+    mediaType?: string;
+    postSlug: string;
+    categorySlug: string;
+  };
 }
 
 interface InitialData {
