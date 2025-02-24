@@ -3,18 +3,18 @@ import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
-import { cache } from 'react';
-import { Suspense } from 'react';
-import RSSFeed from "@/components/postpage/RSSFeed";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { cache } from "react";
+import { Suspense } from "react";
+import RSSFeed, { getInitialEntries } from "@/components/postpage/RSSFeed";
 import Image from "next/image";
 import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
-import { getInitialEntries } from "@/components/postpage/RSSFeed";
 
-// Configure the segment for dynamic rendering
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
+// Enable Incremental Static Regeneration (ISR) - revalidate every 60 seconds
+export const revalidate = 1440;
+
+// Configure dynamic rendering to auto (static by default unless dynamic data is detected)
+export const dynamic = "auto";
 
 interface PostPageProps {
   params: Promise<{
@@ -23,31 +23,32 @@ interface PostPageProps {
   }>;
 }
 
-// Server-side data fetching using Convex
+// Server-side data fetching with caching (no 'next' option)
 const getPostBySlug = cache(async (categorySlug: string, postSlug: string) => {
   try {
     const post = await fetchQuery(api.posts.getBySlug, { categorySlug, postSlug });
     if (!post) return null;
     return post;
   } catch (error) {
-    console.error('Failed to fetch post:', error);
+    console.error("Failed to fetch post:", error);
     return null;
   }
 });
 
-// Reuse the fetched data for both metadata and the page component
-const getPost = cache(async (params: PostPageProps['params']) => {
+// Reuse fetched data for metadata and page
+const getPost = cache(async (params: PostPageProps["params"]) => {
   try {
     const { categorySlug, postSlug } = await params;
     const post = await getPostBySlug(categorySlug, postSlug);
     if (!post) notFound();
     return post;
   } catch (error) {
-    console.error('Error in getPost:', error);
+    console.error("Error in getPost:", error);
     notFound();
   }
 });
 
+// Generate metadata with preload for critical image
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
     const post = await getPost(params);
@@ -58,18 +59,66 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       openGraph: {
         images: post.featuredImg ? [post.featuredImg] : [],
       },
+      other: post.featuredImg
+        ? {
+            "link-rel-preload": `<${post.featuredImg}>; rel=preload; as=image`,
+          }
+        : {},
     };
   } catch {
     return {
-      title: 'Post Not Found',
-      description: 'The requested post could not be found.',
+      title: "Post Not Found",
+      description: "The requested post could not be found.",
     };
   }
 }
 
-// Separate component for post content to better manage suspense boundaries
-async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
-  // Called once here
+// PostHeader component for streaming the header
+async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
+  return (
+    <div className="max-w-4xl mx-auto p-6 border-b">
+      <div className="flex gap-6">
+        {/* Featured Image */}
+        {post.featuredImg && (
+          <div className="w-[150px] shrink-0">
+            <Image
+              src={post.featuredImg}
+              alt={post.title}
+              width={150}
+              height={150}
+              sizes="(max-width: 768px) 100vw, 150px"
+              className="object-cover rounded-xl border"
+              priority
+            />
+          </div>
+        )}
+
+        {/* Title, Follow Button, and Body Content */}
+        <div className="flex-1 min-w-0">
+          <header className="mb-6">
+            <div className="flex items-center justify-between gap-4">
+              <h1 className="text-3xl font-bold mb-0">{post.title}</h1>
+              <FollowButtonServer
+                postId={post._id}
+                feedUrl={post.feedUrl}
+                postTitle={post.title}
+              />
+            </div>
+          </header>
+
+          <div
+            className="prose prose-lg prose-headings:scroll-mt-28"
+            dangerouslySetInnerHTML={{ __html: post.body }}
+          />
+          <FollowerCount followerCount={post.followerCount} postId={post._id} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// PostFeed component for streaming the RSS feed
+async function PostFeed({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
   const initialData = await getInitialEntries(post.title, post.feedUrl);
 
   if (!initialData) {
@@ -80,84 +129,40 @@ async function PostContent({ post }: { post: Awaited<ReturnType<typeof getPost>>
     );
   }
 
-  return (
+  return post.feedUrl ? (
     <>
-      {/* Header Section with Body Content */}
-      <div className="max-w-4xl mx-auto p-6 border-b">
-        <div className="flex gap-6">
-          {/* Featured Image */}
-          {post.featuredImg && (
-            <div className="w-[150px] shrink-0">
-              <AspectRatio ratio={1}>
-                <Image
-                  src={post.featuredImg}
-                  alt={post.title}
-                  fill
-                  className="object-cover rounded-xl border"
-                  priority
-                />
-              </AspectRatio>
-            </div>
-          )}
-          
-          {/* Title, Follow Button, and Body Content */}
-          <div className="flex-1 min-w-0">
-            <header className="mb-6">
-              <div className="flex items-center justify-between gap-4">
-                <h1 className="text-3xl font-bold mb-0">{post.title}</h1>
-                <FollowButtonServer 
-                  postId={post._id} 
-                  feedUrl={post.feedUrl} 
-                  postTitle={post.title} 
-                />
-              </div>
-            </header>
-
-            <div
-              className="prose prose-lg prose-headings:scroll-mt-28"
-              dangerouslySetInnerHTML={{ __html: post.body }}
-            />
-            <FollowerCount 
-              followerCount={post.followerCount}
-              postId={post._id}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* RSS Feed with initialData prop */}
-      {post.feedUrl && (
-        <RSSFeed 
-          postTitle={post.title} 
-          feedUrl={post.feedUrl}
-          initialData={initialData}
-          featuredImg={post.featuredImg}
-          mediaType={post.mediaType}
-        />
-      )}
-
-      {/* Source Footer */}
+      <RSSFeed
+        postTitle={post.title}
+        feedUrl={post.feedUrl}
+        initialData={initialData}
+        featuredImg={post.featuredImg}
+        mediaType={post.mediaType}
+      />
       <div className="max-w-4xl mx-auto px-4 mt-8">
         <footer className="text-sm text-muted-foreground">
           <p>Source: {post.feedUrl}</p>
         </footer>
       </div>
     </>
-  );
+  ) : null;
 }
 
+// Main page component with Suspense boundaries
 export default async function PostPage({ params }: PostPageProps) {
   const post = await getPost(params);
 
   return (
-    <PostLayoutManager 
+    <PostLayoutManager
       post={{
         ...post,
-        relatedPosts: post.relatedPosts
+        relatedPosts: post.relatedPosts,
       }}
     >
       <Suspense>
-        <PostContent post={post} />
+        <PostHeader post={post} />
+      </Suspense>
+      <Suspense>
+        <PostFeed post={post} />
       </Suspense>
     </PostLayoutManager>
   );
