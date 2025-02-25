@@ -1,7 +1,7 @@
 import { Message } from 'ai';
 import { streamText, jsonSchema } from 'ai';
 import { openai as openaiClient } from '@ai-sdk/openai';
-import { Article, SerperResponse, SerperArticle } from '@/app/types/article';
+import { Article, SerperResponse, SerperArticle, MessageSchema } from '@/app/types/article';
 
 // Function to fetch articles from Serper.dev
 async function fetchArticles(topic: string): Promise<Article[]> {
@@ -46,47 +46,58 @@ async function fetchArticles(topic: string): Promise<Article[]> {
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
-  console.log('Received messages:', messages);
+  try {
+    const { messages } = await req.json();
+    console.log('Received messages:', messages);
 
-  // Convert messages to OpenAI format
-  const openAIMessages = messages.map((message: Message) => ({
-    role: message.role === 'data' ? 'assistant' : message.role,
-    content: message.content,
-  }));
-  console.log('Converted OpenAI messages:', openAIMessages);
+    // Convert messages to OpenAI format
+    const openAIMessages = messages.map((message: Message) => ({
+      role: message.role === 'data' ? 'assistant' : message.role,
+      content: message.content,
+    }));
+    console.log('Converted OpenAI messages:', openAIMessages);
 
-  const result = await streamText({
-    model: openaiClient('gpt-3.5-turbo-0125'),
-    messages: openAIMessages,
-    tools: {
-      getArticles: {
-        description: 'Get the latest news articles about a specific topic using Google News',
-        parameters: jsonSchema({
-          type: 'object',
-          properties: {
-            topic: {
-              type: 'string',
-              description: 'The topic to search for in the news',
+    const result = await streamText({
+      model: openaiClient('gpt-3.5-turbo-0125'),
+      messages: openAIMessages,
+      tools: {
+        getArticles: {
+          description: 'Get the latest news articles about a specific topic using Google News',
+          parameters: jsonSchema({
+            type: 'object',
+            properties: {
+              topic: {
+                type: 'string',
+                description: 'The topic to search for in the news',
+              },
             },
+            required: ['topic'],
+          }),
+          execute: async ({ topic }: { topic: string }) => {
+            console.log('Executing getArticles for topic:', topic);
+            const articles = await fetchArticles(topic);
+            const response = {
+              message: `Here are some recent articles about ${topic}:`,
+              articles: articles,
+            };
+            // Validate the response against our schema
+            const validated = MessageSchema.parse(response);
+            console.log('Validated response:', validated);
+            return validated;
           },
-          required: ['topic'],
-        }),
-        execute: async ({ topic }: { topic: string }) => {
-          console.log('Executing getArticles for topic:', topic);
-          const articles = await fetchArticles(topic);
-          return {
-            message: `Here are some recent articles about ${topic}:`,
-            articles: articles,
-          };
         },
       },
-    },
-  });
+    });
 
-  return result.toDataStreamResponse({
-    headers: {
-      'x-vercel-ai-data-stream': 'v1',
-    },
-  });
+    console.log('Stream result:', result);
+
+    return result.toDataStreamResponse({
+      headers: {
+        'x-vercel-ai-data-stream': 'v1',
+      },
+    });
+  } catch (error) {
+    console.error('Error in POST handler:', error);
+    throw error;
+  }
 }
