@@ -7,6 +7,7 @@ import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
+import { Chatbot } from "@/components/chat/ChatBot";
 import { ConvexLogo } from "@/public/ConvexLogo";
 import Link from "next/link";
 
@@ -57,6 +58,7 @@ export default function RootLayout({
                 </header>
                 <main className="pb-24">{children}</main>
                 <PersistentPlayer />
+                <Chatbot />
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
