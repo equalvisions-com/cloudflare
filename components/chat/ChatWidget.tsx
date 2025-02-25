@@ -29,6 +29,12 @@ function TypingIndicator() {
   );
 }
 
+// Helper function to truncate text with ellipsis
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return '';
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
 export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
@@ -169,7 +175,7 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                       <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none">
                         <CardHeader className="p-3">
                           <div className="space-y-2">
-                            <CardTitle className="text-sm font-medium line-clamp-2 text-card-foreground">
+                            <CardTitle className="text-sm font-medium line-clamp-2 text-card-foreground h-[40px] overflow-hidden">
                               {article.title}
                             </CardTitle>
                             <div className="flex items-center gap-2">
@@ -185,7 +191,7 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                                 </div>
                               )}
                               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                {article.source && <span className="font-medium">{article.source}</span>}
+                                {article.source && <span className="font-medium" title={article.source}>{truncateText(article.source, 26)}</span>}
                                 {article.date && (
                                   <>
                                     <span>•</span>
@@ -201,8 +207,8 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="-left-3 bg-card border-border" />
-              <CarouselNext className="-right-3 bg-card border-border" />
+              <CarouselPrevious className="-left-3 bg-card border-border hidden md:flex" />
+              <CarouselNext className="-right-3 bg-card border-border hidden md:flex" />
             </Carousel>
           </div>
         ) : (

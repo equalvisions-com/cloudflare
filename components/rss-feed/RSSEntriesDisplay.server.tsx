@@ -22,13 +22,13 @@ export const getInitialEntries = cache(async () => {
   const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
   if (!rssKeys || rssKeys.length === 0) return null;
 
-  // 2. Fetch entries first to get the actual feedUrls
+  // 2. Fetch entries from Redis using the RSS keys
   const entries = await getMergedRSSEntries(rssKeys);
   if (!entries || entries.length === 0) return null;
 
   // 3. Get unique feedUrls from the entries
   const feedUrls = [...new Set(entries.map(entry => entry.feedUrl))];
-
+  
   // 4. Fetch posts data using the actual feedUrls
   const postsData = await fetchQuery(
     api.posts.getPostsByFeedUrls,

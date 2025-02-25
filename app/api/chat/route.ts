@@ -39,24 +39,44 @@ async function fetchArticles(topic: string): Promise<Article[]> {
       throw new Error(`RapidAPI request was unsuccessful: ${data.message}`);
     }
 
-    // Filter out articles with missing required fields and map to our schema
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Filter out articles with missing required fields, older than 7 days, and map to our schema
     return (data.data?.articles || [])
-      .filter(article => article && article.headline && article.external_url)
-      .slice(0, 15)
+      .filter(article => {
+        // Filter out articles with missing required fields
+        if (!article || !article.headline || !article.external_url) return false;
+        
+        // Filter out articles older than 7 days
+        if (article.publish_timestamp) {
+          const publishDate = new Date(article.publish_timestamp * 1000);
+          return publishDate >= sevenDaysAgo;
+        }
+        
+        // If no timestamp, include the article (assume it's recent)
+        return true;
+      })
+      .slice(0, 15) // Take up to 15 articles
       .map((article) => {
         // Format the date if available
         let formattedDate = '';
         if (article.publish_timestamp) {
           const date = new Date(article.publish_timestamp * 1000);
-          const now = new Date();
           const diffMs = now.getTime() - date.getTime();
-          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffMins = Math.floor(diffMs / (1000 * 60));
           
-          if (diffHrs < 24) {
-            formattedDate = diffHrs === 1 ? '1 hr ago' : `${diffHrs} hrs ago`;
+          if (diffMins < 60) {
+            // For articles less than an hour old
+            formattedDate = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
           } else {
-            const diffDays = Math.floor(diffHrs / 24);
-            formattedDate = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+            const diffHrs = Math.floor(diffMins / 60);
+            if (diffHrs < 24) {
+              formattedDate = diffHrs === 1 ? '1 hr ago' : `${diffHrs} hrs ago`;
+            } else {
+              const diffDays = Math.floor(diffHrs / 24);
+              formattedDate = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+            }
           }
         }
 
@@ -115,7 +135,7 @@ export async function POST(req: Request) {
               const response = {
                 message: articles.length > 0 
                   ? `Here are some recent articles about ${topic}:` 
-                  : `I couldn't find any articles about ${topic} at the moment. Please try again later or try a different topic.`,
+                  : `I couldn't find any recent articles about ${topic} from the past week. Please try a different topic.`,
                 articles: articles,
               };
               

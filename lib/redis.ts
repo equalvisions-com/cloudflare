@@ -144,10 +144,19 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
     return cached.entries;
   }
 
+  console.log(`Fetching fresh RSS entries for ${postTitle} from ${feedUrl}`);
   const freshEntries = await fetchRSSFeed(feedUrl);
-  if (freshEntries.length === 0 && cached?.entries) return cached.entries;
+  
+  // If we couldn't get fresh entries but have cached ones, use those
+  if (freshEntries.length === 0 && cached?.entries) {
+    console.log(`No fresh entries found for ${postTitle}, using cached entries`);
+    return cached.entries;
+  }
 
+  // Merge with existing entries if we have them
   const mergedEntries = mergeAndSortEntries([cached?.entries || [], freshEntries]);
+  
+  // Optimize entries for storage (trim description)
   const optimizedEntries = mergedEntries.map(({ title, link, description, pubDate, guid, image, feedUrl }) => ({
     title,
     link,
@@ -158,7 +167,10 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
     feedUrl,
   }));
 
+  // Update the cache
   await redis.set(cacheKey, { lastFetched: now, entries: optimizedEntries });
+  console.log(`Updated cache for ${postTitle} with ${optimizedEntries.length} entries`);
+  
   return optimizedEntries;
 });
 
@@ -167,33 +179,53 @@ export const getMergedRSSEntries = cache(async (rssKeys: string[]): Promise<RSSI
 
   const cachedFeeds = await redis.mget<RSSCache[]>(...rssKeys);
   const now = Date.now();
-  const validCachedEntries = cachedFeeds
-    .filter(cache => cache && (now - cache.lastFetched) < 4 * 60 * 60 * 1000)
-    .map(cache => cache!.entries);
-
-  if (validCachedEntries.length === rssKeys.length) {
-    return mergeAndSortEntries(validCachedEntries);
-  }
-
-  // Map rssKeys to their corresponding feedUrls from the database
-  // This assumes we have a way to get feedUrl from rssKey, we'll need to enhance this
-  const feedUrls = rssKeys.map(key => {
-    // For now, we'll assume the feedUrl is stored elsewhere or can be derived
-    // In a real implementation, we'd need to fetch this from Convex
-    return key.replace(/^rss\./, '').replace(/_/g, ' '); // Placeholder logic
-  });
-
-  const freshFeeds = await Promise.all(feedUrls.map(url => fetchRSSFeed(url)));
-  const allEntries = [...validCachedEntries, ...freshFeeds.filter(entries => entries.length > 0)];
-  const mergedEntries = mergeAndSortEntries(allEntries);
-
-  // Update cache for each feed
-  await Promise.all(rssKeys.map((key, index) => {
-    const entries = freshFeeds[index] || [];
-    if (entries.length > 0) {
-      return redis.set(key, { lastFetched: now, entries });
+  
+  // Identify which feeds need refreshing (older than 4 hours)
+  const refreshPromises: Promise<RSSItem[]>[] = [];
+  const validCachedEntries: RSSItem[][] = [];
+  
+  // Process each feed
+  for (let i = 0; i < rssKeys.length; i++) {
+    const cache = cachedFeeds[i];
+    const key = rssKeys[i];
+    
+    // If cache exists and is fresh, use it directly
+    if (cache && (now - cache.lastFetched) < 4 * 60 * 60 * 1000) {
+      validCachedEntries.push(cache.entries);
+      continue;
     }
-  }));
-
-  return mergedEntries;
+    
+    // If cache is stale or doesn't exist, we need to refresh it
+    // Extract the post title from the RSS key (remove 'rss.' prefix)
+    const postTitle = key.replace(/^rss\./, '').replace(/_/g, ' ');
+    
+    // Find the feed URL from existing entries if available
+    let feedUrl: string | undefined;
+    if (cache?.entries?.length > 0) {
+      feedUrl = cache.entries[0].feedUrl;
+    }
+    
+    // If we have both the post title and feed URL, refresh the feed
+    if (postTitle && feedUrl) {
+      console.log(`Refreshing stale feed in merged view: ${postTitle}`);
+      // Use getRSSEntries to refresh this feed (it handles caching internally)
+      const refreshPromise = getRSSEntries(postTitle, feedUrl);
+      refreshPromises.push(refreshPromise);
+      
+      // We'll add this feed's entries after it's refreshed
+    } else if (cache?.entries) {
+      // If we can't refresh but have cached entries, use them
+      validCachedEntries.push(cache.entries);
+    }
+  }
+  
+  // Wait for all refresh operations to complete
+  if (refreshPromises.length > 0) {
+    console.log(`Refreshing ${refreshPromises.length} stale feeds in merged view`);
+    const refreshedEntries = await Promise.all(refreshPromises);
+    validCachedEntries.push(...refreshedEntries);
+  }
+  
+  // Merge all entries (both fresh and cached)
+  return mergeAndSortEntries(validCachedEntries);
 });
