@@ -1,36 +1,40 @@
 import { z } from 'zod';
 
-export interface SerperArticle {
-  title: string;
-  link: string;
-  snippet?: string;
-  section?: string;
-  date?: string;
-  source?: string;
-  imageUrl?: string;
-  position?: number;
+// Interface for the RapidAPI Google News response
+export interface RapidAPINewsResponse {
+  is_successful: boolean;
+  message: string;
+  data?: {
+    articles: RapidAPIArticle[];
+  };
 }
 
-export interface SerperResponse {
-  news: SerperArticle[];
+// Interface for an article from RapidAPI Google News
+export interface RapidAPIArticle {
+  headline?: string | null;
+  external_url?: string | null;
+  publish_timestamp?: number | null;
+  publisher?: string | null;
+  publisher_icon_url?: string | null;
 }
 
+// Schema for an article
 export const ArticleSchema = z.object({
-  title: z.string(),
-  link: z.string().url(),
-  snippet: z.string(),
-  section: z.string().optional(),
-  date: z.string().optional(),
-  source: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  position: z.number().optional(),
+  title: z.string().default('No title available'),
+  link: z.string().default('#'),
+  date: z.string().default(''),
+  source: z.string().default(''),
+  publisherIconUrl: z.string().optional().default(''),
 });
 
+// Type for an article
 export type Article = z.infer<typeof ArticleSchema>;
 
+// Schema for the message content
 export const MessageSchema = z.object({
   message: z.string(),
-  articles: z.array(ArticleSchema).optional(),
+  articles: z.array(ArticleSchema).default([]),
 });
 
+// Type for the message content
 export type MessageContent = z.infer<typeof MessageSchema>; 

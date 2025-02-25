@@ -3,7 +3,7 @@
 import { type Message as UIMessage, useChat } from 'ai/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Carousel,
   CarouselContent,
@@ -11,9 +11,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import Image from "next/image";
 import { MessageContent, MessageSchema } from '@/app/types/article';
+import Image from "next/image";
 
 interface ChatWidgetProps {
   setIsOpen: (open: boolean) => void;
@@ -23,9 +22,9 @@ interface ChatWidgetProps {
 function TypingIndicator() {
   return (
     <div className="flex space-x-1">
-      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100"></div>
-      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200"></div>
+      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce"></div>
+      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce delay-100"></div>
+      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce delay-200"></div>
     </div>
   );
 }
@@ -33,16 +32,6 @@ function TypingIndicator() {
 export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
-    onResponse: (response) => {
-      if (!response.ok) {
-        console.error('Response error:', response.statusText);
-        return;
-      }
-      console.log('Chat response received:', response);
-    },
-    onFinish: (message) => {
-      console.log('Chat message finished:', message);
-    },
     onError: (error) => {
       console.error('Chat error:', error);
     }
@@ -50,11 +39,9 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
 
   // Compute the ID of the last message in the conversation.
   const lastMessageId = messages[messages.length - 1]?.id;
-  console.log('Current messages:', messages);
 
   // Custom message rendering function
   const renderMessage = (message: UIMessage) => {
-    console.log('Rendering message:', message);
     const isUser = message.role === 'user';
     let content: MessageContent | string;
 
@@ -66,71 +53,103 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
       if (isLatestAssistantMessage && isLoading && (!message.content || message.content.trim() === "")) {
         return (
           <div className="flex justify-start mb-4" key={message.id}>
-            <div className="max-w-[80%] p-3 rounded-lg bg-gray-100 text-gray-900">
+            <div className="max-w-[80%] p-3 rounded-lg bg-muted text-muted-foreground">
               <TypingIndicator />
             </div>
           </div>
         );
       }
       
+      // Extract content from message with priority order
       try {
-        let parsedContent;
+        // 1. Check for tool invocation results first (most reliable source)
         const toolInvocation = message.toolInvocations?.[0];
         if (toolInvocation?.state === 'result' && toolInvocation.result) {
-          console.log('Found tool result:', toolInvocation.result);
-          parsedContent = toolInvocation.result;
-        } else if (message.content) {
-          parsedContent = typeof message.content === 'string' 
-            ? JSON.parse(message.content)
-            : message.content;
-        } else if (message.parts?.[0]) {
+          if (typeof toolInvocation.result === 'object' && 
+              'message' in toolInvocation.result && 
+              'articles' in toolInvocation.result) {
+            content = toolInvocation.result;
+          } else if (typeof toolInvocation.result === 'string') {
+            try {
+              const parsed = JSON.parse(toolInvocation.result);
+              content = 'message' in parsed && 'articles' in parsed 
+                ? parsed 
+                : { message: String(toolInvocation.result), articles: [] };
+            } catch {
+              content = { message: String(toolInvocation.result), articles: [] };
+            }
+          } else {
+            content = { message: 'Received response', articles: [] };
+          }
+        } 
+        // 2. Check message content
+        else if (message.content) {
+          if (typeof message.content === 'string') {
+            try {
+              const parsed = JSON.parse(message.content);
+              content = 'message' in parsed && 'articles' in parsed 
+                ? parsed 
+                : { message: message.content, articles: [] };
+            } catch {
+              content = { message: message.content, articles: [] };
+            }
+          } else {
+            content = { 
+              message: typeof message.content === 'object' ? 'Received response' : String(message.content), 
+              articles: [] 
+            };
+          }
+        } 
+        // 3. Check message parts as last resort
+        else if (message.parts?.length) {
           const textPart = message.parts.find(part => part.type === 'text');
           if (textPart && 'text' in textPart) {
-            parsedContent = JSON.parse(textPart.text);
+            try {
+              const parsed = JSON.parse(textPart.text);
+              content = 'message' in parsed && 'articles' in parsed 
+                ? parsed 
+                : { message: textPart.text, articles: [] };
+            } catch {
+              content = { message: textPart.text, articles: [] };
+            }
+          } else {
+            content = { message: 'No readable content available', articles: [] };
+          }
+        } else {
+          content = { message: 'No content available', articles: [] };
+        }
+
+        // Validate content against schema if it's an object
+        if (typeof content === 'object' && content !== null) {
+          try {
+            content = MessageSchema.parse(content);
+          } catch {
+            // If validation fails, ensure we have a valid structure
+            if (typeof content.message === 'string') {
+              content = { 
+                message: content.message, 
+                articles: Array.isArray(content.articles) ? content.articles : [] 
+              };
+            } else {
+              content = { message: 'Received response with invalid format', articles: [] };
+            }
           }
         }
-        if (!parsedContent) {
-          throw new Error('No valid content found in message');
-        }
-        console.log('Parsed content:', parsedContent);
-        if (parsedContent.message && Array.isArray(parsedContent.articles)) {
-          content = parsedContent;
-        } else {
-          content = MessageSchema.parse(parsedContent);
-        }
-        console.log('Validated content:', content);
-      } catch (error) {
-        console.log('Failed to parse/validate message content:', {
-          error,
-          message,
-          content: message.content,
-          parts: message.parts,
-          toolInvocations: message.toolInvocations,
-          isUser,
-        });
-        const toolInvocation = message.toolInvocations?.[0];
-        if (message.content) {
-          content = message.content;
-        } else if (message.parts?.[0]) {
-          const textPart = message.parts.find(part => part.type === 'text');
-          content = textPart && 'text' in textPart ? textPart.text : 'No content available';
-        } else if (toolInvocation?.state === 'result' && toolInvocation.result) {
-          content = JSON.stringify(toolInvocation.result, null, 2);
-        } else {
-          content = 'No content available';
-        }
+      } catch {
+        // Final fallback if all parsing attempts fail
+        content = { message: 'Unable to process response', articles: [] };
       }
     }
 
     return (
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 ${!isUser && typeof content !== 'string' && content.articles ? 'w-full' : ''}`} key={message.id}>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 ${!isUser && typeof content !== 'string' && content.articles?.length ? 'w-full' : ''}`} key={message.id}>
         {typeof content === 'string' ? (
-          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-blue-100 text-gray-900' : 'bg-gray-100 text-gray-900'}`}>
+          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
             <p>{content}</p>
           </div>
-        ) : content.articles ? (
+        ) : content.articles?.length > 0 ? (
           <div className="w-full space-y-4">
-            <p className="text-sm text-gray-600">{content.message}</p>
+            <p className="text-sm text-muted-foreground">{content.message}</p>
             <Carousel
               opts={{
                 align: "start",
@@ -147,27 +166,25 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                       rel="noopener noreferrer"
                       className="block"
                     >
-                      <Card className="w-full bg-white hover:bg-gray-50 transition-colors shadow-none">
-                        <CardHeader className="p-4 space-y-3">
-                          <div className="flex gap-4">
-                            {article.imageUrl && (
-                              <div className="flex-shrink-0 w-16 h-16 rounded-sm overflow-hidden">
-                                <AspectRatio ratio={1} className="bg-muted">
+                      <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none">
+                        <CardHeader className="p-3">
+                          <div className="space-y-2">
+                            <CardTitle className="text-sm font-medium line-clamp-2 text-card-foreground">
+                              {article.title}
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                              {article.publisherIconUrl && (
+                                <div className="flex-shrink-0 w-4 h-4 relative">
                                   <Image
-                                    src={article.imageUrl}
-                                    alt={article.title}
-                                    className="object-cover"
-                                    fill
-                                    sizes="64px"
+                                    src={article.publisherIconUrl}
+                                    alt={article.source || "Publisher"}
+                                    width={16}
+                                    height={16}
+                                    className="object-contain"
                                   />
-                                </AspectRatio>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <CardTitle className="text-sm font-medium line-clamp-2 text-gray-900">
-                                {article.title}
-                              </CardTitle>
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                </div>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                 {article.source && <span className="font-medium">{article.source}</span>}
                                 {article.date && (
                                   <>
@@ -175,32 +192,21 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                                     <span>{article.date}</span>
                                   </>
                                 )}
-                                {article.section && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{article.section}</span>
-                                  </>
-                                )}
                               </div>
                             </div>
                           </div>
-                          {article.snippet && (
-                            <CardDescription className="text-sm line-clamp-2 text-gray-600 mt-2">
-                              {article.snippet}
-                            </CardDescription>
-                          )}
                         </CardHeader>
                       </Card>
                     </a>
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="-left-3 bg-white" />
-              <CarouselNext className="-right-3 bg-white" />
+              <CarouselPrevious className="-left-3 bg-card border-border" />
+              <CarouselNext className="-right-3 bg-card border-border" />
             </Carousel>
           </div>
         ) : (
-          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-blue-100 text-gray-900' : 'bg-gray-100 text-gray-900'}`}>
+          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
             <p className="mb-2">{content.message}</p>
           </div>
         )}
@@ -209,24 +215,24 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
   };
 
   return (
-    <div className="fixed bottom-20 right-4 w-96 h-[500px] bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col z-50">
+    <div className="fixed bottom-20 right-4 w-96 h-[500px] bg-card shadow-xl rounded-lg border border-border flex flex-col z-50">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b">
-        <h2 className="text-lg font-semibold">Chatbot</h2>
+      <div className="flex justify-between items-center p-4 border-b border-border">
+        <h2 className="text-lg font-semibold text-foreground">Chatbot</h2>
         <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
           Close
         </Button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-background">
         {messages.map((message, index) => (
           <div key={index}>{renderMessage(message)}</div>
         ))}
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex gap-2">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-border flex gap-2 bg-card">
         <Input
           value={input}
           onChange={handleInputChange}
