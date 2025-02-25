@@ -3,7 +3,7 @@
 import { type Message as UIMessage, useChat } from 'ai/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Carousel,
   CarouselContent,
@@ -17,6 +17,17 @@ import { MessageContent, MessageSchema } from '@/app/types/article';
 
 interface ChatWidgetProps {
   setIsOpen: (open: boolean) => void;
+}
+
+// Simple typing indicator component with animated dots.
+function TypingIndicator() {
+  return (
+    <div className="flex space-x-1">
+      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100"></div>
+      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200"></div>
+    </div>
+  );
 }
 
 export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
@@ -37,6 +48,8 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
     }
   });
 
+  // Compute the ID of the last message in the conversation.
+  const lastMessageId = messages[messages.length - 1]?.id;
   console.log('Current messages:', messages);
 
   // Custom message rendering function
@@ -48,41 +61,41 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
     if (isUser) {
       content = message.content;
     } else {
+      // Only show the typing indicator if this is the last assistant message and it's still empty.
+      const isLatestAssistantMessage = message.id === lastMessageId;
+      if (isLatestAssistantMessage && isLoading && (!message.content || message.content.trim() === "")) {
+        return (
+          <div className="flex justify-start mb-4" key={message.id}>
+            <div className="max-w-[80%] p-3 rounded-lg bg-gray-100 text-gray-900">
+              <TypingIndicator />
+            </div>
+          </div>
+        );
+      }
+      
       try {
-        // Try to parse the content as JSON if it's from the assistant
         let parsedContent;
-        
-        // Check for tool invocations first
         const toolInvocation = message.toolInvocations?.[0];
         if (toolInvocation?.state === 'result' && toolInvocation.result) {
           console.log('Found tool result:', toolInvocation.result);
           parsedContent = toolInvocation.result;
-        } 
-        // Then check content
-        else if (message.content) {
+        } else if (message.content) {
           parsedContent = typeof message.content === 'string' 
             ? JSON.parse(message.content)
             : message.content;
-        } 
-        // Finally check parts
-        else if (message.parts?.[0]) {
+        } else if (message.parts?.[0]) {
           const textPart = message.parts.find(part => part.type === 'text');
           if (textPart && 'text' in textPart) {
             parsedContent = JSON.parse(textPart.text);
           }
         }
-
         if (!parsedContent) {
           throw new Error('No valid content found in message');
         }
-        
         console.log('Parsed content:', parsedContent);
-        
-        // If the content is already in the correct format, use it directly
         if (parsedContent.message && Array.isArray(parsedContent.articles)) {
           content = parsedContent;
         } else {
-          // Otherwise, try to parse the nested content
           content = MessageSchema.parse(parsedContent);
         }
         console.log('Validated content:', content);
@@ -95,8 +108,6 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
           toolInvocations: message.toolInvocations,
           isUser,
         });
-        
-        // Fallback to plain text
         const toolInvocation = message.toolInvocations?.[0];
         if (message.content) {
           content = message.content;
@@ -112,56 +123,52 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
     }
 
     return (
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`} key={message.id}>
-        <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-blue-100 text-gray-900' : 'bg-gray-100 text-gray-900'}`}>
-          {typeof content === 'string' ? (
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 ${!isUser && typeof content !== 'string' && content.articles ? 'w-full' : ''}`} key={message.id}>
+        {typeof content === 'string' ? (
+          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-blue-100 text-gray-900' : 'bg-gray-100 text-gray-900'}`}>
             <p>{content}</p>
-          ) : (
-            <>
-              <p className="mb-2">{content.message}</p>
-              {content.articles && content.articles.length > 0 && (
-                <div className="mt-4">
-                  <Carousel
-                    opts={{
-                      align: "start",
-                      loop: true,
-                    }}
-                    className="w-full"
-                  >
-                    <CarouselContent className="-ml-2 md:-ml-4">
-                      {content.articles.map((article, index) => (
-                        <CarouselItem key={`${article.link}-${index}`} className="pl-2 md:pl-4 basis-full">
-                          <Card className="bg-white">
-                            <CardHeader className="p-3">
-                              <div className="flex items-start gap-3">
-                                {article.imageUrl && (
-                                  <div className="flex-shrink-0 w-16 h-16 rounded-sm overflow-hidden">
-                                    <AspectRatio ratio={1} className="bg-muted">
-                                      <Image
-                                        src={article.imageUrl}
-                                        alt={article.title}
-                                        className="object-cover"
-                                        fill
-                                        sizes="64px"
-                                      />
-                                    </AspectRatio>
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-sm">
-                                    <a
-                                      href={article.link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline"
-                                    >
-                                      {article.title}
-                                    </a>
-                                  </CardTitle>
-                                </div>
+          </div>
+        ) : content.articles ? (
+          <div className="w-full space-y-4">
+            <p className="text-sm text-gray-600">{content.message}</p>
+            <Carousel
+              opts={{
+                align: "start",
+                loop: true,
+              }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-2 md:-ml-4">
+                {content.articles.map((article, index) => (
+                  <CarouselItem key={`${article.link}-${index}`} className="pl-2 md:pl-4 basis-[85%] sm:basis-[85%]">
+                    <a
+                      href={article.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <Card className="w-full bg-white hover:bg-gray-50 transition-colors shadow-none">
+                        <CardHeader className="p-4 space-y-3">
+                          <div className="flex gap-4">
+                            {article.imageUrl && (
+                              <div className="flex-shrink-0 w-16 h-16 rounded-sm overflow-hidden">
+                                <AspectRatio ratio={1} className="bg-muted">
+                                  <Image
+                                    src={article.imageUrl}
+                                    alt={article.title}
+                                    className="object-cover"
+                                    fill
+                                    sizes="64px"
+                                  />
+                                </AspectRatio>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-2">
-                                {article.source && <span>{article.source}</span>}
+                            )}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <CardTitle className="text-sm font-medium line-clamp-2 text-gray-900">
+                                {article.title}
+                              </CardTitle>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                {article.source && <span className="font-medium">{article.source}</span>}
                                 {article.date && (
                                   <>
                                     <span>•</span>
@@ -175,24 +182,28 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
                                   </>
                                 )}
                               </div>
-                            </CardHeader>
-                            {article.snippet && (
-                              <CardContent className="p-3 pt-0">
-                                <CardDescription className="text-xs">{article.snippet}</CardDescription>
-                              </CardContent>
-                            )}
-                          </Card>
-                        </CarouselItem>
-                      ))}
-                    </CarouselContent>
-                    <CarouselPrevious className="left-0" />
-                    <CarouselNext className="right-0" />
-                  </Carousel>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                            </div>
+                          </div>
+                          {article.snippet && (
+                            <CardDescription className="text-sm line-clamp-2 text-gray-600 mt-2">
+                              {article.snippet}
+                            </CardDescription>
+                          )}
+                        </CardHeader>
+                      </Card>
+                    </a>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="-left-3 bg-white" />
+              <CarouselNext className="-right-3 bg-white" />
+            </Carousel>
+          </div>
+        ) : (
+          <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-blue-100 text-gray-900' : 'bg-gray-100 text-gray-900'}`}>
+            <p className="mb-2">{content.message}</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -212,13 +223,6 @@ export function ChatWidget({ setIsOpen }: ChatWidgetProps) {
         {messages.map((message, index) => (
           <div key={index}>{renderMessage(message)}</div>
         ))}
-        {isLoading && (
-          <div className="flex justify-start mb-4">
-            <div className="bg-gray-100 p-3 rounded-lg max-w-[80%]">
-              <p className="text-gray-500">Loading...</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Input Form */}

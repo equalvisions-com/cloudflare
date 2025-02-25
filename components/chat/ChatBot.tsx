@@ -10,7 +10,7 @@ export function Chatbot() {
   return (
     <>
       <Button
-        className="fixed bottom-4 right-4 rounded-full w-12 h-12 flex items-center justify-center shadow-lg bg-blue-600 text-white hover:bg-blue-700"
+        className="fixed bottom-6 right-6 rounded-full w-12 h-12 flex items-center justify-center shadow-lg bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? 'X' : '?'}

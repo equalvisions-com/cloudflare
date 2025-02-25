@@ -36,7 +36,8 @@ async function fetchArticles(topic: string): Promise<Article[]> {
     link: article.link,
     snippet: article.snippet || `${article.section || ''} ${article.date ? `(${article.date})` : ''}`.trim() || 'No description available',
     section: article.section,
-    date: article.date,
+    date: article.date?.replace(/ hour/g, ' hr').replace(/ hours/g, ' hrs')
+      .replace(/ minute/g, ' min').replace(/ minutes/g, ' mins'),
     source: article.source,
     imageUrl: article.imageUrl,
     position: article.position,
@@ -50,8 +51,14 @@ export async function POST(req: Request) {
     const { messages } = await req.json();
     console.log('Received messages:', messages);
 
+    // Only keep messages from the most recent user query onward.
+    // This assumes that the latest user message indicates a new topic.
+    const lastUserIndex = messages.map((m: Message) => m.role).lastIndexOf('user');
+    const trimmedMessages = lastUserIndex !== -1 ? messages.slice(lastUserIndex) : messages;
+    console.log('Trimmed messages:', trimmedMessages);
+
     // Convert messages to OpenAI format
-    const openAIMessages = messages.map((message: Message) => ({
+    const openAIMessages = trimmedMessages.map((message: Message) => ({
       role: message.role === 'data' ? 'assistant' : message.role,
       content: message.content,
     }));
