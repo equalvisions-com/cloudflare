@@ -138,11 +138,6 @@ async function PostFeed({ post }: { post: Awaited<ReturnType<typeof getPost>> })
         featuredImg={post.featuredImg}
         mediaType={post.mediaType}
       />
-      <div className="max-w-4xl mx-auto px-4 mt-8">
-        <footer className="text-sm text-muted-foreground">
-          <p>Source: {post.feedUrl}</p>
-        </footer>
-      </div>
     </>
   ) : null;
 }

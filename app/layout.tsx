@@ -9,6 +9,7 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { Chatbot } from "@/components/chat/ChatBot";
 import { ConvexLogo } from "@/public/ConvexLogo";
+import { MobileDock } from "@/components/ui/mobile-dock";
 import Link from "next/link";
 
 const geistSans = Geist({
@@ -56,9 +57,10 @@ export default function RootLayout({
                     </div>
                   </div>
                 </header>
-                <main className="pb-24">{children}</main>
+                <main className="pb-24 md:pb-16">{children}</main>
                 <PersistentPlayer />
                 <Chatbot />
+                <MobileDock />
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>

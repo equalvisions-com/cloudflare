@@ -14,7 +14,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Headphones, Mail, MoreVertical } from "lucide-react";
+import { Headphones, Mail, MoreVertical, Loader } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -400,7 +400,9 @@ const EntriesContent = React.memo(({
         components={{
           Footer: () => 
             isPending && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+              <div ref={loadMoreRef} className="flex justify-center items-center py-4">
+                <Loader className="h-6 w-6 animate-spin text-primary" />
+              </div>
             ) : <div ref={loadMoreRef} className="h-10" />
         }}
       />
