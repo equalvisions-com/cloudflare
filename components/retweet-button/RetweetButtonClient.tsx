@@ -1,14 +1,14 @@
 'use client';
 
-import useSWR, { mutate as globalMutate } from 'swr';
 import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Repeat } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useToast } from "@/components/ui/use-toast";
+import { useState, useEffect } from 'react';
 
 interface RetweetButtonProps {
   entryGuid: string;
@@ -44,19 +44,33 @@ export function RetweetButtonClient({
   const retweet = useMutation(api.retweets.retweet);
   const unretweet = useMutation(api.retweets.unretweet);
   
-  // Use SWR for state management but without the fetcher
-  const { data, mutate } = useSWR(
-    `retweet-${entryGuid}`,
-    null, // No fetcher function
-    {
-      fallbackData: initialData,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
+  // Use Convex's real-time query with proper loading state handling
+  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  
+  // Track if the metrics have been loaded at least once
+  const [metricsLoaded, setMetricsLoaded] = useState(false);
+  
+  // Use state for optimistic updates
+  const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number} | null>(null);
+  
+  // Update metricsLoaded when metrics are received
+  useEffect(() => {
+    if (metrics && !metricsLoaded) {
+      setMetricsLoaded(true);
     }
-  );
-
-  const isRetweeted = data?.isRetweeted ?? initialData.isRetweeted;
-  const retweetCount = data?.count ?? initialData.count;
+  }, [metrics, metricsLoaded]);
+  
+  // Determine the current state, prioritizing optimistic updates
+  // If metrics haven't loaded yet, use initialData to prevent flickering
+  const isRetweeted = optimisticState?.isRetweeted ?? (metricsLoaded ? (metrics?.retweets?.isRetweeted ?? initialData.isRetweeted) : initialData.isRetweeted);
+  const retweetCount = optimisticState?.count ?? (metricsLoaded ? (metrics?.retweets?.count ?? initialData.count) : initialData.count);
+  
+  // Reset optimistic state when real data arrives
+  useEffect(() => {
+    if (metrics && optimisticState) {
+      setOptimisticState(null);
+    }
+  }, [metrics, optimisticState]);
 
   const handleClick = async () => {
     if (!isAuthenticated) {
@@ -64,77 +78,48 @@ export function RetweetButtonClient({
       return;
     }
 
-    // Calculate the new state for optimistic update
+    // Calculate new state for optimistic update
     const newState = {
       isRetweeted: !isRetweeted,
       count: retweetCount + (isRetweeted ? -1 : 1)
     };
 
-    // Optimistic update
-    await mutate(newState, false);
+    // Apply optimistic update
+    setOptimisticState(newState);
 
     try {
-      let result;
       if (isRetweeted) {
-        // If currently retweeted, unretweet
-        result = await unretweet({ entryGuid });
-        if (result.success) {
-          toast({
-            description: "Removed from your shares",
-          });
-        }
+        await unretweet({ entryGuid });
+        toast({
+          title: "Removed from your posts",
+          description: "This post has been removed from your profile.",
+          duration: 3000,
+        });
       } else {
-        // If not currently retweeted, retweet
-        result = await retweet({
+        await retweet({
           entryGuid,
           feedUrl,
           title,
           pubDate,
           link,
         });
-        if (result.success) {
-          toast({
-            description: "Added to your shares",
-          });
-        }
-      }
-      
-      if (!result?.success) {
-        // If the mutation wasn't successful, revalidate to get the correct state
-        console.error('Retweet operation failed:', result);
-        await mutate(initialData); // Revert to initial state
         toast({
-          variant: "destructive",
-          description: "Failed to update share status. Please try again.",
+          title: "Added to your posts",
+          description: "This post will now appear on your profile.",
+          duration: 3000,
         });
-        return;
       }
-      
-      // After successful mutation, update the global cache
-      globalMutate(
-        `/api/batch`,
-        (data) => {
-          if (!data?.entries) return data;
-          return {
-            ...data,
-            entries: {
-              ...data.entries,
-              [entryGuid]: {
-                ...data.entries[entryGuid],
-                retweets: newState
-              }
-            }
-          };
-        },
-        { revalidate: false }
-      );
+      // Convex will automatically update the UI with the new state
+      // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
+      // Revert optimistic update on error
       console.error('Error updating retweet status:', err);
-      // Revert on error by reverting to initial state
-      await mutate(initialData);
+      setOptimisticState(null);
       toast({
+        title: "Error",
+        description: "There was an error processing your request.",
         variant: "destructive",
-        description: "Failed to update share status. Please try again.",
+        duration: 3000,
       });
     }
   };
@@ -147,7 +132,7 @@ export function RetweetButtonClient({
       onClick={handleClick}
     >
       <Repeat 
-        className={`h-4 w-4 transition-colors ${isRetweeted ? 'text-[#00ba7c]' : ''}`}
+        className={`h-4 w-4 transition-colors ${isRetweeted ? 'text-green-500' : ''}`}
       />
       <span>{retweetCount}</span>
     </Button>

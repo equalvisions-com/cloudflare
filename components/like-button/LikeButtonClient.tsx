@@ -1,13 +1,13 @@
 'use client';
 
-import useSWR, { mutate as globalMutate } from 'swr';
 import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Heart } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
+import { useState, useEffect } from 'react';
 
 interface LikeButtonProps {
   entryGuid: string;
@@ -20,14 +20,6 @@ interface LikeButtonProps {
     count: number;
   };
 }
-
-const fetcher = async (key: string) => {
-  // Encode the key for use in URL
-  const encodedKey = encodeURIComponent(key);
-  const res = await fetch(`/api/likes/${encodedKey}`);
-  if (!res.ok) throw new Error('Failed to fetch like status');
-  return res.json();
-};
 
 export function LikeButtonClientWithErrorBoundary(props: LikeButtonProps) {
   return (
@@ -50,21 +42,33 @@ export function LikeButtonClient({
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
   
-  const { data, mutate } = useSWR(
-    entryGuid,
-    fetcher,
-    {
-      fallbackData: initialData,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      dedupingInterval: 5000, // 5 seconds
-      revalidateIfStale: false, // Don't revalidate if we have initial data
-      revalidateOnMount: !initialData, // Only fetch if we don't have initial data
+  // Use Convex's real-time query with proper loading state handling
+  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  
+  // Track if the metrics have been loaded at least once
+  const [metricsLoaded, setMetricsLoaded] = useState(false);
+  
+  // Use state for optimistic updates
+  const [optimisticState, setOptimisticState] = useState<{isLiked: boolean, count: number} | null>(null);
+  
+  // Update metricsLoaded when metrics are received
+  useEffect(() => {
+    if (metrics && !metricsLoaded) {
+      setMetricsLoaded(true);
     }
-  );
-
-  const isLiked = data?.isLiked ?? initialData.isLiked;
-  const likeCount = data?.count ?? initialData.count;
+  }, [metrics, metricsLoaded]);
+  
+  // Determine the current state, prioritizing optimistic updates
+  // If metrics haven't loaded yet, use initialData to prevent flickering
+  const isLiked = optimisticState?.isLiked ?? (metricsLoaded ? metrics?.likes.isLiked : initialData.isLiked);
+  const likeCount = optimisticState?.count ?? (metricsLoaded ? (metrics?.likes.count ?? initialData.count) : initialData.count);
+  
+  // Reset optimistic state when real data arrives
+  useEffect(() => {
+    if (metrics && optimisticState) {
+      setOptimisticState(null);
+    }
+  }, [metrics, optimisticState]);
 
   const handleClick = async () => {
     if (!isAuthenticated) {
@@ -72,13 +76,14 @@ export function LikeButtonClient({
       return;
     }
 
+    // Calculate new state for optimistic update
     const newState = {
       isLiked: !isLiked,
       count: likeCount + (isLiked ? -1 : 1)
     };
 
-    // Optimistic update
-    await mutate(newState, false);
+    // Apply optimistic update
+    setOptimisticState(newState);
 
     try {
       if (isLiked) {
@@ -92,33 +97,12 @@ export function LikeButtonClient({
           link,
         });
       }
-      
-      // After successful mutation, update all instances of this entry
-      await Promise.all([
-        mutate(newState),
-        // Update the batch cache
-        globalMutate(
-          `/api/batch`,
-          (data) => {
-            if (!data?.entries) return data;
-            return {
-              ...data,
-              entries: {
-                ...data.entries,
-                [entryGuid]: {
-                  ...data.entries[entryGuid],
-                  likes: newState
-                }
-              }
-            };
-          },
-          false
-        )
-      ]);
+      // Convex will automatically update the UI with the new state
+      // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
-      // Revert on error
+      // Revert optimistic update on error
       console.error('Error updating like status:', err);
-      await mutate();
+      setOptimisticState(null);
     }
   };
 

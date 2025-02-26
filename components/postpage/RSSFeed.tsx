@@ -18,21 +18,26 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   const entries = await getRSSEntries(postTitle, feedUrl);
   if (!entries || entries.length === 0) return null;
 
+  // Only use the first 10 entries for initial data
+  const initialEntries = entries.slice(0, 10);
+  
   const token = await convexAuthNextjsToken();
-  const guids = entries.map(entry => entry.guid);
+  const guids = initialEntries.map(entry => entry.guid);
   const entryData = await fetchQuery(
     api.entries.batchGetEntryData,
     { entryGuids: guids },
     { token }
   );
 
-  const entriesWithPublicData = entries.map((entry, index) => ({
+  const entriesWithPublicData = initialEntries.map((entry, index) => ({
     entry,
     initialData: entryData[index]
   }));
 
   return {
     entries: entriesWithPublicData,
+    totalEntries: entries.length, // Include total count for pagination
+    hasMore: entries.length > 10 // Let client know if there are more entries
   };
 });
 

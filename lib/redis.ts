@@ -73,6 +73,11 @@ export function formatRSSKey(postTitle: string): string {
 
 async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   try {
+    if (!feedUrl) {
+      console.error('Attempted to fetch RSS feed with undefined URL');
+      return [];
+    }
+    
     const response = await fetch(feedUrl, {
       headers: { 'Accept': 'application/rss+xml, application/xml' },
       next: { revalidate: 14400 },
@@ -139,6 +144,12 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
   const cacheKey = formatRSSKey(postTitle);
   const now = Date.now();
 
+  // Return empty array if feedUrl is undefined
+  if (!feedUrl) {
+    console.error(`Attempted to fetch RSS feed for ${postTitle} with undefined URL`);
+    return [];
+  }
+
   const cached = await redis.get<RSSCache>(cacheKey);
   if (cached && (now - cached.lastFetched) < 4 * 60 * 60 * 1000) {
     return cached.entries;
@@ -174,58 +185,60 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
   return optimizedEntries;
 });
 
-export const getMergedRSSEntries = cache(async (rssKeys: string[]): Promise<RSSItem[]> => {
-  if (!rssKeys.length) return [];
-
-  const cachedFeeds = await redis.mget<RSSCache[]>(...rssKeys);
-  const now = Date.now();
-  
-  // Identify which feeds need refreshing (older than 4 hours)
-  const refreshPromises: Promise<RSSItem[]>[] = [];
-  const validCachedEntries: RSSItem[][] = [];
-  
-  // Process each feed
-  for (let i = 0; i < rssKeys.length; i++) {
-    const cache = cachedFeeds[i];
-    const key = rssKeys[i];
+export async function getMergedRSSEntries(
+  rssKeys: string[], 
+  offset: number = 0, 
+  limit: number = 10
+): Promise<RSSItem[] | null> {
+  try {
+    if (!rssKeys || rssKeys.length === 0) return null;
     
-    // If cache exists and is fresh, use it directly
-    if (cache && (now - cache.lastFetched) < 4 * 60 * 60 * 1000) {
-      validCachedEntries.push(cache.entries);
-      continue;
-    }
+    // Get cached entries for each RSS key
+    const cachedFeeds = await redis.mget<RSSCache[]>(...rssKeys);
+    const now = Date.now();
     
-    // If cache is stale or doesn't exist, we need to refresh it
-    // Extract the post title from the RSS key (remove 'rss.' prefix)
-    const postTitle = key.replace(/^rss\./, '').replace(/_/g, ' ');
+    const allEntries: RSSItem[] = [];
     
-    // Find the feed URL from existing entries if available
-    let feedUrl: string | undefined;
-    if (cache?.entries?.length > 0) {
-      feedUrl = cache.entries[0].feedUrl;
-    }
-    
-    // If we have both the post title and feed URL, refresh the feed
-    if (postTitle && feedUrl) {
-      console.log(`Refreshing stale feed in merged view: ${postTitle}`);
-      // Use getRSSEntries to refresh this feed (it handles caching internally)
-      const refreshPromise = getRSSEntries(postTitle, feedUrl);
-      refreshPromises.push(refreshPromise);
+    // Process each feed
+    for (let i = 0; i < rssKeys.length; i++) {
+      const cache = cachedFeeds[i];
+      const key = rssKeys[i];
       
-      // We'll add this feed's entries after it's refreshed
-    } else if (cache?.entries) {
-      // If we can't refresh but have cached entries, use them
-      validCachedEntries.push(cache.entries);
+      // Extract the post title from the RSS key (remove 'rss.' prefix)
+      const postTitle = key.replace(/^rss\./, '').replace(/_/g, ' ');
+      
+      if (cache) {
+        // If cache exists, use it directly
+        if (cache.entries && Array.isArray(cache.entries)) {
+          allEntries.push(...cache.entries);
+        }
+        
+        // If cache is stale, refresh it in the background
+        if ((now - cache.lastFetched) >= 4 * 60 * 60 * 1000 && cache.entries?.length > 0) {
+          const feedUrl = cache.entries[0]?.feedUrl;
+          if (feedUrl) {
+            // Don't await this - let it update in the background
+            getRSSEntries(postTitle, feedUrl).catch(err => 
+              console.error(`Background refresh failed for ${postTitle}:`, err)
+            );
+          }
+        }
+      }
     }
+    
+    if (allEntries.length === 0) return null;
+    
+    // Sort by publication date (newest first)
+    allEntries.sort((a, b) => {
+      const dateA = new Date(a.pubDate).getTime();
+      const dateB = new Date(b.pubDate).getTime();
+      return dateB - dateA;
+    });
+    
+    // Apply pagination
+    return allEntries.slice(offset, offset + limit);
+  } catch (error) {
+    console.error('Error merging RSS entries:', error);
+    return null;
   }
-  
-  // Wait for all refresh operations to complete
-  if (refreshPromises.length > 0) {
-    console.log(`Refreshing ${refreshPromises.length} stale feeds in merged view`);
-    const refreshedEntries = await Promise.all(refreshPromises);
-    validCachedEntries.push(...refreshedEntries);
-  }
-  
-  // Merge all entries (both fresh and cached)
-  return mergeAndSortEntries(validCachedEntries);
-});
+}

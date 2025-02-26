@@ -1,12 +1,11 @@
 'use client';
 
+import React, { useEffect, useRef, useState, useMemo, useTransition, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import { useEffect, useRef, useState, useMemo, useTransition } from 'react';
-import useSWR from 'swr';
 import type { RSSItem } from "@/lib/redis";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
@@ -23,6 +22,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
+import dynamic from 'next/dynamic';
+import useSWRInfinite from 'swr/infinite';
+import { Virtuoso } from 'react-virtuoso';
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+// Dynamically import the placeholder component with no SSR
+// This ensures it's not loaded during initial page render
+const RSSPlaceholder = dynamic(
+  () => import('@/components/rss-feed/placeholder'),
+  { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-secondary/20"></div> }
+);
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -316,6 +328,86 @@ interface RSSEntriesClientProps {
   pageSize?: number;
 }
 
+// Define a proper type for entry metrics
+interface EntryMetrics {
+  likes: {
+    isLiked: boolean;
+    count: number;
+  };
+  comments: {
+    count: number;
+  };
+  retweets?: {
+    isRetweeted: boolean;
+    count: number;
+  };
+}
+
+// Memoized feed content component
+const EntriesContent = React.memo(({ 
+  paginatedEntries, 
+  hasMore, 
+  loadMoreRef, 
+  isPending,
+  loadMore,
+  entryMetrics
+}: { 
+  paginatedEntries: RSSEntryWithData[],
+  hasMore: boolean,
+  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
+  isPending: boolean,
+  loadMore: () => void,
+  entryMetrics: Record<string, EntryMetrics> | null
+}) => {
+  if (!paginatedEntries.length) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No entries found in your RSS feeds.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-l border-r border-b">
+      <Virtuoso
+        style={{ height: 'calc(100vh - 120px)' }} // Adjust height as needed
+        totalCount={paginatedEntries.length}
+        endReached={() => {
+          if (hasMore && !isPending) {
+            loadMore();
+          }
+        }}
+        overscan={5} // Pre-render 5 items above and below viewport
+        itemContent={index => {
+          const entryWithData = paginatedEntries[index];
+          // If we have metrics from the batch query, use them to update the entry data
+          if (entryMetrics && entryMetrics[entryWithData.entry.guid]) {
+            const metrics = entryMetrics[entryWithData.entry.guid];
+            entryWithData.initialData = {
+              ...entryWithData.initialData,
+              likes: metrics.likes,
+              comments: metrics.comments,
+              retweets: metrics.retweets
+            };
+          }
+          return (
+            <RSSEntry
+              entryWithData={entryWithData}
+            />
+          );
+        }}
+        components={{
+          Footer: () => 
+            isPending && hasMore ? (
+              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+            ) : <div ref={loadMoreRef} className="h-10" />
+        }}
+      />
+    </div>
+  );
+});
+EntriesContent.displayName = 'EntriesContent';
+
 export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
   return (
     <ErrorBoundary>
@@ -326,81 +418,176 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
 
 export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClientProps) {
   const [isPending, startTransition] = useTransition();
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState(1);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
-  const { data } = useSWR<{
-    entries: RSSEntryWithData[];
-    totalEntries: number;
-  }>(
-    '/api/rss',
+  // Increase the number of pages fetched per request to reduce API calls
+  const PAGES_PER_FETCH = 3; // Fetch 3 pages at once instead of 1
+  
+  // Use a ref to track if we've already used the initial data
+  const initialDataUsedRef = useRef(false);
+  
+  // Fetch entries with pagination - using the same structure as server component
+  // The correct endpoint for merged entries is /api/rss (not /api/rss/entries)
+  const { data, error, size, setSize } = useSWRInfinite(
+    (pageIndex: number) => {
+      // If this is the first page and we haven't used initial data yet,
+      // we can skip fetching since we already have the data from the server
+      if (pageIndex === 0 && !initialDataUsedRef.current) {
+        initialDataUsedRef.current = true;
+        return null; // Return null to skip this request
+      }
+      
+      // Calculate the actual page number based on our batching strategy
+      const batchPageIndex = Math.floor(pageIndex / PAGES_PER_FETCH);
+      const startPage = batchPageIndex * PAGES_PER_FETCH;
+      
+      // For the first batch after initial data, we need to skip the first page
+      const skipFirstPage = pageIndex === 1 ? true : false;
+      
+      // Request multiple pages at once
+      return `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}${skipFirstPage ? '&skipFirstPage=true' : ''}`;
+    },
     async (url: string) => {
-      const res = await fetch(url, {
-        next: {
-          revalidate: 300 // Revalidate every 5 minutes
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch RSS entries');
+      if (!url) return initialData; // Return initial data if URL is null
+      
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch entries');
       return res.json();
     },
     {
-      fallbackData: { entries: initialData.entries, totalEntries: initialData.entries.length },
-      revalidateOnFocus: false,    // Don't revalidate on focus
-      revalidateOnReconnect: true, // Keep revalidating on reconnect to catch new entries
-      dedupingInterval: 300 * 1000, // Cache for 5 minutes
-      revalidateOnMount: false,    // Don't revalidate immediately on mount
-      refreshInterval: 300 * 1000,  // Only refresh every 5 minutes
+      fallbackData: [initialData], // Use server-provided initialData as first page
+      revalidateOnFocus: false,
+      revalidateFirstPage: false,
+      revalidateOnMount: false, // Prevent initial refetch
     }
   );
-
-  // Handle pagination locally with transition
+  
+  // Flatten paginated entries - preserving the structure from server
   const paginatedEntries = useMemo(() => {
-    const entries = data?.entries || initialData.entries;
-    return entries.slice(0, size * pageSize);
-  }, [data?.entries, initialData.entries, size, pageSize]);
-
-  const hasMore = data?.entries && paginatedEntries.length < data.entries.length;
-
+    if (!data) return [];
+    return data.flatMap((page: { entries: RSSEntryWithData[] }) => page.entries || []);
+  }, [data]);
+  
+  // Extract all entry GUIDs for batch query
+  const entryGuids = useMemo(() => {
+    return paginatedEntries.map((entry: RSSEntryWithData) => entry.entry.guid);
+  }, [paginatedEntries]);
+  
+  // Create a map of already fetched metrics to avoid redundant queries
+  const [fetchedMetricsMap, setFetchedMetricsMap] = useState<Record<string, EntryMetrics>>({});
+  
+  // Only fetch metrics for entries that don't already have up-to-date metrics
+  const entriesNeedingMetrics = useMemo(() => {
+    return entryGuids.filter(guid => !fetchedMetricsMap[guid]);
+  }, [entryGuids, fetchedMetricsMap]);
+  
+  // Prefetch the next batch of entries when approaching the end
+  const prefetchNextBatch = useCallback(() => {
+    if (data && data.length > 0) {
+      const nextBatchIndex = size;
+      const startPage = Math.floor(nextBatchIndex / PAGES_PER_FETCH) * PAGES_PER_FETCH;
+      const url = `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      
+      // Prefetch the next batch but don't update state yet
+      fetch(url).catch(() => {/* Silently handle prefetch errors */});
+    }
+  }, [data, size, PAGES_PER_FETCH, pageSize]);
+  
+  // Use a single batch query to get metrics for all entries
+  // We're using a larger batch size to reduce the number of queries
+  const batchMetrics = useQuery(
+    api.entries.batchGetEntryData,
+    entriesNeedingMetrics.length > 0 ? { entryGuids: entriesNeedingMetrics } : "skip"
+  );
+  
+  // Update the fetched metrics map when new metrics are received
   useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    if (!currentRef || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          startTransition(() => {
-            setSize(s => s + 1);
-          });
+    if (batchMetrics && entriesNeedingMetrics.length > 0) {
+      const newMetricsMap = { ...fetchedMetricsMap };
+      
+      batchMetrics.forEach((metrics: EntryMetrics, index: number) => {
+        if (index < entriesNeedingMetrics.length) {
+          newMetricsMap[entriesNeedingMetrics[index]] = metrics;
         }
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(currentRef);
-    return () => observer.disconnect();
-  }, [hasMore]);
-
-  if (!paginatedEntries.length) {
+      });
+      
+      setFetchedMetricsMap(newMetricsMap);
+    }
+  }, [batchMetrics, entriesNeedingMetrics, fetchedMetricsMap]);
+  
+  // Convert array of metrics to a map keyed by entryGuid for easier lookup
+  const entryMetricsMap = useMemo(() => {
+    return fetchedMetricsMap;
+  }, [fetchedMetricsMap]);
+  
+  // Check if there are more entries to load
+  const hasMore = useMemo(() => {
+    if (!data) return false;
+    const lastPage = data[data.length - 1];
+    return lastPage.hasMore;
+  }, [data]);
+  
+  // Function to load more entries
+  const loadMore = () => {
+    if (hasMore && !isPending) {
+      startTransition(() => {
+        setSize((s: number) => s + 1);
+        // Trigger prefetch of the next batch
+        prefetchNextBatch();
+      });
+    }
+  };
+  
+  // Prefetch the next batch when we're 75% through the current entries
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight * 0.75) {
+        prefetchNextBatch();
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [prefetchNextBatch]);
+  
+  if (error) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in your RSS feeds.
+      <div className="text-center py-8 text-destructive">
+        Error loading entries. Please try again later.
       </div>
     );
   }
-
-  return (
-    <div className="space-y-0 border-l border-r border-b">
-      {paginatedEntries.map((entryWithData) => (
-        <RSSEntry
-          key={entryWithData.entry.guid}
-          entryWithData={entryWithData}
+  
+  // Tabs configuration
+  const tabs = [
+    {
+      id: 'for-you',
+      label: 'For You',
+      content: (
+        <EntriesContent
+          paginatedEntries={paginatedEntries}
+          hasMore={hasMore}
+          loadMoreRef={loadMoreRef}
+          isPending={isPending}
+          loadMore={loadMore}
+          entryMetrics={entryMetricsMap}
         />
-      ))}
-      <div ref={loadMoreRef} className="h-10">
-        {isPending && hasMore && (
-          <div className="text-center py-4">Loading more entries...</div>
-        )}
-      </div>
+      ),
+    },
+    {
+      id: 'following',
+      label: 'Following',
+      content: (
+        <React.Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
+          <RSSPlaceholder />
+        </React.Suspense>
+      ),
+    },
+  ];
+  
+  return (
+    <div className="w-full">
+      <SwipeableTabs tabs={tabs} />
     </div>
   );
 } 
