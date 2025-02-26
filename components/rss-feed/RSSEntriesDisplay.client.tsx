@@ -502,19 +502,6 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
     return entryGuids.filter(guid => !fetchedMetricsMap[guid]);
   }, [entryGuids, fetchedMetricsMap]);
   
-  // Prefetch the next batch of entries when approaching the end
-  const prefetchNextBatch = useCallback(() => {
-    if (data && data.length > 0) {
-      const nextBatchIndex = size;
-      // Use the same calculation as in the key function with the same safety check
-      const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
-      const url = `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
-      
-      // Prefetch the next batch but don't update state yet
-      fetch(url).catch(() => {/* Silently handle prefetch errors */});
-    }
-  }, [data, size, PAGES_PER_FETCH, pageSize]);
-  
   // Use a ref to track already prefetched URLs to prevent duplicate prefetches
   const prefetchedUrlsRef = useRef<Set<string>>(new Set());
   
