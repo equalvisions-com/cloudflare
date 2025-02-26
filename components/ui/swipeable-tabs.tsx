@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 
@@ -24,29 +24,46 @@ const TabHeaders = React.memo(({
   tabs: SwipeableTabsProps['tabs'], 
   selectedTab: number, 
   onTabClick: (index: number) => void 
-}) => (
-  <div className="flex w-full border-b sticky top-0 bg-background z-10">
-    {tabs.map((tab, index) => (
-      <button
-        key={tab.id}
-        onClick={() => onTabClick(index)}
-        className={cn(
-          'flex-1 py-3 text-center font-medium text-sm relative transition-colors',
-          selectedTab === index 
-            ? 'text-primary' 
-            : 'text-muted-foreground hover:text-primary/80'
-        )}
-        role="tab"
-        aria-controls={`panel-${tab.id}`}
-      >
-        {tab.label}
-        {selectedTab === index && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-sm" />
-        )}
-      </button>
-    ))}
-  </div>
-));
+}) => {
+  const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const [, forceUpdate] = useState({});
+
+  // Force re-render when selected tab changes to ensure indicator width updates
+  useEffect(() => {
+    forceUpdate({});
+  }, [selectedTab]);
+
+  return (
+    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-10">
+      {tabs.map((tab, index) => (
+        <button
+          key={tab.id}
+          onClick={() => onTabClick(index)}
+          className={cn(
+            'flex-1 py-3 text-center font-medium text-sm relative transition-colors',
+            selectedTab === index 
+              ? 'text-primary' 
+              : 'text-muted-foreground hover:text-primary/80'
+          )}
+          role="tab"
+          aria-controls={`panel-${tab.id}`}
+        >
+          <span ref={(el) => { labelRefs.current[index] = el; }}>{tab.label}</span>
+          {selectedTab === index && (
+            <div 
+              className="absolute bottom-0 h-1 bg-primary rounded-full" 
+              style={{ 
+                width: labelRefs.current[index]?.offsetWidth || 'auto',
+                left: '50%',
+                transform: 'translateX(-50%)'
+              }} 
+            />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+});
 TabHeaders.displayName = 'TabHeaders';
 
 export function SwipeableTabs({

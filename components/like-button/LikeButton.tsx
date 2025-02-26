@@ -80,7 +80,7 @@ export function LikeButton({
       disabled={!isAuthenticated}
     >
       {isLiked ? (
-        <HeartFilled className="h-5 w-5 text-red-500 transition scale-110" />
+        <HeartFilled className="h-5 w-5 text-red-500 scale-110" />
       ) : (
         <Heart className="h-5 w-5" />
       )}

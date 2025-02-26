@@ -34,6 +34,7 @@ export function CommentSectionClient({
   const [isOpen, setIsOpen] = useState(false);
   const [comment, setComment] = useState('');
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
+  const [optimisticTimestamp, setOptimisticTimestamp] = useState<number | null>(null);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -56,20 +57,30 @@ export function CommentSectionClient({
   // If metrics haven't loaded yet, use initialData to prevent flickering
   const commentCount = optimisticCount ?? (metricsLoaded ? (metrics?.comments.count ?? initialData.count) : initialData.count);
   
-  // Reset optimistic count when real data arrives
+  // Only reset optimistic count when real data arrives and matches our expected state
   useEffect(() => {
-    if (metrics && optimisticCount !== null) {
-      setOptimisticCount(null);
+    if (metrics && optimisticCount !== null && optimisticTimestamp !== null) {
+      // Only clear optimistic state if:
+      // 1. The server count is equal to or greater than our optimistic count (meaning our update was processed)
+      // 2. OR if the optimistic update is older than 5 seconds (fallback)
+      const serverCountReflectsOurUpdate = metrics.comments.count >= optimisticCount;
+      const isOptimisticUpdateStale = Date.now() - optimisticTimestamp > 5000;
+      
+      if (serverCountReflectsOurUpdate || isOptimisticUpdateStale) {
+        setOptimisticCount(null);
+        setOptimisticTimestamp(null);
+      }
     }
-  }, [metrics, optimisticCount]);
+  }, [metrics, optimisticCount, optimisticTimestamp]);
   
   const addComment = useMutation(api.comments.addComment);
   
   const handleSubmit = useCallback(async () => {
     if (!comment.trim()) return;
     
-    // Optimistic update
+    // Optimistic update with timestamp
     setOptimisticCount(commentCount + 1);
+    setOptimisticTimestamp(Date.now());
     
     try {
       await addComment({
@@ -87,6 +98,7 @@ export function CommentSectionClient({
       console.error('Error adding comment:', error);
       // Revert optimistic update on error
       setOptimisticCount(null);
+      setOptimisticTimestamp(null);
     }
   }, [comment, addComment, entryGuid, feedUrl, commentCount]);
   
@@ -147,8 +159,8 @@ export function CommentSectionClient({
         className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
         onClick={toggleComments}
       >
-        <MessageCircle className="h-4 w-4" />
-        <span>{commentCount}</span>
+        <MessageCircle className="h-4 w-4 transition-colors duration-200" />
+        <span className="transition-all duration-200">{commentCount}</span>
       </Button>
       {renderComments()}
     </>

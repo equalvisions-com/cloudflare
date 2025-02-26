@@ -51,7 +51,7 @@ export function RetweetButtonClient({
   const [metricsLoaded, setMetricsLoaded] = useState(false);
   
   // Use state for optimistic updates
-  const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number} | null>(null);
+  const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number, timestamp: number} | null>(null);
   
   // Update metricsLoaded when metrics are received
   useEffect(() => {
@@ -65,10 +65,19 @@ export function RetweetButtonClient({
   const isRetweeted = optimisticState?.isRetweeted ?? (metricsLoaded ? (metrics?.retweets?.isRetweeted ?? initialData.isRetweeted) : initialData.isRetweeted);
   const retweetCount = optimisticState?.count ?? (metricsLoaded ? (metrics?.retweets?.count ?? initialData.count) : initialData.count);
   
-  // Reset optimistic state when real data arrives
+  // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
     if (metrics && optimisticState) {
-      setOptimisticState(null);
+      // Only clear optimistic state if server data matches what we expect
+      // or if the optimistic update is older than 5 seconds (fallback)
+      const isServerMatchingOptimistic = metrics.retweets?.isRetweeted === optimisticState.isRetweeted;
+      const isOptimisticUpdateStale = Date.now() - optimisticState.timestamp > 5000;
+      
+      // Only clear if the server state matches our optimistic state
+      // This prevents flickering when the server confirms our update
+      if (isServerMatchingOptimistic || isOptimisticUpdateStale) {
+        setOptimisticState(null);
+      }
     }
   }, [metrics, optimisticState]);
 
@@ -81,7 +90,8 @@ export function RetweetButtonClient({
     // Calculate new state for optimistic update
     const newState = {
       isRetweeted: !isRetweeted,
-      count: retweetCount + (isRetweeted ? -1 : 1)
+      count: retweetCount + (isRetweeted ? -1 : 1),
+      timestamp: Date.now()
     };
 
     // Apply optimistic update
@@ -132,9 +142,9 @@ export function RetweetButtonClient({
       onClick={handleClick}
     >
       <Repeat 
-        className={`h-4 w-4 transition-colors ${isRetweeted ? 'text-green-500' : ''}`}
+        className={`h-4 w-4 transition-colors duration-200 ${isRetweeted ? 'text-green-500' : ''}`}
       />
-      <span>{retweetCount}</span>
+      <span className="transition-all duration-200">{retweetCount}</span>
     </Button>
   );
 } 

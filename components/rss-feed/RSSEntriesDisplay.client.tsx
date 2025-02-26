@@ -370,14 +370,15 @@ const EntriesContent = React.memo(({
   return (
     <div className="border-l border-r border-b">
       <Virtuoso
-        style={{ height: 'calc(100vh - 120px)' }} // Adjust height as needed
+        useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
           if (hasMore && !isPending) {
             loadMore();
           }
         }}
-        overscan={5} // Pre-render 5 items above and below viewport
+        overscan={20}
+        initialTopMostItemIndex={0}
         itemContent={index => {
           const entryWithData = paginatedEntries[index];
           // If we have metrics from the batch query, use them to update the entry data
@@ -438,14 +439,11 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
       }
       
       // Calculate the actual page number based on our batching strategy
-      const batchPageIndex = Math.floor(pageIndex / PAGES_PER_FETCH);
-      const startPage = batchPageIndex * PAGES_PER_FETCH;
+      // Ensure we always have a positive startPage value
+      const startPage = Math.max(1, (pageIndex - 1) * PAGES_PER_FETCH + 1);
       
-      // For the first batch after initial data, we need to skip the first page
-      const skipFirstPage = pageIndex === 1 ? true : false;
-      
-      // Request multiple pages at once
-      return `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}${skipFirstPage ? '&skipFirstPage=true' : ''}`;
+      // Request multiple pages at once - no need for skipFirstPage parameter
+      return `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
     },
     async (url: string) => {
       if (!url) return initialData; // Return initial data if URL is null
@@ -465,8 +463,31 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
   // Flatten paginated entries - preserving the structure from server
   const paginatedEntries = useMemo(() => {
     if (!data) return [];
-    return data.flatMap((page: { entries: RSSEntryWithData[] }) => page.entries || []);
-  }, [data]);
+    
+    // Make sure we always include the initial data (first 10 entries)
+    // Create a map to track entries by guid for deduplication
+    const entriesMap = new Map<string, RSSEntryWithData>();
+    
+    // First, add the initial entries to ensure they're always included
+    if (initialData && initialData.entries) {
+      initialData.entries.forEach((entry: RSSEntryWithData) => {
+        entriesMap.set(entry.entry.guid, entry);
+      });
+    }
+    
+    // Then add all entries from the fetched data
+    data.forEach(page => {
+      if (page.entries) {
+        page.entries.forEach((entry: RSSEntryWithData) => {
+          entriesMap.set(entry.entry.guid, entry);
+        });
+      }
+    });
+    
+    // Convert back to array and sort by publication date (newest first)
+    return Array.from(entriesMap.values())
+      .sort((a, b) => new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime());
+  }, [data, initialData]);
   
   // Extract all entry GUIDs for batch query
   const entryGuids = useMemo(() => {
@@ -485,13 +506,48 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
   const prefetchNextBatch = useCallback(() => {
     if (data && data.length > 0) {
       const nextBatchIndex = size;
-      const startPage = Math.floor(nextBatchIndex / PAGES_PER_FETCH) * PAGES_PER_FETCH;
+      // Use the same calculation as in the key function with the same safety check
+      const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
       const url = `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
       
       // Prefetch the next batch but don't update state yet
       fetch(url).catch(() => {/* Silently handle prefetch errors */});
     }
   }, [data, size, PAGES_PER_FETCH, pageSize]);
+  
+  // Use a ref to track already prefetched URLs to prevent duplicate prefetches
+  const prefetchedUrlsRef = useRef<Set<string>>(new Set());
+  
+  // Modified prefetch function that prevents duplicate prefetches
+  const prefetchWithoutDuplicates = useCallback(() => {
+    if (data && data.length > 0) {
+      const nextBatchIndex = size;
+      // Use the same calculation as in the key function with the same safety check
+      const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
+      const url = `/api/rss?startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      
+      // Only prefetch if we haven't already prefetched this URL
+      if (!prefetchedUrlsRef.current.has(url)) {
+        prefetchedUrlsRef.current.add(url);
+        // Prefetch the next batch but don't update state yet
+        fetch(url).catch(() => {/* Silently handle prefetch errors */});
+      }
+    }
+  }, [data, size, PAGES_PER_FETCH, pageSize]);
+  
+  // This effect runs only once on initial render
+  useEffect(() => {
+    // Initial prefetch
+    prefetchWithoutDuplicates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array ensures this only runs once
+  
+  // This effect runs when the size changes to prefetch the next batch
+  useEffect(() => {
+    if (size > 1) { // Only prefetch after the first page
+      prefetchWithoutDuplicates();
+    }
+  }, [size, prefetchWithoutDuplicates]);
   
   // Use a single batch query to get metrics for all entries
   // We're using a larger batch size to reduce the number of queries
@@ -533,22 +589,10 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
       startTransition(() => {
         setSize((s: number) => s + 1);
         // Trigger prefetch of the next batch
-        prefetchNextBatch();
+        prefetchWithoutDuplicates();
       });
     }
   };
-  
-  // Prefetch the next batch when we're 75% through the current entries
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight * 0.75) {
-        prefetchNextBatch();
-      }
-    };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [prefetchNextBatch]);
   
   if (error) {
     return (
@@ -562,7 +606,7 @@ export function RSSEntriesClient({ initialData, pageSize = 10 }: RSSEntriesClien
   const tabs = [
     {
       id: 'for-you',
-      label: 'For You',
+      label: 'Discover',
       content: (
         <EntriesContent
           paginatedEntries={paginatedEntries}

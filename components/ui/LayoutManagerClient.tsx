@@ -66,23 +66,7 @@ export function LayoutManagerClient({ initialData }: LayoutManagerClientProps) {
         <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
       </div>
       <main className={mainContentClass}>
-        <Suspense 
-          fallback={
-            <div className="animate-pulse space-y-8">
-              <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex gap-4">
-                    <div className="h-24 w-24 bg-muted rounded shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-muted rounded w-3/4" />
-                      <div className="h-4 bg-muted rounded w-1/2" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          }
-        >
+        <Suspense>
           {!initialData ? (
             <div className="text-center py-8 text-muted-foreground">
               No entries found. Please sign in and add some RSS feeds to get started.

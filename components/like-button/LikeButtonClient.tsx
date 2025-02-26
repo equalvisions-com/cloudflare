@@ -49,7 +49,7 @@ export function LikeButtonClient({
   const [metricsLoaded, setMetricsLoaded] = useState(false);
   
   // Use state for optimistic updates
-  const [optimisticState, setOptimisticState] = useState<{isLiked: boolean, count: number} | null>(null);
+  const [optimisticState, setOptimisticState] = useState<{isLiked: boolean, count: number, timestamp: number} | null>(null);
   
   // Update metricsLoaded when metrics are received
   useEffect(() => {
@@ -63,10 +63,17 @@ export function LikeButtonClient({
   const isLiked = optimisticState?.isLiked ?? (metricsLoaded ? metrics?.likes.isLiked : initialData.isLiked);
   const likeCount = optimisticState?.count ?? (metricsLoaded ? (metrics?.likes.count ?? initialData.count) : initialData.count);
   
-  // Reset optimistic state when real data arrives
+  // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
     if (metrics && optimisticState) {
-      setOptimisticState(null);
+      // Only clear optimistic state if server data matches what we expect
+      // or if the optimistic update is older than 5 seconds (fallback)
+      const isServerMatchingOptimistic = metrics.likes.isLiked === optimisticState.isLiked;
+      const isOptimisticUpdateStale = Date.now() - optimisticState.timestamp > 5000;
+      
+      if (isServerMatchingOptimistic || isOptimisticUpdateStale) {
+        setOptimisticState(null);
+      }
     }
   }, [metrics, optimisticState]);
 
@@ -79,7 +86,8 @@ export function LikeButtonClient({
     // Calculate new state for optimistic update
     const newState = {
       isLiked: !isLiked,
-      count: likeCount + (isLiked ? -1 : 1)
+      count: likeCount + (isLiked ? -1 : 1),
+      timestamp: Date.now()
     };
 
     // Apply optimistic update
@@ -114,9 +122,9 @@ export function LikeButtonClient({
       onClick={handleClick}
     >
       <Heart 
-        className={`h-4 w-4 transition-colors ${isLiked ? 'fill-current text-[#f91880]' : ''}`}
+        className={`h-4 w-4 transition-colors duration-200 ${isLiked ? 'fill-current text-[#f91880]' : ''}`}
       />
-      <span>{likeCount}</span>
+      <span className="transition-all duration-200">{likeCount}</span>
     </Button>
   );
 } 

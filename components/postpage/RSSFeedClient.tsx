@@ -356,14 +356,15 @@ const FeedContent = React.memo(({
   return (
     <div className="space-y-0">
       <Virtuoso
-        style={{ height: 'calc(100vh - 120px)' }} // Adjust height as needed
+        useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
           if (hasMore && !isPending) {
             loadMore();
           }
         }}
-        overscan={5} // Pre-render 5 items above and below viewport
+        overscan={20}
+        initialTopMostItemIndex={0}
         itemContent={index => {
           const entryWithData = paginatedEntries[index];
           // If we have metrics from the batch query, use them to update the entry data
@@ -443,14 +444,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       }
       
       // Calculate the actual page number based on our batching strategy
-      const batchPageIndex = Math.floor(pageIndex / PAGES_PER_FETCH);
-      const startPage = batchPageIndex * PAGES_PER_FETCH;
+      // Ensure we always have a positive startPage value
+      const startPage = Math.max(1, (pageIndex - 1) * PAGES_PER_FETCH + 1);
       
-      // For the first batch after initial data, we need to skip the first page
-      const skipFirstPage = pageIndex === 1 ? true : false;
-      
-      // Request multiple pages at once
-      return `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}${skipFirstPage ? '&skipFirstPage=true' : ''}`;
+      // Request multiple pages at once - no need for skipFirstPage parameter
+      return `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
     },
     async (url: string) => {
       if (!url) return initialData; // Return initial data if URL is null
@@ -474,8 +472,32 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   
   // Flatten paginated entries - preserving the structure from server
   const paginatedEntries = useMemo(() => {
-    return data ? data.flatMap((page: { entries: RSSEntryWithData[] }) => page.entries || []) : [];
-  }, [data]);
+    if (!data) return [];
+    
+    // Make sure we always include the initial data (first 10 entries)
+    // Create a map to track entries by guid for deduplication
+    const entriesMap = new Map<string, RSSEntryWithData>();
+    
+    // First, add the initial entries to ensure they're always included
+    if (initialData && initialData.entries) {
+      initialData.entries.forEach((entry: RSSEntryWithData) => {
+        entriesMap.set(entry.entry.guid, entry);
+      });
+    }
+    
+    // Then add all entries from the fetched data
+    data.forEach(page => {
+      if (page.entries) {
+        page.entries.forEach((entry: RSSEntryWithData) => {
+          entriesMap.set(entry.entry.guid, entry);
+        });
+      }
+    });
+    
+    // Convert back to array and sort by publication date (newest first)
+    return Array.from(entriesMap.values())
+      .sort((a, b) => new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime());
+  }, [data, initialData]);
   
   // Extract all entry GUIDs for batch query
   const entryGuids = useMemo(() => {
@@ -494,7 +516,8 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   const prefetchNextBatch = useCallback(() => {
     if (data && data.length > 0 && hasMoreEntries) {
       const nextBatchIndex = size;
-      const startPage = Math.floor(nextBatchIndex / PAGES_PER_FETCH) * PAGES_PER_FETCH;
+      // Use the same calculation as in the key function with the same safety check
+      const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
       const url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
       
       // Prefetch the next batch but don't update state yet
@@ -539,16 +562,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
     }
   };
   
-  // Prefetch the next batch when we're 75% through the current entries
+  // Prefetch the next batch of entries - no need for scroll listener
+  // as Virtuoso's endReached will handle this
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight * 0.75) {
-        prefetchNextBatch();
-      }
-    };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    // Initial prefetch
+    prefetchNextBatch();
   }, [prefetchNextBatch]);
   
   if (error) {
