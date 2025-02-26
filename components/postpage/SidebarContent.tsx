@@ -15,26 +15,30 @@ export const SidebarContent = ({
 }: SidebarContentProps) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Memoize width calculations
+  // Simplify the class strings to avoid conflicts
   const mainContentClass = useMemo(() => {
-    return `${sidebarCollapsed ? "w-[62%]" : "w-[56%]"} overflow-y-auto border bg-card rounded-xl mt-6`;
+    // On mobile: full width, on desktop: original width
+    return `w-full ${sidebarCollapsed ? "md:w-[62%]" : "md:w-[56%]"} overflow-y-auto border bg-card rounded-lg mt-6`;
   }, [sidebarCollapsed]);
 
   const sidebarClass = useMemo(() => {
-    return `${sidebarCollapsed ? "w-[29%]" : "w-[26%]"} transition-[width]`;
+    // Hidden on mobile, original width on desktop
+    return `hidden md:block ${sidebarCollapsed ? "md:w-[29%]" : "md:w-[26%]"} transition-[width]`;
   }, [sidebarCollapsed]);
 
   return (
     <>
-      {/* Interactive sidebar toggle */}
-      <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
+      {/* Interactive sidebar toggle - hidden on mobile */}
+      <div className="hidden md:block">
+        <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
+      </div>
       
       {/* Main content with responsive width */}
       <div className={mainContentClass}>
         {children}
       </div>
 
-      {/* Sidebar content with responsive width */}
+      {/* Sidebar content with responsive width - hidden on mobile */}
       <ProfileSidebarWrapper className={sidebarClass}>
         {sidebarContent}
       </ProfileSidebarWrapper>

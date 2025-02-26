@@ -126,7 +126,7 @@ export function LikeButtonClient({
     <Button
       variant="ghost"
       size="sm"
-      className="gap-2 px-0 hover:bg-transparent items-end"
+      className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
     >
       <Heart 

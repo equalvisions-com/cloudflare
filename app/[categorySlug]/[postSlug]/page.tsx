@@ -87,7 +87,7 @@ async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> 
               width={150}
               height={150}
               sizes="(max-width: 768px) 100vw, 150px"
-              className="object-cover rounded-xl border"
+              className="object-cover rounded-lg border"
               priority
             />
           </div>

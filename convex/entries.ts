@@ -9,8 +9,8 @@ export const batchGetEntryData = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
 
-    // Get all likes and comments in parallel but within the same query
-    const [likes, comments] = await Promise.all([
+    // Get all likes, comments, and retweets in parallel but within the same query
+    const [likes, comments, retweets] = await Promise.all([
       // Get all likes for the requested entries
       ctx.db
         .query("likes")
@@ -27,6 +27,19 @@ export const batchGetEntryData = query({
       // Get all comments for the requested entries
       ctx.db
         .query("comments")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect(),
+        
+      // Get all retweets for the requested entries
+      ctx.db
+        .query("retweets")
         .withIndex("by_entry")
         .filter((q) => 
           q.or(
@@ -57,6 +70,19 @@ export const batchGetEntryData = query({
       const count = commentCountMap.get(comment.entryGuid) || 0;
       commentCountMap.set(comment.entryGuid, count + 1);
     }
+    
+    // Process retweets data
+    const retweetCountMap = new Map<string, number>();
+    const userRetweetedSet = new Set<string>();
+    
+    for (const retweet of retweets) {
+      const count = retweetCountMap.get(retweet.entryGuid) || 0;
+      retweetCountMap.set(retweet.entryGuid, count + 1);
+      
+      if (userId && retweet.userId === userId) {
+        userRetweetedSet.add(retweet.entryGuid);
+      }
+    }
 
     // Return data for each entry in the same order as input guids
     return args.entryGuids.map(guid => ({
@@ -66,6 +92,10 @@ export const batchGetEntryData = query({
       },
       comments: {
         count: commentCountMap.get(guid) || 0
+      },
+      retweets: {
+        isRetweeted: userId ? userRetweetedSet.has(guid) : false,
+        count: retweetCountMap.get(guid) || 0
       }
     }));
   },
@@ -79,8 +109,8 @@ export const getEntryMetrics = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
 
-    // Get likes and comments counts in parallel
-    const [likes, comments] = await Promise.all([
+    // Get likes, comments, and retweets counts in parallel
+    const [likes, comments, retweets] = await Promise.all([
       ctx.db
         .query("likes")
         .withIndex("by_entry")
@@ -90,11 +120,19 @@ export const getEntryMetrics = query({
         .query("comments")
         .withIndex("by_entry")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
+        .collect(),
+      ctx.db
+        .query("retweets")
+        .withIndex("by_entry")
+        .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .collect()
     ]);
 
     // Check if user has liked
     const isLiked = userId ? likes.some(like => like.userId === userId) : false;
+    
+    // Check if user has retweeted
+    const isRetweeted = userId ? retweets.some(retweet => retweet.userId === userId) : false;
 
     return {
       likes: {
@@ -103,6 +141,10 @@ export const getEntryMetrics = query({
       },
       comments: {
         count: comments.length
+      },
+      retweets: {
+        count: retweets.length,
+        isRetweeted
       }
     };
   },
@@ -117,7 +159,7 @@ export const getEntryWithComments = query({
     const userId = await getAuthUserId(ctx);
 
     // Get all data in parallel
-    const [likes, comments] = await Promise.all([
+    const [likes, comments, retweets] = await Promise.all([
       ctx.db
         .query("likes")
         .withIndex("by_entry")
@@ -128,6 +170,11 @@ export const getEntryWithComments = query({
         .withIndex("by_entry_time")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .order("desc")
+        .collect(),
+      ctx.db
+        .query("retweets")
+        .withIndex("by_entry")
+        .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .collect()
     ]);
 
@@ -140,6 +187,10 @@ export const getEntryWithComments = query({
         comments: {
           count: 0,
           items: []
+        },
+        retweets: {
+          count: retweets.length,
+          isRetweeted: userId ? retweets.some(retweet => retweet.userId === userId) : false
         }
       };
     }
@@ -173,6 +224,10 @@ export const getEntryWithComments = query({
           ...comment,
           user: userMap.get(comment.userId)
         }))
+      },
+      retweets: {
+        count: retweets.length,
+        isRetweeted: userId ? retweets.some(retweet => retweet.userId === userId) : false
       }
     };
   },

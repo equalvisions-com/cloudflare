@@ -1,8 +1,10 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 
-// Configure the segment for dynamic rendering
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
+// Enable Incremental Static Regeneration (ISR) - revalidate every 60 seconds
+export const revalidate = 60;
+
+// Configure dynamic rendering to auto (static by default unless dynamic data is detected)
+export const dynamic = "auto";
 
 // Add preload hints for critical resources
 export async function generateMetadata() {

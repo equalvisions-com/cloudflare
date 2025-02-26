@@ -53,6 +53,21 @@ export default defineSchema({
   .index("by_entry", ["entryGuid"])
   .index("by_feedUrl", ["feedUrl"]),
 
+  retweets: defineTable({
+    userId: v.id("users"),
+    entryGuid: v.string(),
+    feedUrl: v.string(),
+    title: v.string(),
+    pubDate: v.string(),
+    link: v.string(),
+    retweetedAt: v.number(), // Timestamp for when the retweet was created
+  })
+  .index("by_user_entry", ["userId", "entryGuid"])
+  .index("by_user", ["userId"])
+  .index("by_entry", ["entryGuid"])
+  .index("by_feedUrl", ["feedUrl"])
+  .index("by_time", ["retweetedAt"]), // For chronological display
+
   comments: defineTable({
     userId: v.id("users"),
     username: v.string(),      // The username from profiles

@@ -53,16 +53,18 @@ export function LayoutManagerClient({ initialData }: LayoutManagerClientProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const mainContentClass = useMemo(() => {
-    return sidebarCollapsed ? "w-[62%]" : "w-[56%]";
+    return `w-full ${sidebarCollapsed ? "md:w-[62%]" : "md:w-[56%]"}`;
   }, [sidebarCollapsed]);
 
   const rightSidebarClass = useMemo(() => {
-    return sidebarCollapsed ? "w-[29%]" : "w-[26%]";
+    return `hidden md:block ${sidebarCollapsed ? "md:w-[29%]" : "md:w-[26%]"}`;
   }, [sidebarCollapsed]);
 
   return (
-    <div className="container flex h-screen gap-6">
-      <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
+    <div className="container flex flex-col md:flex-row h-screen md:gap-6 p-0 md:px-6">
+      <div className="hidden md:block">
+        <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
+      </div>
       <main className={mainContentClass}>
         <Suspense 
           fallback={
