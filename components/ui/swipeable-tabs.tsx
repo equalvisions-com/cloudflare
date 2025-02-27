@@ -72,6 +72,7 @@ export function SwipeableTabs({
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
+  const [isUserSwiping, setIsUserSwiping] = useState(false);
   
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
@@ -101,6 +102,22 @@ export function SwipeableTabs({
       window.removeEventListener('resize', reinitEmbla);
     };
   }, [reinitEmbla]);
+
+  // Track user interaction with the carousel
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onPointerDown = () => setIsUserSwiping(true);
+    const onPointerUp = () => setIsUserSwiping(false);
+    
+    emblaApi.on('pointerDown', onPointerDown);
+    emblaApi.on('pointerUp', onPointerUp);
+    
+    return () => {
+      emblaApi.off('pointerDown', onPointerDown);
+      emblaApi.off('pointerUp', onPointerUp);
+    };
+  }, [emblaApi]);
 
   // Sync tab selection with carousel
   useEffect(() => {
@@ -133,6 +150,42 @@ export function SwipeableTabs({
     [emblaApi]
   );
 
+  // Preload adjacent tabs for instant transitions, but with performance in mind
+  useEffect(() => {
+    // Only start preloading after initial render is complete
+    if (document.readyState === 'complete') {
+      // Use requestIdleCallback or setTimeout as a fallback to load during idle time
+      const preloadAdjacentTabs = () => {
+        if (selectedTab > 0) {
+          setLoadedTabs(prev => new Set([...prev, selectedTab - 1]));
+        }
+        if (selectedTab < tabs.length - 1) {
+          setLoadedTabs(prev => new Set([...prev, selectedTab + 1]));
+        }
+      };
+      
+      // Use requestIdleCallback if available, otherwise setTimeout with a delay
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(preloadAdjacentTabs);
+      } else {
+        setTimeout(preloadAdjacentTabs, 200); // Small delay to prioritize current tab rendering
+      }
+    } else {
+      // Add a listener for when the page is fully loaded
+      const handleLoad = () => {
+        if (selectedTab > 0) {
+          setLoadedTabs(prev => new Set([...prev, selectedTab - 1]));
+        }
+        if (selectedTab < tabs.length - 1) {
+          setLoadedTabs(prev => new Set([...prev, selectedTab + 1]));
+        }
+      };
+      
+      window.addEventListener('load', handleLoad, { once: true });
+      return () => window.removeEventListener('load', handleLoad);
+    }
+  }, [selectedTab, tabs.length]);
+
   return (
     <div className={cn('w-full h-full', className)}>
       {/* Tab Headers - Twitter/X style */}
@@ -152,7 +205,13 @@ export function SwipeableTabs({
           touchAction: 'pan-y', // Improve touch handling
         }}
       >
-        <div className="flex">
+        <div 
+          className="flex" 
+          style={{ 
+            transition: isUserSwiping ? 'none' : 'transform 0ms',
+            transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
+          }}
+        >
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
@@ -163,9 +222,10 @@ export function SwipeableTabs({
                 backfaceVisibility: 'hidden', // Prevent flickering during animations
                 willChange: 'transform', // Hint to browser to optimize
                 imageRendering: 'auto', // Default image rendering
+                visibility: loadedTabs.has(index) ? 'visible' : 'hidden', // Hide unloaded tabs
               }}
             >
-              {/* Only render content if this tab has been loaded */}
+              {/* Always render content but only show when needed */}
               {loadedTabs.has(index) ? tab.content : null}
             </div>
           ))}
