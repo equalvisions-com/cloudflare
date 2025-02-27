@@ -12,7 +12,6 @@ interface SwipeableTabsProps {
   }[];
   defaultTabIndex?: number;
   className?: string;
-  animationDuration?: number; // Animation duration in milliseconds
 }
 
 // Memoized tab header component to prevent re-renders
@@ -70,7 +69,6 @@ export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 5, // Very low value for fast animation with minimal bouncing
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
