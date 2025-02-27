@@ -79,11 +79,11 @@ export function SwipeableTabs({
     skipSnaps: false,
     startIndex: defaultTabIndex,
     align: 'start',
-    containScroll: 'trimSnaps',
-    dragFree: true, // Allow free-form dragging for more natural feel
-    duration: 100, // Even shorter animation duration for faster slide-in
+    containScroll: 'keepSnaps',
+    dragFree: false,
+    duration: 50,
     breakpoints: {
-      '(max-width: 768px)': { dragFree: true } // Ensure drag free on mobile
+      '(max-width: 768px)': { dragFree: false }
     }
   });
 
@@ -152,7 +152,7 @@ export function SwipeableTabs({
           touchAction: 'pan-y', // Improve touch handling
         }}
       >
-        <div className="flex" style={{ transition: 'transform 100ms cubic-bezier(0.2, 0, 0, 1)' }}>
+        <div className="flex" style={{ transition: 'transform 50ms ease-out' }}>
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
