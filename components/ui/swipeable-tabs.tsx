@@ -4,6 +4,24 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 
+// Add type definitions for requestIdleCallback
+interface RequestIdleCallbackOptions {
+  timeout: number;
+}
+
+interface Window {
+  requestIdleCallback(
+    callback: (deadline: RequestIdleCallbackDeadline) => void,
+    opts?: RequestIdleCallbackOptions
+  ): number;
+  cancelIdleCallback(handle: number): void;
+}
+
+interface RequestIdleCallbackDeadline {
+  didTimeout: boolean;
+  timeRemaining: () => number;
+}
+
 interface SwipeableTabsProps {
   tabs: {
     id: string;
@@ -166,7 +184,8 @@ export function SwipeableTabs({
       
       // Use requestIdleCallback if available, otherwise setTimeout with a delay
       if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(preloadAdjacentTabs);
+        // Type assertion to use our defined interface
+        (window as unknown as Window).requestIdleCallback(preloadAdjacentTabs);
       } else {
         setTimeout(preloadAdjacentTabs, 200); // Small delay to prioritize current tab rendering
       }
