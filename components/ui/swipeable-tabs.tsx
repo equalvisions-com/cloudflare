@@ -83,11 +83,26 @@ export function SwipeableTabs({
     align: 'start',
     containScroll: 'trimSnaps',
     dragFree: true, // Allow free-form dragging for more natural feel
-    duration: 200, // Shorter animation duration in milliseconds
+    duration: 100, // Even shorter animation duration for faster slide-in
     breakpoints: {
       '(max-width: 768px)': { dragFree: true } // Ensure drag free on mobile
     }
   });
+
+  // Add reinitialization function to optimize performance
+  const reinitEmbla = useCallback(() => {
+    if (emblaApi) {
+      emblaApi.reInit();
+    }
+  }, [emblaApi]);
+
+  // Optimize performance by reinitializing on window resize
+  useEffect(() => {
+    window.addEventListener('resize', reinitEmbla);
+    return () => {
+      window.removeEventListener('resize', reinitEmbla);
+    };
+  }, [reinitEmbla]);
 
   // Sync tab selection with carousel
   useEffect(() => {
@@ -139,13 +154,15 @@ export function SwipeableTabs({
           touchAction: 'pan-y', // Improve touch handling
         }}
       >
-        <div className="flex">
+        <div className="flex" style={{ transition: 'transform 100ms cubic-bezier(0.2, 0, 0, 1)' }}>
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
               className="min-w-0 flex-[0_0_100%]"
               style={{ 
                 WebkitTapHighlightColor: 'transparent', // Remove tap highlight on mobile
+                transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
+                backfaceVisibility: 'hidden', // Prevent flickering during animations
               }}
             >
               {/* Only render content if this tab has been loaded */}
