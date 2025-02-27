@@ -4,24 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 
-// Add type definitions for requestIdleCallback
-interface RequestIdleCallbackOptions {
-  timeout: number;
-}
-
-interface Window {
-  requestIdleCallback(
-    callback: (deadline: RequestIdleCallbackDeadline) => void,
-    opts?: RequestIdleCallbackOptions
-  ): number;
-  cancelIdleCallback(handle: number): void;
-}
-
-interface RequestIdleCallbackDeadline {
-  didTimeout: boolean;
-  timeRemaining: () => number;
-}
-
 interface SwipeableTabsProps {
   tabs: {
     id: string;
@@ -168,43 +150,6 @@ export function SwipeableTabs({
     [emblaApi]
   );
 
-  // Preload adjacent tabs for instant transitions, but with performance in mind
-  useEffect(() => {
-    // Only start preloading after initial render is complete
-    if (document.readyState === 'complete') {
-      // Use requestIdleCallback or setTimeout as a fallback to load during idle time
-      const preloadAdjacentTabs = () => {
-        if (selectedTab > 0) {
-          setLoadedTabs(prev => new Set([...prev, selectedTab - 1]));
-        }
-        if (selectedTab < tabs.length - 1) {
-          setLoadedTabs(prev => new Set([...prev, selectedTab + 1]));
-        }
-      };
-      
-      // Use requestIdleCallback if available, otherwise setTimeout with a delay
-      if ('requestIdleCallback' in window) {
-        // Type assertion to use our defined interface
-        (window as unknown as Window).requestIdleCallback(preloadAdjacentTabs);
-      } else {
-        setTimeout(preloadAdjacentTabs, 200); // Small delay to prioritize current tab rendering
-      }
-    } else {
-      // Add a listener for when the page is fully loaded
-      const handleLoad = () => {
-        if (selectedTab > 0) {
-          setLoadedTabs(prev => new Set([...prev, selectedTab - 1]));
-        }
-        if (selectedTab < tabs.length - 1) {
-          setLoadedTabs(prev => new Set([...prev, selectedTab + 1]));
-        }
-      };
-      
-      window.addEventListener('load', handleLoad, { once: true });
-      return () => window.removeEventListener('load', handleLoad);
-    }
-  }, [selectedTab, tabs.length]);
-
   return (
     <div className={cn('w-full h-full', className)}>
       {/* Tab Headers - Twitter/X style */}
@@ -241,10 +186,9 @@ export function SwipeableTabs({
                 backfaceVisibility: 'hidden', // Prevent flickering during animations
                 willChange: 'transform', // Hint to browser to optimize
                 imageRendering: 'auto', // Default image rendering
-                visibility: loadedTabs.has(index) ? 'visible' : 'hidden', // Hide unloaded tabs
               }}
             >
-              {/* Always render content but only show when needed */}
+              {/* Only render content if this tab is selected */}
               {loadedTabs.has(index) ? tab.content : null}
             </div>
           ))}
