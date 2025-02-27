@@ -76,12 +76,12 @@ export function SwipeableTabs({
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    skipSnaps: false,
+    skipSnaps: true, // Skip animation entirely
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'keepSnaps',
     dragFree: false,
-    duration: 5, // Extremely fast animation, almost instant
+    duration: 0, // No animation duration - instant transition
     breakpoints: {
       '(max-width: 768px)': { dragFree: false }
     }
@@ -152,7 +152,7 @@ export function SwipeableTabs({
           touchAction: 'pan-y', // Improve touch handling
         }}
       >
-        <div className="flex" style={{ transition: 'transform 5ms ease-out' }}>
+        <div className="flex">
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
@@ -161,6 +161,8 @@ export function SwipeableTabs({
                 WebkitTapHighlightColor: 'transparent', // Remove tap highlight on mobile
                 transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
                 backfaceVisibility: 'hidden', // Prevent flickering during animations
+                willChange: 'transform', // Hint to browser to optimize
+                imageRendering: 'auto', // Default image rendering
               }}
             >
               {/* Only render content if this tab has been loaded */}
