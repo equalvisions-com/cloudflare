@@ -34,7 +34,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-10">
+    <div className="flex w-full border-b sticky top-0 bg-background z-10">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -82,8 +82,11 @@ export function SwipeableTabs({
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'trimSnaps',
-    dragFree: false,
-    duration: animationDuration, // Very low value for fast animation
+    dragFree: true, // Allow free-form dragging for more natural feel
+    duration: 200, // Shorter animation duration in milliseconds
+    breakpoints: {
+      '(max-width: 768px)': { dragFree: true } // Ensure drag free on mobile
+    }
   });
 
   // Sync tab selection with carousel
@@ -133,6 +136,7 @@ export function SwipeableTabs({
         style={{
           willChange: 'transform', // Optimize for animations
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+          touchAction: 'pan-y', // Improve touch handling
         }}
       >
         <div className="flex">
@@ -140,6 +144,9 @@ export function SwipeableTabs({
             <div 
               key={tab.id} 
               className="min-w-0 flex-[0_0_100%]"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent', // Remove tap highlight on mobile
+              }}
             >
               {/* Only render content if this tab has been loaded */}
               {loadedTabs.has(index) ? tab.content : null}

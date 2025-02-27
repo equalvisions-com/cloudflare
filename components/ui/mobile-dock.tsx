@@ -68,7 +68,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "py-2 px-4 shadow-sm",
+        "py-2 px-4 pb-safe-bottom shadow-sm",
         className
       )}
       aria-label="Mobile navigation"
@@ -84,4 +84,4 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       </div>
     </nav>
   );
-}); 
+});

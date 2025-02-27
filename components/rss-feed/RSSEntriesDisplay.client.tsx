@@ -183,7 +183,7 @@ const RSSEntry = ({ entryWithData: { entry, initialData, postMetadata } }: RSSEn
                     </h3>
                   </Link>
                   <span 
-                    className="text-base text-muted-foreground flex-shrink-0"
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={format(new Date(entry.pubDate), 'PPP p')}
                   >
                     {timestamp}
@@ -368,7 +368,7 @@ const EntriesContent = React.memo(({
   }
 
   return (
-    <div className="border-l border-r border-b">
+    <div className="border-0 md:border-l md:border-r md:border-b">
       <Virtuoso
         useWindowScroll
         totalCount={paginatedEntries.length}
