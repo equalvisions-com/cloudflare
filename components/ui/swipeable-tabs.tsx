@@ -141,10 +141,10 @@ export function SwipeableTabs({
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'keepSnaps',
-    dragFree: false, // Disable drag free for snappier feel
-    duration: 1, // Very short animation duration for quick snapping
+    dragFree: true, // Enable drag free for native-like physics
+    duration: 300, // Native-like animation duration
     breakpoints: {
-      '(max-width: 768px)': { dragFree: false }
+      '(max-width: 768px)': { dragFree: true }
     }
   });
 
@@ -253,7 +253,9 @@ export function SwipeableTabs({
         <div 
           className="flex" 
           style={{ 
-            transition: isUserSwiping ? 'none' : 'transform 100ms cubic-bezier(0.2, 0, 0, 1)',
+            transition: isUserSwiping 
+              ? 'none' 
+              : 'transform 300ms cubic-bezier(0.17, 0.67, 0.32, 0.99)',
             transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
           }}
         >
