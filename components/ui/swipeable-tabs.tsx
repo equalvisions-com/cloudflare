@@ -81,7 +81,7 @@ export function SwipeableTabs({
     align: 'start',
     containScroll: 'keepSnaps',
     dragFree: false,
-    duration: 50,
+    duration: 5, // Extremely fast animation, almost instant
     breakpoints: {
       '(max-width: 768px)': { dragFree: false }
     }
@@ -152,7 +152,7 @@ export function SwipeableTabs({
           touchAction: 'pan-y', // Improve touch handling
         }}
       >
-        <div className="flex" style={{ transition: 'transform 50ms ease-out' }}>
+        <div className="flex" style={{ transition: 'transform 5ms ease-out' }}>
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
