@@ -137,14 +137,14 @@ export function SwipeableTabs({
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    skipSnaps: false, // Enable snaps for smooth sliding
+    skipSnaps: false, // Enable snaps for precise snapping
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'keepSnaps',
-    dragFree: true, // Enable drag free for smoother sliding
-    duration: 0, // Short animation duration for snappy feel
+    dragFree: false, // Disable drag free for snappier feel
+    duration: 1, // Very short animation duration for quick snapping
     breakpoints: {
-      '(max-width: 768px)': { dragFree: true }
+      '(max-width: 768px)': { dragFree: false }
     }
   });
 
@@ -253,7 +253,7 @@ export function SwipeableTabs({
         <div 
           className="flex" 
           style={{ 
-            transition: isUserSwiping ? 'none' : 'transform 0ms ease',
+            transition: isUserSwiping ? 'none' : 'transform 100ms cubic-bezier(0.2, 0, 0, 1)',
             transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
           }}
         >
