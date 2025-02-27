@@ -185,7 +185,6 @@ export function SwipeableTabs({
     
     const onScroll = () => {
       const progress = emblaApi.scrollProgress();
-      const scrollSnaps = emblaApi.scrollSnapList();
       const scrollProgress = progress * (tabs.length - 1);
       setScrollProgress(scrollProgress);
     };
