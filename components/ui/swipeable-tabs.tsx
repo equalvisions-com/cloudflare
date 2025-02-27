@@ -18,22 +18,86 @@ interface SwipeableTabsProps {
 const TabHeaders = React.memo(({ 
   tabs, 
   selectedTab, 
+  scrollProgress,
   onTabClick 
 }: { 
   tabs: SwipeableTabsProps['tabs'], 
   selectedTab: number, 
+  scrollProgress: number,
   onTabClick: (index: number) => void 
 }) => {
   const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const headerContainerRef = useRef<HTMLDivElement>(null);
+  const [tabWidths, setTabWidths] = useState<number[]>([]);
+  const [tabPositions, setTabPositions] = useState<number[]>([]);
   const [, forceUpdate] = useState({});
+
+  // Calculate tab widths and positions when tabs change or on resize
+  useEffect(() => {
+    if (!headerContainerRef.current) return;
+    
+    const calculateTabMetrics = () => {
+      const containerWidth = headerContainerRef.current?.offsetWidth || 0;
+      const tabWidth = containerWidth / tabs.length;
+      
+      const widths = labelRefs.current.map(ref => ref?.offsetWidth || 0);
+      const positions = tabs.map((_, i) => i * tabWidth + (tabWidth / 2));
+      
+      setTabWidths(widths);
+      setTabPositions(positions);
+    };
+    
+    calculateTabMetrics();
+    window.addEventListener('resize', calculateTabMetrics);
+    
+    return () => {
+      window.removeEventListener('resize', calculateTabMetrics);
+    };
+  }, [tabs]);
 
   // Force re-render when selected tab changes to ensure indicator width updates
   useEffect(() => {
     forceUpdate({});
   }, [selectedTab]);
 
+  // Calculate indicator position based on scroll progress
+  const getIndicatorStyle = () => {
+    if (tabWidths.length === 0 || tabPositions.length === 0) {
+      return {
+        width: labelRefs.current[selectedTab]?.offsetWidth || 'auto',
+        left: '50%',
+        transform: 'translateX(-50%)'
+      };
+    }
+
+    // Calculate the current position based on scroll progress
+    const currentIndex = Math.floor(scrollProgress);
+    const nextIndex = Math.min(currentIndex + 1, tabs.length - 1);
+    const progressInCurrentTab = scrollProgress - currentIndex;
+    
+    // Interpolate between current and next tab positions
+    const currentPos = tabPositions[currentIndex];
+    const nextPos = tabPositions[nextIndex];
+    const interpolatedPos = currentPos + (nextPos - currentPos) * progressInCurrentTab;
+    
+    // Interpolate between current and next tab widths
+    const currentWidth = tabWidths[currentIndex];
+    const nextWidth = tabWidths[nextIndex];
+    const interpolatedWidth = currentWidth + (nextWidth - currentWidth) * progressInCurrentTab;
+    
+    return {
+      width: `${interpolatedWidth}px`,
+      left: `${interpolatedPos}px`,
+      transform: 'translateX(-50%)',
+      transition: 'none' // No transition during swipe
+    };
+  };
+
   return (
-    <div className="flex w-full border-b sticky top-0 bg-background z-10">
+    <div 
+      ref={headerContainerRef}
+      className="flex w-full border-b sticky top-0 bg-background z-10"
+    >
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -48,18 +112,13 @@ const TabHeaders = React.memo(({
           aria-controls={`panel-${tab.id}`}
         >
           <span ref={(el) => { labelRefs.current[index] = el; }}>{tab.label}</span>
-          {selectedTab === index && (
-            <div 
-              className="absolute bottom-0 h-1 bg-primary rounded-full" 
-              style={{ 
-                width: labelRefs.current[index]?.offsetWidth || 'auto',
-                left: '50%',
-                transform: 'translateX(-50%)'
-              }} 
-            />
-          )}
         </button>
       ))}
+      {/* Indicator that slides with swipe */}
+      <div 
+        className="absolute bottom-0 h-1 bg-primary rounded-full" 
+        style={getIndicatorStyle()}
+      />
     </div>
   );
 });
@@ -73,18 +132,19 @@ export function SwipeableTabs({
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
   const [isUserSwiping, setIsUserSwiping] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(defaultTabIndex);
   
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    skipSnaps: true, // Skip animation entirely
+    skipSnaps: false, // Enable snaps for smooth sliding
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'keepSnaps',
-    dragFree: false,
-    duration: 0, // No animation duration - instant transition
+    dragFree: true, // Enable drag free for smoother sliding
+    duration: 0, // Short animation duration for snappy feel
     breakpoints: {
-      '(max-width: 768px)': { dragFree: false }
+      '(max-width: 768px)': { dragFree: true }
     }
   });
 
@@ -119,6 +179,27 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
+  // Track scroll progress for the indicator animation
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onScroll = () => {
+      const progress = emblaApi.scrollProgress();
+      const scrollSnaps = emblaApi.scrollSnapList();
+      const scrollProgress = progress * (tabs.length - 1);
+      setScrollProgress(scrollProgress);
+    };
+    
+    emblaApi.on('scroll', onScroll);
+    
+    // Initialize scroll progress
+    onScroll();
+    
+    return () => {
+      emblaApi.off('scroll', onScroll);
+    };
+  }, [emblaApi, tabs.length]);
+
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -136,13 +217,13 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
-  // Handle tab click with immediate snap (no animation) to prevent bouncing
+  // Handle tab click with smooth animation
   const handleTabClick = useCallback(
     (index: number) => {
       if (!emblaApi) return;
       
-      // Use scrollTo with immediate=true to skip animation completely
-      emblaApi.scrollTo(index, true);
+      // Use scrollTo with animation
+      emblaApi.scrollTo(index);
       setSelectedTab(index);
       // Mark this tab as loaded once it's clicked
       setLoadedTabs(prev => new Set([...prev, index]));
@@ -155,7 +236,8 @@ export function SwipeableTabs({
       {/* Tab Headers - Twitter/X style */}
       <TabHeaders 
         tabs={tabs} 
-        selectedTab={selectedTab} 
+        selectedTab={selectedTab}
+        scrollProgress={scrollProgress}
         onTabClick={handleTabClick} 
       />
 
@@ -172,7 +254,7 @@ export function SwipeableTabs({
         <div 
           className="flex" 
           style={{ 
-            transition: isUserSwiping ? 'none' : 'transform 0ms',
+            transition: isUserSwiping ? 'none' : 'transform 0ms ease',
             transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
           }}
         >
