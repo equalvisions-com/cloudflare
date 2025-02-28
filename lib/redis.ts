@@ -188,7 +188,7 @@ export const getRSSEntries = cache(async (postTitle: string, feedUrl: string): P
 export async function getMergedRSSEntries(
   rssKeys: string[], 
   offset: number = 0, 
-  limit: number = 10
+  limit: number = 30
 ): Promise<RSSItem[] | null> {
   try {
     if (!rssKeys || rssKeys.length === 0) return null;

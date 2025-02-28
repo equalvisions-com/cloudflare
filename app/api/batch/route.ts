@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { getRSSEntries } from "@/lib/redis";
+import { getRSSEntries } from "@/lib/planetscale";
 
 export async function POST(request: NextRequest) {
   try {
     const { feedUrl, postTitle } = await request.json();
 
-    // Get entries from Redis
+    // Get entries from PlanetScale
     const entries = await getRSSEntries(postTitle, feedUrl);
     if (!entries || entries.length === 0) {
       return NextResponse.json({ entries: [] });

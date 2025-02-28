@@ -4,7 +4,9 @@ import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSFeedClient } from "./RSSFeedClient";
-import { getRSSEntries } from "@/lib/redis";
+import { getRSSEntries } from "@/lib/rss.server";
+import orderBy from 'lodash/orderBy';
+import 'server-only';
 
 interface RSSFeedProps {
   postTitle: string;
@@ -18,8 +20,15 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   const entries = await getRSSEntries(postTitle, feedUrl);
   if (!entries || entries.length === 0) return null;
 
+  // Sort entries by publication date (newest first) using Lodash orderBy
+  const sortedEntries = orderBy(
+    entries,
+    [(entry) => new Date(entry.pubDate).getTime()],
+    ['desc']
+  );
+  
   // Only use the first 10 entries for initial data
-  const initialEntries = entries.slice(0, 10);
+  const initialEntries = sortedEntries.slice(0, 10);
   
   const token = await convexAuthNextjsToken();
   const guids = initialEntries.map(entry => entry.guid);

@@ -7,7 +7,7 @@ import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
 import useSWRInfinite from 'swr/infinite';
-import type { RSSItem } from "@/lib/redis";
+import type { RSSItem } from "@/lib/planetscale";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
@@ -323,6 +323,24 @@ interface EntryMetrics {
   };
 }
 
+// Add a debounce utility function
+const debounce = <F extends (...args: unknown[]) => unknown>(func: F, wait: number) => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return (...args: Parameters<F>): ReturnType<F> | undefined => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    
+    timeout = setTimeout(() => {
+      timeout = null;
+      func(...args);
+    }, wait);
+    
+    return undefined;
+  };
+};
+
 // Feed content component
 const FeedContent = React.memo(({ 
   paginatedEntries, 
@@ -345,6 +363,9 @@ const FeedContent = React.memo(({
   loadMore: () => void,
   entryMetrics: Record<string, EntryMetrics> | null
 }) => {
+  // Debounce the loadMore function to prevent multiple calls
+  const debouncedLoadMore = useMemo(() => debounce(loadMore, 300), [loadMore]);
+
   if (!paginatedEntries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -360,7 +381,7 @@ const FeedContent = React.memo(({
         totalCount={paginatedEntries.length}
         endReached={() => {
           if (hasMore && !isPending) {
-            loadMore();
+            debouncedLoadMore();
           }
         }}
         overscan={20}
@@ -440,6 +461,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       // we can skip fetching since we already have the data from the server
       if (pageIndex === 0 && !initialDataUsedRef.current) {
         initialDataUsedRef.current = true;
+        console.log('📦 Using initial data for first page, skipping fetch');
         return null; // Return null to skip this request
       }
       
@@ -447,18 +469,25 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       // Ensure we always have a positive startPage value
       const startPage = Math.max(1, (pageIndex - 1) * PAGES_PER_FETCH + 1);
       
+      const url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      console.log(`🔍 SWR key generated for page ${pageIndex}: ${url}`);
       // Request multiple pages at once - no need for skipFirstPage parameter
-      return `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      return url;
     },
     async (url: string) => {
-      if (!url) return initialData; // Return initial data if URL is null
+      if (!url) {
+        console.log('📄 Returning initial data for null URL');
+        return initialData; // Return initial data if URL is null
+      }
       
+      console.log(`📡 Fetching data from: ${url}`);
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch feed entries');
       const responseData = await res.json();
       
       // Update hasMore state based on API response
       setHasMoreEntries(responseData.hasMore);
+      console.log(`✅ Fetched ${responseData.entries?.length || 0} entries, hasMore: ${responseData.hasMore}`);
       
       return responseData;
     },
@@ -467,6 +496,9 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       revalidateOnFocus: false,
       revalidateFirstPage: false,
       revalidateOnMount: false, // Prevent initial refetch
+      dedupingInterval: 60000, // Deduplicate requests within 1 minute
+      shouldRetryOnError: false, // Don't retry on error to prevent multiple requests
+      focusThrottleInterval: 10000, // Throttle focus events
     }
   );
   
@@ -507,6 +539,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   // Create a map of already fetched metrics to avoid redundant queries
   const [fetchedMetricsMap, setFetchedMetricsMap] = useState<Record<string, EntryMetrics>>({});
   
+  // Track which URLs have already been prefetched to avoid duplicate requests
+  const prefetchedUrlsRef = useRef<Set<string>>(new Set());
+  
+  // Track if we've done the initial prefetch
+  const initialPrefetchDoneRef = useRef(false);
+  
   // Only fetch metrics for entries that don't already have up-to-date metrics
   const entriesNeedingMetrics = useMemo(() => {
     return entryGuids.filter(guid => !fetchedMetricsMap[guid]);
@@ -514,14 +552,24 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   
   // Prefetch the next batch of entries when approaching the end
   const prefetchNextBatch = useCallback(() => {
-    if (data && data.length > 0 && hasMoreEntries) {
+    if (data && hasMoreEntries) {
       const nextBatchIndex = size;
+      
+      // Don't skip the initial prefetch, but avoid redundant prefetches
+      // Only skip if we're beyond the first page and have already loaded this batch
+      if (nextBatchIndex > 1 && nextBatchIndex <= data.length) return;
+      
       // Use the same calculation as in the key function with the same safety check
       const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
       const url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
       
-      // Prefetch the next batch but don't update state yet
-      fetch(url).catch(() => {/* Silently handle prefetch errors */});
+      // Only prefetch if we haven't already prefetched this URL
+      if (!prefetchedUrlsRef.current.has(url)) {
+        console.log(`🔄 Prefetching next batch: ${url}`);
+        prefetchedUrlsRef.current.add(url);
+        // Prefetch the next batch but don't update state yet
+        fetch(url).catch(() => {/* Silently handle prefetch errors */});
+      }
     }
   }, [data, size, PAGES_PER_FETCH, pageSize, postTitle, feedUrl, hasMoreEntries]);
   
@@ -554,10 +602,21 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   // Function to load more entries
   const loadMore = () => {
     if (hasMoreEntries && !isPending) {
+      // Prevent multiple calls while loading
+      if (loadMoreRef.current?.textContent === 'Loading more entries...') {
+        console.log('⏳ Already loading more entries, skipping duplicate call');
+        return;
+      }
+      
+      console.log(`📥 Loading more entries, current size: ${size}`);
       startTransition(() => {
-        setSize((s: number) => s + 1);
-        // Trigger prefetch of the next batch
-        prefetchNextBatch();
+        setSize((s: number) => {
+          const newSize = s + 1;
+          console.log(`📈 Increasing size from ${s} to ${newSize}`);
+          // Trigger prefetch of the next batch
+          setTimeout(() => prefetchNextBatch(), 100); // Slight delay to ensure state is updated
+          return newSize;
+        });
       });
     }
   };
@@ -565,8 +624,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
   // Prefetch the next batch of entries - no need for scroll listener
   // as Virtuoso's endReached will handle this
   useEffect(() => {
-    // Initial prefetch
-    prefetchNextBatch();
+    // Initial prefetch - only run once on mount
+    if (!initialPrefetchDoneRef.current) {
+      console.log('🚀 Running initial prefetch');
+      initialPrefetchDoneRef.current = true;
+      prefetchNextBatch();
+    }
   }, [prefetchNextBatch]);
   
   if (error) {
