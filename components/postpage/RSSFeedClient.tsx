@@ -7,7 +7,7 @@ import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
 import useSWRInfinite from 'swr/infinite';
-import type { RSSItem } from "@/lib/planetscale";
+import type { RSSItem } from "@/lib/rss";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";

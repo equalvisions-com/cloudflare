@@ -6,7 +6,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import type { RSSItem } from "@/lib/planetscale";
+import type { RSSItem } from "@/lib/rss";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
@@ -91,6 +91,14 @@ interface MoreOptionsDropdownProps {
   entry: RSSItem;
 }
 
+// Add these type definitions near the top of the file, after the existing interfaces
+interface FeedTitle {
+  feedTitle?: string;
+  mediaType?: string;
+}
+
+type RSSItemWithFeedTitle = RSSItem & FeedTitle;
+
 const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
   return (
     <DropdownMenu>
@@ -164,7 +172,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   // Ensure we have valid postMetadata
   const safePostMetadata = useMemo(() => {
     // Use type assertion to access feedTitle
-    const feedTitle = 'feedTitle' in entry ? (entry.feedTitle as string) : '';
+    const feedTitle = (entry as RSSItemWithFeedTitle).feedTitle || '';
     
     return {
       title: postMetadata?.title || feedTitle,
@@ -631,7 +639,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
           // Transform entries to ensure consistent structure
           const transformedEntries = responseData.entries
             .filter(Boolean)
-            .map((entry: RSSEntryWithData | RSSItem | null) => {
+            .map((entry: RSSEntryWithData | RSSItemWithFeedTitle | RSSItem | null) => {
               // If the entry is already in the expected format with complete metadata
               if (entry && 
                   'entry' in entry && 
@@ -641,7 +649,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
                   entry.postMetadata && 
                   entry.postMetadata.title && 
                   entry.postMetadata.featuredImg) {
-                return entry;
+                return entry as RSSEntryWithData;
               }
               
               // If it has the basic structure but missing metadata
@@ -653,33 +661,33 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
                 // Get title from entry - access it safely
                 const entryTitle = entry.entry.title || '';
                 // Get feed title if available - this might come as an additional property
-                const feedTitle = ('feedTitle' in entry.entry) ? entry.entry.feedTitle as string : '';
+                const feedTitle = (entry.entry as RSSItemWithFeedTitle).feedTitle || '';
                 
                 return {
                   ...entry,
                   postMetadata: existingMetadata || {
                     title: feedTitle || entryTitle || '',
                     featuredImg: entry.entry.image || '',
-                    mediaType: ('mediaType' in entry.entry) ? entry.entry.mediaType as string : 'article',
+                    mediaType: (entry.entry as RSSItemWithFeedTitle).mediaType || 'article',
                     categorySlug: '',
                     postSlug: ''
                   }
-                };
+                } as RSSEntryWithData;
               }
               
               // If it's a direct RSS item, wrap it with proper metadata
-              if (entry && !('entry' in entry) && 'guid' in entry) {
+              if (entry && 'guid' in entry && entry.guid) {
                 // Try to find post metadata from initialData based on feedUrl
-                const feedUrl = entry.feedUrl;
+                const feedUrl = 'feedUrl' in entry ? entry.feedUrl : '';
                 const existingMetadata = feedUrl ? findPostMetadataFromInitialData(feedUrl) : null;
                 
                 // Get title directly
                 const entryTitle = entry.title || '';
                 // Get feed title if available - might be an additional property 
-                const feedTitle = ('feedTitle' in entry) ? entry.feedTitle as string : '';
+                const feedTitle = (entry as RSSItemWithFeedTitle).feedTitle || '';
                 
                 return {
-                  entry: entry,
+                  entry: entry as RSSItem,
                   initialData: {
                     likes: { isLiked: false, count: 0 },
                     comments: { count: 0 },
@@ -687,17 +695,17 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
                   },
                   postMetadata: existingMetadata || {
                     title: feedTitle || entryTitle || '',
-                    featuredImg: ('image' in entry) ? entry.image as string : '',
-                    mediaType: ('mediaType' in entry) ? entry.mediaType as string : 'article',
+                    featuredImg: entry.image || '',
+                    mediaType: (entry as RSSItemWithFeedTitle).mediaType || 'article',
                     categorySlug: '',
                     postSlug: ''
                   }
-                };
+                } as RSSEntryWithData;
               }
               
               return null;
             })
-            .filter(Boolean);
+            .filter(Boolean) as RSSEntryWithData[];
           
           // Always update the hasMore flag based on the latest response
           responseData.entries = transformedEntries;
@@ -900,8 +908,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
   // Create a map of already fetched metrics to avoid redundant queries
   // Use a more efficient approach with a ref to track metrics across renders
   const metricsMapRef = useRef<Record<string, EntryMetrics>>({});
-  // Remove the unused state variable since we're using a ref directly
-  const [, setMetricsVersion] = useState<number>(0);
+  const [metricsVersion, setMetricsVersion] = useState<number>(0);
 
   // Only fetch metrics for entries that don't already have up-to-date metrics
   const entriesNeedingMetrics = useMemo(() => {
@@ -950,9 +957,9 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
 
   // Convert array of metrics to a map keyed by entryGuid for easier lookup
   const entryMetricsMap = useMemo(() => {
-    // Return the current metrics map - this will re-compute when metricsVersion changes
+    // Return the current metrics map
     return metricsMapRef.current;
-  }, []); // Remove the dependency on metricsVersion since we're using a ref
+  }, [metricsVersion]); // Add back the metricsVersion dependency to ensure the memo updates when metrics change
   
   // Track which pages have already been prefetched to avoid duplicate requests
   const prefetchedPagesRef = useRef<Set<number>>(new Set());
@@ -967,7 +974,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       return;
     }
     
-    // Mark this page as being prefetcheds
+    // Mark this page as being prefetched
     prefetchedPagesRef.current.add(nextPageIndex);
     
     // Generate the URL for the next page
