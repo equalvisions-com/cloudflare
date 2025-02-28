@@ -69,6 +69,7 @@ const parser = new XMLParser({
 
 // Configure connection pool for high concurrency
 const poolConfig: PoolOptions = {
+  uri: process.env.DATABASE_URL,
   connectionLimit: 500,      // Default is 10, increase for high concurrency
   queueLimit: 750,           // Maximum connection requests to queue
   waitForConnections: true, // Queue requests when no connections available
@@ -81,23 +82,8 @@ const poolConfig: PoolOptions = {
   // timeout: 60000,
 };
 
-// Initialize MySQL connection pool with fallback to localhost if DATABASE_URL is not provided
-let pool: mysql.Pool;
-if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '') {
-  pool = mysql.createPool({
-    uri: process.env.DATABASE_URL,
-    ...poolConfig
-  });
-} else {
-  pool = mysql.createPool({
-    host: '127.0.0.1',
-    port: 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'grasper',
-    ...poolConfig
-  });
-}
+// Initialize MySQL connection pool
+const pool = mysql.createPool(poolConfig);
 
 // Set up connection timeouts using the recommended approach
 pool.on('connection', function (connection) {
@@ -287,7 +273,7 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
       logger.warn(`Suspiciously small XML response from ${url}: ${xml.substring(0, 100)}`);
     }
     
-    // Special handling for Libsyn feeds which have a specific format for iTunes images
+    // kSpecial handling for Libsyn feeds which have a specific format for iTunes images
     const isLibsynFeed = url.includes('libsyn.com');
     if (isLibsynFeed) {
       logger.debug('Detected Libsyn feed, using special handling for iTunes images');
@@ -1125,10 +1111,9 @@ export async function storeRSSEntries(feedId: number, entries: RSSItem[]): Promi
 
 // Function to ensure the RSS locks table exists
 async function ensureRSSLocksTableExists(): Promise<void> {
-  let connection;
   try {
     // Check if the table exists
-    connection = await pool.getConnection();
+    const connection = await pool.getConnection();
     try {
       const [tables] = await connection.query<RowDataPacket[]>(
         "SHOW TABLES LIKE 'rss_locks'"
@@ -1151,7 +1136,7 @@ async function ensureRSSLocksTableExists(): Promise<void> {
         logger.debug('rss_locks table already exists');
       }
     } finally {
-      if (connection) connection.release();
+      connection.release();
     }
   } catch (error) {
     logger.error(`Error ensuring rss_locks table exists: ${error}`);
@@ -1160,8 +1145,7 @@ async function ensureRSSLocksTableExists(): Promise<void> {
   }
 }
 
-// Call the function to ensure the table exists with additional error handling
+// Call the function to ensure the table exists
 ensureRSSLocksTableExists().catch(err => {
   logger.error(`Failed to check/create rss_locks table: ${err}`);
-  // Continue execution - the app can function without locks
 });

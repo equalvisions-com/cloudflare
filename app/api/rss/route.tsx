@@ -6,20 +6,8 @@ import type { RSSItem } from "@/lib/rss";
 import mysql from 'mysql2/promise';
 import { getRSSEntries } from "@/lib/rss.server";
 
-// Create a connection pool for this API route with proper validation
-let pool: mysql.Pool;
-if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '') {
-  pool = mysql.createPool(process.env.DATABASE_URL);
-} else {
-  pool = mysql.createPool({
-    host: '127.0.0.1',
-    port: 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'grasper',
-    connectionLimit: 10
-  });
-}
+// Create a connection pool for this API route
+const pool = mysql.createPool(process.env.DATABASE_URL || '');
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -64,18 +52,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Get feed URLs for each post title
     console.log(`🔄 API: Looking up feed URLs for ${postTitles.length} post titles`);
     const feedUrlsPromises = postTitles.map(async (title) => {
-      try {
-        // Query the database to get the feed URL for this post title
-        const [rows] = await pool.query<mysql.RowDataPacket[]>(
-          'SELECT feed_url FROM rss_feeds WHERE title = ?',
-          [title]
-        );
-        
-        return rows.length > 0 ? rows[0].feed_url as string : null;
-      } catch (error) {
-        console.error(`❌ API: Error fetching feed URL for ${title}:`, error);
-        return null;
-      }
+      // Query the database to get the feed URL for this post title
+      const [rows] = await pool.query<mysql.RowDataPacket[]>(
+        'SELECT feed_url FROM rss_feeds WHERE title = ?',
+        [title]
+      );
+      
+      return rows.length > 0 ? rows[0].feed_url as string : null;
     });
     
     const feedUrls = await Promise.all(feedUrlsPromises);
