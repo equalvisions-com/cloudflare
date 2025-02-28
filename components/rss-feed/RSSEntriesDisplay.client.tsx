@@ -967,7 +967,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       return;
     }
     
-    // Mark this page as being prefetched
+    // Mark this page as being prefetcheds
     prefetchedPagesRef.current.add(nextPageIndex);
     
     // Generate the URL for the next page
