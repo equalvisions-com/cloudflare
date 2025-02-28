@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import orderBy from 'lodash/orderBy';
 import type { RSSItem } from "@/lib/rss";
-import mysql from 'mysql2/promise';
-import { getRSSEntries } from "@/lib/rss.server";
+import * as mysql from 'mysql2/promise';
+import { getRSSEntries, executeQuery } from "@/lib/rss.server";
 
-// Create a connection pool for this API route
-const pool = mysql.createPool(process.env.DATABASE_URL || '');
+// Use the executeQuery function from rss.server.ts instead of directly using the pool
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.log(`🔄 API: Looking up feed URLs for ${postTitles.length} post titles`);
     const feedUrlsPromises = postTitles.map(async (title) => {
       // Query the database to get the feed URL for this post title
-      const [rows] = await pool.query<mysql.RowDataPacket[]>(
+      const rows = await executeQuery<mysql.RowDataPacket[]>(
         'SELECT feed_url FROM rss_feeds WHERE title = ?',
         [title]
       );

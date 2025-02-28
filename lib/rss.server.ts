@@ -62,7 +62,7 @@ const poolConfig: mysql.PoolOptions = {
 };
 
 // Initialize MySQL connection pool
-const pool = mysql.createPool(poolConfig);
+export const pool = mysql.createPool(poolConfig);
 
 // Set up connection timeouts using the recommended approach
 pool.on('connection', function (connection) {
@@ -120,7 +120,7 @@ async function gracefulShutdown(msg?: string) {
 }
 
 // Add error handling for database operations
-const executeQuery = async <T extends mysql.RowDataPacket[] | mysql.ResultSetHeader>(
+export const executeQuery = async <T extends mysql.RowDataPacket[] | mysql.ResultSetHeader>(
   query: string, 
   params: unknown[] = []
 ): Promise<T> => {

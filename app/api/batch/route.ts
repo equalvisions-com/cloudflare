@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { getRSSEntries } from "@/lib/planetscale";
+import { getRSSEntries } from "@/lib/rss.server";
 
 export async function POST(request: NextRequest) {
   try {
