@@ -22,8 +22,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import dynamic from 'next/dynamic';
 import useSWRInfinite from 'swr/infinite';
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -50,13 +48,6 @@ const logger = {
     console.error(`❌ ${message}`, error !== undefined ? error : '');
   }
 };
-
-// Dynamically import the placeholder component with no SSR
-// This ensures it's not loaded during initial page render
-const RSSPlaceholder = dynamic(
-  () => import('@/components/rss-feed/placeholder'),
-  { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-secondary/20"></div> }
-);
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -1062,36 +1053,17 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     );
   }
   
-  // Tabs configuration
-  const tabs = [
-    {
-      id: 'for-you',
-      label: 'Discover',
-      content: (
-        <EntriesContent
-          paginatedEntries={displayEntries}
-          hasMore={hasMore}
-          loadMoreRef={loadMoreRef}
-          isPending={isPending}
-          loadMore={debouncedLoadMore}
-          entryMetrics={entryMetricsMap}
-        />
-      ),
-    },
-    {
-      id: 'following',
-      label: 'Following',
-      content: (
-        <React.Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
-          <RSSPlaceholder />
-        </React.Suspense>
-      ),
-    },
-  ];
-  
+  // Return the EntriesContent directly instead of using tabs
   return (
-    <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+    <div className="w-full border-0 md:border-l md:border-r md:border-b">
+      <EntriesContent
+        paginatedEntries={displayEntries}
+        hasMore={hasMore}
+        loadMoreRef={loadMoreRef}
+        isPending={isPending}
+        loadMore={debouncedLoadMore}
+        entryMetrics={entryMetricsMap}
+      />
     </div>
   );
 } 

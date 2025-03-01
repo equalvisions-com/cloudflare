@@ -22,18 +22,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import dynamic from 'next/dynamic';
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-
-// Dynamically import the placeholder component with no SSR
-// This ensures it's not loaded during initial page render
-const RSSPlaceholder = dynamic(
-  () => import('@/components/rss-feed/placeholder'),
-  { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-secondary/20"></div> }
-);
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -640,39 +631,20 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
     );
   }
   
-  // Tabs configuration
-  const tabs = [
-    {
-      id: 'for-you',
-      label: 'For You',
-      content: (
-        <FeedContent
-          paginatedEntries={paginatedEntries}
-          hasMore={hasMoreEntries}
-          loadMoreRef={loadMoreRef}
-          isPending={isPending}
-          featuredImg={featuredImg}
-          postTitle={postTitle}
-          mediaType={mediaType}
-          loadMore={loadMore}
-          entryMetrics={entryMetricsMap}
-        />
-      ),
-    },
-    {
-      id: 'following',
-      label: 'Following',
-      content: (
-        <React.Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
-          <RSSPlaceholder />
-        </React.Suspense>
-      ),
-    },
-  ];
-  
+  // Directly render the FeedContent component instead of using tabs
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      <FeedContent
+        paginatedEntries={paginatedEntries}
+        hasMore={hasMoreEntries}
+        loadMoreRef={loadMoreRef}
+        isPending={isPending}
+        featuredImg={featuredImg}
+        postTitle={postTitle}
+        mediaType={mediaType}
+        loadMore={loadMore}
+        entryMetrics={entryMetricsMap}
+      />
     </div>
   );
 }

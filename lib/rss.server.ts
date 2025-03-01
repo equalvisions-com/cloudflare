@@ -780,12 +780,42 @@ function formatDate(dateStr: unknown): string {
         ? dateStr.toISOString()
         : String(dateStr || '');
         
-    const date = new Date(dateString);
+    // Handle common RSS date formats that JavaScript's Date constructor might struggle with
+    let normalizedDateString = dateString;
+    
+    // Handle RFC 822/RFC 2822 format (e.g., "Wed, 12 Dec 2018 14:00:00 -0000")
+    const rfc822Regex = /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+)(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+([+-]\d{4}|[A-Z]{3,4})$/;
+    if (rfc822Regex.test(dateString)) {
+      // JavaScript's Date constructor should handle this format, but let's log for debugging
+      logger.debug(`Parsing RFC 822 date format: ${dateString}`);
+    }
+    
+    // Handle pubDate without timezone (add Z for UTC)
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateString)) {
+      normalizedDateString = `${dateString}Z`;
+      logger.debug(`Added Z suffix to ISO date without timezone: ${normalizedDateString}`);
+    }
+    
+    // Handle pubDate with only date part
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      normalizedDateString = `${dateString}T00:00:00Z`;
+      logger.debug(`Added time component to date-only string: ${normalizedDateString}`);
+    }
+    
+    // Create Date object from normalized string
+    const date = new Date(normalizedDateString);
+    
+    // Check if date is valid
     if (isNaN(date.getTime())) {
+      logger.warn(`Invalid date format encountered: ${dateString}, falling back to current date`);
       return new Date().toISOString();
     }
+    
+    // Return consistent ISO format
     return date.toISOString();
-  } catch {
+  } catch (error) {
+    // Log the specific error for debugging
+    logger.warn(`Error parsing date "${dateStr}": ${error instanceof Error ? error.message : String(error)}`);
     // We don't use the error, just return a default date
     return new Date().toISOString();
   }
@@ -889,16 +919,21 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     // Create operations for each chunk
     const operations = chunks.map(chunk => {
       const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-      const values = chunk.flatMap(entry => [
+      const values = chunk.flatMap(entry => {
+        // Ensure pubDate is properly formatted as ISO string
+        const normalizedPubDate = formatDate(entry.pubDate);
+        
+        return [
           Number(feedId),
           String(entry.guid),
           String(entry.title),
           String(entry.link),
           String(entry.description?.slice(0, 200) || ''),
-          String(entry.pubDate),
+          normalizedPubDate, // Use the normalized date
           entry.image ? String(entry.image) : null,
           String(now)
-      ]);
+        ];
+      });
       
       return {
         query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, created_at) VALUES ${placeholders}`,
@@ -1074,7 +1109,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
       title: entry.title,
       link: entry.link,
       description: entry.description,
-      pubDate: entry.pubDate,
+      pubDate: formatDate(entry.pubDate), // Normalize the date format
       image: entry.image,
       feedUrl
     }));

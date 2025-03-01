@@ -16,6 +16,7 @@ import type {
 import type * as auth from "../auth.js";
 import type * as comments from "../comments.js";
 import type * as entries from "../entries.js";
+import type * as featured from "../featured.js";
 import type * as following from "../following.js";
 import type * as http from "../http.js";
 import type * as likes from "../likes.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   comments: typeof comments;
   entries: typeof entries;
+  featured: typeof featured;
   following: typeof following;
   http: typeof http;
   likes: typeof likes;

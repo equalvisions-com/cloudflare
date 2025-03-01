@@ -1,11 +1,18 @@
 import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
-import { LayoutManagerClient } from "./LayoutManagerClient";
+import { getInitialEntries as getFeaturedEntries } from "@/components/featured/FeaturedFeed";
+import { LayoutManagerClientWithErrorBoundary } from "./LayoutManagerClient";
 
 export async function LayoutManager() {
-  // Pre-fetch initial data
-  const initialData = await getInitialEntries();
+  // Pre-fetch initial data in parallel for better performance
+  const [rssData, featuredData] = await Promise.all([
+    getInitialEntries(),
+    getFeaturedEntries()
+  ]);
   
   return (
-    <LayoutManagerClient initialData={initialData} />
+    <LayoutManagerClientWithErrorBoundary 
+      initialData={rssData} 
+      featuredData={featuredData}
+    />
   );
 }

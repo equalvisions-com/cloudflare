@@ -4,53 +4,15 @@ import { useState, useMemo, Suspense } from "react";
 import { CollapsibleSidebarWithErrorBoundary } from "./CollapsibleSidebar";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
+import { FeedTabsContainerWithErrorBoundary } from "@/components/rss-feed/FeedTabsContainer";
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
+
+// Import the types we need
+import type { FeaturedEntry } from "@/lib/featured_redis";
 
 // Simple Skeleton component
 function Skeleton({ className }: { className: string }) {
   return <div className={`animate-pulse bg-muted rounded ${className}`} />;
-}
-
-interface EntryData {
-  entry: {
-    guid: string;
-    title: string;
-    link: string;
-    pubDate: string;
-    feedUrl: string;
-  };
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-  };
-  postMetadata: {
-    title: string;
-    featuredImg?: string;
-    mediaType?: string;
-    postSlug: string;
-    categorySlug: string;
-  };
-}
-
-interface InitialData {
-  entries: EntryData[];
-  totalEntries: number;
-  hasMore: boolean;
-  postTitles?: string[];
-}
-
-interface LayoutManagerClientProps {
-  initialData: InitialData | null;
 }
 
 // Loading skeleton for the feed
@@ -87,6 +49,83 @@ function FeedErrorFallback({ error, resetErrorBoundary }: { error: Error; resetE
   );
 }
 
+// Define the RSSItem interface to match what's returned from the API
+interface RSSItem {
+  guid: string;
+  title: string;
+  link: string;
+  pubDate: string;
+  content: string;
+  contentSnippet?: string;
+  feedUrl: string;
+  feedTitle?: string;
+  [key: string]: unknown; // For any additional properties
+}
+
+// Interface for post metadata
+interface PostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  postSlug: string;
+  categorySlug: string;
+}
+
+// Interface for entry with data
+interface RSSEntryWithData {
+  entry: RSSItem;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+  };
+  postMetadata?: PostMetadata;
+}
+
+// Interface for featured entry with data
+interface FeaturedEntryWithData {
+  entry: FeaturedEntry;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+  };
+  postMetadata: PostMetadata;
+}
+
+interface InitialData {
+  entries: RSSEntryWithData[];
+  totalEntries: number;
+  hasMore: boolean;
+  postTitles?: string[];
+}
+
+interface FeaturedData {
+  entries: FeaturedEntryWithData[];
+  totalEntries: number;
+}
+
+interface LayoutManagerClientProps {
+  initialData: InitialData | null;
+  featuredData?: FeaturedData | null;
+}
+
 export function LayoutManagerClientWithErrorBoundary(props: LayoutManagerClientProps) {
   return (
     <ErrorBoundary>
@@ -95,7 +134,7 @@ export function LayoutManagerClientWithErrorBoundary(props: LayoutManagerClientP
   );
 }
 
-export function LayoutManagerClient({ initialData }: LayoutManagerClientProps) {
+export function LayoutManagerClient({ initialData, featuredData }: LayoutManagerClientProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const mainContentClass = useMemo(() => {
@@ -114,17 +153,11 @@ export function LayoutManagerClient({ initialData }: LayoutManagerClientProps) {
       <main className={mainContentClass}>
         <Suspense fallback={<FeedSkeleton />}>
           <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
-            {!initialData ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
-                <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
-              </div>
-            ) : (
-              <RSSEntriesClient
-                initialData={initialData}
-                pageSize={30}
-              />
-            )}
+            <FeedTabsContainerWithErrorBoundary
+              initialData={initialData}
+              featuredData={featuredData}
+              pageSize={30}
+            />
           </ReactErrorBoundary>
         </Suspense>
       </main>
