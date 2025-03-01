@@ -295,9 +295,10 @@ const FeedContent = React.memo(({
   }
 
   return (
-    <div className="border-0 md:border-l md:border-r md:border-b">
+    <div className="space-y-0">
       <Virtuoso
         useWindowScroll
+        style={{ position: 'relative', zIndex: 10 }}
         totalCount={visibleEntries.length}
         endReached={() => {
           if (hasMore && !isLoading) {
@@ -369,7 +370,7 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   
   // Return the FeedContent directly instead of using tabs
   return (
-    <div className="w-full">
+    <div className="w-full border-0 md:border-l md:border-r md:border-b">
       <FeedContent
         entries={initialData.entries}
         visibleEntries={visibleEntries}

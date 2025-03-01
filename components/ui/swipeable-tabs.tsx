@@ -36,7 +36,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-50 backdrop-blur-sm">
+    <div className="flex w-full border-l border-r border-b bg-background">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -91,10 +91,6 @@ const TabContent = React.memo(({
       )}
       role="tabpanel"
       aria-labelledby={`tab-${id}`}
-      style={{ 
-        contain: 'content',
-        contentVisibility: isActive ? 'auto' : 'hidden'
-      }}
     >
       {content}
     </div>
@@ -273,12 +269,14 @@ export function SwipeableTabs({
     <div 
       className={cn('w-full h-full', className)}
     >
-      {/* Tab Headers */}
-      <TabHeaders 
-        tabs={tabs} 
-        selectedTab={selectedTab} 
-        onTabClick={handleTabClick} 
-      />
+      {/* Tab Headers with fixed position wrapper */}
+      <div className="sticky top-0 bg-background z-20">
+        <TabHeaders 
+          tabs={tabs} 
+          selectedTab={selectedTab} 
+          onTabClick={handleTabClick} 
+        />
+      </div>
 
       {/* All tab contents are rendered but only the selected one is visible */}
       <div className="w-full">

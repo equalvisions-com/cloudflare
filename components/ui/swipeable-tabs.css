@@ -17,19 +17,10 @@
   min-width: 0;
 }
 
-/* Fix for mobile browser address bar behavior */
-@media (max-width: 768px) {
-  /* Create a safe area at the top of scrollable content */
+/* Fix for Chrome mobile address bar transitions */
+@supports (-webkit-touch-callout: none) {
+  /* Only apply to WebKit browsers (Chrome, Safari) */
   .tab-content {
-    contain: content;
-    content-visibility: auto;
-  }
-  
-  /* Ensure the tab headers stay fixed at the top */
-  .sticky {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    backdrop-filter: blur(4px);
+    contain: paint;
   }
 } 
