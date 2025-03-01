@@ -122,3 +122,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* SwipeableTabs Component Styles */
+.scroll-freeze {
+  /* Prevent scroll jumps during tab transitions */
+  overflow: hidden !important;
+}
+
+/* Ensure content becomes visible after transition */
+.opacity-0 {
+  transition: opacity 0ms;
+  opacity: 0;
+}
+
+/* Apply after transition is complete */
+.embla-slide:not(.opacity-0) {
+  transition: opacity 50ms;
+  opacity: 1;
+}
+
+/* CollapsibleSidebar Component Styles */
+/* Prevent animations on the sidebar card */
+.sidebar-card {
+  transform: none !important;
+  transition: width 0.2s ease-in-out !important;
+}
+
+/* Prevent unwanted animations on the collapse button */
+.collapse-button {
+  animation: none !important;
+  transform: none !important;
+  transition: background-color 0.2s ease-in-out !important;
+}
+
+/* Ensure icons don't animate */
+.collapse-button svg {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}

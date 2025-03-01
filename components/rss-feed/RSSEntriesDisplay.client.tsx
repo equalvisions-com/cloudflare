@@ -502,9 +502,9 @@ const EntriesContent = React.memo(({
                   <Loader className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : hasMore ? (
-                <div className="text-center text-sm text-muted-foreground">
-                  Scroll to load more
-                </div>
+                <div className="flex justify-center items-center min-h-[100%]">
+                  <Loader className="h-6 w-6 animate-spin text-primary" />
+                  </div>
               ) : (
                 <div className="text-center text-sm text-muted-foreground">
                   No more entries to load
@@ -1055,7 +1055,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
   
   // Return the EntriesContent directly instead of using tabs
   return (
-    <div className="w-full border-0 md:border-l md:border-r md:border-b">
+    <div className="w-full ">
       <EntriesContent
         paginatedEntries={displayEntries}
         hasMore={hasMore}

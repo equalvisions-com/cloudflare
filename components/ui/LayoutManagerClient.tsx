@@ -10,29 +10,6 @@ import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 // Import the types we need
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
-// Simple Skeleton component
-function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse bg-muted rounded ${className}`} />;
-}
-
-// Loading skeleton for the feed
-function FeedSkeleton() {
-  return (
-    <div className="space-y-4 py-4">
-      {Array(5).fill(0).map((_, i) => (
-        <div key={i} className="flex flex-col space-y-3 p-4 border rounded-lg">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-32 w-full" />
-          <div className="flex space-x-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-20" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // Error fallback component
 function FeedErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
@@ -151,7 +128,7 @@ export function LayoutManagerClient({ initialData, featuredData }: LayoutManager
         <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
       </div>
       <main className={mainContentClass}>
-        <Suspense fallback={<FeedSkeleton />}>
+        <Suspense fallback={null}>
           <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
             <FeedTabsContainerWithErrorBoundary
               initialData={initialData}

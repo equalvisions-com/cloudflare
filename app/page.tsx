@@ -10,7 +10,6 @@ export const metadata: Metadata = {
     'Link': [
       '</api/rss-keys>; rel=preload; as=fetch; crossorigin=anonymous; priority=high',
       // Only preload the first page with post metadata
-      '</api/rss?offset=0&limit=30&includePostMetadata=true>; rel=preload; as=fetch; crossorigin=anonymous; priority=high',
       '</api/convex/batchGetEntryData>; rel=preload; as=fetch; crossorigin=anonymous',
     ].join(', '),
   },

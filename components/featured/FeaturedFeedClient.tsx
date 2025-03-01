@@ -318,7 +318,7 @@ const FeedContent = React.memo(({
           Footer: () => 
             isLoading && hasMore ? (
               <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
-            ) : <div ref={loadMoreRef} className="h-10" />
+            ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
     </div>
