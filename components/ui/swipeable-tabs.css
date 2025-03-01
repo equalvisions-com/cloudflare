@@ -35,6 +35,29 @@
 /* Add styles for header transitions */
 .header-transition {
   transition: transform 0.3s ease;
+  /* Add will-change to improve performance on mobile */
+  will-change: transform;
+  /* Ensure content doesn't appear above header */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  /* Fix for iOS Safari */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Fix for mobile browsers to prevent content from appearing above fixed elements */
+body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent content from appearing above fixed header in mobile browsers */
+@supports (-webkit-touch-callout: none) {
+  /* iOS specific fix */
+  .header-transition {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /* Add padding to account for header height when it's hidden */
