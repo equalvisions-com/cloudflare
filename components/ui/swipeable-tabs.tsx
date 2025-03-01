@@ -13,6 +13,7 @@ interface SwipeableTabsProps {
   defaultTabIndex?: number;
   className?: string;
   animationDuration?: number; // Animation duration in milliseconds
+  onTabChange?: (tabId: string) => void; // Callback when tab changes
 }
 
 // Memoized tab header component to prevent re-renders
@@ -71,6 +72,7 @@ export function SwipeableTabs({
   defaultTabIndex = 0,
   className,
   animationDuration = 5, // Very low value for fast animation with minimal bouncing
+  onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
@@ -95,13 +97,18 @@ export function SwipeableTabs({
       setSelectedTab(index);
       // Mark this tab as loaded once it's selected
       setLoadedTabs(prev => new Set([...prev, index]));
+      
+      // Call the onTabChange callback if provided
+      if (onTabChange && tabs[index]) {
+        onTabChange(tabs[index].id);
+      }
     };
     
     emblaApi.on('select', onSelect);
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi]);
+  }, [emblaApi, onTabChange, tabs]);
 
   // Handle tab click with immediate snap (no animation) to prevent bouncing
   const handleTabClick = useCallback(
@@ -113,8 +120,13 @@ export function SwipeableTabs({
       setSelectedTab(index);
       // Mark this tab as loaded once it's clicked
       setLoadedTabs(prev => new Set([...prev, index]));
+      
+      // Call the onTabChange callback if provided
+      if (onTabChange && tabs[index]) {
+        onTabChange(tabs[index].id);
+      }
     },
-    [emblaApi]
+    [emblaApi, onTabChange, tabs]
   );
 
   return (

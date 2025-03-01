@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
@@ -71,6 +71,18 @@ interface FeedTabsContainerProps {
 }
 
 export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
+  // Reference to track the active tab
+  const activeTabRef = useRef<string | null>(null);
+
+  // Function to handle tab changes
+  const handleTabChange = (tabId: string) => {
+    // If the tab has changed, reset scroll position
+    if (activeTabRef.current !== tabId) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      activeTabRef.current = tabId;
+    }
+  };
+
   // Define the tabs configuration
   const tabs = [
     // Featured tab - first in order
@@ -111,9 +123,14 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
     }
   ];
 
+  // Set initial active tab
+  useEffect(() => {
+    activeTabRef.current = 'featured';
+  }, []);
+
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      <SwipeableTabs tabs={tabs} onTabChange={handleTabChange} />
     </div>
   );
 }
