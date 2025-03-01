@@ -13,7 +13,6 @@ interface SwipeableTabsProps {
   defaultTabIndex?: number;
   className?: string;
   animationDuration?: number; // Animation duration in milliseconds
-  onTabChange?: (tabId: string) => void; // Callback when tab changes
 }
 
 // Memoized tab header component to prevent re-renders
@@ -72,10 +71,10 @@ export function SwipeableTabs({
   defaultTabIndex = 0,
   className,
   animationDuration = 5, // Very low value for fast animation with minimal bouncing
-  onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
+  const contentRef = useRef<HTMLDivElement>(null);
   
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
@@ -88,6 +87,13 @@ export function SwipeableTabs({
     duration: animationDuration, // Very low value for fast animation
   });
 
+  // Reset scroll position when tab changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [selectedTab]);
+
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -98,9 +104,12 @@ export function SwipeableTabs({
       // Mark this tab as loaded once it's selected
       setLoadedTabs(prev => new Set([...prev, index]));
       
-      // Call the onTabChange callback if provided
-      if (onTabChange && tabs[index]) {
-        onTabChange(tabs[index].id);
+      // Reset scroll position when tab changes
+      if (typeof window !== 'undefined') {
+        window.scrollTo({
+          top: 0,
+          behavior: 'auto' // Use 'auto' instead of 'smooth' to prevent visible scrolling
+        });
       }
     };
     
@@ -108,7 +117,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, onTabChange, tabs]);
+  }, [emblaApi]);
 
   // Handle tab click with immediate snap (no animation) to prevent bouncing
   const handleTabClick = useCallback(
@@ -121,12 +130,15 @@ export function SwipeableTabs({
       // Mark this tab as loaded once it's clicked
       setLoadedTabs(prev => new Set([...prev, index]));
       
-      // Call the onTabChange callback if provided
-      if (onTabChange && tabs[index]) {
-        onTabChange(tabs[index].id);
+      // Reset scroll position when tab is clicked
+      if (typeof window !== 'undefined') {
+        window.scrollTo({
+          top: 0,
+          behavior: 'auto' // Use 'auto' instead of 'smooth' to prevent visible scrolling
+        });
       }
     },
-    [emblaApi, onTabChange, tabs]
+    [emblaApi]
   );
 
   return (
@@ -147,11 +159,15 @@ export function SwipeableTabs({
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
         }}
       >
-        <div className="flex">
+        <div className="flex" ref={contentRef}>
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
               className="min-w-0 flex-[0_0_100%]"
+              style={{
+                height: selectedTab === index ? 'auto' : '0',
+                overflow: selectedTab === index ? 'visible' : 'hidden'
+              }}
             >
               {/* Only render content if this tab has been loaded */}
               {loadedTabs.has(index) ? tab.content : null}

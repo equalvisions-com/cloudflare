@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
@@ -71,17 +71,27 @@ interface FeedTabsContainerProps {
 }
 
 export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
-  // Reference to track the active tab
-  const activeTabRef = useRef<string | null>(null);
+  // Add effect to handle scroll restoration
+  useEffect(() => {
+    // Save the current scroll position before tab changes
+    const handleBeforeTabChange = () => {
+      // Prevent scroll restoration on tab change
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+    };
 
-  // Function to handle tab changes
-  const handleTabChange = (tabId: string) => {
-    // If the tab has changed, reset scroll position
-    if (activeTabRef.current !== tabId) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
-      activeTabRef.current = tabId;
-    }
-  };
+    // Set up event listeners
+    window.addEventListener('beforeunload', handleBeforeTabChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeTabChange);
+      // Reset scroll restoration to auto when component unmounts
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'auto';
+      }
+    };
+  }, []);
 
   // Define the tabs configuration
   const tabs = [
@@ -90,12 +100,14 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
       id: 'featured',
       label: 'Featured',
       content: (
-        <FeaturedFeedWrapper 
-          initialData={featuredData as { 
-            entries: FeaturedEntryWithData[]; 
-            totalEntries: number; 
-          } | null} 
-        />
+        <div className="tab-content-wrapper">
+          <FeaturedFeedWrapper 
+            initialData={featuredData as { 
+              entries: FeaturedEntryWithData[]; 
+              totalEntries: number; 
+            } | null} 
+          />
+        </div>
       ),
     },
     // Following tab (renamed from Discover) - shows RSS feed content
@@ -103,34 +115,39 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
       id: 'following',
       label: 'Following',
       content: (
-        !initialData ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
-            <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
-          </div>
-        ) : (
-          <RSSEntriesClient
-            initialData={initialData as { 
-              entries: RSSEntryWithData[]; 
-              totalEntries: number; 
-              hasMore: boolean; 
-              postTitles?: string[]; 
-            }}
-            pageSize={pageSize}
-          />
-        )
+        <div className="tab-content-wrapper">
+          {!initialData ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
+              <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
+            </div>
+          ) : (
+            <RSSEntriesClient
+              initialData={initialData as { 
+                entries: RSSEntryWithData[]; 
+                totalEntries: number; 
+                hasMore: boolean; 
+                postTitles?: string[]; 
+              }}
+              pageSize={pageSize}
+            />
+          )}
+        </div>
       ),
     }
   ];
 
-  // Set initial active tab
-  useEffect(() => {
-    activeTabRef.current = 'featured';
-  }, []);
-
   return (
-    <div className="w-full">
-      <SwipeableTabs tabs={tabs} onTabChange={handleTabChange} />
+    <div className="w-full feed-tabs-container">
+      <style jsx global>{`
+        .feed-tabs-container {
+          min-height: 100vh;
+        }
+        .tab-content-wrapper {
+          min-height: calc(100vh - 50px); /* Adjust based on your tab header height */
+        }
+      `}</style>
+      <SwipeableTabs tabs={tabs} />
     </div>
   );
 }

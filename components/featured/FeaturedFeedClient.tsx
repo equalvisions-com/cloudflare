@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -346,6 +346,16 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // Reset scroll position when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Use requestAnimationFrame to ensure this happens after render
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+      });
+    }
+  }, []);
   
   // Calculate visible entries based on current page
   const visibleEntries = useMemo(() => {
