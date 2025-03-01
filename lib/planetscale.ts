@@ -8,7 +8,7 @@ export const db = connect({
 });
 
 // Function to fetch RSS entries from PlanetScale with date filtering
-export async function fetchRssEntriesFromPlanetScale(feedIds: number[], maxAgeHours: number = 24) {
+export async function fetchRssEntriesFromPlanetScale(feedIds: number[], maxAgeHours: number = 48) {
   if (!feedIds.length) return [];
 
   try {

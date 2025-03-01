@@ -21,17 +21,14 @@ interface SwipeableTabsProps {
 const TabHeaders = React.memo(({ 
   tabs, 
   selectedTab, 
-  onTabClick,
-  isVisible
+  onTabClick 
 }: { 
   tabs: SwipeableTabsProps['tabs'], 
   selectedTab: number, 
-  onTabClick: (index: number) => void,
-  isVisible: boolean
+  onTabClick: (index: number) => void 
 }) => {
   const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [, forceUpdate] = useState({});
-  const headerHeight = 44; // Approximate height of the header in pixels
 
   // Force re-render when selected tab changes to ensure indicator width updates
   useEffect(() => {
@@ -39,13 +36,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div 
-      className={cn(
-        "flex w-full border-l border-r border-b fixed top-0 left-0 right-0 bg-background z-50 header-transition",
-        isVisible ? "translate-y-0" : "-translate-y-full"
-      )}
-      style={{ height: `${headerHeight}px` }}
-    >
+    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-10">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -122,12 +113,6 @@ export function SwipeableTabs({
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
   
-  // Add state for header visibility
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const lastScrollYRef = useRef(0);
-  const scrollThreshold = 10; // Minimum scroll amount to trigger header visibility change
-  const headerHeight = 44; // Approximate height of the header in pixels
-  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -171,42 +156,12 @@ export function SwipeableTabs({
     };
   }, []);
 
-  // Handle scroll events to show/hide header with debouncing for better performance
+  // Save scroll position when user scrolls
   useEffect(() => {
-    let ticking = false;
-    let lastKnownScrollY = window.scrollY;
-    
     const handleScroll = () => {
-      lastKnownScrollY = window.scrollY;
-      
-      if (!ticking && !isRestoringScrollRef.current) {
-        window.requestAnimationFrame(() => {
-          // Only handle scroll events if we're not restoring scroll position
-          if (!isRestoringScrollRef.current) {
-            const currentScrollY = lastKnownScrollY;
-            
-            // Save current scroll position for the active tab
-            scrollPositionsRef.current[selectedTab] = currentScrollY;
-            
-            // Determine if we should show/hide the header based on scroll direction
-            if (Math.abs(currentScrollY - lastScrollYRef.current) > scrollThreshold) {
-              // Scrolling down - hide header
-              if (currentScrollY > lastScrollYRef.current && currentScrollY > headerHeight) {
-                setIsHeaderVisible(false);
-              } 
-              // Scrolling up - show header
-              else if (currentScrollY < lastScrollYRef.current) {
-                setIsHeaderVisible(true);
-              }
-              
-              // Update last scroll position
-              lastScrollYRef.current = currentScrollY;
-            }
-          }
-          ticking = false;
-        });
-        
-        ticking = true;
+      // Only save scroll position if we're not in the middle of restoring
+      if (!isRestoringScrollRef.current) {
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
       }
     };
 
@@ -214,7 +169,7 @@ export function SwipeableTabs({
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [selectedTab, scrollThreshold, headerHeight]);
+  }, [selectedTab]);
 
   // Function to restore scroll position
   const restoreScrollPosition = useCallback((index: number) => {
@@ -232,12 +187,6 @@ export function SwipeableTabs({
       // Reset flag after a short delay
       setTimeout(() => {
         isRestoringScrollRef.current = false;
-        
-        // Update last scroll position to match the restored position
-        lastScrollYRef.current = savedPosition;
-        
-        // Show header when switching tabs
-        setIsHeaderVisible(true);
       }, 100);
     });
   }, []);
@@ -314,7 +263,6 @@ export function SwipeableTabs({
   useEffect(() => {
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
-    lastScrollYRef.current = 0;
   }, [defaultTabIndex]);
 
   return (
@@ -325,12 +273,8 @@ export function SwipeableTabs({
       <TabHeaders 
         tabs={tabs} 
         selectedTab={selectedTab} 
-        onTabClick={handleTabClick}
-        isVisible={isHeaderVisible}
+        onTabClick={handleTabClick} 
       />
-
-      {/* Spacer div to account for fixed header */}
-      <div style={{ height: `${headerHeight}px` }} className="w-full" />
 
       {/* All tab contents are rendered but only the selected one is visible */}
       <div className="w-full">
