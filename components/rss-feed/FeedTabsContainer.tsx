@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
@@ -71,28 +71,51 @@ interface FeedTabsContainerProps {
 }
 
 export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
-  // Add effect to handle scroll restoration
-  useEffect(() => {
-    // Save the current scroll position before tab changes
-    const handleBeforeTabChange = () => {
-      // Prevent scroll restoration on tab change
-      if ('scrollRestoration' in history) {
-        history.scrollRestoration = 'manual';
-      }
-    };
-
-    // Set up event listeners
-    window.addEventListener('beforeunload', handleBeforeTabChange);
+  // Store scroll positions for each tab
+  const [scrollPositions, setScrollPositions] = useState<Record<string, number>>({
+    featured: 0,
+    following: 0
+  });
+  
+  // Track the current active tab
+  const [activeTab, setActiveTab] = useState<string>('featured');
+  
+  // Reference to the container element
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Save scroll position when switching tabs
+  const handleTabChange = (tabId: string) => {
+    // Save current scroll position before switching
+    if (activeTab) {
+      setScrollPositions(prev => ({
+        ...prev,
+        [activeTab]: window.scrollY
+      }));
+    }
     
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeTabChange);
-      // Reset scroll restoration to auto when component unmounts
-      if ('scrollRestoration' in history) {
-        history.scrollRestoration = 'auto';
-      }
+    // Update active tab
+    setActiveTab(tabId);
+  };
+  
+  // Restore scroll position when tab changes
+  useEffect(() => {
+    // Use requestAnimationFrame to ensure the DOM has updated
+    const restoreScroll = () => {
+      const savedPosition = scrollPositions[activeTab] || 0;
+      window.scrollTo({
+        top: savedPosition,
+        behavior: 'auto' // Use 'auto' instead of 'smooth' to prevent visible jumps
+      });
     };
-  }, []);
-
+    
+    // Use a small timeout to ensure the DOM has fully updated
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(restoreScroll);
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
+  }, [activeTab, scrollPositions]);
+  
   // Define the tabs configuration
   const tabs = [
     // Featured tab - first in order
@@ -100,7 +123,7 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
       id: 'featured',
       label: 'Featured',
       content: (
-        <div className="tab-content-wrapper">
+        <div className="tab-content">
           <FeaturedFeedWrapper 
             initialData={featuredData as { 
               entries: FeaturedEntryWithData[]; 
@@ -115,7 +138,7 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
       id: 'following',
       label: 'Following',
       content: (
-        <div className="tab-content-wrapper">
+        <div className="tab-content">
           {!initialData ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
@@ -138,16 +161,21 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
   ];
 
   return (
-    <div className="w-full feed-tabs-container">
+    <div className="w-full feed-tabs-container" ref={containerRef}>
       <style jsx global>{`
         .feed-tabs-container {
           min-height: 100vh;
+          position: relative;
         }
-        .tab-content-wrapper {
+        .tab-content {
           min-height: calc(100vh - 50px); /* Adjust based on your tab header height */
         }
       `}</style>
-      <SwipeableTabs tabs={tabs} />
+      <SwipeableTabs 
+        tabs={tabs} 
+        onValueChange={handleTabChange}
+        defaultValue="featured"
+      />
     </div>
   );
 }

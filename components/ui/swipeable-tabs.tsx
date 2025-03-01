@@ -11,8 +11,10 @@ interface SwipeableTabsProps {
     content: React.ReactNode;
   }[];
   defaultTabIndex?: number;
+  defaultValue?: string;
   className?: string;
   animationDuration?: number; // Animation duration in milliseconds
+  onValueChange?: (tabId: string) => void;
 }
 
 // Memoized tab header component to prevent re-renders
@@ -69,30 +71,32 @@ TabHeaders.displayName = 'TabHeaders';
 export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
+  defaultValue,
   className,
   animationDuration = 5, // Very low value for fast animation with minimal bouncing
+  onValueChange,
 }: SwipeableTabsProps) {
-  const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
-  const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
-  const contentRef = useRef<HTMLDivElement>(null);
+  // Find the initial tab index based on defaultValue if provided
+  const initialTabIndex = defaultValue 
+    ? tabs.findIndex(tab => tab.id === defaultValue) 
+    : defaultTabIndex;
+  
+  // Use the found index or fallback to defaultTabIndex
+  const startIndex = initialTabIndex !== -1 ? initialTabIndex : defaultTabIndex;
+  
+  const [selectedTab, setSelectedTab] = useState(startIndex);
+  const [loadedTabs, setLoadedTabs] = useState<Set<number>>(new Set([startIndex]));
   
   // Optimize carousel options for performance with faster animation and no bouncing
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     skipSnaps: false,
-    startIndex: defaultTabIndex,
+    startIndex: startIndex,
     align: 'start',
     containScroll: 'trimSnaps',
     dragFree: false,
     duration: animationDuration, // Very low value for fast animation
   });
-
-  // Reset scroll position when tab changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.scrollTo(0, 0);
-    }
-  }, [selectedTab]);
 
   // Sync tab selection with carousel
   useEffect(() => {
@@ -104,12 +108,9 @@ export function SwipeableTabs({
       // Mark this tab as loaded once it's selected
       setLoadedTabs(prev => new Set([...prev, index]));
       
-      // Reset scroll position when tab changes
-      if (typeof window !== 'undefined') {
-        window.scrollTo({
-          top: 0,
-          behavior: 'auto' // Use 'auto' instead of 'smooth' to prevent visible scrolling
-        });
+      // Call the onValueChange callback if provided
+      if (onValueChange && tabs[index]) {
+        onValueChange(tabs[index].id);
       }
     };
     
@@ -117,7 +118,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi]);
+  }, [emblaApi, onValueChange, tabs]);
 
   // Handle tab click with immediate snap (no animation) to prevent bouncing
   const handleTabClick = useCallback(
@@ -130,15 +131,12 @@ export function SwipeableTabs({
       // Mark this tab as loaded once it's clicked
       setLoadedTabs(prev => new Set([...prev, index]));
       
-      // Reset scroll position when tab is clicked
-      if (typeof window !== 'undefined') {
-        window.scrollTo({
-          top: 0,
-          behavior: 'auto' // Use 'auto' instead of 'smooth' to prevent visible scrolling
-        });
+      // Call the onValueChange callback if provided
+      if (onValueChange && tabs[index]) {
+        onValueChange(tabs[index].id);
       }
     },
-    [emblaApi]
+    [emblaApi, onValueChange, tabs]
   );
 
   return (
@@ -159,15 +157,11 @@ export function SwipeableTabs({
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
         }}
       >
-        <div className="flex" ref={contentRef}>
+        <div className="flex">
           {tabs.map((tab, index) => (
             <div 
               key={tab.id} 
               className="min-w-0 flex-[0_0_100%]"
-              style={{
-                height: selectedTab === index ? 'auto' : '0',
-                overflow: selectedTab === index ? 'visible' : 'hidden'
-              }}
             >
               {/* Only render content if this tab has been loaded */}
               {loadedTabs.has(index) ? tab.content : null}

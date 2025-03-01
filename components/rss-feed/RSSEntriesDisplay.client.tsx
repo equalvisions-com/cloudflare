@@ -546,16 +546,6 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
   // Track errors for better error handling
   const [fetchError, setFetchError] = useState<Error | null>(null);
   
-  // Reset scroll position when component mounts
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Use requestAnimationFrame to ensure this happens after render
-      requestAnimationFrame(() => {
-        window.scrollTo(0, 0);
-      });
-    }
-  }, []);
-  
   // Use a fixed number of items per request for consistency
   const ITEMS_PER_REQUEST = pageSize;
   
