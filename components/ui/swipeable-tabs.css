@@ -15,4 +15,21 @@
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
+}
+
+/* Fix for mobile browser address bar behavior */
+@media (max-width: 768px) {
+  /* Create a safe area at the top of scrollable content */
+  .tab-content {
+    contain: content;
+    content-visibility: auto;
+  }
+  
+  /* Ensure the tab headers stay fixed at the top */
+  .sticky {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(4px);
+  }
 } 

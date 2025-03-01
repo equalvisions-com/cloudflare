@@ -36,7 +36,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-10">
+    <div className="flex w-full border-l border-r border-b sticky top-0 bg-background z-50 backdrop-blur-sm">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -91,6 +91,10 @@ const TabContent = React.memo(({
       )}
       role="tabpanel"
       aria-labelledby={`tab-${id}`}
+      style={{ 
+        contain: 'content',
+        contentVisibility: isActive ? 'auto' : 'hidden'
+      }}
     >
       {content}
     </div>
