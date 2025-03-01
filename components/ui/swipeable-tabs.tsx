@@ -21,14 +21,17 @@ interface SwipeableTabsProps {
 const TabHeaders = React.memo(({ 
   tabs, 
   selectedTab, 
-  onTabClick 
+  onTabClick,
+  isVisible
 }: { 
   tabs: SwipeableTabsProps['tabs'], 
   selectedTab: number, 
-  onTabClick: (index: number) => void 
+  onTabClick: (index: number) => void,
+  isVisible: boolean
 }) => {
   const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [, forceUpdate] = useState({});
+  const headerHeight = 44; // Approximate height of the header in pixels
 
   // Force re-render when selected tab changes to ensure indicator width updates
   useEffect(() => {
@@ -36,7 +39,13 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full border-l border-r border-b bg-background">
+    <div 
+      className={cn(
+        "flex w-full border-l border-r border-b sticky top-0 bg-background z-10 header-transition",
+        isVisible ? "translate-y-0" : "-translate-y-full"
+      )}
+      style={{ height: `${headerHeight}px` }}
+    >
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -113,6 +122,12 @@ export function SwipeableTabs({
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
   
+  // Add state for header visibility
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const lastScrollYRef = useRef(0);
+  const scrollThreshold = 10; // Minimum scroll amount to trigger header visibility change
+  const headerHeight = 44; // Approximate height of the header in pixels
+  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -156,12 +171,30 @@ export function SwipeableTabs({
     };
   }, []);
 
-  // Save scroll position when user scrolls
+  // Handle scroll events to show/hide header
   useEffect(() => {
     const handleScroll = () => {
-      // Only save scroll position if we're not in the middle of restoring
+      // Only handle scroll events if we're not restoring scroll position
       if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
+        const currentScrollY = window.scrollY;
+        
+        // Save current scroll position for the active tab
+        scrollPositionsRef.current[selectedTab] = currentScrollY;
+        
+        // Determine if we should show/hide the header based on scroll direction
+        if (Math.abs(currentScrollY - lastScrollYRef.current) > scrollThreshold) {
+          // Scrolling down - hide header
+          if (currentScrollY > lastScrollYRef.current && currentScrollY > headerHeight) {
+            setIsHeaderVisible(false);
+          } 
+          // Scrolling up - show header
+          else if (currentScrollY < lastScrollYRef.current) {
+            setIsHeaderVisible(true);
+          }
+          
+          // Update last scroll position
+          lastScrollYRef.current = currentScrollY;
+        }
       }
     };
 
@@ -169,7 +202,7 @@ export function SwipeableTabs({
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [selectedTab]);
+  }, [selectedTab, scrollThreshold, headerHeight]);
 
   // Function to restore scroll position
   const restoreScrollPosition = useCallback((index: number) => {
@@ -187,6 +220,12 @@ export function SwipeableTabs({
       // Reset flag after a short delay
       setTimeout(() => {
         isRestoringScrollRef.current = false;
+        
+        // Update last scroll position to match the restored position
+        lastScrollYRef.current = savedPosition;
+        
+        // Show header when switching tabs
+        setIsHeaderVisible(true);
       }, 100);
     });
   }, []);
@@ -263,23 +302,26 @@ export function SwipeableTabs({
   useEffect(() => {
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
+    lastScrollYRef.current = 0;
   }, [defaultTabIndex]);
 
   return (
     <div 
       className={cn('w-full h-full', className)}
     >
-      {/* Tab Headers with fixed position wrapper */}
-      <div className="sticky top-0 bg-background z-20">
-        <TabHeaders 
-          tabs={tabs} 
-          selectedTab={selectedTab} 
-          onTabClick={handleTabClick} 
-        />
-      </div>
+      {/* Tab Headers */}
+      <TabHeaders 
+        tabs={tabs} 
+        selectedTab={selectedTab} 
+        onTabClick={handleTabClick}
+        isVisible={isHeaderVisible}
+      />
 
       {/* All tab contents are rendered but only the selected one is visible */}
-      <div className="w-full">
+      <div className={cn(
+        "w-full content-padding-adjustment",
+        !isHeaderVisible && "pt-0"
+      )}>
         {renderedTabs}
       </div>
 

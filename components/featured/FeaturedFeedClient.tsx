@@ -298,7 +298,6 @@ const FeedContent = React.memo(({
     <div className="space-y-0">
       <Virtuoso
         useWindowScroll
-        style={{ position: 'relative', zIndex: 10 }}
         totalCount={visibleEntries.length}
         endReached={() => {
           if (hasMore && !isLoading) {

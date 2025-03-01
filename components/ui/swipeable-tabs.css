@@ -17,10 +17,27 @@
   min-width: 0;
 }
 
-/* Fix for Chrome mobile address bar transitions */
-@supports (-webkit-touch-callout: none) {
-  /* Only apply to WebKit browsers (Chrome, Safari) */
-  .tab-content {
-    contain: paint;
-  }
+/* Add styles for tab content transitions */
+.tab-content {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.tab-content-active {
+  opacity: 1;
+}
+
+.tab-content-inactive {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Add styles for header transitions */
+.header-transition {
+  transition: transform 0.3s ease;
+}
+
+/* Add padding to account for header height when it's hidden */
+.content-padding-adjustment {
+  transition: padding-top 0.3s ease;
 } 
