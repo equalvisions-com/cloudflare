@@ -64,7 +64,15 @@ const parser = new XMLParser({
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
-  isArray: (tagName) => tagName === "item",
+  isArray: (tagName) => {
+    // Common array elements in RSS/Atom feeds
+    return ['item', 'entry', 'link', 'category', 'enclosure'].includes(tagName);
+  },
+  // Add stopNodes for CDATA sections that shouldn't be parsed
+  stopNodes: ['description', 'content:encoded', 'summary'],
+  // Add processing instruction handling for XML declaration
+  processEntities: true,
+  htmlEntities: true
 });
 
 // Configure connection pool for high concurrency
@@ -221,6 +229,63 @@ interface ParsedChannel {
   [key: string]: unknown;
 }
 
+// Add a simple in-memory cache for parsed XML
+// This will avoid re-parsing the same feed multiple times in a short period
+interface ParsedXMLCacheEntry {
+  timestamp: number;
+  result: Record<string, unknown>;
+}
+
+const parsedXMLCache = new Map<string, ParsedXMLCacheEntry>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Function to parse XML with caching
+function parseXMLWithCache(xml: string, url: string): any {
+  const currentTime = Date.now();
+  const cacheKey = `${url}:${xml.length}`;
+  
+  // Check if we have a valid cached result
+  const cachedEntry = parsedXMLCache.get(cacheKey);
+  if (cachedEntry && (currentTime - cachedEntry.timestamp) < CACHE_TTL) {
+    logger.cache(`Using cached parsed XML for ${url}`);
+    return cachedEntry.result;
+  }
+  
+  // Parse the XML
+  logger.debug(`Parsing XML for ${url}`);
+  const result = parser.parse(xml);
+  
+  // Cache the result
+  parsedXMLCache.set(cacheKey, {
+    timestamp: currentTime,
+    result
+  });
+  
+  // Clean up old cache entries periodically
+  if (Math.random() < 0.1) { // 10% chance to clean up on each parse
+    cleanupCache();
+  }
+  
+  return result;
+}
+
+// Function to clean up old cache entries
+function cleanupCache(): void {
+  const currentTime = Date.now();
+  let deletedCount = 0;
+  
+  for (const [key, entry] of parsedXMLCache.entries()) {
+    if ((currentTime - entry.timestamp) > CACHE_TTL) {
+      parsedXMLCache.delete(key);
+      deletedCount++;
+    }
+  }
+  
+  if (deletedCount > 0) {
+    logger.debug(`Cleaned up ${deletedCount} expired cache entries`);
+  }
+}
+
 // Function to create a fallback feed when there's an error
 function createFallbackFeed(url: string, error: unknown): RSSFeed {
   const errorMessage = error instanceof Error ? error.message : String(error);
@@ -273,15 +338,15 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
       logger.warn(`Suspiciously small XML response from ${url}: ${xml.substring(0, 100)}`);
     }
     
-    // kSpecial handling for Libsyn feeds which have a specific format for iTunes images
+    // Special handling for Libsyn feeds which have a specific format for iTunes images
     const isLibsynFeed = url.includes('libsyn.com');
     if (isLibsynFeed) {
       logger.debug('Detected Libsyn feed, using special handling for iTunes images');
     }
     
     try {
-      // Use the parser instance we created at the top of the file
-      const result = parser.parse(xml);
+      // Use our cached parser function
+      const result = parseXMLWithCache(xml, url);
       
       logger.debug(`Parsed XML structure: ${Object.keys(result).join(', ')}`);
       
@@ -292,12 +357,12 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
       if (result.rss && result.rss.channel) {
         // RSS format
         channel = result.rss.channel as ParsedChannel;
-        items = channel.item || [];
+        items = Array.isArray(channel.item) ? channel.item : (channel.item ? [channel.item] : []);
         logger.debug(`Detected RSS format with ${items.length} items`);
       } else if (result.feed) {
         // Atom format
         channel = result.feed as ParsedChannel;
-        items = channel.entry || [];
+        items = Array.isArray(channel.entry) ? channel.entry : (channel.entry ? [channel.entry] : []);
         logger.debug(`Detected Atom format with ${items.length} items`);
       } else {
         logger.warn(`Unrecognized feed format. Available keys: ${Object.keys(result).join(', ')}`);
@@ -436,51 +501,187 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
 // Helper function to safely extract text content
 function getTextContent(node: unknown): string {
   if (!node) return '';
-  if (typeof node === 'string') return node;
+  
+  // Direct string
+  if (typeof node === 'string') {
+    return stripHtmlTags(node);
+  }
+  
+  // Object with text content
   if (typeof node === 'object' && node !== null) {
     const nodeObj = node as Record<string, unknown>;
-    if ('#text' in nodeObj) return String(nodeObj['#text'] || '');
-    if ('attr' in nodeObj && '#text' in nodeObj) return String(nodeObj['#text'] || '');
+    
+    // fast-xml-parser puts text content in #text property
+    if ('#text' in nodeObj) {
+      return stripHtmlTags(String(nodeObj['#text'] || ''));
+    }
+    
+    // CDATA content might be in __cdata with newer versions
+    if ('__cdata' in nodeObj) {
+      return stripHtmlTags(String(nodeObj['__cdata'] || ''));
+    }
+    
+    // Some feeds use direct content
+    if ('content' in nodeObj && typeof nodeObj.content === 'string') {
+      return stripHtmlTags(nodeObj.content);
+    }
+    
+    // For complex objects with both attributes and text
+    if ('attr' in nodeObj && '#text' in nodeObj) {
+      return stripHtmlTags(String(nodeObj['#text'] || ''));
+    }
   }
-  return String(node || '');
+  
+  // Fallback to string conversion
+  return stripHtmlTags(String(node || ''));
+}
+
+// Helper function to strip HTML tags
+function stripHtmlTags(html: string): string {
+  if (!html) return '';
+  
+  // First replace common entities
+  let text = html
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+  
+  // Remove HTML tags
+  text = text.replace(/<[^>]*>/g, ' ');
+  
+  // Replace multiple spaces with a single space
+  text = text.replace(/\s+/g, ' ');
+  
+  // Trim leading/trailing whitespace
+  return text.trim();
 }
 
 // Helper function to extract link from different formats
 function getLink(node: Record<string, unknown>): string {
   if (!node) return '';
-  if (typeof node.link === 'string') return node.link as string;
   
-  if (node.link && typeof node.link === 'object' && !Array.isArray(node.link)) {
-    const linkObj = node.link as Record<string, unknown>;
-    if (linkObj.attr && typeof linkObj.attr === 'object') {
-      const attrObj = linkObj.attr as Record<string, unknown>;
-      if ('@_href' in attrObj) return String(attrObj['@_href']);
+  // Simple check if this is a podcast feed (has iTunes namespace elements)
+  const isPodcast = Boolean(
+    node['itunes:duration'] || 
+    node['itunes:author'] || 
+    node['itunes:subtitle'] || 
+    node['itunes:explicit'] ||
+    node['itunes:image']
+  );
+  
+  // For podcasts, extract the audio file URL from enclosure
+  if (isPodcast && node.enclosure) {
+    // With our updated parser config, enclosure is always an array
+    const enclosures = Array.isArray(node.enclosure) ? node.enclosure : [node.enclosure];
+    
+    // Try to find an audio enclosure first
+    for (const enc of enclosures) {
+      if (typeof enc !== 'object' || enc === null) continue;
+      
+      const enclosure = enc as Record<string, unknown>;
+      // Direct attribute access with fast-xml-parser's @_ prefix
+      if (enclosure['@_url']) {
+        return String(enclosure['@_url']);
+      }
+      
+      // Fallback to nested attr object if direct access fails
+      if (enclosure.attr && typeof enclosure.attr === 'object') {
+        const attr = enclosure.attr as Record<string, unknown>;
+        if (attr['@_url']) {
+          return String(attr['@_url']);
+        }
+      }
+      
+      // Last resort - check for url property
+      if (enclosure.url) {
+        return String(enclosure.url);
+      }
     }
   }
   
-  if (Array.isArray(node.link)) {
-    const links = node.link as Record<string, unknown>[];
-    const mainLink = links.find(l => {
-      if (!l.attr) return true;
-      const attr = l.attr as Record<string, unknown>;
-      return !attr['@_rel'] || attr['@_rel'] === 'alternate';
+  // For regular feeds (newsletters, blogs, etc.), extract the standard link
+  
+  // Case 1: Simple string link (common in many feeds)
+  if (typeof node.link === 'string') {
+    return node.link;
+  }
+  
+  // Case 2: Link as object with text content
+  if (typeof node.link === 'object' && node.link !== null && !Array.isArray(node.link)) {
+    const linkObj = node.link as Record<string, unknown>;
+    
+    // Direct attribute access with fast-xml-parser's @_ prefix
+    if (linkObj['@_href']) {
+      return String(linkObj['@_href']);
+    }
+    
+    // Fallback to nested attr object
+    if (linkObj.attr && typeof linkObj.attr === 'object') {
+      const attr = linkObj.attr as Record<string, unknown>;
+      if (attr['@_href']) {
+        return String(attr['@_href']);
+      }
+    }
+    
+    // Check for text content
+    if (linkObj['#text']) {
+      return String(linkObj['#text']);
+    }
+  }
+  
+  // Case 3: Array of links (with our updated parser config, link is always an array)
+  if (Array.isArray(node.link) && node.link.length > 0) {
+    // Try to find the main/alternate link first
+    const mainLink = node.link.find(l => {
+      if (typeof l !== 'object' || l === null) return false;
+      const link = l as Record<string, unknown>;
+      return link['@_rel'] === 'alternate' || !link['@_rel'];
     });
     
-    if (mainLink) {
-      if (mainLink.attr) {
-        const attr = mainLink.attr as Record<string, unknown>;
-        if ('@_href' in attr) return String(attr['@_href']);
+    if (mainLink && typeof mainLink === 'object') {
+      // Direct attribute access
+      if (mainLink['@_href']) {
+        return String(mainLink['@_href']);
       }
-      return String(mainLink);
+      
+      // Text content
+      if (mainLink['#text']) {
+        return String(mainLink['#text']);
+      }
     }
     
-    if (links.length > 0) {
-      if (links[0].attr) {
-        const attr = links[0].attr as Record<string, unknown>;
-        if ('@_href' in attr) return String(attr['@_href']);
+    // Fallback to first link
+    const firstLink = node.link[0];
+    if (typeof firstLink === 'object' && firstLink !== null) {
+      // Direct attribute access
+      if (firstLink['@_href']) {
+        return String(firstLink['@_href']);
       }
-      return String(links[0]);
+      
+      // Nested attr object
+      if (firstLink.attr && typeof firstLink.attr === 'object') {
+        const attr = firstLink.attr as Record<string, unknown>;
+        if (attr['@_href']) {
+          return String(attr['@_href']);
+        }
+      }
+      
+      // Text content
+      if (firstLink['#text']) {
+        return String(firstLink['#text']);
+      }
     }
+    
+    // String representation
+    return String(node.link[0]);
+  }
+  
+  // Fallback to guid if it's a URL
+  if (typeof node.guid === 'string' && node.guid.startsWith('http')) {
+    return node.guid;
   }
   
   return '';
@@ -489,12 +690,60 @@ function getLink(node: Record<string, unknown>): string {
 // Helper function to extract image from item
 function extractImage(item: Record<string, unknown>): string | null {
   try {
+    // First, check for enclosures with image types for all feed types (podcast or not)
+    if (item.enclosure) {
+      // With our updated parser config, enclosure is always an array
+      const enclosures = Array.isArray(item.enclosure) ? item.enclosure : [item.enclosure];
+      
+      // First pass: Look specifically for image type enclosures
+      for (const enc of enclosures) {
+        if (typeof enc !== 'object' || enc === null) continue;
+        
+        const enclosure = enc as Record<string, unknown>;
+        let isImageEnclosure = false;
+        let enclosureUrl: string | null = null;
+        
+        // Check if it's an image type enclosure
+        if (enclosure.attr && typeof enclosure.attr === 'object') {
+          const attr = enclosure.attr as Record<string, unknown>;
+          if (attr['@_type'] && String(attr['@_type']).startsWith('image/')) {
+            isImageEnclosure = true;
+          }
+          
+          if (attr['@_url']) {
+            enclosureUrl = String(attr['@_url']);
+          }
+        }
+        
+        // Direct attribute access
+        if (!isImageEnclosure && enclosure['@_type'] && String(enclosure['@_type']).startsWith('image/')) {
+          isImageEnclosure = true;
+        }
+        
+        if (!enclosureUrl && enclosure['@_url']) {
+          enclosureUrl = String(enclosure['@_url']);
+        }
+        
+        // If we found an image enclosure with a URL, return it immediately
+        if (isImageEnclosure && enclosureUrl) {
+          logger.debug(`Found image enclosure with URL: ${enclosureUrl}`);
+          return enclosureUrl;
+        }
+        
+        // Check for image URL by extension even if type is not specified
+        if (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
+          logger.debug(`Found enclosure with image extension: ${enclosureUrl}`);
+          return enclosureUrl;
+        }
+      }
+    }
+    
     // Debug logging for podcast feeds
     if (item['itunes:image']) {
       logger.debug(`Found itunes:image in item: ${JSON.stringify(item['itunes:image']).substring(0, 200)}`);
     }
     
-    // Check for itunes:image
+    // Check for itunes:image (for podcasts)
     if (item['itunes:image']) {
       // Standard format with attr/@_href
       if (typeof item['itunes:image'] === 'object' && item['itunes:image'] !== null) {
@@ -593,122 +842,63 @@ function extractImage(item: Record<string, unknown>): string | null {
       }
     }
     
-    // Check for enclosure
+    // Second pass for enclosures: check for any URL that looks like an image
     if (item.enclosure) {
-      if (Array.isArray(item.enclosure)) {
-        // First try to find an image by type
-        for (const enc of item.enclosure) {
-          if (typeof enc === 'object' && enc !== null) {
-            const enclosure = enc as Record<string, unknown>;
-            if (enclosure.attr && typeof enclosure.attr === 'object') {
-              const attr = enclosure.attr as Record<string, unknown>;
-              // Skip audio files
-              if (attr['@_type'] && String(attr['@_type']).startsWith('audio/')) {
-                continue;
-              }
-              if (attr['@_type'] && String(attr['@_type']).startsWith('image/')) {
-                if (attr['@_url']) return String(attr['@_url']);
-              }
-            }
-          }
-        }
+      const enclosures = Array.isArray(item.enclosure) ? item.enclosure : [item.enclosure];
+      
+      for (const enc of enclosures) {
+        if (typeof enc !== 'object' || enc === null) continue;
         
-        // If no typed image found, check for any URL that looks like an image
-        for (const enc of item.enclosure) {
-          if (typeof enc === 'object' && enc !== null) {
-            const enclosure = enc as Record<string, unknown>;
-            if (enclosure.attr && typeof enclosure.attr === 'object') {
-              const attr = enclosure.attr as Record<string, unknown>;
-              if (attr['@_url']) {
-                const url = String(attr['@_url']);
-                // Skip audio files
-                if (attr['@_type'] && String(attr['@_type']).startsWith('audio/')) {
-                  continue;
-                }
-                if (url.match(/\.(mp3|m4a|wav|ogg|flac)($|\?)/i)) {
-                  continue;
-                }
-                if (
-                  // Check for common image extensions
-                  url.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
-                  // Check for URLs containing image-related terms
-                  /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(url) ||
-                  // Check for CDN image providers (common pattern without hardcoding specific domains)
-                  /cdn(-cgi)?\/image/i.test(url)
-                ) {
-                  return url;
-                }
-              }
-            }
-          }
-        }
-      } else if (typeof item.enclosure === 'object' && item.enclosure !== null) {
-        // Cast to a record type to avoid property access errors
-        const enclosure = item.enclosure as Record<string, unknown>;
+        const enclosure = enc as Record<string, unknown>;
+        let enclosureUrl: string | null = null;
         
-        // First check if it has attr property
+        // Check for URL in attr
         if (enclosure.attr && typeof enclosure.attr === 'object') {
           const attr = enclosure.attr as Record<string, unknown>;
-          
-          // Skip audio files
-          if (attr['@_type'] && String(attr['@_type']).startsWith('audio/')) {
-            // Skip this enclosure
-          } else if (attr['@_url']) {
-            const url = String(attr['@_url']);
-            // Skip audio files by extension
-            if (url.match(/\.(mp3|m4a|wav|ogg|flac)($|\?)/i)) {
-              // Skip this enclosure
-            } else if (attr['@_type'] && String(attr['@_type']).startsWith('image/')) {
-              return url;
-            } else if (
-              // Check for common image extensions
-              url.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
-              // Check for URLs containing image-related terms
-              /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(url) ||
-              // Check for CDN image providers
-              /cdn(-cgi)?\/image/i.test(url)
-            ) {
-              return url;
-            }
+          if (attr['@_url']) {
+            enclosureUrl = String(attr['@_url']);
           }
         }
         
-        // Also check for direct properties without attr wrapper
-        if (enclosure['@_url']) {
-          const url = String(enclosure['@_url']);
+        // Check for direct URL
+        if (!enclosureUrl && enclosure['@_url']) {
+          enclosureUrl = String(enclosure['@_url']);
+        }
+        
+        // Check for url property
+        if (!enclosureUrl && enclosure.url) {
+          enclosureUrl = String(enclosure.url);
+        }
+        
+        if (enclosureUrl) {
           // Skip audio files
           if (enclosure['@_type'] && String(enclosure['@_type']).startsWith('audio/')) {
-            // Skip this enclosure
-          } else if (url.match(/\.(mp3|m4a|wav|ogg|flac)($|\?)/i)) {
-            // Skip this enclosure
-          } else if (enclosure['@_type'] && String(enclosure['@_type']).startsWith('image/')) {
-            return url;
-          } else if (
-            // Check for common image extensions
-            url.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
-            // Check for URLs containing image-related terms
-            /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(url) ||
-            // Check for CDN image providers
-            /cdn(-cgi)?\/image/i.test(url)
-          ) {
-            return url;
+            continue;
           }
-        }
-        
-        if (enclosure.url) {
-          const url = String(enclosure.url);
-          // Skip audio files
-          if (url.match(/\.(mp3|m4a|wav|ogg|flac)($|\?)/i)) {
-            // Skip this enclosure
-          } else if (
+          
+          if (enclosure.attr && typeof enclosure.attr === 'object') {
+            const attr = enclosure.attr as Record<string, unknown>;
+            if (attr['@_type'] && String(attr['@_type']).startsWith('audio/')) {
+              continue;
+            }
+          }
+          
+          // Skip audio files by extension
+          if (enclosureUrl.match(/\.(mp3|m4a|wav|ogg|flac)($|\?)/i)) {
+            continue;
+          }
+          
+          // Check for image indicators in the URL
+          if (
             // Check for common image extensions
-            url.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
+            enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
             // Check for URLs containing image-related terms
-            /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(url) ||
+            /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(enclosureUrl) ||
             // Check for CDN image providers
-            /cdn(-cgi)?\/image/i.test(url)
+            /cdn(-cgi)?\/image/i.test(enclosureUrl)
           ) {
-            return url;
+            logger.debug(`Found image URL in enclosure: ${enclosureUrl}`);
+            return enclosureUrl;
           }
         }
       }
@@ -731,6 +921,7 @@ function extractImage(item: Record<string, unknown>): string | null {
           if (match && match[1]) {
             // Ignore data URLs
             if (!match[1].startsWith('data:')) {
+              logger.debug(`Extracted image from content field ${field}: ${match[1].substring(0, 100)}`);
               return match[1];
             }
           }

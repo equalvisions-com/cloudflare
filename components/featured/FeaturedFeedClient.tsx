@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -12,7 +12,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { MoreVertical, Headphones, Mail } from "lucide-react";
+import { MoreVertical, Headphones, Mail, Loader } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
+import { useAudio } from '@/components/audio-player/AudioContext';
 
 // Interface for post metadata
 interface PostMetadata {
@@ -96,6 +97,9 @@ const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
 };
 
 const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: FeaturedEntryProps) => {
+  const { playTrack, currentTrack } = useAudio();
+  const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
     const pubDate = new Date(entry.pub_date);
@@ -129,6 +133,14 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
   const postUrl = postMetadata.categorySlug && postMetadata.postSlug 
     ? `/${postMetadata.categorySlug}/${postMetadata.postSlug}`
     : null;
+
+  // Handle podcast playback
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (postMetadata.mediaType?.toLowerCase() === 'podcast') {
+      e.preventDefault();
+      playTrack(entry.link, decode(entry.title), entry.image);
+    }
+  }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
   return (
     <article>
@@ -188,40 +200,77 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
         </div>
         
         {/* Content */}
-        <a
-          href={entry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block hover:opacity-80 transition-opacity"
-        >
-          <Card className="overflow-hidden shadow-none">
-            {entry.image && (
-              <CardHeader className="p-0">
-                <AspectRatio ratio={16/9}>
-                  <Image
-                    src={entry.image}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 768px"
-                    loading="lazy"
-                    priority={false}
-                  />
-                </AspectRatio>
-              </CardHeader>
-            )}
-            <CardContent className="p-4 bg-secondary/60 border-t">
-              <h3 className="text-lg font-semibold leading-tight">
-                {decode(entry.title)}
-              </h3>
-              {entry.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                  {decode(entry.description)}
-                </p>
+        {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
+          <div>
+            <div 
+              onClick={handleCardClick}
+              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+            >
+              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={16/9}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <CardContent className="p-4 bg-secondary/60 border-t">
+                  <h3 className="text-lg font-semibold leading-tight">
+                    {decode(entry.title)}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          <a
+            href={entry.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block hover:opacity-80 transition-opacity"
+          >
+            <Card className="overflow-hidden shadow-none">
+              {entry.image && (
+                <CardHeader className="p-0">
+                  <AspectRatio ratio={16/9}>
+                    <Image
+                      src={entry.image}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 768px"
+                      loading="lazy"
+                      priority={false}
+                    />
+                  </AspectRatio>
+                </CardHeader>
               )}
-            </CardContent>
-          </Card>
-        </a>
+              <CardContent className="p-4 bg-secondary/60 border-t">
+                <h3 className="text-lg font-semibold leading-tight">
+                  {decode(entry.title)}
+                </h3>
+                {entry.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    {decode(entry.description)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </a>
+        )}
         
         {/* Horizontal Interaction Buttons */}
         <div className="flex justify-between items-center mt-4 h-[16px]">
