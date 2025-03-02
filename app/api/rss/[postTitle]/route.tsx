@@ -42,10 +42,11 @@ export async function GET(
     }
 
     // Get auth token for Convex queries
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const token = await convexAuthNextjsToken().catch(() => null);
+    // Don't require authentication for single feed pagination
+    // if (!token) {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // }
     
     // Fetch all entries for this feed
     console.log(`🔄 API: Fetching entries for ${decodedTitle} from PlanetScale or external source`);
@@ -104,7 +105,7 @@ export async function GET(
     const entryData = await fetchQuery(
       api.entries.batchGetEntryData,
       { entryGuids: guids },
-      { token }
+      token ? { token } : undefined
     );
 
     // Combine all data efficiently

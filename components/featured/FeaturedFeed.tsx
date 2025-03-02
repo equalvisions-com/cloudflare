@@ -22,34 +22,25 @@ export const getInitialEntries = cache(async () => {
   // Get unique feed URLs for post metadata
   const feedUrls = [...new Set(entries.map(entry => entry.feed_url))];
   
-  // Fetch ALL interaction data in one batch
+  // Fetch ALL interaction data and post metadata in one batch query
   const token = await convexAuthNextjsToken();
-  const entryData = await fetchQuery(
-    api.entries.batchGetEntryData,
-    { entryGuids: guids },
+  const combinedData = await fetchQuery(
+    api.entries.getFeedDataWithMetrics,
+    { entryGuids: guids, feedUrls },
     { token }
   );
   
-  // Fetch post metadata for all feed URLs
-  const postsData = await fetchQuery(
-    api.posts.getPostsByFeedUrls,
-    { feedUrls },
-    { token }
+  // Create maps for O(1) lookups
+  const metricsMap = new Map(
+    combinedData.entryMetrics.map(item => [item.guid, item.metrics])
   );
   
-  // Create a map of feedUrl to post metadata for O(1) lookups
   const postMetadataMap = new Map(
-    postsData.map(post => [post.feedUrl, {
-      title: post.title,
-      featuredImg: post.featuredImg,
-      mediaType: post.mediaType,
-      postSlug: post.postSlug,
-      categorySlug: post.categorySlug
-    }])
+    combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
   );
 
   // Combine all entries with their data and metadata
-  const entriesWithPublicData = entries.map((entry, index) => {
+  const entriesWithPublicData = entries.map(entry => {
     // Use post metadata from the map, or create fallback metadata
     const metadata = postMetadataMap.get(entry.feed_url) || {
       title: entry.post_title || entry.title,
@@ -59,9 +50,16 @@ export const getInitialEntries = cache(async () => {
       categorySlug: ''
     };
     
+    // Use metrics from the map, or create fallback metrics
+    const metrics = metricsMap.get(entry.guid) || {
+      likes: { isLiked: false, count: 0 },
+      comments: { count: 0 },
+      retweets: { isRetweeted: false, count: 0 }
+    };
+    
     return {
       entry,
-      initialData: entryData[index],
+      initialData: metrics,
       postMetadata: metadata
     };
   });

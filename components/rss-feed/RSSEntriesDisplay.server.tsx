@@ -5,14 +5,6 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
 
-interface PostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  postSlug: string;
-  categorySlug: string;
-}
-
 // Define the RSSItem interface to match what's returned from the API
 interface RSSItem {
   guid: string;
@@ -61,19 +53,31 @@ export const getInitialEntries = cache(async () => {
       return null;
     }
 
-    // 1. First, get the user's RSS keys
-    const rssKeys = await fetchQuery(api.rssKeys.getUserRSSKeys, {}, { token });
-    if (!rssKeys || rssKeys.length === 0) {
+    // 1. Get the user's RSS keys and post data in a single query
+    const rssKeysWithPosts = await fetchQuery(api.rssKeys.getUserRSSKeysWithPosts, {}, { token });
+    
+    if (!rssKeysWithPosts.rssKeys || rssKeysWithPosts.rssKeys.length === 0) {
       devLog('⚠️ SERVER: No RSS keys found for user');
       return null;
     }
 
-    devLog(`🔍 SERVER: Fetching merged entries for ${rssKeys.length} RSS keys`);
+    devLog(`🔍 SERVER: Fetching merged entries for ${rssKeysWithPosts.rssKeys.length} RSS keys`);
 
     // 2. Extract post titles from RSS keys (remove 'rss.' prefix)
-    const postTitles = rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
+    const postTitles = rssKeysWithPosts.rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
     
-    // 3. Fetch entries from PlanetScale using the post titles
+    // 3. Create a map of feed URLs to post metadata for O(1) lookups
+    const postMetadataMap = new Map(
+      rssKeysWithPosts.posts.map(post => [post.feedUrl, {
+        title: post.title,
+        featuredImg: post.featuredImg,
+        mediaType: post.mediaType,
+        postSlug: post.postSlug,
+        categorySlug: post.categorySlug
+      }])
+    );
+    
+    // 4. Fetch entries from PlanetScale using the post titles
     const limit = 30; // Match the default pageSize in client
     
     // Create a proper URL for the API request using offset/limit pagination
@@ -115,45 +119,20 @@ export const getInitialEntries = cache(async () => {
       
       devLog(`✅ SERVER: Found ${entries.length} entries for the merged feed`);
 
-      // 4. Get unique feedUrls from the entries
-      const feedUrls = [...new Set(entries
-        .filter((entry: RSSItem) => entry.feedUrl)
-        .map((entry: RSSItem) => entry.feedUrl))] as string[];
-      
-      if (feedUrls.length === 0) {
-        errorLog('❌ SERVER: No valid feed URLs found in entries');
-        return null;
-      }
-      
-      // 5. Fetch posts data using the actual feedUrls
-      const postsData = await fetchQuery(
-        api.posts.getPostsByFeedUrls,
-        { feedUrls },
-        { token }
-      );
-
-      // 6. Create a map of feedUrl to post metadata for O(1) lookups
-      const postMetadataMap = new Map<string, PostMetadata>(
-        postsData.map(post => [post.feedUrl, {
-          title: post.title,
-          featuredImg: post.featuredImg,
-          mediaType: post.mediaType,
-          postSlug: post.postSlug,
-          categorySlug: post.categorySlug
-        }])
-      );
-
-      // 7. Batch fetch entry data for all entries at once
+      // 5. Get unique entry guids for batch query
       const guids = entries.map((entry: RSSItem) => entry.guid);
+      
+      // 6. Batch fetch entry data for all entries at once
       const entryData = await fetchQuery(
         api.entries.batchGetEntryData,
         { entryGuids: guids },
         { token }
       );
 
-      // 8. Combine all data efficiently
+      // 7. Combine all data efficiently
       const entriesWithPublicData = entries.map((entry: RSSItem, index: number) => {
         // Create a safe fallback for post metadata
+        const feedUrl = entry.feedUrl;
         const fallbackMetadata = {
           title: entry.feedTitle || entry.title || '',
           featuredImg: entry.image as string || '',
@@ -169,11 +148,11 @@ export const getInitialEntries = cache(async () => {
             comments: { count: 0 },
             retweets: { isRetweeted: false, count: 0 }
           },
-          postMetadata: postMetadataMap.get(entry.feedUrl) || fallbackMetadata
+          postMetadata: postMetadataMap.get(feedUrl) || fallbackMetadata
         };
       });
 
-      // 9. Check if there are more entries
+      // 8. Check if there are more entries
       // Reliably determine if there are more entries based on requested limit vs received count
       const hasMore = data.hasMore || entries.length >= limit;
 

@@ -30,12 +30,15 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   // Only use the first 10 entries for initial data
   const initialEntries = sortedEntries.slice(0, 10);
   
-  const token = await convexAuthNextjsToken();
+  // Get auth token but don't fail if it's not available
+  const token = await convexAuthNextjsToken().catch(() => null);
   const guids = initialEntries.map(entry => entry.guid);
+  
+  // Fetch entry data with or without authentication
   const entryData = await fetchQuery(
     api.entries.batchGetEntryData,
     { entryGuids: guids },
-    { token }
+    token ? { token } : undefined
   );
 
   const entriesWithPublicData = initialEntries.map((entry, index) => ({

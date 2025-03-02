@@ -533,19 +533,32 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
     return paginatedEntries.map((entry: RSSEntryWithData) => entry.entry.guid);
   }, [paginatedEntries]);
   
-  // Create a map of already fetched metrics to avoid redundant queries
-  const [fetchedMetricsMap, setFetchedMetricsMap] = useState<Record<string, EntryMetrics>>({});
+  // Use a single combined query to get metrics for all entries
+  const combinedData = useQuery(
+    api.entries.getFeedDataWithMetrics,
+    entryGuids.length > 0 
+      ? { entryGuids, feedUrls: [feedUrl] } 
+      : "skip"
+  );
+  
+  // Create a map of metrics keyed by entryGuid for easier lookup
+  const entryMetricsMap = useMemo(() => {
+    if (!combinedData || !combinedData.entryMetrics) return null;
+    
+    // Convert the metrics array to a map for O(1) lookups
+    const metricsMap: Record<string, EntryMetrics> = {};
+    combinedData.entryMetrics.forEach(item => {
+      metricsMap[item.guid] = item.metrics;
+    });
+    
+    return metricsMap;
+  }, [combinedData]);
   
   // Track which URLs have already been prefetched to avoid duplicate requests
   const prefetchedUrlsRef = useRef<Set<string>>(new Set());
   
   // Track if we've done the initial prefetch
   const initialPrefetchDoneRef = useRef(false);
-  
-  // Only fetch metrics for entries that don't already have up-to-date metrics
-  const entriesNeedingMetrics = useMemo(() => {
-    return entryGuids.filter(guid => !fetchedMetricsMap[guid]);
-  }, [entryGuids, fetchedMetricsMap]);
   
   // Prefetch the next batch of entries when approaching the end
   const prefetchNextBatch = useCallback(() => {
@@ -574,32 +587,6 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       }
     }
   }, [data, size, PAGES_PER_FETCH, pageSize, postTitle, feedUrl, hasMoreEntries, mediaType]);
-  
-  // Use a single batch query to get metrics for all entries
-  const batchMetrics = useQuery(
-    api.entries.batchGetEntryData,
-    entriesNeedingMetrics.length > 0 ? { entryGuids: entriesNeedingMetrics } : "skip"
-  );
-  
-  // Update the fetched metrics map when new metrics are received
-  useEffect(() => {
-    if (batchMetrics && entriesNeedingMetrics.length > 0) {
-      const newMetricsMap = { ...fetchedMetricsMap };
-      
-      batchMetrics.forEach((metrics: EntryMetrics, index: number) => {
-        if (index < entriesNeedingMetrics.length) {
-          newMetricsMap[entriesNeedingMetrics[index]] = metrics;
-        }
-      });
-      
-      setFetchedMetricsMap(newMetricsMap);
-    }
-  }, [batchMetrics, entriesNeedingMetrics, fetchedMetricsMap]);
-  
-  // Convert array of metrics to a map keyed by entryGuid for easier lookup
-  const entryMetricsMap = useMemo(() => {
-    return fetchedMetricsMap;
-  }, [fetchedMetricsMap]);
   
   // Function to load more entries
   const loadMore = () => {

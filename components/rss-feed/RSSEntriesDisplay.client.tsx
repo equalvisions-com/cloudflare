@@ -569,7 +569,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       const offset = pageIndex * ITEMS_PER_REQUEST;
       baseUrl.searchParams.set('offset', offset.toString());
       baseUrl.searchParams.set('limit', ITEMS_PER_REQUEST.toString());
-      baseUrl.searchParams.set('includePostMetadata', 'true');
+      baseUrl.searchParams.set('includePostMetadata', 'true'); // Request post metadata
       
       // Extract post titles from the initial data
       if (initialData && initialData.postTitles) {
@@ -765,16 +765,13 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     return sortedEntries;
   }, [data, initialData]);
   
-  // Extract all entry GUIDs for batch query
-  const entryGuids = useMemo(() => {
-    return paginatedEntries
+  // Extract all entry GUIDs and feed URLs for combined query
+  const [entryGuids, feedUrls] = useMemo(() => {
+    const guids = paginatedEntries
       .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.guid)
       .map((entry: RSSEntryWithData) => entry.entry.guid);
-  }, [paginatedEntries]);
-  
-  // Extract all feed URLs for metadata query
-  const feedUrls = useMemo(() => {
-    return [...new Set(
+    
+    const urls = [...new Set(
       paginatedEntries
         .filter((entry: RSSEntryWithData) => 
           entry && 
@@ -784,6 +781,8 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
         )
         .map((entry: RSSEntryWithData) => entry.entry.feedUrl)
     )];
+    
+    return [guids, urls];
   }, [paginatedEntries]);
   
   // Determine if there are more entries to load - improved reliability
@@ -804,27 +803,33 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     return lastPage && lastPage.entries && lastPage.entries.length >= ITEMS_PER_REQUEST;
   }, [data, ITEMS_PER_REQUEST]);
   
-  // Fetch post metadata for entries that don't have it - optimize with memoization
-  const postMetadata = useQuery(
-    api.posts.getPostsByFeedUrls,
-    feedUrls.length > 0 ? { feedUrls } : "skip"
+  // Use the combined query to fetch both post metadata and entry metrics in one call
+  const combinedData = useQuery(
+    api.entries.getFeedDataWithMetrics,
+    (entryGuids.length > 0 || feedUrls.length > 0) 
+      ? { entryGuids, feedUrls } 
+      : "skip"
   );
   
-  // Create a memoized metadata map for efficient lookups
-  const metadataMap = useMemo(() => {
-    if (!postMetadata || feedUrls.length === 0) return new Map();
+  // Create maps for O(1) lookups from the combined query results
+  const [metricsMap, metadataMap] = useMemo(() => {
+    if (!combinedData) return [new Map(), new Map()];
     
-    logger.info(`Creating metadata map from ${postMetadata.length} posts`);
-    return new Map(
-      postMetadata.map(post => [post.feedUrl, {
-        title: post.title,
-        featuredImg: post.featuredImg,
-        mediaType: post.mediaType,
-        postSlug: post.postSlug,
-        categorySlug: post.categorySlug
-      }])
+    const metrics = new Map(
+      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
     );
-  }, [postMetadata, feedUrls.length]);
+    
+    const metadata = new Map(
+      combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
+    );
+    
+    logger.info(`Created lookup maps from combined query`, { 
+      metricsCount: metrics.size, 
+      metadataCount: metadata.size 
+    });
+    
+    return [metrics, metadata];
+  }, [combinedData]);
   
   // Create a ref to track processed metadata batches
   const processedMetadataRef = useRef<string | null>(null);
@@ -896,61 +901,18 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     }
   }, [paginatedEntries.length]);
   
-  // Create a map of already fetched metrics to avoid redundant queries
-  // Use a more efficient approach with a ref to track metrics across renders
-  const metricsMapRef = useRef<Record<string, EntryMetrics>>({});
-  const [metricsVersion, setMetricsVersion] = useState<number>(0);
-
-  // Only fetch metrics for entries that don't already have up-to-date metrics
-  const entriesNeedingMetrics = useMemo(() => {
-    // Filter out entries that already have metrics
-    const needMetrics = entryGuids.filter(guid => !metricsMapRef.current[guid]);
-    
-    if (needMetrics.length > 0) {
-      logger.debug(`Found ${needMetrics.length} entries needing metrics`, { 
-        total: entryGuids.length,
-        alreadyFetched: entryGuids.length - needMetrics.length 
-      });
-    }
-    
-    return needMetrics;
-  }, [entryGuids]);
-
-  // Use a single batch query to get metrics for all entries
-  // We're using a larger batch size to reduce the number of queries
-  const batchMetrics = useQuery(
-    api.entries.batchGetEntryData,
-    entriesNeedingMetrics.length > 0 ? { entryGuids: entriesNeedingMetrics } : "skip"
-  );
-
-  // Update the fetched metrics map when new metrics are received
-  useEffect(() => {
-    if (batchMetrics && entriesNeedingMetrics.length > 0) {
-      logger.debug(`Received metrics for ${batchMetrics.length} entries`);
-      let updatedCount = 0;
-      
-      // Update the metrics map with new metrics
-      batchMetrics.forEach((metrics: EntryMetrics, index: number) => {
-        if (index < entriesNeedingMetrics.length) {
-          const guid = entriesNeedingMetrics[index];
-          metricsMapRef.current[guid] = metrics;
-          updatedCount++;
-        }
-      });
-      
-      if (updatedCount > 0) {
-        logger.debug(`Updated metrics for ${updatedCount} entries`);
-        // Increment the version to trigger a re-render
-        setMetricsVersion(prev => prev + 1);
-      }
-    }
-  }, [batchMetrics, entriesNeedingMetrics]);
-
-  // Convert array of metrics to a map keyed by entryGuid for easier lookup
+  // Get entry metrics map for use in rendering
   const entryMetricsMap = useMemo(() => {
-    // Return the current metrics map
-    return metricsMapRef.current;
-  }, [metricsVersion]); // Add back the metricsVersion dependency to ensure the memo updates when metrics change
+    if (metricsMap.size === 0) return null;
+    
+    // Convert the map to a simple object for easier use in components
+    const metricsObject: Record<string, EntryMetrics> = {};
+    metricsMap.forEach((metrics, guid) => {
+      metricsObject[guid] = metrics;
+    });
+    
+    return metricsObject;
+  }, [metricsMap]);
   
   // Track which pages have already been prefetched to avoid duplicate requests
   const prefetchedPagesRef = useRef<Set<number>>(new Set());
