@@ -16,8 +16,8 @@ interface RSSFeedProps {
   mediaType?: string;
 }
 
-export const getInitialEntries = cache(async (postTitle: string, feedUrl: string) => {
-  const entries = await getRSSEntries(postTitle, feedUrl);
+export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
+  const entries = await getRSSEntries(postTitle, feedUrl, mediaType);
   if (!entries || entries.length === 0) return null;
 
   // Sort entries by publication date (newest first) using Lodash orderBy

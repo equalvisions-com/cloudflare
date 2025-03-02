@@ -6,10 +6,10 @@ import { getRSSEntries } from "@/lib/rss.server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { feedUrl, postTitle } = await request.json();
+    const { feedUrl, postTitle, mediaType } = await request.json();
 
     // Get entries from PlanetScale
-    const entries = await getRSSEntries(postTitle, feedUrl);
+    const entries = await getRSSEntries(postTitle, feedUrl, mediaType);
     if (!entries || entries.length === 0) {
       return NextResponse.json({ entries: [] });
     }

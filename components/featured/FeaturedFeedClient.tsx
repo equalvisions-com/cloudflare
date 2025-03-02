@@ -12,7 +12,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { MoreVertical, Headphones, Mail, Loader } from "lucide-react";
+import { MoreVertical, Headphones, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,

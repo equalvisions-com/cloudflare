@@ -54,17 +54,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const feedUrlsPromises = postTitles.map(async (title) => {
       // Query the database to get the feed URL for this post title
       const [rows] = await pool.query<mysql.RowDataPacket[]>(
-        'SELECT feed_url FROM rss_feeds WHERE title = ?',
+        'SELECT feed_url, media_type FROM rss_feeds WHERE title = ?',
         [title]
       );
       
-      return rows.length > 0 ? rows[0].feed_url as string : null;
+      return rows.length > 0 ? {
+        feedUrl: rows[0].feed_url as string,
+        mediaType: rows[0].media_type as string | null
+      } : null;
     });
     
-    const feedUrls = await Promise.all(feedUrlsPromises);
-    const validFeedUrls = feedUrls.filter(Boolean) as string[];
+    const feedInfos = await Promise.all(feedUrlsPromises);
+    const validFeedInfos = feedInfos.filter(Boolean) as Array<{feedUrl: string, mediaType: string | null}>;
     
-    if (validFeedUrls.length === 0) {
+    if (validFeedInfos.length === 0) {
       console.log(`⚠️ API: No valid feed URLs found for the requested post titles`);
       return NextResponse.json({ 
         entries: [], 
@@ -73,13 +76,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
     
-    console.log(`✅ API: Found ${validFeedUrls.length} valid feed URLs out of ${postTitles.length} requested`);
+    console.log(`✅ API: Found ${validFeedInfos.length} valid feed URLs out of ${postTitles.length} requested`);
     
     // Fetch entries for each feed URL
-    const entriesPromises = validFeedUrls.map(async (feedUrl, index) => {
+    const entriesPromises = validFeedInfos.map(async (feedInfo, index) => {
       if (postTitles[index]) {
-        console.log(`🔄 API: Fetching entries for ${postTitles[index]} from ${feedUrl}`);
-        const entries = await getRSSEntries(postTitles[index], feedUrl);
+        console.log(`🔄 API: Fetching entries for ${postTitles[index]} from ${feedInfo.feedUrl} with mediaType=${feedInfo.mediaType}`);
+        const entries = await getRSSEntries(postTitles[index], feedInfo.feedUrl, feedInfo.mediaType || undefined);
         return entries;
       }
       return [];

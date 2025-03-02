@@ -216,6 +216,7 @@ interface RSSFeed {
   description: string;
   link: string;
   items: RSSItem[];
+  mediaType?: string;
 }
 
 // This is the parsed channel or feed object structure
@@ -239,8 +240,18 @@ interface ParsedXMLCacheEntry {
 const parsedXMLCache = new Map<string, ParsedXMLCacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+// Define a type for the parsed XML result
+interface ParsedXML {
+  rss?: {
+    channel: ParsedChannel;
+    [key: string]: unknown;
+  };
+  feed?: ParsedChannel;
+  [key: string]: unknown;
+}
+
 // Function to parse XML with caching
-function parseXMLWithCache(xml: string, url: string): any {
+function parseXMLWithCache(xml: string, url: string): ParsedXML {
   const currentTime = Date.now();
   const cacheKey = `${url}:${xml.length}`;
   
@@ -248,7 +259,7 @@ function parseXMLWithCache(xml: string, url: string): any {
   const cachedEntry = parsedXMLCache.get(cacheKey);
   if (cachedEntry && (currentTime - cachedEntry.timestamp) < CACHE_TTL) {
     logger.cache(`Using cached parsed XML for ${url}`);
-    return cachedEntry.result;
+    return cachedEntry.result as ParsedXML;
   }
   
   // Parse the XML
@@ -266,7 +277,7 @@ function parseXMLWithCache(xml: string, url: string): any {
     cleanupCache();
   }
   
-  return result;
+  return result as ParsedXML;
 }
 
 // Function to clean up old cache entries
@@ -287,7 +298,7 @@ function cleanupCache(): void {
 }
 
 // Function to create a fallback feed when there's an error
-function createFallbackFeed(url: string, error: unknown): RSSFeed {
+function createFallbackFeed(url: string, error: unknown, mediaType?: string): RSSFeed {
   const errorMessage = error instanceof Error ? error.message : String(error);
   logger.warn(`Creating fallback feed for ${url} due to error: ${errorMessage}`);
   
@@ -295,6 +306,7 @@ function createFallbackFeed(url: string, error: unknown): RSSFeed {
     title: `Error fetching feed from ${url}`,
     description: `There was an error fetching the feed: ${errorMessage}`,
     link: url,
+    mediaType,
     items: [{
       title: 'Error fetching feed',
       description: `There was an error fetching the feed from ${url}: ${errorMessage}`,
@@ -302,13 +314,14 @@ function createFallbackFeed(url: string, error: unknown): RSSFeed {
       guid: `error-${Date.now()}`,
       pubDate: new Date().toISOString(),
       image: undefined,
+      mediaType,
       feedUrl: url
     }]
   };
 }
 
 // Function to fetch and parse RSS feed
-async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
+async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFeed> {
   try {
     // Fetch the feed with a timeout
     const controller = new AbortController();
@@ -407,6 +420,7 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
         title: getTextContent(channel.title),
         description: getTextContent(channel.description || channel.subtitle || ''),
         link: getLink(channel),
+        mediaType,
         items: []
       };
       
@@ -455,6 +469,7 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
             guid: itemGuid,
             pubDate: formatDate(item.pubDate || item.published || item.updated || new Date().toISOString()),
             image: itemImage || channelImage || undefined,
+            mediaType,
             feedUrl: url // Add the feedUrl property which is required by the RSSItem interface
           };
           
@@ -473,6 +488,7 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
             guid: `error-${Date.now()}-${Math.random()}`,
             pubDate: new Date().toISOString(),
             image: channelImage || undefined,
+            mediaType,
             feedUrl: url // Add the feedUrl property here too
           };
         }
@@ -494,7 +510,7 @@ async function fetchAndParseFeed(url: string): Promise<RSSFeed> {
   } catch (error) {
     logger.error(`Error fetching feed from ${url}: ${error}`);
     // Return a fallback feed instead of throwing
-    return createFallbackFeed(url, error);
+    return createFallbackFeed(url, error, mediaType);
   }
 }
 
@@ -1013,7 +1029,7 @@ function formatDate(dateStr: unknown): string {
 }
 
 // Function to get or create a feed in PlanetScale
-async function getOrCreateFeed(feedUrl: string, postTitle: string): Promise<number> {
+async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: string): Promise<number> {
   try {
     // Check if feed exists
     const rows = await executeQuery<RowDataPacket[]>(
@@ -1022,6 +1038,13 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string): Promise<numb
     );
     
     if (rows.length > 0) {
+      // If feed exists and mediaType is provided, update the mediaType
+      if (mediaType) {
+        await executeQuery<ResultSetHeader>(
+          'UPDATE rss_feeds SET media_type = ? WHERE feed_url = ?',
+          [mediaType, feedUrl]
+        );
+      }
       return Number(rows[0].id);
     }
     
@@ -1029,8 +1052,8 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string): Promise<numb
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now(); // Use milliseconds for last_fetched (bigint column)
     const result = await executeQuery<ResultSetHeader>(
-      'INSERT INTO rss_feeds (feed_url, title, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-      [feedUrl, postTitle, currentTimeMs, now, now]
+      'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
     );
     
     return Number(result.insertId);
@@ -1066,7 +1089,7 @@ async function executeBatchTransaction<T extends mysql.RowDataPacket[] | mysql.R
 }
 
 // Function to store RSS entries with transaction support
-async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]): Promise<void> {
+async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[], mediaType?: string): Promise<void> {
   try {
     if (entries.length === 0) return;
     
@@ -1109,7 +1132,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     
     // Create operations for each chunk
     const operations = chunks.map(chunk => {
-      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
       const values = chunk.flatMap(entry => {
         // Ensure pubDate is properly formatted as ISO string
         const normalizedPubDate = formatDate(entry.pubDate);
@@ -1122,12 +1145,13 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
           String(entry.description?.slice(0, 200) || ''),
           normalizedPubDate, // Use the normalized date
           entry.image ? String(entry.image) : null,
+          entry.mediaType || mediaType || null, // Use entry's mediaType, or the feed's mediaType, or null
           String(now)
         ];
       });
       
       return {
-        query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, created_at) VALUES ${placeholders}`,
+        query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at) VALUES ${placeholders}`,
         params: values
       };
     });
@@ -1183,7 +1207,7 @@ async function releaseFeedRefreshLock(feedUrl: string): Promise<void> {
 }
 
 // Get RSS entries with caching
-export async function getRSSEntries(postTitle: string, feedUrl: string): Promise<RSSItem[]> {
+export async function getRSSEntries(postTitle: string, feedUrl: string, mediaType?: string): Promise<RSSItem[]> {
   try {
     logger.info(`Checking for RSS feed: ${postTitle} (${feedUrl})`);
     
@@ -1213,7 +1237,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
     } else {
       // Create new feed
       logger.cache(`No existing data for ${postTitle}, creating new feed entry`);
-      feedId = await getOrCreateFeed(feedUrl, postTitle);
+      feedId = await getOrCreateFeed(feedUrl, postTitle, mediaType);
     }
     
     // If we need fresh data, fetch it
@@ -1245,10 +1269,11 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
           
           if (shouldFetchFresh) {
             try {
-              const freshFeed = await fetchAndParseFeed(feedUrl);
+              const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
+              
               if (freshFeed.items.length > 0) {
                 logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
-                await storeRSSEntriesWithTransaction(feedId, freshFeed.items);
+                await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
               } else {
                 logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
               }
@@ -1271,7 +1296,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
     // Get all entries for this feed from the database
     logger.debug(`Retrieving entries for ${postTitle} from database`);
     const entries = await executeQuery<RowDataPacket[]>(
-      'SELECT guid, title, link, description, pub_date as pubDate, image FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC',
+      'SELECT guid, title, link, description, pub_date as pubDate, image, media_type as mediaType FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC',
       [feedId]
     );
     
@@ -1280,12 +1305,13 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
       
       // If we have no entries in the database, try to fetch fresh data as a fallback
       try {
-        const freshFeed = await fetchAndParseFeed(feedUrl);
+        const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
+        
         if (freshFeed.items.length > 0) {
           logger.info(`Fallback: Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
-          await storeRSSEntriesWithTransaction(feedId, freshFeed.items);
+          await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
           
-          // Return the fresh items directly
+          // Return the fresh items directly with mediaType
           return freshFeed.items;
         }
       } catch (fallbackError) {
@@ -1302,6 +1328,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
       description: entry.description,
       pubDate: formatDate(entry.pubDate), // Normalize the date format
       image: entry.image,
+      mediaType: entry.mediaType,
       feedUrl
     }));
   } catch (error) {
@@ -1310,29 +1337,29 @@ export async function getRSSEntries(postTitle: string, feedUrl: string): Promise
     // Try a direct fetch as a last resort
     try {
       logger.info(`Attempting direct fetch for ${postTitle} as last resort`);
-      const directFeed = await fetchAndParseFeed(feedUrl);
+      const directFeed = await fetchAndParseFeed(feedUrl, mediaType);
       return directFeed.items;
     } catch (directError) {
       logger.error(`Direct fetch failed for ${postTitle}: ${directError}`);
-    return [];
+      return [];
     }
   }
 }
 
 // Function to fetch and store RSS feed (used by page.tsx)
-export async function fetchAndStoreRSSFeed(feedUrl: string, postTitle: string): Promise<void> {
+export async function fetchAndStoreRSSFeed(feedUrl: string, postTitle: string, mediaType?: string): Promise<void> {
   try {
     // Use the same getRSSEntries function to maintain consistency
-    await getRSSEntries(postTitle, feedUrl);
+    await getRSSEntries(postTitle, feedUrl, mediaType);
   } catch (error) {
     logger.error(`Error in fetchAndStoreRSSFeed for ${postTitle}: ${error}`);
   }
 }
 
 // Function to store RSS entries in PlanetScale (for backward compatibility)
-export async function storeRSSEntries(feedId: number, entries: RSSItem[]): Promise<void> {
+export async function storeRSSEntries(feedId: number, entries: RSSItem[], mediaType?: string): Promise<void> {
   // Call the transaction-based version for better performance
-  return storeRSSEntriesWithTransaction(feedId, entries);
+  return storeRSSEntriesWithTransaction(feedId, entries, mediaType);
 }
 
 // Function to ensure the RSS locks table exists

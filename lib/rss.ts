@@ -7,6 +7,7 @@ export interface RSSItem {
   guid: string;
   image?: string;
   feedUrl: string;
+  mediaType?: string;
 }
 
 interface RSSEntryResponse {
@@ -19,11 +20,15 @@ export function formatRSSKey(postTitle: string): string {
 }
 
 // Client-side function to fetch RSS entries from the API
-export async function getRSSEntries(postTitle: string, feedUrl: string): Promise<RSSItem[]> {
+export async function getRSSEntries(postTitle: string, feedUrl: string, mediaType?: string): Promise<RSSItem[]> {
   try {
-    const response = await fetch(
-      `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}`
-    );
+    const url = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
+    url.searchParams.append('feedUrl', encodeURIComponent(feedUrl));
+    if (mediaType) {
+      url.searchParams.append('mediaType', encodeURIComponent(mediaType));
+    }
+    
+    const response = await fetch(url.toString());
     
     if (!response.ok) {
       throw new Error(`Failed to fetch RSS entries: ${response.statusText}`);
@@ -50,9 +55,12 @@ export async function getMergedRSSEntries(
     const postTitles = rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
     
     // Fetch merged entries from the API
-    const response = await fetch(
-      `/api/rss?postTitles=${encodeURIComponent(JSON.stringify(postTitles))}&offset=${offset}&limit=${limit}`
-    );
+    const url = new URL('/api/rss', window.location.origin);
+    url.searchParams.append('postTitles', encodeURIComponent(JSON.stringify(postTitles)));
+    url.searchParams.append('offset', offset.toString());
+    url.searchParams.append('limit', limit.toString());
+    
+    const response = await fetch(url.toString());
     
     if (!response.ok) {
       throw new Error(`Failed to fetch merged RSS entries: ${response.statusText}`);

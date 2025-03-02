@@ -24,13 +24,14 @@ export async function GET(
     // Get pagination parameters
     const searchParams = request.nextUrl.searchParams;
     const feedUrl = searchParams.get('feedUrl');
+    const mediaType = searchParams.get('mediaType');
     const page = parseInt(searchParams.get('page') || '0', 10);
     const startPage = parseInt(searchParams.get('startPage') || page.toString(), 10);
     const pageCount = parseInt(searchParams.get('pageCount') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
     const skipFirstPage = searchParams.get('skipFirstPage') === 'true';
 
-    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, startPage=${startPage}, pageCount=${pageCount}, pageSize=${pageSize}`);
+    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, startPage=${startPage}, pageCount=${pageCount}, pageSize=${pageSize}`);
 
     if (!feedUrl) {
       console.error('❌ API: Feed URL is required');
@@ -48,7 +49,7 @@ export async function GET(
     
     // Fetch all entries for this feed
     console.log(`🔄 API: Fetching entries for ${decodedTitle} from PlanetScale or external source`);
-    const entries = await getRSSEntries(decodedTitle, feedUrl);
+    const entries = await getRSSEntries(decodedTitle, feedUrl, mediaType || undefined);
     
     if (!entries || entries.length === 0) {
       console.log(`⚠️ API: No entries found for ${decodedTitle}`);

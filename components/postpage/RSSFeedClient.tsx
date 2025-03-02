@@ -460,7 +460,13 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       // Ensure we always have a positive startPage value
       const startPage = Math.max(1, (pageIndex - 1) * PAGES_PER_FETCH + 1);
       
-      const url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      let url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      
+      // Add mediaType parameter if provided
+      if (mediaType) {
+        url += `&mediaType=${encodeURIComponent(mediaType)}`;
+      }
+      
       console.log(`🔍 SWR key generated for page ${pageIndex}: ${url}`);
       // Request multiple pages at once - no need for skipFirstPage parameter
       return url;
@@ -552,7 +558,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       
       // Use the same calculation as in the key function with the same safety check
       const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
-      const url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      let url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
+      
+      // Add mediaType parameter if provided
+      if (mediaType) {
+        url += `&mediaType=${encodeURIComponent(mediaType)}`;
+      }
       
       // Only prefetch if we haven't already prefetched this URL
       if (!prefetchedUrlsRef.current.has(url)) {
@@ -562,7 +573,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
         fetch(url).catch(() => {/* Silently handle prefetch errors */});
       }
     }
-  }, [data, size, PAGES_PER_FETCH, pageSize, postTitle, feedUrl, hasMoreEntries]);
+  }, [data, size, PAGES_PER_FETCH, pageSize, postTitle, feedUrl, hasMoreEntries, mediaType]);
   
   // Use a single batch query to get metrics for all entries
   const batchMetrics = useQuery(

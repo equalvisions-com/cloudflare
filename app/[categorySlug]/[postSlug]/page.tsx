@@ -119,7 +119,7 @@ async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> 
 
 // PostFeed component for streaming the RSS feed
 async function PostFeed({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
-  const initialData = await getInitialEntries(post.title, post.feedUrl);
+  const initialData = await getInitialEntries(post.title, post.feedUrl, post.mediaType);
 
   if (!initialData) {
     return (
