@@ -75,16 +75,20 @@ export const getInitialEntries = cache(async () => {
       return null;
     }
 
-    devLog(`🔍 SERVER: Fetching merged entries for ${rssKeysWithPosts.rssKeys.length} RSS keys`);
-
-    // 2. Extract post titles from RSS keys (remove 'rss.' prefix)
-    const postTitles = rssKeysWithPosts.rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
+    // 2. Extract post titles correctly from the posts array
+    const postTitles = rssKeysWithPosts.posts.map(post => post.title);
     
-    devLog(`📋 SERVER: Post titles: ${postTitles.join(', ')}`);
+    devLog(`📋 SERVER: Found ${postTitles.length} post titles to refresh:`, postTitles);
     
     // 3. Check if any feeds need refreshing (4-hour revalidation)
-    devLog(`🔄 SERVER: Checking if any feeds need refreshing (4-hour revalidation)`);
-    await checkAndRefreshFeeds(postTitles);
+    devLog(`🔄 SERVER: Checking if feeds need refreshing for titles:`, postTitles);
+    try {
+      await checkAndRefreshFeeds(postTitles);
+      devLog('✅ SERVER: Feed refresh check completed');
+    } catch (refreshError) {
+      errorLog('⚠️ SERVER: Feed refresh check failed:', refreshError);
+      // Continue execution even if refresh fails
+    }
     
     // 4. Create a map of feed URLs to post metadata for O(1) lookups
     const postMetadataMap = new Map(
@@ -157,17 +161,17 @@ export const getInitialEntries = cache(async () => {
       
       devLog(`🚀 SERVER: Processed ${mappedEntries.length} entries (total: ${totalEntries}, hasMore: ${hasMore})`);
       
-      // 5. Get unique entry guids for batch query
+      // 6. Get unique entry guids for batch query
       const guids = mappedEntries.map((entry: RSSItem) => entry.guid);
       
-      // 6. Batch fetch entry data for all entries at once
+      // 7. Batch fetch entry data for all entries at once
       const entryData = await fetchQuery(
         api.entries.batchGetEntryData,
         { entryGuids: guids },
         { token }
       );
 
-      // 7. Combine all data efficiently
+      // 8. Combine all data efficiently
       const entriesWithPublicData = mappedEntries.map((entry: RSSItem, index: number) => {
         // Create a safe fallback for post metadata
         const feedUrl = entry.feedUrl;
@@ -197,7 +201,7 @@ export const getInitialEntries = cache(async () => {
         entries: entriesWithPublicData,
         totalEntries,
         hasMore,
-        postTitles // Explicitly include post titles
+        postTitles // Include the correctly extracted post titles
       };
     } catch (dbError: unknown) {
       errorLog('❌ SERVER: Error querying PlanetScale:', dbError);
