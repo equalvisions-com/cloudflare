@@ -54,7 +54,6 @@ interface FeaturedEntryWithData {
 
 interface FeaturedEntryProps {
   entryWithData: FeaturedEntryWithData;
-  isPriority?: boolean;
 }
 
 interface MoreOptionsDropdownProps {
@@ -97,7 +96,7 @@ const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
   );
 };
 
-const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, isPriority }: FeaturedEntryProps) => {
+const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: FeaturedEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -175,8 +174,8 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, is
                   fill
                   className="object-cover"
                   sizes="96px"
-                  loading={isPriority ? undefined : "lazy"}
-                  priority={isPriority}
+                  loading="lazy"
+                  priority={false}
                 />
               </AspectRatio>
             </Link>
@@ -234,8 +233,8 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, is
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading={isPriority ? undefined : "lazy"}
-                        priority={isPriority}
+                        loading="lazy"
+                        priority={false}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -270,8 +269,8 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, is
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 768px"
-                      loading={isPriority ? undefined : "lazy"}
-                      priority={isPriority}
+                      loading="lazy"
+                      priority={false}
                     />
                   </AspectRatio>
                 </CardHeader>
@@ -378,7 +377,6 @@ const FeedContent = React.memo(({
           return (
             <FeaturedEntry
               entryWithData={entryWithData}
-              isPriority={index < 2}
             />
           );
         }}

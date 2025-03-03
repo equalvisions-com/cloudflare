@@ -47,7 +47,6 @@ interface RSSEntryProps {
   featuredImg?: string;
   postTitle?: string;
   mediaType?: string;
-  isPriority?: boolean;
 }
 
 interface MoreOptionsDropdownProps {
@@ -105,7 +104,7 @@ interface APIRSSEntry {
   };
 }
 
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, isPriority }: RSSEntryProps) => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -174,8 +173,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                   fill
                   className="object-cover"
                   sizes="96px"
-                  loading={isPriority ? undefined : "lazy"}
-                  priority={isPriority}
+                  loading="lazy"
+                  priority={false}
                 />
               </AspectRatio>
             </div>
@@ -223,8 +222,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading={isPriority ? undefined : "lazy"}
-                        priority={isPriority}
+                        loading="lazy"
+                        priority={false}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -259,8 +258,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 768px"
-                      loading={isPriority ? undefined : "lazy"}
-                      priority={isPriority}
+                      loading="lazy"
+                      priority={false}
                     />
                   </AspectRatio>
                 </CardHeader>
@@ -416,7 +415,6 @@ const FeedContent = React.memo(({
               featuredImg={featuredImg}
               postTitle={postTitle}
               mediaType={mediaType}
-              isPriority={index < 2}
             />
           );
         }}
