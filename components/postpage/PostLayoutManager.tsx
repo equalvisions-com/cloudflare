@@ -29,12 +29,19 @@ interface PostLayoutManagerProps {
   children: React.ReactNode;
   post: Post;
   className?: string;
+  relatedFollowStates: {
+    [postId: string]: {
+      isAuthenticated: boolean;
+      isFollowing: boolean;
+    };
+  };
 }
 
 export const PostLayoutManager = ({ 
   children,
   post,
   className = "",
+  relatedFollowStates
 }: PostLayoutManagerProps) => {
   // Server component that handles the main layout structure
   const sidebarContent = (
@@ -47,6 +54,7 @@ export const PostLayoutManager = ({
       platform={post.platform}
       categorySlug={post.categorySlug}
       relatedPosts={post.relatedPosts}
+      relatedFollowStates={relatedFollowStates}
     />
   );
 

@@ -7,16 +7,18 @@ import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
 // Define the RSSItem interface based on the database schema
-interface RSSItem {
+export interface RSSItem {
   guid: string;
   title: string;
   link: string;
   pubDate: string;
   content: string;
   contentSnippet?: string;
+  description?: string;
+  image?: string;
+  mediaType?: string;
   feedUrl: string;
   feedTitle?: string;
-  [key: string]: unknown;
 }
 
 // Interface for post metadata

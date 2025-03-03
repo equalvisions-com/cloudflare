@@ -4,17 +4,16 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
 import { cache } from "react";
-import { Suspense } from "react";
 import RSSFeed, { getInitialEntries } from "@/components/postpage/RSSFeed";
 import Image from "next/image";
-import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
+import { FollowButton } from "@/components/follow-button/FollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
+import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 
-// Enable Incremental Static Regeneration (ISR) - revalidate every 60 seconds
-export const revalidate = 60;
 
-// Configure dynamic rendering to auto (static by default unless dynamic data is detected)
-export const dynamic = "auto";
+// Add 5-minute ISR
+export const revalidate = 300; // 5 minutes in seconds
 
 interface PostPageProps {
   params: Promise<{
@@ -23,35 +22,116 @@ interface PostPageProps {
   }>;
 }
 
-// Server-side data fetching with caching (no 'next' option)
-const getPostBySlug = cache(async (categorySlug: string, postSlug: string) => {
+// Extend the Convex Post type with our additional fields
+type Post = Doc<"posts"> & {
+  followerCount: number;
+  relatedPosts?: Array<{
+    _id: Id<"posts">;
+    title: string;
+    featuredImg?: string;
+    postSlug: string;
+    categorySlug: string;
+    feedUrl: string;
+  }>;
+};
+
+interface PageData {
+  post: Post;
+  rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
+  followState: {
+    isAuthenticated: boolean;
+    isFollowing: boolean;
+  };
+  relatedFollowStates: {
+    [postId: string]: {
+      isAuthenticated: boolean;
+      isFollowing: boolean;
+    };
+  };
+}
+
+// Optimize data fetching with aggressive caching
+const getPageData = cache(async (categorySlug: string, postSlug: string): Promise<PageData | null> => {
   try {
-    const post = await fetchQuery(api.posts.getBySlug, { categorySlug, postSlug });
+    // First get the post data - we need this for everything else
+    const post = await fetchQuery(api.posts.getBySlug, { 
+      categorySlug, 
+      postSlug 
+    }) as Post;
+
     if (!post) return null;
-    return post;
+
+    // Get auth state first since we need it for both main post and related posts
+    const isAuthenticated = await isAuthenticatedNextjs();
+    const token = isAuthenticated ? await convexAuthNextjsToken().catch(() => undefined) : undefined;
+
+    // Now run auth, RSS, and related posts follow states fetches in parallel
+    const [mainFollowState, rssData, relatedFollowStates] = await Promise.all([
+      // Get follow state for main post
+      isAuthenticated && token 
+        ? fetchQuery(api.following.isFollowing, { postId: post._id }, { token })
+        : Promise.resolve(false),
+
+      // Get RSS data using post data we already have
+      getInitialEntries(
+        post.title,
+        post.feedUrl,
+        typeof post.mediaType === 'string' ? post.mediaType : 'article'
+      ),
+
+      // Get follow states for related posts if they exist
+      (async () => {
+        if (!post.relatedPosts || !isAuthenticated || !token) {
+          return {};
+        }
+
+        const states = await Promise.all(
+          post.relatedPosts.map(async (relatedPost) => {
+            const isFollowing = await fetchQuery(
+              api.following.isFollowing,
+              { postId: relatedPost._id },
+              { token }
+            );
+            return [
+              relatedPost._id.toString(),
+              { isAuthenticated, isFollowing }
+            ] as const;
+          })
+        );
+
+        return Object.fromEntries(states);
+      })()
+    ]);
+
+    return {
+      post,
+      rssData,
+      followState: {
+        isAuthenticated,
+        isFollowing: mainFollowState
+      },
+      relatedFollowStates
+    };
   } catch (error) {
-    console.error("Failed to fetch post:", error);
+    console.error("Failed to fetch page data:", error);
     return null;
   }
 });
 
-// Reuse fetched data for metadata and page
-const getPost = cache(async (params: PostPageProps["params"]) => {
-  try {
-    const { categorySlug, postSlug } = await params;
-    const post = await getPostBySlug(categorySlug, postSlug);
-    if (!post) notFound();
-    return post;
-  } catch (error) {
-    console.error("Error in getPost:", error);
-    notFound();
-  }
+// Get just the post data for metadata - reuse the same cache
+const getPostData = cache(async (categorySlug: string, postSlug: string): Promise<Post | null> => {
+  const pageData = await getPageData(categorySlug, postSlug);
+  return pageData?.post || null;
 });
 
-// Generate metadata with preload for critical image
+// Generate metadata using cached post data
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
-    const post = await getPost(params);
+    const { categorySlug, postSlug } = await params;
+    const post = await getPostData(categorySlug, postSlug);
+    if (!post) return { title: "Post Not Found" };
+
+    const apiUrl = `/api/rss/${encodeURIComponent(post.title)}?feedUrl=${encodeURIComponent(post.feedUrl)}`;
 
     return {
       title: post.title,
@@ -59,26 +139,25 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       openGraph: {
         images: post.featuredImg ? [post.featuredImg] : [],
       },
-      other: post.featuredImg
-        ? {
-            "link-rel-preload": `<${post.featuredImg}>; rel=preload; as=image`,
-          }
-        : {},
+      other: {
+        'Link': [
+          ...(post.featuredImg ? [`<${post.featuredImg}>; rel=preload; as=image`] : []),
+          `<${apiUrl}>; rel=preload; as=fetch; crossorigin=anonymous; priority=high`,
+          `</api/convex/getFeedDataWithMetrics>; rel=preload; as=fetch; crossorigin=anonymous`,
+        ].join(', '),
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300'
+      }
     };
   } catch {
-    return {
-      title: "Post Not Found",
-      description: "The requested post could not be found.",
-    };
+    return { title: "Post Not Found" };
   }
 }
 
-// PostHeader component for streaming the header
-async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
+// Simplified PostHeader component without Suspense
+function PostHeader({ post, followState }: { post: Post; followState: { isAuthenticated: boolean; isFollowing: boolean } }) {
   return (
     <div className="max-w-4xl mx-auto p-6 border-b">
       <div className="flex gap-6">
-        {/* Featured Image */}
         {post.featuredImg && (
           <div className="w-[150px] shrink-0">
             <Image
@@ -86,26 +165,25 @@ async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> 
               alt={post.title}
               width={150}
               height={150}
-              sizes="(max-width: 768px) 100vw, 150px"
+              sizes="150px"
               className="object-cover rounded-lg border"
               priority
             />
           </div>
         )}
-
-        {/* Title, Follow Button, and Body Content */}
         <div className="flex-1 min-w-0">
           <header className="mb-6">
             <div className="flex items-center justify-between gap-4">
               <h1 className="text-3xl font-bold mb-0">{post.title}</h1>
-              <FollowButtonServer
+              <FollowButton
                 postId={post._id}
                 feedUrl={post.feedUrl}
                 postTitle={post.title}
+                initialIsFollowing={followState.isFollowing}
+                isAuthenticated={followState.isAuthenticated}
               />
             </div>
           </header>
-
           <div
             className="prose prose-lg prose-headings:scroll-mt-28"
             dangerouslySetInnerHTML={{ __html: post.body }}
@@ -117,48 +195,30 @@ async function PostHeader({ post }: { post: Awaited<ReturnType<typeof getPost>> 
   );
 }
 
-// PostFeed component for streaming the RSS feed
-async function PostFeed({ post }: { post: Awaited<ReturnType<typeof getPost>> }) {
-  const initialData = await getInitialEntries(post.title, post.feedUrl, post.mediaType);
-
-  if (!initialData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in this feed.
-      </div>
-    );
-  }
-
-  return post.feedUrl ? (
-    <>
-      <RSSFeed
-        postTitle={post.title}
-        feedUrl={post.feedUrl}
-        initialData={initialData}
-        featuredImg={post.featuredImg}
-        mediaType={post.mediaType}
-      />
-    </>
-  ) : null;
-}
-
-// Main page component with Suspense boundaries
+// Main page component with optimized data fetching
 export default async function PostPage({ params }: PostPageProps) {
-  const post = await getPost(params);
+  const { categorySlug, postSlug } = await params;
+  const pageData = await getPageData(categorySlug, postSlug);
+  
+  if (!pageData) notFound();
+  const { post, rssData, followState, relatedFollowStates } = pageData;
 
   return (
-    <PostLayoutManager
-      post={{
-        ...post,
-        relatedPosts: post.relatedPosts,
-      }}
-    >
-      <Suspense>
-        <PostHeader post={post} />
-      </Suspense>
-      <Suspense>
-        <PostFeed post={post} />
-      </Suspense>
+    <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
+      <PostHeader post={post} followState={followState} />
+      {rssData ? (
+        <RSSFeed
+          postTitle={post.title}
+          feedUrl={post.feedUrl}
+          initialData={rssData}
+          featuredImg={post.featuredImg}
+          mediaType={post.mediaType}
+        />
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          Unable to load feed data. Please try again later.
+        </div>
+      )}
     </PostLayoutManager>
   );
 }

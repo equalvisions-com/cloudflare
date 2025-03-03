@@ -2,7 +2,6 @@ import { redis } from './redis';
 import { fetchRssEntriesFromPlanetScale, getFeedIdsByUrls } from './planetscale';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
-import orderBy from 'lodash/orderBy';
 
 // Define the Redis keys
 const FEATURED_ENTRIES_KEY = 'featured_entries';
@@ -150,6 +149,7 @@ export async function fetchAndCacheFeaturedEntries(): Promise<FeaturedEntry[]> {
     
     // Fetch entries from PlanetScale for these feed IDs
     // The database query already filters for the last 24 hours
+    // and sorts by pub_date DESC
     const entries = await fetchRssEntriesFromPlanetScale(feedIds);
     
     if (!entries || entries.length === 0) {
@@ -175,19 +175,13 @@ export async function fetchAndCacheFeaturedEntries(): Promise<FeaturedEntry[]> {
       category: feedUrlToPostMap.get(entry.feed_url)?.category
     }));
     
-    // Sort entries by publication date (newest first) using Lodash's orderBy
-    const sortedEntries = orderBy(
-      enrichedEntries,
-      [(entry) => new Date(entry.pub_date).getTime()],
-      ['desc']
-    );
+    // No need to sort entries again - they're already sorted by pub_date DESC in the database query
+    // Store the entries in Redis with expiration
+    await redis.set(FEATURED_ENTRIES_KEY, enrichedEntries, { ex: CACHE_EXPIRATION });
     
-    // Store the sorted list in Redis with expiration
-    await redis.set(FEATURED_ENTRIES_KEY, sortedEntries, { ex: CACHE_EXPIRATION });
+    console.log(`Cached ${enrichedEntries.length} entries to Redis with ${CACHE_EXPIRATION} seconds expiration`);
     
-    console.log(`Cached ${sortedEntries.length} entries to Redis with ${CACHE_EXPIRATION} seconds expiration`);
-    
-    return sortedEntries;
+    return enrichedEntries;
   } catch (error) {
     console.error('Error fetching and caching featured entries:', error);
     return [];

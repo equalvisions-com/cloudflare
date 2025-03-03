@@ -4,6 +4,13 @@ import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
+import { db } from "@/lib/planetscale";
+import { checkAndRefreshFeeds } from "@/lib/rss.server";
+
+// Add caching configuration with 5-minute revalidation
+// This ensures the server component is cached for 5 minutes before revalidating
+// It applies to the entire component, including all data fetching operations
+export const revalidate = 300; // 5 minutes in seconds
 
 // Define the RSSItem interface to match what's returned from the API
 interface RSSItem {
@@ -18,11 +25,18 @@ interface RSSItem {
   [key: string]: unknown; // For any additional properties
 }
 
-// Define the API response interface
-interface MergedFeedResponse {
-  entries: RSSItem[];
-  totalEntries: number;
-  hasMore: boolean;
+// Define database row type for type safety
+interface RSSEntryRow {
+  guid: string;
+  title: string;
+  link: string;
+  pub_date: string;
+  description: string;
+  content: string;
+  image: string | null;
+  media_type: string | null;
+  feed_title: string;
+  feed_url: string;
 }
 
 // Helper function to log only in development
@@ -66,7 +80,13 @@ export const getInitialEntries = cache(async () => {
     // 2. Extract post titles from RSS keys (remove 'rss.' prefix)
     const postTitles = rssKeysWithPosts.rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
     
-    // 3. Create a map of feed URLs to post metadata for O(1) lookups
+    devLog(`📋 SERVER: Post titles: ${postTitles.join(', ')}`);
+    
+    // 3. Check if any feeds need refreshing (4-hour revalidation)
+    devLog(`🔄 SERVER: Checking if any feeds need refreshing (4-hour revalidation)`);
+    await checkAndRefreshFeeds(postTitles);
+    
+    // 4. Create a map of feed URLs to post metadata for O(1) lookups
     const postMetadataMap = new Map(
       rssKeysWithPosts.posts.map(post => [post.feedUrl, {
         title: post.title,
@@ -77,50 +97,68 @@ export const getInitialEntries = cache(async () => {
       }])
     );
     
-    // 4. Fetch entries from PlanetScale using the post titles
-    const limit = 30; // Match the default pageSize in client
+    // 5. Directly query PlanetScale for the first page of entries
+    const pageSize = 30; // Match the default pageSize in client
+    const page = 1; // First page only
+    const offset = (page - 1) * pageSize;
     
-    // Create a proper URL for the API request using offset/limit pagination
-    // Use the absolute URL with the origin from the environment
-    const apiUrl = new URL('/api/rss', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-    apiUrl.searchParams.set('postTitles', JSON.stringify(postTitles));
-    apiUrl.searchParams.set('offset', '0');
-    apiUrl.searchParams.set('limit', limit.toString());
-    apiUrl.searchParams.set('includePostMetadata', 'true'); // Request post metadata
+    // Create placeholders for the SQL query
+    const placeholders = postTitles.map(() => '?').join(',');
     
-    devLog(`🌐 SERVER: Fetching from ${apiUrl.toString()}`);
+    // Build the SQL query to fetch entries from multiple feeds in one query
+    const entriesQuery = `
+      SELECT e.*, f.title as feed_title, f.feed_url
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE f.title IN (${placeholders})
+      ORDER BY e.pub_date DESC
+      LIMIT ? OFFSET ?
+    `;
     
-    // Add timeout to prevent hanging requests
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    // Build the SQL query to count total entries
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE f.title IN (${placeholders})
+    `;
+    
+    devLog(`🔍 SERVER: Executing direct PlanetScale queries for page ${page}`);
     
     try {
-      const response = await fetch(apiUrl.toString(), {
-        signal: controller.signal,
-        headers: {
-          'Cache-Control': 'no-cache' // Ensure fresh data
-        }
-      });
-      clearTimeout(timeoutId);
+      // Execute both queries in parallel for efficiency
+      const [countResult, entriesResult] = await Promise.all([
+        db.execute(countQuery, [...postTitles]),
+        db.execute(entriesQuery, [...postTitles, pageSize, offset])
+      ]);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        errorLog(`❌ SERVER: API request failed with status ${response.status}: ${errorText}`);
-        return null;
-      }
+      const totalEntries = Number((countResult.rows[0] as { total: number }).total);
+      const entries = entriesResult.rows as RSSEntryRow[];
       
-      const data = await response.json() as MergedFeedResponse;
-      const entries = data.entries;
+      devLog(`🔢 SERVER: Found ${totalEntries} total entries across all requested feeds`);
+      devLog(`✅ SERVER: Retrieved ${entries.length} entries for page ${page}`);
       
-      if (!entries || entries.length === 0) {
-        devLog('⚠️ SERVER: No entries found for the requested RSS keys');
-        return null;
-      }
+      // Map the entries to the expected format
+      const mappedEntries: RSSItem[] = entries.map(entry => ({
+        guid: entry.guid,
+        title: entry.title,
+        link: entry.link,
+        pubDate: entry.pub_date,
+        description: entry.description,
+        content: entry.content,
+        image: entry.image,
+        mediaType: entry.media_type,
+        feedTitle: entry.feed_title,
+        feedUrl: entry.feed_url
+      }));
       
-      devLog(`✅ SERVER: Found ${entries.length} entries for the merged feed`);
-
+      // Determine if there are more entries
+      const hasMore = totalEntries > offset + entries.length;
+      
+      devLog(`🚀 SERVER: Processed ${mappedEntries.length} entries (total: ${totalEntries}, hasMore: ${hasMore})`);
+      
       // 5. Get unique entry guids for batch query
-      const guids = entries.map((entry: RSSItem) => entry.guid);
+      const guids = mappedEntries.map((entry: RSSItem) => entry.guid);
       
       // 6. Batch fetch entry data for all entries at once
       const entryData = await fetchQuery(
@@ -130,7 +168,7 @@ export const getInitialEntries = cache(async () => {
       );
 
       // 7. Combine all data efficiently
-      const entriesWithPublicData = entries.map((entry: RSSItem, index: number) => {
+      const entriesWithPublicData = mappedEntries.map((entry: RSSItem, index: number) => {
         // Create a safe fallback for post metadata
         const feedUrl = entry.feedUrl;
         const fallbackMetadata = {
@@ -152,27 +190,18 @@ export const getInitialEntries = cache(async () => {
         };
       });
 
-      // 8. Check if there are more entries
-      // Reliably determine if there are more entries based on requested limit vs received count
-      const hasMore = data.hasMore || entries.length >= limit;
-
       devLog(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries for the merged feed`);
       
+      // Make sure to include the postTitles in the returned data
       return {
         entries: entriesWithPublicData,
-        totalEntries: data.totalEntries || entries.length,
+        totalEntries,
         hasMore,
-        postTitles
+        postTitles // Explicitly include post titles
       };
-    } catch (fetchError: unknown) {
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        errorLog('⏱️ SERVER: API request timed out after 10 seconds');
-      } else {
-        errorLog('❌ SERVER: Error fetching from API:', fetchError);
-      }
+    } catch (dbError: unknown) {
+      errorLog('❌ SERVER: Error querying PlanetScale:', dbError);
       return null;
-    } finally {
-      clearTimeout(timeoutId);
     }
   } catch (error) {
     errorLog('❌ SERVER: Error fetching initial entries:', error);
@@ -191,6 +220,9 @@ export default async function RSSEntriesDisplay() {
       </div>
     );
   }
+
+  // Log the post titles being passed to the client
+  console.log(`SERVER: Passing ${initialData.postTitles?.length || 0} post titles to client`);
 
   return (
     <RSSEntriesClient

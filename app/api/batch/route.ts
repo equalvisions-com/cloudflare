@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
     const { feedUrl, postTitle, mediaType } = await request.json();
 
     // Get entries from PlanetScale
-    const entries = await getRSSEntries(postTitle, feedUrl, mediaType);
-    if (!entries || entries.length === 0) {
+    const result = await getRSSEntries(postTitle, feedUrl, mediaType);
+    if (!result || result.entries.length === 0) {
       return NextResponse.json({ entries: [] });
     }
 
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const token = await convexAuthNextjsToken();
     
     // Extract all entry GUIDs
-    const guids = entries.map(entry => entry.guid);
+    const guids = result.entries.map(entry => entry.guid);
 
     // Fetch all entry data in a single batch query
     const entryData = await fetchQuery(
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Map the results back to individual entries
-    const entriesWithData = entries.map((entry, index) => ({
+    const entriesWithData = result.entries.map((entry, index) => ({
       entry,
       initialData: entryData[index]
     }));

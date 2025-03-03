@@ -23,21 +23,22 @@ export interface RSSFeedData {
 }
 
 // Type definitions for database operations
+import { ExecutedQuery } from '@planetscale/database';
 
-import { RowDataPacket, ResultSetHeader, FieldPacket } from 'mysql2/promise';
-
-// MySQL query result types
-export type MySQLRowDataPacket = RowDataPacket;
-export type MySQLResultSetHeader = ResultSetHeader;
-export type MySQLQueryResult = [MySQLRowDataPacket[], FieldPacket[]];
+// PlanetScale database types
+export type PlanetScaleQueryResult<T = Record<string, unknown>> = ExecutedQuery & {
+  rows: T[];
+};
 
 // RSS Feed types
 export interface RSSFeedRow {
   id: number;
   feed_url: string;
   title: string;
-  created_at: number;
-  updated_at: number;
+  media_type?: string | null;
+  last_fetched: string | number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RSSEntryRow {
@@ -48,8 +49,9 @@ export interface RSSEntryRow {
   link: string;
   description?: string;
   pub_date: string;
-  image?: string;
-  created_at: number;
+  image?: string | null;
+  media_type?: string | null;
+  created_at: string;
 }
 
 // API response types

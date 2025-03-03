@@ -1,45 +1,14 @@
-// app/api/rss/route.tsx
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
-import { connect } from '@planetscale/database';
+import { db } from '@/lib/planetscale';
+import { checkAndRefreshFeeds } from '@/lib/rss.server';
+import type { RSSEntryRow } from '@/lib/types';
 
-// Define interfaces for our data types
-interface RSSEntryRow {
-  guid: string;
-  title: string;
-  link: string;
-  description: string | null;
-  pub_date: string;
-  content?: string;
-  image: string | null;
-  media_type: string | null;
+// Define interface for the joined query result
+interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;
   feed_url: string;
 }
-
-interface RSSResponseData {
-  entries: RSSItem[];
-  hasMore: boolean;
-  totalEntries: number;
-  postTitles: string[];
-}
-
-// Create a connection to PlanetScale
-const connection = connect({
-  url: process.env.DATABASE_URL,
-  // Add connection timeout settings
-  fetch: (url, init) => {
-    return fetch(url, {
-      ...init,
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-  }
-});
-
-// Simple in-memory cache for recent requests
-// In a production app, you might use Redis or another caching solution
-const cache = new Map<string, { data: RSSResponseData, timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minute cache TTL
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -48,10 +17,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const postTitlesParam = searchParams.get('postTitles');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
-    const includePostMetadata = searchParams.get('includePostMetadata') === 'true';
-    const skipCache = searchParams.get('skipCache') === 'true';
     
-    console.log(`📡 API: /api/rss merged feed called with page=${page}, pageSize=${pageSize}, includePostMetadata=${includePostMetadata}`);
+    console.log(`📡 API: /api/rss/paginate called with page=${page}, pageSize=${pageSize}`);
     
     if (!postTitlesParam) {
       console.error('❌ API: Post titles are required');
@@ -82,23 +49,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ entries: [], hasMore: false, totalEntries: 0, postTitles: [] });
     }
 
-    // Create a cache key based on the request parameters
-    const cacheKey = `${postTitlesParam}-${page}-${pageSize}-${includePostMetadata}`;
-    
-    // Check if we have a cached response
-    if (!skipCache && cache.has(cacheKey)) {
-      const cachedData = cache.get(cacheKey)!;
-      const now = Date.now();
-      
-      // If the cache is still fresh, return it
-      if (now - cachedData.timestamp < CACHE_TTL) {
-        console.log(`💾 API: Using cached response for page ${page}`);
-        return NextResponse.json(cachedData.data);
-      }
-      
-      // Otherwise, remove the stale cache entry
-      cache.delete(cacheKey);
-    }
+    // Check if any feeds need refreshing (4-hour revalidation)
+    console.log(`🔄 API: Checking if any feeds need refreshing (4-hour revalidation)`);
+    await checkAndRefreshFeeds(postTitles);
 
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
@@ -126,12 +79,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     // Execute both queries in parallel for efficiency
     const [countResult, entriesResult] = await Promise.all([
-      connection.execute(countQuery, [...postTitles]),
-      connection.execute(entriesQuery, [...postTitles, pageSize, offset])
+      db.execute(countQuery, [...postTitles]),
+      db.execute(entriesQuery, [...postTitles, pageSize, offset])
     ]);
     
     const totalEntries = Number((countResult.rows[0] as { total: number }).total);
-    const entries = entriesResult.rows as RSSEntryRow[];
+    const entries = entriesResult.rows as JoinedRSSEntry[];
     
     console.log(`🔢 API: Found ${totalEntries} total entries across all requested feeds`);
     console.log(`✅ API: Retrieved ${entries.length} entries for page ${page}`);
@@ -142,8 +95,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       title: entry.title,
       link: entry.link,
       pubDate: entry.pub_date,
-      description: entry.description || '',
-      content: entry.content,
+      description: entry.description || undefined,
       image: entry.image || undefined,
       mediaType: entry.media_type || undefined,
       feedTitle: entry.feed_title,
@@ -163,13 +115,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       postTitles
     };
     
-    // Cache the response
-    cache.set(cacheKey, {
-      data: responseData,
-      timestamp: Date.now()
-    });
-    
-    // Set cache control headers for HTTP caching as well
+    // Set cache control headers for HTTP caching
     const headers = new Headers();
     headers.set('Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=86400');
     headers.set('Vercel-CDN-Cache-Control', 'max-age=300');
@@ -179,19 +125,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(responseData, { headers });
     
   } catch (error) {
-    // Check if it's a timeout error
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      console.error('⏱️ API: Database query timed out', error);
-      return NextResponse.json(
-        { error: 'Database query timed out. Please try again.' },
-        { status: 504 }
-      );
-    }
-    
     console.error('❌ API: Error fetching merged feed', error);
     return NextResponse.json(
       { error: 'Failed to fetch merged feed' },
       { status: 500 }
     );
   }
-}
+} 

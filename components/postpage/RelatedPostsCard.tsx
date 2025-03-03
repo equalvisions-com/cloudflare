@@ -1,9 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import { FollowButtonServer } from "@/components/follow-button/FollowButtonServer";
-import { Suspense } from "react";
+import { FollowButton } from "@/components/follow-button/FollowButton";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
+import { memo } from "react";
 
 export interface RelatedPost {
   title: string;
@@ -16,9 +16,15 @@ export interface RelatedPost {
 
 interface RelatedPostsCardProps {
   posts: RelatedPost[];
+  followStates?: {
+    [postId: string]: {
+      isAuthenticated: boolean;
+      isFollowing: boolean;
+    };
+  };
 }
 
-export const RelatedPostsCard = ({ posts }: RelatedPostsCardProps) => {
+export const RelatedPostsCard = memo(function RelatedPostsCard({ posts, followStates = {} }: RelatedPostsCardProps) {
   if (!posts.length) return null;
 
   return (
@@ -26,46 +32,86 @@ export const RelatedPostsCard = ({ posts }: RelatedPostsCardProps) => {
       <CardContent className="p-4">
         <h2 className="text-lg font-semibold mb-4">You May Also Like</h2>
         <div className="space-y-4">
-          {posts.map((post) => (
-            <div key={post._id} className="flex items-center gap-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {post.featuredImg && (
-                  <Link href={`/${post.categorySlug}/${post.postSlug}`}>
-                    <div className="relative w-9 h-9 shrink-0">
-                      <Image
-                        src={post.featuredImg}
-                        alt={post.title}
-                        fill
-                        className="object-cover rounded-lg border"
-                      />
-                    </div>
-                  </Link>
-                )}
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/${post.categorySlug}/${post.postSlug}`}
-                    className="text-sm font-medium hover:underline line-clamp-2"
-                  >
-                    {post.title}
-                  </Link>
+          {posts.map((post) => {
+            const followState = followStates[post._id.toString()] || {
+              isAuthenticated: false,
+              isFollowing: false
+            };
+
+            return (
+              <div key={post._id} className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {post.featuredImg && (
+                    <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+                      <div className="relative w-9 h-9 shrink-0">
+                        <Image
+                          src={post.featuredImg}
+                          alt={post.title}
+                          fill
+                          className="object-cover rounded-lg border"
+                          sizes="(max-width: 768px) 36px, 36px"
+                          loading="lazy"
+                          quality={60}
+                          blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4dHRsdHR4dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR3/2wBDAR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR3/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+                          placeholder="blur"
+                        />
+                      </div>
+                    </Link>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/${post.categorySlug}/${post.postSlug}`}
+                      className="text-sm font-medium hover:underline line-clamp-2"
+                    >
+                      {post.title}
+                    </Link>
+                  </div>
                 </div>
-              </div>
-              <div className="shrink-0">
-                <Suspense>
-                  <FollowButtonServer
+                <div className="shrink-0">
+                  <FollowButton
                     postId={post._id}
                     feedUrl={post.feedUrl}
                     postTitle={post.title}
+                    initialIsFollowing={followState.isFollowing}
+                    isAuthenticated={followState.isAuthenticated}
                   />
-                </Suspense>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function to determine if re-render is needed
+  if (prevProps.posts.length !== nextProps.posts.length) return false;
+  
+  // Compare posts
+  const postsEqual = prevProps.posts.every((prevPost, index) => {
+    const nextPost = nextProps.posts[index];
+    return prevPost._id === nextPost._id &&
+           prevPost.title === nextPost.title &&
+           prevPost.featuredImg === nextPost.featuredImg &&
+           prevPost.postSlug === nextPost.postSlug &&
+           prevPost.categorySlug === nextPost.categorySlug &&
+           prevPost.feedUrl === nextPost.feedUrl;
+  });
+  
+  if (!postsEqual) return false;
+  
+  // Compare followStates
+  const prevStates = prevProps.followStates || {};
+  const nextStates = nextProps.followStates || {};
+  const stateIds = new Set([...Object.keys(prevStates), ...Object.keys(nextStates)]);
+  
+  return Array.from(stateIds).every(id => {
+    const prevState = prevStates[id] || { isAuthenticated: false, isFollowing: false };
+    const nextState = nextStates[id] || { isAuthenticated: false, isFollowing: false };
+    return prevState.isAuthenticated === nextState.isAuthenticated &&
+           prevState.isFollowing === nextState.isFollowing;
+  });
+});
 
 export const RelatedPostsCardSkeleton = () => (
   <Card className="h-fit shadow-none">

@@ -1,7 +1,8 @@
-import mysql, { RowDataPacket, ResultSetHeader, PoolOptions } from 'mysql2/promise';
+import { connect, ExecutedQuery } from '@planetscale/database';
 import { XMLParser } from 'fast-xml-parser';
 import 'server-only';
 import type { RSSItem } from './rss';
+import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
 
 /**
  * NOTE on TypeScript linter errors:
@@ -75,98 +76,39 @@ const parser = new XMLParser({
   htmlEntities: true
 });
 
-// Configure connection pool for high concurrency
-const poolConfig: PoolOptions = {
-  uri: process.env.DATABASE_URL,
-  connectionLimit: 500,      // Default is 10, increase for high concurrency
-  queueLimit: 750,           // Maximum connection requests to queue
-  waitForConnections: true, // Queue requests when no connections available
-  enableKeepAlive: true,    // Keep connections alive
-  keepAliveInitialDelay: 10000, // 10 seconds
-  // Add timeouts to prevent hanging connections
-  connectTimeout: 10000,    // 10 seconds
-  // Remove invalid options that are causing warnings
-  // acquireTimeout: 10000,
-  // timeout: 60000,
-};
-
-// Initialize MySQL connection pool
-const pool = mysql.createPool(poolConfig);
-
-// Set up connection timeouts using the recommended approach
-pool.on('connection', function (connection) {
-  logger.debug('New database connection established');
-  // Set session variables for timeouts
-  connection.query('SET SESSION wait_timeout=28800'); // 8 hours
-  connection.query('SET SESSION interactive_timeout=28800'); // 8 hours
+// Initialize PlanetScale connection
+const connection = connect({
+  url: process.env.DATABASE_URL,
+  // PlanetScale handles connection pooling automatically
 });
 
-// Handle connection errors - using process error handler instead of pool.on('error')
-// since mysql2 doesn't support the 'error' event directly on the pool
-process.on('uncaughtException', (err) => {
-  if (err.message && err.message.includes('mysql')) {
-    logger.error(`Database error: ${err.message}`);
-    // Don't crash the server on connection errors
-    // Just log them and let the pool handle reconnection
-  } else {
-    // For other uncaught exceptions, log and exit
-    logger.error(`Uncaught exception: ${err.message}`);
-    process.exit(1);
-  }
-});
-
-// Add connection monitoring
+// Handle process termination
 process.on('exit', () => {
-  gracefulShutdown();
+  logger.info('Process exit: Application shutting down');
 });
 
 // Handle graceful shutdown for SIGINT and SIGTERM
 process.on('SIGINT', () => {
-  gracefulShutdown('SIGINT signal received');
+  logger.info('SIGINT signal received: Application shutting down');
+  process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  gracefulShutdown('SIGTERM signal received');
+  logger.info('SIGTERM signal received: Application shutting down');
+  process.exit(0);
 });
 
-// Graceful shutdown function
-async function gracefulShutdown(msg?: string) {
-  if (msg) {
-    logger.info(`${msg}: Closing database pool connections`);
-  }
-  
-  try {
-    await pool.end();
-    logger.info('Database pool connections closed successfully');
-  } catch (err) {
-    logger.error(`Error closing database pool: ${err}`);
-  }
-  
-  // If this was triggered by a signal, exit with a success code
-  if (msg) {
-    process.exit(0);
-  }
-}
-
 // Add error handling for database operations
-const executeQuery = async <T extends mysql.RowDataPacket[] | mysql.ResultSetHeader>(
+const executeQuery = async <T = Record<string, unknown>>(
   query: string, 
   params: unknown[] = []
-): Promise<T> => {
-  let connection;
+): Promise<PlanetScaleQueryResult<T>> => {
   try {
-    connection = await pool.getConnection();
-    
-    // Validate connection is still alive with a ping
-    await connection.ping();
-    
-    const [result] = await connection.query<T>(query, params);
-    return result;
+    const result = await connection.execute(query, params);
+    return result as unknown as PlanetScaleQueryResult<T>;
   } catch (error) {
     logger.error(`Database query error: ${error}`);
     throw error;
-  } finally {
-    if (connection) connection.release();
   }
 };
 
@@ -980,6 +922,50 @@ function extractImage(item: Record<string, unknown>): string | null {
 // Helper function to format date consistently
 function formatDate(dateStr: unknown): string {
   try {
+    // If dateStr is empty or undefined, return current date
+    if (!dateStr) {
+      logger.warn(`Empty date value encountered, falling back to current date`);
+      return new Date().toISOString();
+    }
+    
+    // Add detailed debugging for the date value
+    if (process.env.NODE_ENV !== 'production') {
+      logger.debug(`Formatting date: ${dateStr}, type: ${typeof dateStr}, constructor: ${dateStr.constructor?.name}`);
+    }
+    
+    // Special handling for PlanetScale date format
+    // PlanetScale returns dates as strings in MySQL format: YYYY-MM-DD HH:MM:SS
+    if (typeof dateStr === 'string') {
+      // Check if it's a MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+      const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+      if (mysqlDateRegex.test(dateStr)) {
+        // Convert MySQL datetime format to ISO format
+        const [datePart, timePart] = dateStr.split(' ');
+        const isoString = `${datePart}T${timePart}.000Z`;
+        logger.debug(`Converted MySQL datetime to ISO: ${isoString}`);
+        return isoString;
+      }
+    }
+    
+    // Handle PlanetScale's specific date format
+    // PlanetScale might return dates in a different format than mysql2
+    if (typeof dateStr === 'object' && dateStr !== null) {
+      // If it's a Date object already, just return its ISO string
+      if (dateStr instanceof Date) {
+        return dateStr.toISOString();
+      }
+      
+      // If it has a toISOString method, use it
+      if ('toISOString' in dateStr && typeof dateStr.toISOString === 'function') {
+        return dateStr.toISOString();
+      }
+      
+      // If it has a toString method, use it and then parse
+      if ('toString' in dateStr && typeof dateStr.toString === 'function') {
+        dateStr = dateStr.toString();
+      }
+    }
+    
     // Ensure we have a string before creating a Date
     const dateString = typeof dateStr === 'string' 
       ? dateStr 
@@ -1020,9 +1006,9 @@ function formatDate(dateStr: unknown): string {
     
     // Return consistent ISO format
     return date.toISOString();
-  } catch (error) {
+  } catch {
     // Log the specific error for debugging
-    logger.warn(`Error parsing date "${dateStr}": ${error instanceof Error ? error.message : String(error)}`);
+    logger.warn(`Error parsing date "${dateStr}": falling back to current date`);
     // We don't use the error, just return a default date
     return new Date().toISOString();
   }
@@ -1032,31 +1018,35 @@ function formatDate(dateStr: unknown): string {
 async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: string): Promise<number> {
   try {
     // Check if feed exists
-    const rows = await executeQuery<RowDataPacket[]>(
+    const result = await executeQuery<RSSFeedRow>(
       'SELECT id FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
     
-    if (rows.length > 0) {
+    if (result.rows.length > 0) {
       // If feed exists and mediaType is provided, update the mediaType
       if (mediaType) {
-        await executeQuery<ResultSetHeader>(
+        await executeQuery(
           'UPDATE rss_feeds SET media_type = ? WHERE feed_url = ?',
           [mediaType, feedUrl]
         );
       }
-      return Number(rows[0].id);
+      return Number(result.rows[0].id);
     }
     
     // Create new feed
+    // Format date in MySQL format (YYYY-MM-DD HH:MM:SS)
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now(); // Use milliseconds for last_fetched (bigint column)
-    const result = await executeQuery<ResultSetHeader>(
+    
+    logger.debug(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}`);
+    
+    const insertResult = await executeQuery(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
     );
     
-    return Number(result.insertId);
+    return Number(insertResult.insertId);
   } catch (error) {
     logger.error(`Error getting or creating feed for ${feedUrl}: ${error}`);
     throw error;
@@ -1064,27 +1054,25 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
 }
 
 // Function to execute a batch of operations in a transaction
-async function executeBatchTransaction<T extends mysql.RowDataPacket[] | mysql.ResultSetHeader>(
+async function executeBatchTransaction<T = ExecutedQuery>(
   operations: Array<{ query: string; params: unknown[] }>
 ): Promise<T[]> {
-  const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
-    
+    // PlanetScale's transaction API is different from mysql2
     const results: T[] = [];
-    for (const op of operations) {
-      const [result] = await connection.query<T>(op.query, op.params);
-      results.push(result);
-    }
     
-    await connection.commit();
+    // Use the transaction method provided by PlanetScale
+    await connection.transaction(async (tx) => {
+      for (const op of operations) {
+        const result = await tx.execute(op.query, op.params);
+        results.push(result as unknown as T);
+      }
+    });
+    
     return results;
   } catch (error) {
-    await connection.rollback();
     logger.error(`Transaction error: ${error}`);
     throw error;
-  } finally {
-    connection.release();
   }
 }
 
@@ -1094,13 +1082,13 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     if (entries.length === 0) return;
     
     // Get all existing entries in one query
-    const existingEntries = await executeQuery<RowDataPacket[]>(
+    const existingEntriesResult = await executeQuery<{ guid: string }>(
       'SELECT guid FROM rss_entries WHERE feed_id = ?',
       [feedId]
     );
     
-    // Create a Set for faster lookups
-    const existingGuids = new Set(existingEntries.map(row => row.guid));
+    // Create a Set for faster lookups - use type assertion to ensure TypeScript knows rows is an array
+    const existingGuids = new Set((existingEntriesResult.rows as Array<{ guid: string }>).map(row => row.guid));
     
     // Filter entries that don't exist yet
     const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
@@ -1111,7 +1099,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
       // Just update the last_fetched timestamp
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const currentTimeMs = Date.now();
-      await executeQuery<ResultSetHeader>(
+      await executeQuery(
         'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
         [now, currentTimeMs, feedId]
       );
@@ -1134,8 +1122,21 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     const operations = chunks.map(chunk => {
       const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
       const values = chunk.flatMap(entry => {
-        // Ensure pubDate is properly formatted as ISO string
-        const normalizedPubDate = formatDate(entry.pubDate);
+        // Ensure pubDate is properly formatted for MySQL
+        // Convert ISO date to MySQL format (YYYY-MM-DD HH:MM:SS)
+        let pubDateForMySQL: string;
+        try {
+          const date = new Date(entry.pubDate);
+          if (isNaN(date.getTime())) {
+            // If invalid date, use current date
+            pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          } else {
+            pubDateForMySQL = date.toISOString().slice(0, 19).replace('T', ' ');
+          }
+        } catch {
+          // If error parsing date, use current date
+          pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        }
         
         return [
           Number(feedId),
@@ -1143,7 +1144,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
           String(entry.title),
           String(entry.link),
           String(entry.description?.slice(0, 200) || ''),
-          normalizedPubDate, // Use the normalized date
+          pubDateForMySQL, // Use MySQL format date
           entry.image ? String(entry.image) : null,
           entry.mediaType || mediaType || null, // Use entry's mediaType, or the feed's mediaType, or null
           String(now)
@@ -1179,16 +1180,20 @@ async function acquireFeedRefreshLock(feedUrl: string): Promise<boolean> {
     const lockKey = `refresh_lock:${feedUrl}`;
     const expiryTime = Date.now() + 60000; // Lock expires after 60 seconds
     
-    const result = await executeQuery<ResultSetHeader>(
+    // Format date in MySQL format (YYYY-MM-DD HH:MM:SS)
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    logger.debug(`Acquiring lock with key: ${lockKey}, expiry: ${expiryTime}, created_at: ${now}`);
+    
+    const result = await executeQuery(
       'INSERT INTO rss_locks (lock_key, expires_at, created_at) VALUES (?, ?, ?) ' +
       'ON DUPLICATE KEY UPDATE lock_key = IF(expires_at < ?, VALUES(lock_key), lock_key), ' +
       'expires_at = IF(expires_at < ?, VALUES(expires_at), expires_at)',
-      [lockKey, expiryTime, new Date(), Date.now(), expiryTime]
+      [lockKey, expiryTime, now, Date.now(), expiryTime]
     );
     
     // If rows affected is 1, we acquired the lock
     // If rows affected is 0, someone else has the lock
-    return result.affectedRows > 0;
+    return result.rowsAffected > 0;
   } catch (error) {
     logger.error(`Error acquiring lock for ${feedUrl}: ${error}`);
     // In case of error, assume we don't have the lock
@@ -1200,19 +1205,25 @@ async function acquireFeedRefreshLock(feedUrl: string): Promise<boolean> {
 async function releaseFeedRefreshLock(feedUrl: string): Promise<void> {
   try {
     const lockKey = `refresh_lock:${feedUrl}`;
-    await executeQuery<ResultSetHeader>('DELETE FROM rss_locks WHERE lock_key = ?', [lockKey]);
-  } catch (error) {
-    logger.error(`Error releasing lock for ${feedUrl}: ${error}`);
+    await executeQuery('DELETE FROM rss_locks WHERE lock_key = ?', [lockKey]);
+  } catch {
+    logger.error(`Error releasing lock for ${feedUrl}`);
   }
 }
 
 // Get RSS entries with caching
-export async function getRSSEntries(postTitle: string, feedUrl: string, mediaType?: string): Promise<RSSItem[]> {
+export async function getRSSEntries(
+  postTitle: string, 
+  feedUrl: string, 
+  mediaType?: string,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ entries: RSSItem[], totalCount: number, hasMore: boolean }> {
   try {
     logger.info(`Checking for RSS feed: ${postTitle} (${feedUrl})`);
     
     // Check if we have recent entries in the database
-    const feeds = await executeQuery<RowDataPacket[]>(
+    const feedsResult = await executeQuery<RSSFeedRow>(
       'SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
@@ -1221,7 +1232,9 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
     let feedId: number;
     let shouldFetchFresh = true;
     
-    if (feeds.length > 0) {
+    if (feedsResult.rows.length > 0) {
+      // Use type assertion to ensure TypeScript knows rows is an array of RSSFeedRow
+      const feeds = feedsResult.rows as RSSFeedRow[];
       feedId = Number(feeds[0].id);
       // Check if feed was fetched recently (less than 4 hours ago)
       const lastFetchedMs = Number(feeds[0].last_fetched);
@@ -1250,12 +1263,14 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
           logger.debug(`Acquired refresh lock for ${postTitle}`);
           
           // Double-check if someone else refreshed while we were acquiring the lock
-          const refreshCheck = await executeQuery<RowDataPacket[]>(
+          const refreshCheckResult = await executeQuery<RSSFeedRow>(
             'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
             [feedUrl]
           );
           
-          if (refreshCheck.length > 0) {
+          if (refreshCheckResult.rows.length > 0) {
+            // Use type assertion to ensure TypeScript knows rows is an array of RSSFeedRow
+            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
             const lastFetchedMs = Number(refreshCheck[0].last_fetched);
             const timeSinceLastFetch = currentTime - lastFetchedMs;
             const fourHoursInMs = 4 * 60 * 60 * 1000;
@@ -1293,14 +1308,32 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
       }
     }
     
-    // Get all entries for this feed from the database
-    logger.debug(`Retrieving entries for ${postTitle} from database`);
-    const entries = await executeQuery<RowDataPacket[]>(
-      'SELECT guid, title, link, description, pub_date as pubDate, image, media_type as mediaType FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC',
+    // Calculate pagination values
+    const offset = (page - 1) * pageSize;
+    
+    // First get the total count of entries
+    const countResult = await executeQuery<{ total: number }>(
+      'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
       [feedId]
     );
     
-    if (entries.length === 0) {
+    const totalCount = Number((countResult.rows[0] as { total: number }).total);
+    
+    // Get paginated entries for this feed from the database
+    logger.debug(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
+    const entriesResult = await executeQuery<RSSEntryRow>(
+      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ? OFFSET ?',
+      [feedId, pageSize, offset]
+    );
+    
+    // Log the raw query result for debugging
+    if (process.env.NODE_ENV !== 'production' && entriesResult.rows.length > 0) {
+      const sampleEntry = entriesResult.rows[0];
+      logger.debug(`Sample entry from DB: ${JSON.stringify(sampleEntry)}`);
+      logger.debug(`Sample entry pub_date: ${sampleEntry.pub_date}, type: ${typeof sampleEntry.pub_date}`);
+    }
+    
+    if (entriesResult.rows.length === 0 && page === 1) {
       logger.warn(`No entries found in database for ${postTitle}, fetching fresh data as fallback`);
       
       // If we have no entries in the database, try to fetch fresh data as a fallback
@@ -1312,25 +1345,50 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
           await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
           
           // Return the fresh items directly with mediaType
-          return freshFeed.items;
+          return {
+            entries: freshFeed.items,
+            totalCount: freshFeed.items.length,
+            hasMore: false
+          };
         }
-      } catch (fallbackError) {
-        logger.error(`Fallback fetch failed for ${postTitle}: ${fallbackError}`);
+      } catch {
         // Continue to return empty array
       }
     }
     
-    logger.info(`Retrieved ${entries.length} entries for ${postTitle}`);
-    return entries.map((entry: RowDataPacket) => ({
-      guid: entry.guid,
-      title: entry.title,
-      link: entry.link,
-      description: entry.description,
-      pubDate: formatDate(entry.pubDate), // Normalize the date format
-      image: entry.image,
-      mediaType: entry.mediaType,
-      feedUrl
-    }));
+    logger.info(`Retrieved ${entriesResult.rows.length} entries for ${postTitle} (page ${page} of ${Math.ceil(totalCount / pageSize)})`);
+    
+    // Use type assertion to ensure TypeScript knows rows is an array of RSSEntryRow
+    const entries = entriesResult.rows as RSSEntryRow[];
+    const mappedEntries = entries.map((entry) => {
+      // Debug log to see what's coming from the database
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug(`Entry date from DB: ${entry.pub_date}, type: ${typeof entry.pub_date}`);
+      }
+      
+      // Pass through the date directly from the database
+      // The client can parse it with new Date() regardless of format
+      // This avoids redundant conversions
+      return {
+        guid: entry.guid,
+        title: entry.title,
+        link: entry.link,
+        description: entry.description || '',
+        pubDate: entry.pub_date, // Use the date directly from the database
+        image: entry.image || undefined,
+        mediaType: entry.media_type || undefined,
+        feedUrl
+      };
+    });
+    
+    // Calculate if there are more entries
+    const hasMore = offset + mappedEntries.length < totalCount;
+    
+    return {
+      entries: mappedEntries,
+      totalCount,
+      hasMore
+    };
   } catch (error) {
     logger.error(`Error in getRSSEntries for ${postTitle}: ${error}`);
     
@@ -1338,10 +1396,18 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
     try {
       logger.info(`Attempting direct fetch for ${postTitle} as last resort`);
       const directFeed = await fetchAndParseFeed(feedUrl, mediaType);
-      return directFeed.items;
-    } catch (directError) {
-      logger.error(`Direct fetch failed for ${postTitle}: ${directError}`);
-      return [];
+      return {
+        entries: directFeed.items,
+        totalCount: directFeed.items.length,
+        hasMore: false
+      };
+    } catch {
+      logger.error(`Direct fetch failed for ${postTitle}`);
+      return {
+        entries: [],
+        totalCount: 0,
+        hasMore: false
+      };
     }
   }
 }
@@ -1366,33 +1432,28 @@ export async function storeRSSEntries(feedId: number, entries: RSSItem[], mediaT
 async function ensureRSSLocksTableExists(): Promise<void> {
   try {
     // Check if the table exists
-    const connection = await pool.getConnection();
-    try {
-      const [tables] = await connection.query<RowDataPacket[]>(
-        "SHOW TABLES LIKE 'rss_locks'"
+    const result = await executeQuery<{ Tables_in_database: string }>(
+      "SHOW TABLES LIKE 'rss_locks'"
+    );
+    
+    if (result.rows.length === 0) {
+      logger.info('Creating rss_locks table...');
+      
+      // Create the table
+      await executeQuery(
+        `CREATE TABLE IF NOT EXISTS rss_locks (
+          lock_key VARCHAR(255) PRIMARY KEY,
+          expires_at BIGINT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;`
       );
       
-      if (tables.length === 0) {
-        logger.info('Creating rss_locks table...');
-        
-        // Create the table
-        await connection.query(`
-          CREATE TABLE IF NOT EXISTS rss_locks (
-            lock_key VARCHAR(255) PRIMARY KEY,
-            expires_at BIGINT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          ) ENGINE=InnoDB;
-        `);
-        
-        logger.info('rss_locks table created successfully');
-      } else {
-        logger.debug('rss_locks table already exists');
-      }
-    } finally {
-      connection.release();
+      logger.info('rss_locks table created successfully');
+    } else {
+      logger.debug('rss_locks table already exists');
     }
-  } catch (error) {
-    logger.error(`Error ensuring rss_locks table exists: ${error}`);
+  } catch {
+    logger.error(`Error ensuring rss_locks table exists`);
     // Don't throw the error, just log it
     // The application can still function without the locks table
   }
@@ -1402,3 +1463,104 @@ async function ensureRSSLocksTableExists(): Promise<void> {
 ensureRSSLocksTableExists().catch(err => {
   logger.error(`Failed to check/create rss_locks table: ${err}`);
 });
+
+/**
+ * Checks if any feeds need refreshing and refreshes them if necessary
+ * This function is used to incorporate the 4-hour revalidation logic
+ * into components that use direct PlanetScale queries
+ */
+export async function checkAndRefreshFeeds(postTitles: string[]): Promise<void> {
+  if (!postTitles || postTitles.length === 0) {
+    return;
+  }
+  
+  const currentTime = Date.now();
+  const fourHoursInMs = 4 * 60 * 60 * 1000;
+  
+  try {
+    // Create placeholders for the SQL query
+    const placeholders = postTitles.map(() => '?').join(',');
+    
+    // Get feed information for all requested feeds
+    const feedsResult = await executeQuery<RSSFeedRow>(
+      `SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`,
+      [...postTitles]
+    );
+    
+    if (feedsResult.rows.length === 0) {
+      logger.debug(`No feeds found for titles: ${postTitles.join(', ')}`);
+      return;
+    }
+    
+    // Check each feed to see if it needs refreshing
+    const feedsToRefresh: Array<{feedId: number, feedUrl: string, postTitle: string, mediaType?: string}> = [];
+    
+    for (const feed of feedsResult.rows as RSSFeedRow[]) {
+      const feedId = Number(feed.id);
+      const feedUrl = feed.feed_url;
+      const postTitle = feed.title;
+      const lastFetchedMs = Number(feed.last_fetched);
+      const timeSinceLastFetch = currentTime - lastFetchedMs;
+      
+      // Check if feed was fetched recently (less than 4 hours ago)
+      if (timeSinceLastFetch >= fourHoursInMs) {
+        logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        feedsToRefresh.push({ feedId, feedUrl, postTitle });
+      } else {
+        logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+      }
+    }
+    
+    // Process feeds that need refreshing
+    for (const feed of feedsToRefresh) {
+      // Try to acquire a lock before fetching fresh data
+      const lockAcquired = await acquireFeedRefreshLock(feed.feedUrl);
+      
+      if (lockAcquired) {
+        try {
+          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
+          
+          // Double-check if someone else refreshed while we were acquiring the lock
+          const refreshCheckResult = await executeQuery<RSSFeedRow>(
+            'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
+            [feed.feedUrl]
+          );
+          
+          if (refreshCheckResult.rows.length > 0) {
+            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
+            const lastFetchedMs = Number(refreshCheck[0].last_fetched);
+            const timeSinceLastFetch = currentTime - lastFetchedMs;
+            
+            if (timeSinceLastFetch < fourHoursInMs) {
+              // Someone else refreshed the data while we were acquiring the lock
+              logger.debug(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
+              continue; // Skip to the next feed
+            }
+          }
+          
+          try {
+            const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
+            
+            if (freshFeed.items.length > 0) {
+              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle}`);
+              await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
+            } else {
+              logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
+            }
+          } catch (fetchError) {
+            logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
+            // Continue to the next feed
+          }
+        } finally {
+          // Always release the lock when done
+          await releaseFeedRefreshLock(feed.feedUrl);
+          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+        }
+      } else {
+        logger.info(`Another process is currently refreshing data for ${feed.postTitle}, using existing data`);
+      }
+    }
+  } catch (error) {
+    logger.error(`Error checking and refreshing feeds: ${error}`);
+  }
+}

@@ -102,30 +102,47 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
-    const pubDate = new Date(entry.pub_date);
-    const now = new Date();
-    const diffInMs = now.getTime() - pubDate.getTime();
-    const diffInMinutes = diffInMs / (1000 * 60);
-    const diffInHours = diffInMinutes / 60;
-    const diffInDays = diffInHours / 24;
-    const diffInMonths = diffInDays / 30;
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    let pubDate: Date;
     
-    if (diffInMinutes < 60) {
-      // Less than an hour: show minutes
-      const mins = Math.floor(diffInMinutes);
-      return `${mins}${mins === 1 ? 'min' : 'mins'}`;
-    } else if (diffInHours < 24) {
-      // Less than a day: show hours
-      const hrs = Math.floor(diffInHours);
-      return `${hrs}${hrs === 1 ? 'hr' : 'hrs'}`;
-    } else if (diffInDays < 30) {
-      // Less than a month: show days
-      const days = Math.floor(diffInDays);
-      return `${days}${days === 1 ? 'd' : 'd'}`;
+    if (typeof entry.pub_date === 'string' && mysqlDateRegex.test(entry.pub_date)) {
+      // Convert MySQL datetime string to UTC time
+      const [datePart, timePart] = entry.pub_date.split(' ');
+      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
-      // More than a month: show months
-      const months = Math.floor(diffInMonths);
-      return `${months}${months === 1 ? 'mo' : 'mo'}`;
+      // Handle other formats
+      pubDate = new Date(entry.pub_date);
+    }
+    
+    const now = new Date();
+    
+    // Ensure we're working with valid dates
+    if (isNaN(pubDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : ' ago';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
   }, [entry.pub_date]);
 

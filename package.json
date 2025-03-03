@@ -52,6 +52,7 @@
     "react-error-boundary": "^5.0.0",
     "react-virtuoso": "^4.12.5",
     "redis": "^4.7.0",
+    "rss-parser": "^3.13.0",
     "server-only": "^0.0.1",
     "swr": "^2.3.2",
     "tailwind-merge": "^2.6.0",

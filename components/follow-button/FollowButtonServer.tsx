@@ -12,12 +12,12 @@ interface FollowButtonServerProps {
   postTitle: string;
 }
 
-// Loading fallback that matches the exact dimensions and style of the actual button
+// Loading fallback that exactly matches the button dimensions and style
 function LoadingFallback() {
   return (
     <Button
       variant="default"
-      className="rounded-full disabled:opacity-100"
+      className="rounded-full opacity-50 transition-opacity duration-200"
       disabled
     >
       Follow
@@ -26,16 +26,21 @@ function LoadingFallback() {
 }
 
 async function FollowStateLoader({ postId, feedUrl, postTitle }: FollowButtonServerProps) {
-  const isAuthenticated = await isAuthenticatedNextjs();
+  // Pre-fetch the authentication and follow state on the server
+  const [isAuthenticated, token] = await Promise.all([
+    isAuthenticatedNextjs(),
+    convexAuthNextjsToken().catch(() => null)
+  ]);
+
   let initialIsFollowing = false;
 
-  if (isAuthenticated) {
-    const token = await convexAuthNextjsToken();
+  // Only attempt to fetch follow state if authenticated and we have a token
+  if (isAuthenticated && token) {
     try {
       initialIsFollowing = await fetchQuery(api.following.isFollowing, { postId }, { token });
     } catch (error) {
       console.error('Error fetching initial follow state:', error);
-      // On error, we'll fall back to false
+      // On error, we'll fall back to false but still render the button
     }
   }
 
@@ -45,6 +50,7 @@ async function FollowStateLoader({ postId, feedUrl, postTitle }: FollowButtonSer
       feedUrl={feedUrl}
       postTitle={postTitle}
       initialIsFollowing={initialIsFollowing}
+      isAuthenticated={isAuthenticated}
     />
   );
 }

@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { getRSSEntries } from "@/lib/rss.server";
-import orderBy from 'lodash/orderBy';
+import { checkAndRefreshFeeds } from "@/lib/rss.server";
+import type { RSSItem } from "@/lib/rss";
+import { db } from '@/lib/planetscale';
+import type { RSSEntryRow } from '@/lib/types';
+
+// Define interface for the joined query result
+interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
+  feed_title: string;
+  feed_url: string;
+}
 
 // Define the route context type with async params
 interface RouteContext {
@@ -25,13 +33,10 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const feedUrl = searchParams.get('feedUrl');
     const mediaType = searchParams.get('mediaType');
-    const page = parseInt(searchParams.get('page') || '0', 10);
-    const startPage = parseInt(searchParams.get('startPage') || page.toString(), 10);
-    const pageCount = parseInt(searchParams.get('pageCount') || '1', 10);
+    const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
-    const skipFirstPage = searchParams.get('skipFirstPage') === 'true';
 
-    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, startPage=${startPage}, pageCount=${pageCount}, pageSize=${pageSize}`);
+    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}`);
 
     if (!feedUrl) {
       console.error('❌ API: Feed URL is required');
@@ -41,16 +46,44 @@ export async function GET(
       );
     }
 
-    // Get auth token for Convex queries
-    const token = await convexAuthNextjsToken().catch(() => null);
-    // Don't require authentication for single feed pagination
-    // if (!token) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    // Check if the feed needs refreshing (4-hour revalidation)
+    console.log(`🔄 API: Checking if feed needs refreshing (4-hour revalidation): ${decodedTitle}`);
+    await checkAndRefreshFeeds([decodedTitle]);
     
-    // Fetch all entries for this feed
-    console.log(`🔄 API: Fetching entries for ${decodedTitle} from PlanetScale or external source`);
-    const entries = await getRSSEntries(decodedTitle, feedUrl, mediaType || undefined);
+    // Calculate offset for pagination
+    const offset = (page - 1) * pageSize;
+    
+    // Build the SQL query to fetch entries for this specific feed
+    const entriesQuery = `
+      SELECT e.*, f.title as feed_title, f.feed_url
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE f.title = ?
+      ORDER BY e.pub_date DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    // Build the SQL query to count total entries
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE f.title = ?
+    `;
+    
+    console.log(`🔍 API: Executing direct PlanetScale queries for ${decodedTitle}, page ${page}`);
+    
+    // Execute both queries in parallel for efficiency
+    const [countResult, entriesResult] = await Promise.all([
+      db.execute(countQuery, [decodedTitle]),
+      db.execute(entriesQuery, [decodedTitle, pageSize, offset])
+    ]);
+    
+    const totalEntries = Number((countResult.rows[0] as { total: number }).total);
+    const entries = entriesResult.rows as JoinedRSSEntry[];
+    
+    console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle}`);
+    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page}`);
     
     if (!entries || entries.length === 0) {
       console.log(`⚠️ API: No entries found for ${decodedTitle}`);
@@ -61,47 +94,29 @@ export async function GET(
       });
     }
     
-    console.log(`✅ API: Found ${entries.length} entries for ${decodedTitle}`);
+    // Map the entries to the expected format
+    const mappedEntries: RSSItem[] = entries.map(entry => ({
+      guid: entry.guid,
+      title: entry.title,
+      link: entry.link,
+      pubDate: entry.pub_date,
+      description: entry.description || undefined,
+      image: entry.image || undefined,
+      mediaType: entry.media_type || undefined,
+      feedTitle: entry.feed_title,
+      feedUrl: entry.feed_url
+    }));
     
-    // Sort entries by publication date (newest first) using Lodash orderBy
-    const sortedEntries = orderBy(
-      entries,
-      [(entry) => new Date(entry.pubDate).getTime()],
-      ['desc']
-    );
+    // Determine if there are more entries
+    const hasMore = totalEntries > offset + entries.length;
     
-    // Apply pagination manually with support for skipping the first page
-    const allEntries = [];
-    const startIndex = skipFirstPage ? 1 : 0;
-    
-    // Loop through each page we need to fetch
-    for (let i = startIndex; i < pageCount; i++) {
-      const currentPage = startPage + i;
-      const offset = currentPage * pageSize;
-      
-      // Make sure we don't go beyond the available entries
-      if (offset >= sortedEntries.length) {
-        break;
-      }
-      
-      const paginatedEntries = sortedEntries.slice(offset, offset + pageSize);
-      if (paginatedEntries.length === 0) {
-        break;
-      }
-      
-      allEntries.push(...paginatedEntries);
-    }
-    
-    if (allEntries.length === 0) {
-      return NextResponse.json({ 
-        entries: [], 
-        totalEntries: sortedEntries.length,
-        hasMore: false 
-      });
-    }
+    console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle} (total: ${totalEntries}, hasMore: ${hasMore})`);
+
+    // Get auth token for Convex queries
+    const token = await convexAuthNextjsToken().catch(() => null);
     
     // Batch fetch entry data for all entries at once
-    const guids = allEntries.map(entry => entry.guid);
+    const guids = mappedEntries.map((entry: RSSItem) => entry.guid);
     const entryData = await fetchQuery(
       api.entries.batchGetEntryData,
       { entryGuids: guids },
@@ -109,24 +124,23 @@ export async function GET(
     );
 
     // Combine all data efficiently
-    const entriesWithPublicData = allEntries.map((entry, index) => ({
+    const entriesWithPublicData = mappedEntries.map((entry: RSSItem, index: number) => ({
       entry,
       initialData: entryData[index]
     }));
     
-    // Check if there are more entries available
-    const nextPageOffset = (startPage + pageCount - (skipFirstPage ? 1 : 0)) * pageSize;
-    const hasMore = sortedEntries.length > nextPageOffset;
-    
     // Set cache control headers
     const headers = new Headers();
-    headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    headers.set('Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=86400');
+    headers.set('Vercel-CDN-Cache-Control', 'max-age=300');
+    headers.set('CDN-Cache-Control', 'max-age=300');
+    headers.set('Surrogate-Control', 'max-age=300');
     
     console.log(`🚀 API: Returning ${entriesWithPublicData.length} entries for ${decodedTitle}`);
     return NextResponse.json({
       entries: entriesWithPublicData,
-      totalEntries: sortedEntries.length,
-      hasMore
+      totalEntries: totalEntries,
+      hasMore: hasMore
     }, {
       headers
     });

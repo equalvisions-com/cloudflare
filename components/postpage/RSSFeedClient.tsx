@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useTransition, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import useSWRInfinite from 'swr/infinite';
 import type { RSSItem } from "@/lib/rss";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
@@ -54,7 +53,13 @@ interface MoreOptionsDropdownProps {
   entry: RSSItem;
 }
 
-const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
+const MoreOptionsDropdown = React.memo(({ entry }: MoreOptionsDropdownProps) => {
+  const handleOpenNewTab = useCallback(() => window.open(entry.link, '_blank'), [entry.link]);
+  const handleCopyLink = useCallback(() => navigator.clipboard.writeText(entry.link), [entry.link]);
+  const handleEmailThis = useCallback(() => {
+    window.open(`mailto:?subject=${encodeURIComponent(entry.title)}&body=${encodeURIComponent(entry.link)}`, '_blank');
+  }, [entry.title, entry.link]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -67,75 +72,98 @@ const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem 
-          onClick={() => window.open(entry.link, '_blank')}
-          className="cursor-pointer"
-        >
+        <DropdownMenuItem onClick={handleOpenNewTab} className="cursor-pointer">
           Open in new tab
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => navigator.clipboard.writeText(entry.link)}
-          className="cursor-pointer"
-        >
+        <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
           Copy link
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(entry.title)}&body=${encodeURIComponent(entry.link)}`, '_blank')}
-          className="cursor-pointer"
-        >
+        <DropdownMenuItem onClick={handleEmailThis} className="cursor-pointer">
           Email this
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-};
+});
+MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
 
-const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
+interface APIRSSEntry {
+  entry: RSSItem;
+  initialData?: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+  };
+}
+
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
-  // Format the timestamp based on age
   const timestamp = useMemo(() => {
-    const pubDate = new Date(entry.pubDate);
-    const now = new Date();
-    const diffInMs = now.getTime() - pubDate.getTime();
-    const diffInMinutes = diffInMs / (1000 * 60);
-    const diffInHours = diffInMinutes / 60;
-    const diffInDays = diffInHours / 24;
-    const diffInMonths = diffInDays / 30;
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    let pubDate: Date;
     
-    if (diffInMinutes < 60) {
-      // Less than an hour: show minutes
-      const mins = Math.floor(diffInMinutes);
-      return `${mins}${mins === 1 ? 'min' : 'mins'}`;
-    } else if (diffInHours < 24) {
-      // Less than a day: show hours
-      const hrs = Math.floor(diffInHours);
-      return `${hrs}${hrs === 1 ? 'hr' : 'hrs'}`;
-    } else if (diffInDays < 30) {
-      // Less than a month: show days
-      const days = Math.floor(diffInDays);
-      return `${days}${days === 1 ? 'd' : 'd'}`;
+    if (typeof entry.pubDate === 'string' && mysqlDateRegex.test(entry.pubDate)) {
+      // Convert MySQL datetime string to UTC time
+      const [datePart, timePart] = entry.pubDate.split(' ');
+      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
-      // More than a month: show months
-      const months = Math.floor(diffInMonths);
-      return `${months}${months === 1 ? 'mo' : 'mo'}`;
+      // Handle other formats
+      pubDate = new Date(entry.pubDate);
+    }
+    
+    const now = new Date();
+    
+    // Ensure we're working with valid dates
+    if (isNaN(pubDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : ' ago';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
   }, [entry.pubDate]);
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (mediaType === 'podcast') {
       e.preventDefault();
       playTrack(entry.link, decode(entry.title), entry.image);
     }
-  };
+  }, [mediaType, entry.link, entry.title, entry.image, playTrack]);
 
   return (
     <article>
       <div className="p-4">
-        {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
-          {/* Featured Image */}
           {featuredImg && (
             <div className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
@@ -152,7 +180,6 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
             </div>
           )}
           
-          {/* Title and Timestamp */}
           <div className="flex-grow">
             <div className="w-full">
               {postTitle && (
@@ -179,7 +206,6 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
           </div>
         </div>
         
-        {/* Content */}
         {mediaType === 'podcast' ? (
           <div>
             <div 
@@ -252,7 +278,6 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
           </a>
         )}
         
-        {/* Horizontal Interaction Buttons */}
         <div className="flex justify-between items-center mt-4 h-[16px]">
           <div>
             <LikeButtonClient
@@ -293,13 +318,12 @@ const RSSEntry = ({ entryWithData: { entry, initialData }, featuredImg, postTitl
         </div>
       </div>
       
-      {/* Comments Section */}
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
-};
+});
+RSSEntry.displayName = 'RSSEntry';
 
-// Define a proper type for entry metrics
 interface EntryMetrics {
   likes: {
     isLiked: boolean;
@@ -314,27 +338,8 @@ interface EntryMetrics {
   };
 }
 
-// Add a debounce utility function
-const debounce = <F extends (...args: unknown[]) => unknown>(func: F, wait: number) => {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  
-  return (...args: Parameters<F>): ReturnType<F> | undefined => {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    
-    timeout = setTimeout(() => {
-      timeout = null;
-      func(...args);
-    }, wait);
-    
-    return undefined;
-  };
-};
-
-// Feed content component
 const FeedContent = React.memo(({ 
-  paginatedEntries, 
+  entries, 
   hasMore, 
   loadMoreRef, 
   isPending, 
@@ -344,7 +349,7 @@ const FeedContent = React.memo(({
   loadMore,
   entryMetrics
 }: { 
-  paginatedEntries: RSSEntryWithData[],
+  entries: RSSEntryWithData[],
   hasMore: boolean,
   loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
   isPending: boolean,
@@ -354,10 +359,12 @@ const FeedContent = React.memo(({
   loadMore: () => void,
   entryMetrics: Record<string, EntryMetrics> | null
 }) => {
-  // Debounce the loadMore function to prevent multiple calls
-  const debouncedLoadMore = useMemo(() => debounce(loadMore, 300), [loadMore]);
+  // Debug logging for pagination
+  useEffect(() => {
+    console.log(`📊 FeedContent rendered with ${entries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
+  }, [entries.length, hasMore, isPending]);
 
-  if (!paginatedEntries.length) {
+  if (!entries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         No entries found in this feed.
@@ -366,43 +373,50 @@ const FeedContent = React.memo(({
   }
 
   return (
-    <div className="space-y-0">
+    <div className="border-0">
       <Virtuoso
         useWindowScroll
-        totalCount={paginatedEntries.length}
+        totalCount={entries.length}
         endReached={() => {
+          console.log(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${entries.length}`);
           if (hasMore && !isPending) {
-            debouncedLoadMore();
+            console.log('📥 Virtuoso end reached, loading more entries');
+            loadMore();
+          } else {
+            console.log(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={20}
+        overscan={100}
         initialTopMostItemIndex={0}
+        components={{ 
+          Footer: () => isPending ? (
+            <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+          ) : hasMore ? (
+            <div ref={loadMoreRef} className="h-8" />
+          ) : (
+            <div className="text-muted-foreground text-sm py-2 text-center">
+              
+            </div>
+          )
+        }}
         itemContent={index => {
-          const entryWithData = paginatedEntries[index];
-          // If we have metrics from the batch query, use them to update the entry data
-          if (entryMetrics && entryMetrics[entryWithData.entry.guid]) {
-            const metrics = entryMetrics[entryWithData.entry.guid];
+          const entryWithData = entries[index];
+          const metrics = entryMetrics?.[entryWithData.entry.guid];
+          if (metrics) {
             entryWithData.initialData = {
               ...entryWithData.initialData,
-              likes: metrics.likes,
-              comments: metrics.comments,
-              retweets: metrics.retweets
+              ...metrics
             };
           }
           return (
             <RSSEntry
+              key={entryWithData.entry.guid}
               entryWithData={entryWithData}
               featuredImg={featuredImg}
               postTitle={postTitle}
               mediaType={mediaType}
             />
           );
-        }}
-        components={{
-          Footer: () => 
-            isPending && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
-            ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
     </div>
@@ -423,117 +437,103 @@ interface RSSFeedClientProps {
   mediaType?: string;
 }
 
-export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
-  return (
-    <ErrorBoundary>
-      <RSSFeedClient {...props} />
-    </ErrorBoundary>
-  );
-}
-
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, featuredImg, mediaType }: RSSFeedClientProps) {
-  const [isPending, startTransition] = useTransition();
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [fetchError, setFetchError] = useState<Error | null>(null);
+  const ITEMS_PER_REQUEST = pageSize;
   
-  // Increase the number of pages fetched per request to reduce API calls
-  const PAGES_PER_FETCH = 3; // Fetch 3 pages at once instead of 1
+  // Track all entries manually
+  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
   
-  // Use a ref to track if we've already used the initial data
-  const initialDataUsedRef = useRef(false);
-  
-  // Track if there are more entries to load
-  const [hasMoreEntries, setHasMoreEntries] = useState(initialData.hasMore);
-  
-  // Fetch entries with pagination - using the same structure as server component
-  // The correct endpoint for single feed entries is /api/rss/[postTitle]?feedUrl=...
-  const { data, error, size, setSize } = useSWRInfinite(
-    (pageIndex: number) => {
-      // If this is the first page and we haven't used initial data yet,
-      // we can skip fetching since we already have the data from the server
-      if (pageIndex === 0 && !initialDataUsedRef.current) {
-        initialDataUsedRef.current = true;
-        console.log('📦 Using initial data for first page, skipping fetch');
-        return null; // Return null to skip this request
-      }
+  // Debug log the initial data
+  useEffect(() => {
+    if (initialData) {
+      console.log('📋 Initial data received in client:', {
+        entriesCount: initialData.entries?.length || 0,
+        hasMore: initialData.hasMore,
+        totalEntries: initialData.totalEntries
+      });
       
-      // Calculate the actual page number based on our batching strategy
-      // Ensure we always have a positive startPage value
-      const startPage = Math.max(1, (pageIndex - 1) * PAGES_PER_FETCH + 1);
-      
-      let url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
-      
-      // Add mediaType parameter if provided
-      if (mediaType) {
-        url += `&mediaType=${encodeURIComponent(mediaType)}`;
-      }
-      
-      console.log(`🔍 SWR key generated for page ${pageIndex}: ${url}`);
-      // Request multiple pages at once - no need for skipFirstPage parameter
-      return url;
-    },
-    async (url: string) => {
-      if (!url) {
-        console.log('📄 Returning initial data for null URL');
-        return initialData; // Return initial data if URL is null
-      }
-      
-      console.log(`📡 Fetching data from: ${url}`);
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to fetch feed entries');
-      const responseData = await res.json();
-      
-      // Update hasMore state based on API response
-      setHasMoreEntries(responseData.hasMore);
-      console.log(`✅ Fetched ${responseData.entries?.length || 0} entries, hasMore: ${responseData.hasMore}`);
-      
-      return responseData;
-    },
-    {
-      fallbackData: [initialData], // Use server-provided initialData as first page
-      revalidateOnFocus: false,
-      revalidateFirstPage: false,
-      revalidateOnMount: false, // Prevent initial refetch
-      dedupingInterval: 60000, // Deduplicate requests within 1 minute
-      shouldRetryOnError: false, // Don't retry on error to prevent multiple requests
-      focusThrottleInterval: 10000, // Throttle focus events
+      // Initialize state with initial data
+      setAllEntriesState(initialData.entries || []);
+      setHasMoreState(initialData.hasMore || false);
     }
+  }, [initialData]);
+  
+  const loadMoreEntries = useCallback(async () => {
+    if (isLoading || !hasMoreState) {
+      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
+      return;
+    }
+    
+    setIsLoading(true);
+    const nextPage = currentPage + 1;
+    
+    try {
+      const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
+      baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
+      baseUrl.searchParams.set('page', nextPage.toString());
+      baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
+      
+      if (mediaType) {
+        baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
+      }
+      
+      console.log(`📡 Fetching page ${nextPage} from API`);
+      
+      const response = await fetch(baseUrl.toString());
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      
+      const data = await response.json();
+      console.log(`📦 Received data from API - entries: ${data.entries?.length || 0}, hasMore: ${data.hasMore}, total: ${data.totalEntries}`);
+      
+      if (!data.entries?.length) {
+        console.log('⚠️ No entries returned from API');
+        setIsLoading(false);
+        return;
+      }
+      
+      const transformedEntries = data.entries
+        .filter(Boolean)
+        .map((entry: APIRSSEntry) => ({
+          entry: entry.entry,
+          initialData: entry.initialData || {
+            likes: { isLiked: false, count: 0 },
+            comments: { count: 0 },
+            retweets: { isRetweeted: false, count: 0 }
+          },
+          postMetadata: {
+            title: postTitle,
+            featuredImg: featuredImg || entry.entry.image || '',
+            mediaType: mediaType || 'article'
+          }
+        }));
+      
+      console.log(`✅ Transformed ${transformedEntries.length} entries`);
+      
+      setAllEntriesState(prev => [...prev, ...transformedEntries]);
+      setCurrentPage(nextPage);
+      setHasMoreState(data.hasMore);
+      
+      console.log(`📊 Updated state - total entries: ${allEntriesState.length + transformedEntries.length}, hasMore: ${data.hasMore}`);
+      
+    } catch (error) {
+      console.error('❌ Error loading more entries:', error);
+      setFetchError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length]);
+  
+  // Extract all entry GUIDs for metrics query
+  const entryGuids = useMemo(() => 
+    allEntriesState.map(entry => entry.entry.guid),
+    [allEntriesState]
   );
   
-  // Flatten paginated entries - preserving the structure from server
-  const paginatedEntries = useMemo(() => {
-    if (!data) return [];
-    
-    // Make sure we always include the initial data (first 10 entries)
-    // Create a map to track entries by guid for deduplication
-    const entriesMap = new Map<string, RSSEntryWithData>();
-    
-    // First, add the initial entries to ensure they're always included
-    if (initialData && initialData.entries) {
-      initialData.entries.forEach((entry: RSSEntryWithData) => {
-        entriesMap.set(entry.entry.guid, entry);
-      });
-    }
-    
-    // Then add all entries from the fetched data
-    data.forEach(page => {
-      if (page.entries) {
-        page.entries.forEach((entry: RSSEntryWithData) => {
-          entriesMap.set(entry.entry.guid, entry);
-        });
-      }
-    });
-    
-    // Convert back to array and sort by publication date (newest first)
-    return Array.from(entriesMap.values())
-      .sort((a, b) => new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime());
-  }, [data, initialData]);
-  
-  // Extract all entry GUIDs for batch query
-  const entryGuids = useMemo(() => {
-    return paginatedEntries.map((entry: RSSEntryWithData) => entry.entry.guid);
-  }, [paginatedEntries]);
-  
-  // Use a single combined query to get metrics for all entries
   const combinedData = useQuery(
     api.entries.getFeedDataWithMetrics,
     entryGuids.length > 0 
@@ -541,108 +541,74 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 10, 
       : "skip"
   );
   
-  // Create a map of metrics keyed by entryGuid for easier lookup
   const entryMetricsMap = useMemo(() => {
-    if (!combinedData || !combinedData.entryMetrics) return null;
-    
-    // Convert the metrics array to a map for O(1) lookups
-    const metricsMap: Record<string, EntryMetrics> = {};
-    combinedData.entryMetrics.forEach(item => {
-      metricsMap[item.guid] = item.metrics;
-    });
-    
-    return metricsMap;
+    if (!combinedData?.entryMetrics) return null;
+    return Object.fromEntries(
+      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
+    );
   }, [combinedData]);
   
-  // Track which URLs have already been prefetched to avoid duplicate requests
-  const prefetchedUrlsRef = useRef<Set<string>>(new Set());
-  
-  // Track if we've done the initial prefetch
-  const initialPrefetchDoneRef = useRef(false);
-  
-  // Prefetch the next batch of entries when approaching the end
-  const prefetchNextBatch = useCallback(() => {
-    if (data && hasMoreEntries) {
-      const nextBatchIndex = size;
-      
-      // Don't skip the initial prefetch, but avoid redundant prefetches
-      // Only skip if we're beyond the first page and have already loaded this batch
-      if (nextBatchIndex > 1 && nextBatchIndex <= data.length) return;
-      
-      // Use the same calculation as in the key function with the same safety check
-      const startPage = Math.max(1, (nextBatchIndex - 1) * PAGES_PER_FETCH + 1);
-      let url = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&startPage=${startPage}&pageCount=${PAGES_PER_FETCH}&pageSize=${pageSize}`;
-      
-      // Add mediaType parameter if provided
-      if (mediaType) {
-        url += `&mediaType=${encodeURIComponent(mediaType)}`;
-      }
-      
-      // Only prefetch if we haven't already prefetched this URL
-      if (!prefetchedUrlsRef.current.has(url)) {
-        console.log(`🔄 Prefetching next batch: ${url}`);
-        prefetchedUrlsRef.current.add(url);
-        // Prefetch the next batch but don't update state yet
-        fetch(url).catch(() => {/* Silently handle prefetch errors */});
-      }
-    }
-  }, [data, size, PAGES_PER_FETCH, pageSize, postTitle, feedUrl, hasMoreEntries, mediaType]);
-  
-  // Function to load more entries
-  const loadMore = () => {
-    if (hasMoreEntries && !isPending) {
-      // Prevent multiple calls while loading
-      if (loadMoreRef.current?.textContent === 'Loading more entries...') {
-        console.log('⏳ Already loading more entries, skipping duplicate call');
-        return;
-      }
-      
-      console.log(`📥 Loading more entries, current size: ${size}`);
-      startTransition(() => {
-        setSize((s: number) => {
-          const newSize = s + 1;
-          console.log(`📈 Increasing size from ${s} to ${newSize}`);
-          // Trigger prefetch of the next batch
-          setTimeout(() => prefetchNextBatch(), 100); // Slight delay to ensure state is updated
-          return newSize;
-        });
-      });
-    }
-  };
-  
-  // Prefetch the next batch of entries - no need for scroll listener
-  // as Virtuoso's endReached will handle this
+  // Add a useEffect to check if we need to load more when the component is mounted
   useEffect(() => {
-    // Initial prefetch - only run once on mount
-    if (!initialPrefetchDoneRef.current) {
-      console.log('🚀 Running initial prefetch');
-      initialPrefetchDoneRef.current = true;
-      prefetchNextBatch();
-    }
-  }, [prefetchNextBatch]);
+    const checkContentHeight = () => {
+      if (!loadMoreRef.current || !hasMoreState || isLoading) return;
+      
+      const viewportHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If the document is shorter than the viewport, load more
+      if (documentHeight <= viewportHeight && allEntriesState.length > 0) {
+        console.log('📏 Content is shorter than viewport, loading more entries');
+        loadMoreEntries();
+      }
+    };
+    
+    // Run the check after a short delay to ensure the DOM has updated
+    const timer = setTimeout(checkContentHeight, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [allEntriesState.length, hasMoreState, isLoading, loadMoreEntries]);
   
-  if (error) {
+  if (fetchError) {
     return (
       <div className="text-center py-8 text-destructive">
-        Error loading feed entries. Please try again later.
+        <p className="mb-4">Error loading feed entries</p>
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            setFetchError(null);
+            setAllEntriesState(initialData.entries || []);
+            setCurrentPage(1);
+            setHasMoreState(initialData.hasMore || false);
+          }}
+        >
+          Try Again
+        </Button>
       </div>
     );
   }
   
-  // Directly render the FeedContent component instead of using tabs
   return (
     <div className="w-full">
       <FeedContent
-        paginatedEntries={paginatedEntries}
-        hasMore={hasMoreEntries}
+        entries={allEntriesState}
+        hasMore={hasMoreState}
         loadMoreRef={loadMoreRef}
-        isPending={isPending}
+        isPending={isLoading}
+        loadMore={loadMoreEntries}
+        entryMetrics={entryMetricsMap}
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}
-        loadMore={loadMore}
-        entryMetrics={entryMetricsMap}
       />
     </div>
+  );
+}
+
+export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
+  return (
+    <ErrorBoundary>
+      <RSSFeedClient {...props} />
+    </ErrorBoundary>
   );
 }

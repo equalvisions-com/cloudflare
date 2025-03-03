@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useTransition, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import type { RSSItem } from "@/lib/rss";
+import type { RSSItem } from "@/components/rss-feed/FeedTabsContainer";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
@@ -14,7 +14,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Headphones, Mail, MoreVertical, Loader } from "lucide-react";
+import { Headphones, Mail, MoreVertical, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import useSWRInfinite from 'swr/infinite';
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -82,14 +81,6 @@ interface MoreOptionsDropdownProps {
   entry: RSSItem;
 }
 
-// Add these type definitions near the top of the file, after the existing interfaces
-interface FeedTitle {
-  feedTitle?: string;
-  mediaType?: string;
-}
-
-type RSSItemWithFeedTitle = RSSItem & FeedTitle;
-
 const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
   return (
     <DropdownMenu>
@@ -133,37 +124,54 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
-    const pubDate = new Date(entry.pubDate);
-    const now = new Date();
-    const diffInMs = now.getTime() - pubDate.getTime();
-    const diffInMinutes = diffInMs / (1000 * 60);
-    const diffInHours = diffInMinutes / 60;
-    const diffInDays = diffInHours / 24;
-    const diffInMonths = diffInDays / 30;
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    let pubDate: Date;
     
-    if (diffInMinutes < 60) {
-      // Less than an hour: show minutes
-      const mins = Math.floor(diffInMinutes);
-      return `${mins}${mins === 1 ? 'min' : 'mins'}`;
-    } else if (diffInHours < 24) {
-      // Less than a day: show hours
-      const hrs = Math.floor(diffInHours);
-      return `${hrs}${hrs === 1 ? 'hr' : 'hrs'}`;
-    } else if (diffInDays < 30) {
-      // Less than a month: show days
-      const days = Math.floor(diffInDays);
-      return `${days}${days === 1 ? 'd' : 'd'}`;
+    if (typeof entry.pubDate === 'string' && mysqlDateRegex.test(entry.pubDate)) {
+      // Convert MySQL datetime string to UTC time
+      const [datePart, timePart] = entry.pubDate.split(' ');
+      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
-      // More than a month: show months
-      const months = Math.floor(diffInMonths);
-      return `${months}${months === 1 ? 'mo' : 'mo'}`;
+      // Handle other formats
+      pubDate = new Date(entry.pubDate);
+    }
+    
+    const now = new Date();
+    
+    // Ensure we're working with valid dates
+    if (isNaN(pubDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : ' ago';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
   }, [entry.pubDate]);
 
   // Ensure we have valid postMetadata
   const safePostMetadata = useMemo(() => {
     // Use type assertion to access feedTitle
-    const feedTitle = (entry as RSSItemWithFeedTitle).feedTitle || '';
+    const feedTitle = entry.feedTitle || '';
     
     return {
       title: postMetadata?.title || feedTitle,
@@ -182,7 +190,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (safePostMetadata.mediaType === 'podcast') {
       e.preventDefault();
-      playTrack(entry.link, decode(entry.title), entry.image);
+      playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
@@ -383,130 +391,94 @@ interface EntryMetrics {
   };
 }
 
-// Add a debounce utility function for performance optimization
-const debounce = <F extends (...args: unknown[]) => unknown>(func: F, wait: number) => {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  
-  return (...args: Parameters<F>): ReturnType<F> | undefined => {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    
-    timeout = setTimeout(() => {
-      timeout = null;
-      func(...args);
-    }, wait);
-    
-    return undefined;
+interface EntriesContentProps {
+  paginatedEntries: RSSEntryWithData[];
+  hasMore: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
+  isPending: boolean;
+  loadMore: () => void;
+  entryMetrics: Record<string, EntryMetrics> | null;
+  initialData: {
+    entries: RSSEntryWithData[];
+    totalEntries?: number;
+    hasMore?: boolean;
+    postTitles?: string[];
   };
-};
+}
 
-// Memoized feed content component
-const EntriesContent = React.memo(({ 
+const EntriesContent = ({ 
   paginatedEntries, 
   hasMore, 
   loadMoreRef, 
-  isPending,
-  loadMore,
+  isPending, 
+  loadMore, 
   entryMetrics
-}: { 
-  paginatedEntries: RSSEntryWithData[],
-  hasMore: boolean,
-  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
-  isPending: boolean,
-  loadMore: () => void,
-  entryMetrics: Record<string, EntryMetrics> | null
-}) => {
-  // Create a stable reference to the loadMore function
-  const stableLoadMore = useCallback(() => {
-    if (hasMore && !isPending) {
-      loadMore();
-    }
-  }, [hasMore, isPending, loadMore]);
-
-  // Debounce the loadMore function to prevent multiple calls
-  const debouncedLoadMore = useMemo(() => debounce(stableLoadMore, 0), [stableLoadMore]);
-
-  // Set up intersection observer for better infinite loading
+}: EntriesContentProps) => {
+  // Debug logging for pagination
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMore) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-      // If the load more element is intersecting with the viewport and we're not already loading
-      if (entries[0].isIntersecting && hasMore && !isPending) {
-        logger.debug('Intersection observer triggered, loading more entries');
-        debouncedLoadMore();
-      }
-    }, {
-      rootMargin: '200px', // Load more when element is 200px from viewport
-      threshold: 0.1, // Trigger when at least 10% of the element is visible
-    });
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [debouncedLoadMore, hasMore, isPending, loadMoreRef]);
-
-  if (!paginatedEntries.length) {
+    logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
+  }, [paginatedEntries.length, hasMore, isPending]);
+  
+  if (paginatedEntries.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         No entries found in your RSS feeds.
       </div>
     );
   }
-
+  
   return (
     <div className="border-0 md:border-l md:border-r md:border-b">
       <Virtuoso
         useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
+          logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${paginatedEntries.length}`);
           if (hasMore && !isPending) {
-            logger.debug('Virtuoso end reached, loading more entries');
-            debouncedLoadMore();
+            logger.debug('📥 Virtuoso end reached, loading more entries');
+            loadMore();
+          } else {
+            logger.debug(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={20}
+        overscan={100}
         initialTopMostItemIndex={0}
+        rangeChanged={(range) => {
+          // Log when we're approaching the end of the list
+          const { endIndex } = range;
+          const totalItems = paginatedEntries.length;
+          const remainingItems = totalItems - endIndex - 1;
+          
+          if (remainingItems <= 5 && hasMore && !isPending) {
+            logger.debug(`📊 Approaching end of list: ${remainingItems} items remaining, total: ${totalItems}`);
+            loadMore();
+          }
+        }}
         itemContent={index => {
           const entryWithData = paginatedEntries[index];
-          // Add null check to ensure entryWithData and entryWithData.entry exist
-          if (!entryWithData || !entryWithData.entry || !entryWithData.entry.guid) {
-            return <div className="p-4 text-muted-foreground">Invalid entry data</div>;
+          
+          // Apply metrics if available
+          if (entryMetrics && entryWithData.entry.guid && entryMetrics[entryWithData.entry.guid]) {
+            entryWithData.initialData = {
+              ...entryWithData.initialData,
+              ...entryMetrics[entryWithData.entry.guid]
+            };
           }
           
-          // If we have metrics from the batch query, use them to update the entry data
-          if (entryMetrics && entryMetrics[entryWithData.entry.guid]) {
-            const metrics = entryMetrics[entryWithData.entry.guid];
-            // Create a new object to avoid mutating the original
-            const updatedData = {
-              ...entryWithData,
-              initialData: {
-                ...entryWithData.initialData,
-                likes: metrics.likes,
-                comments: metrics.comments,
-                retweets: metrics.retweets
-              }
-            };
-            return <RSSEntry entryWithData={updatedData} />;
-          }
-          return <RSSEntry entryWithData={entryWithData} />;
+          return <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} />;
         }}
         components={{
           Footer: () => (
-            <div ref={loadMoreRef} className="py-8">
-              {isPending && hasMore ? (
-                <div className="flex justify-center items-center">
-                  <Loader className="h-6 w-6 animate-spin text-primary" />
+            <div ref={loadMoreRef} className="py-4 text-center">
+              {isPending ? (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading more entries...</span>
                 </div>
               ) : hasMore ? (
-                <div className="flex justify-center items-center min-h-[100%]">
-                  <Loader className="h-6 w-6 animate-spin text-primary" />
-                  </div>
+                <div className="h-8" />
               ) : (
-                <div className="text-center text-sm text-muted-foreground">
+                <div className="text-muted-foreground text-sm py-2">
                   No more entries to load
                 </div>
               )}
@@ -516,20 +488,7 @@ const EntriesContent = React.memo(({
       />
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison function to prevent unnecessary re-renders
-  // Only re-render if the entries have changed, more entries are available,
-  // or the loading state has changed
-  const entriesChanged = prevProps.paginatedEntries !== nextProps.paginatedEntries;
-  const hasMoreChanged = prevProps.hasMore !== nextProps.hasMore;
-  const isPendingChanged = prevProps.isPending !== nextProps.isPending;
-  const metricsChanged = prevProps.entryMetrics !== nextProps.entryMetrics;
-  
-  // Return true if props are equal (no re-render needed)
-  return !(entriesChanged || hasMoreChanged || isPendingChanged || metricsChanged);
-});
-
-EntriesContent.displayName = 'EntriesContent';
+};
 
 export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
   return (
@@ -540,7 +499,7 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
 }
 
 export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClientProps) {
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
   // Track errors for better error handling
@@ -549,357 +508,166 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
   // Use a fixed number of items per request for consistency
   const ITEMS_PER_REQUEST = pageSize;
   
-  // Use a ref to track if we've already used the initial data
-  const initialDataUsedRef = useRef(false);
+  // Track all entries manually
+  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
   
-  // Fetch entries with pagination - using a simpler and more reliable approach
-  const { data, error, size, setSize } = useSWRInfinite(
-    (pageIndex: number) => {
-      // If this is the first page and we haven't used initial data yet,
-      // we can skip fetching since we already have the data from the server
-      if (pageIndex === 0 && !initialDataUsedRef.current) {
-        initialDataUsedRef.current = true;
-        return null; // Return null to skip this request
-      }
-      
-      // Use absolute URL to avoid issues with relative URL parsing
-      const baseUrl = new URL('/api/rss', window.location.origin);
-      
-      // Use a simpler offset-based pagination that's more reliable
-      const offset = pageIndex * ITEMS_PER_REQUEST;
-      baseUrl.searchParams.set('offset', offset.toString());
-      baseUrl.searchParams.set('limit', ITEMS_PER_REQUEST.toString());
-      baseUrl.searchParams.set('includePostMetadata', 'true'); // Request post metadata
-      
-      // Extract post titles from the initial data
-      if (initialData && initialData.postTitles) {
-        baseUrl.searchParams.set('postTitles', JSON.stringify(initialData.postTitles));
-      } else if (initialData && initialData.entries && initialData.entries.length > 0) {
-        const feedTitles = [...new Set(
-          initialData.entries
-            .filter(entry => entry && entry.postMetadata && entry.postMetadata.title)
-            .map(entry => entry.postMetadata.title)
-        )];
-        
-        if (feedTitles.length > 0) {
-          baseUrl.searchParams.set('postTitles', JSON.stringify(feedTitles));
-        }
-      }
-      
-      logger.debug(`Fetching page ${pageIndex} with offset ${offset} and limit ${ITEMS_PER_REQUEST}`);
-      return baseUrl.toString();
-    },
-    async (url: string) => {
-      if (!url) return initialData; // Return initial data if URL is null
-      
-      try {
-        logger.debug(`Fetching data from: ${url}`);
-        
-        const res = await fetch(url);
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`Failed to fetch entries: ${res.status} ${errorText}`);
-        }
-        const responseData = await res.json();
-        
-        // Reset error state on successful fetch
-        setFetchError(null);
-        
-        logger.debug(`Received ${responseData.entries?.length || 0} entries from API`);
-        
-        // Helper function to find post metadata from initialData based on feedUrl
-        const findPostMetadataFromInitialData = (feedUrl: string) => {
-          if (!initialData || !initialData.entries || initialData.entries.length === 0) {
-            return null;
-          }
-          
-          // Find an entry with the same feedUrl in initialData
-          const matchingEntry = initialData.entries.find(
-            entry => entry && entry.entry && entry.entry.feedUrl === feedUrl
-          );
-          
-          if (matchingEntry && matchingEntry.postMetadata) {
-            return matchingEntry.postMetadata;
-          }
-          
-          return null;
-        };
-        
-        // Transform and validate the response data
-        if (responseData.entries && Array.isArray(responseData.entries)) {
-          // Transform entries to ensure consistent structure
-          const transformedEntries = responseData.entries
-            .filter(Boolean)
-            .map((entry: RSSEntryWithData | RSSItemWithFeedTitle | RSSItem | null) => {
-              // If the entry is already in the expected format with complete metadata
-              if (entry && 
-                  'entry' in entry && 
-                  entry.entry && 
-                  entry.entry.guid && 
-                  'postMetadata' in entry && 
-                  entry.postMetadata && 
-                  entry.postMetadata.title && 
-                  entry.postMetadata.featuredImg) {
-                return entry as RSSEntryWithData;
-              }
-              
-              // If it has the basic structure but missing metadata
-              if (entry && 'entry' in entry && entry.entry && entry.entry.guid) {
-                // Try to find post metadata from initialData based on feedUrl
-                const feedUrl = entry.entry.feedUrl;
-                const existingMetadata = feedUrl ? findPostMetadataFromInitialData(feedUrl) : null;
-                
-                // Get title from entry - access it safely
-                const entryTitle = entry.entry.title || '';
-                // Get feed title if available - this might come as an additional property
-                const feedTitle = (entry.entry as RSSItemWithFeedTitle).feedTitle || '';
-                
-                return {
-                  ...entry,
-                  postMetadata: existingMetadata || {
-                    title: feedTitle || entryTitle || '',
-                    featuredImg: entry.entry.image || '',
-                    mediaType: (entry.entry as RSSItemWithFeedTitle).mediaType || 'article',
-                    categorySlug: '',
-                    postSlug: ''
-                  }
-                } as RSSEntryWithData;
-              }
-              
-              // If it's a direct RSS item, wrap it with proper metadata
-              if (entry && 'guid' in entry && entry.guid) {
-                // Try to find post metadata from initialData based on feedUrl
-                const feedUrl = 'feedUrl' in entry ? entry.feedUrl : '';
-                const existingMetadata = feedUrl ? findPostMetadataFromInitialData(feedUrl) : null;
-                
-                // Get title directly
-                const entryTitle = entry.title || '';
-                // Get feed title if available - might be an additional property 
-                const feedTitle = (entry as RSSItemWithFeedTitle).feedTitle || '';
-                
-                return {
-                  entry: entry as RSSItem,
-                  initialData: {
-                    likes: { isLiked: false, count: 0 },
-                    comments: { count: 0 },
-                    retweets: { isRetweeted: false, count: 0 }
-                  },
-                  postMetadata: existingMetadata || {
-                    title: feedTitle || entryTitle || '',
-                    featuredImg: entry.image || '',
-                    mediaType: (entry as RSSItemWithFeedTitle).mediaType || 'article',
-                    categorySlug: '',
-                    postSlug: ''
-                  }
-                } as RSSEntryWithData;
-              }
-              
-              return null;
-            })
-            .filter(Boolean) as RSSEntryWithData[];
-          
-          // Always update the hasMore flag based on the latest response
-          responseData.entries = transformedEntries;
-          responseData.hasMore = responseData.hasMore ?? (transformedEntries.length >= ITEMS_PER_REQUEST);
-        }
-        
-        return responseData;
-      } catch (err) {
-        // Store the error for better error handling
-        const error = err instanceof Error ? err : new Error(String(err));
-        setFetchError(error);
-        throw error;
-      }
-    },
-    {
-      fallbackData: [initialData], // Use server-provided initialData as first page
-      revalidateOnFocus: false,
-      revalidateFirstPage: false,
-      revalidateOnMount: false, // Prevent initial refetch
-      shouldRetryOnError: true,
-      errorRetryCount: 3,
-      errorRetryInterval: 5000, // Retry after 5 seconds
-      dedupingInterval: 5000, // Prevent duplicate requests
-    }
-  );
-  
-  // Flatten paginated entries - preserving the structure from server
-  const paginatedEntries = useMemo(() => {
-    if (!data) return [];
-    
-    logger.debug('Recalculating paginatedEntries');
-    
-    // Create a map to track entries by guid for deduplication
-    const entriesMap = new Map<string, RSSEntryWithData>();
-    
-    // First, add the initial entries to ensure they're always included
-    if (initialData && initialData.entries) {
-      initialData.entries.forEach((entry: RSSEntryWithData) => {
-        if (entry && entry.entry && entry.entry.guid) {
-          entriesMap.set(entry.entry.guid, entry);
-        }
-      });
-    }
-    
-    // Then add all entries from the fetched data
-    data.forEach((page, pageIndex) => {
-      if (page && page.entries) {
-        logger.debug(`Processing page entries`, { pageIndex, entriesCount: page.entries.length });
-        page.entries.forEach((entry: RSSEntryWithData) => {
-          if (entry && entry.entry && entry.entry.guid) {
-            entriesMap.set(entry.entry.guid, entry);
-          }
-        });
-      }
-    });
-    
-    // Convert back to array and sort by publication date (newest first)
-    const sortedEntries = Array.from(entriesMap.values())
-      .sort((a, b) => {
-        if (!a.entry || !a.entry.pubDate) return 1;
-        if (!b.entry || !b.entry.pubDate) return -1;
-        return new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime();
-      });
-    
-    logger.debug(`Total unique entries after merging`, { count: sortedEntries.length });
-    return sortedEntries;
-  }, [data, initialData]);
-  
-  // Extract all entry GUIDs and feed URLs for combined query
-  const [entryGuids, feedUrls] = useMemo(() => {
-    const guids = paginatedEntries
-      .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.guid)
-      .map((entry: RSSEntryWithData) => entry.entry.guid);
-    
-    const urls = [...new Set(
-      paginatedEntries
-        .filter((entry: RSSEntryWithData) => 
-          entry && 
-          entry.entry && 
-          entry.entry.feedUrl && 
-          (!entry.postMetadata || !entry.postMetadata.featuredImg)
-        )
-        .map((entry: RSSEntryWithData) => entry.entry.feedUrl)
-    )];
-    
-    return [guids, urls];
-  }, [paginatedEntries]);
-  
-  // Determine if there are more entries to load - improved reliability
-  const hasMore = useMemo(() => {
-    if (!data || data.length === 0) return false;
-    
-    // Check if the last page indicates more entries are available
-    const lastPage = data[data.length - 1];
-    const lastPageHasMore = lastPage && lastPage.hasMore;
-    
-    // If the server explicitly says there are more entries, trust it
-    if (lastPageHasMore === true) return true;
-    
-    // If the server explicitly says there are no more entries, trust it
-    if (lastPageHasMore === false) return false;
-    
-    // Fallback: if we got a full page of entries, assume there might be more
-    return lastPage && lastPage.entries && lastPage.entries.length >= ITEMS_PER_REQUEST;
-  }, [data, ITEMS_PER_REQUEST]);
-  
-  // Use the combined query to fetch both post metadata and entry metrics in one call
-  const combinedData = useQuery(
-    api.entries.getFeedDataWithMetrics,
-    (entryGuids.length > 0 || feedUrls.length > 0) 
-      ? { entryGuids, feedUrls } 
-      : "skip"
-  );
-  
-  // Create maps for O(1) lookups from the combined query results
-  const [metricsMap, metadataMap] = useMemo(() => {
-    if (!combinedData) return [new Map(), new Map()];
-    
-    const metrics = new Map(
-      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
-    );
-    
-    const metadata = new Map(
-      combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
-    );
-    
-    logger.info(`Created lookup maps from combined query`, { 
-      metricsCount: metrics.size, 
-      metadataCount: metadata.size 
-    });
-    
-    return [metrics, metadata];
-  }, [combinedData]);
-  
-  // Create a ref to track processed metadata batches
-  const processedMetadataRef = useRef<string | null>(null);
-  
-  // Update entries with post metadata - optimize with dependency tracking
+  // Debug log the initial data
   useEffect(() => {
-    if (metadataMap.size === 0 || feedUrls.length === 0) return;
-    
-    // Track if we've already processed this batch of metadata
-    const metadataSignature = `${metadataMap.size}-${feedUrls.join(',')}`;
-    
-    // Skip if we've already processed this exact metadata
-    if (processedMetadataRef.current === metadataSignature) {
-      logger.debug('Skipping metadata update (already processed this batch)');
+    if (initialData) {
+      logger.debug('Initial data received in client:', {
+        entriesCount: initialData.entries?.length || 0,
+        postTitles: initialData.postTitles || [],
+        hasMore: initialData.hasMore,
+        totalEntries: initialData.totalEntries
+      });
+      
+      // Initialize state with initial data
+      setAllEntriesState(initialData.entries || []);
+      setHasMoreState(initialData.hasMore || false);
+    }
+  }, [initialData]);
+  
+  // Function to load more entries directly
+  const loadMoreEntries = useCallback(async () => {
+    if (isLoading || !hasMoreState) {
+      logger.debug(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
       return;
     }
     
-    logger.info(`Updating entries with metadata`, { mapSize: metadataMap.size });
+    setIsLoading(true);
+    logger.debug(`📥 Loading more entries, current page: ${currentPage}, next page: ${currentPage + 1}`);
     
-    // Update entries with metadata - create new objects to ensure proper rendering
-    let updatedCount = 0;
-    const updatedEntries = paginatedEntries.map(entry => {
-      if (entry && 
-          entry.entry && 
-          entry.entry.feedUrl && 
-          (!entry.postMetadata || !entry.postMetadata.featuredImg || !entry.postMetadata.title)) {
-        const metadata = metadataMap.get(entry.entry.feedUrl);
-        if (metadata) {
-          updatedCount++;
-          // Create a new object to trigger re-renders
-          return {
-            ...entry,
-            postMetadata: {
-              ...entry.postMetadata,
-              ...metadata, // Override with the fetched metadata
-              // Ensure we have basic fallbacks if metadata is incomplete
-              title: metadata.title || entry.postMetadata?.title || entry.entry.title || '',
-              featuredImg: metadata.featuredImg || entry.postMetadata?.featuredImg || entry.entry.image || '',
-            }
-          };
+    try {
+      // Extract post titles from the initial data
+      let postTitlesParam = '';
+      if (initialData.postTitles && initialData.postTitles.length > 0) {
+        postTitlesParam = JSON.stringify(initialData.postTitles);
+      } else if (initialData.entries && initialData.entries.length > 0) {
+        // Extract unique post titles from entries
+        const feedTitles = [...new Set(
+          initialData.entries
+            .filter((entry: RSSEntryWithData) => entry && entry.postMetadata && entry.postMetadata.title)
+            .map((entry: RSSEntryWithData) => entry.postMetadata.title)
+        )];
+        
+        if (feedTitles.length > 0) {
+          postTitlesParam = JSON.stringify(feedTitles);
         }
       }
-      return entry;
-    });
-    
-    // If any entries were updated, force a re-render by modifying paginatedEntries
-    if (updatedCount > 0) {
-      logger.debug(`Updated ${updatedCount} entries with metadata`);
-      // Use a state update to trigger re-render with updated metadata
-      setPaginatedEntriesWithMetadata(updatedEntries);
+      
+      // Make a direct fetch to the API
+      const baseUrl = new URL('/api/rss/paginate', window.location.origin);
+      const nextPage = currentPage + 1;
+      baseUrl.searchParams.set('page', nextPage.toString());
+      baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
+      baseUrl.searchParams.set('postTitles', postTitlesParam);
+      
+      logger.debug(`📡 Fetching page ${nextPage} from API: ${baseUrl.toString()}`);
+      
+      const response = await fetch(baseUrl.toString());
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      logger.debug(`📦 Received data from API:`, {
+        entriesCount: data.entries?.length || 0,
+        hasMore: data.hasMore,
+        totalEntries: data.totalEntries
+      });
+      
+      // Transform the entries to match the expected format
+      const transformedEntries = data.entries
+        .filter(Boolean)
+        .map((entry: RSSItem) => {
+          // Helper function to find post metadata from initialData based on feedUrl
+          const findPostMetadataFromInitialData = (feedUrl: string) => {
+            if (!initialData || !initialData.entries || initialData.entries.length === 0) {
+              return null;
+            }
+            
+            // Find an entry with the same feedUrl in initialData
+            const matchingEntry = initialData.entries.find(
+              entry => entry && entry.entry && entry.entry.feedUrl === feedUrl
+            );
+            
+            if (matchingEntry && matchingEntry.postMetadata) {
+              return matchingEntry.postMetadata;
+            }
+            
+            return null;
+          };
+          
+          // If it's a direct RSS item, wrap it with proper metadata
+          if (entry && 'guid' in entry && entry.guid) {
+            // Try to find post metadata from initialData based on feedUrl
+            const feedUrl = 'feedUrl' in entry ? entry.feedUrl : '';
+            const existingMetadata = feedUrl ? findPostMetadataFromInitialData(feedUrl) : null;
+            
+            // Get title directly
+            const entryTitle = entry.title || '';
+            // Get feed title if available
+            const feedTitle = entry.feedTitle || '';
+            
+            return {
+              entry: entry,
+              initialData: {
+                likes: { isLiked: false, count: 0 },
+                comments: { count: 0 },
+                retweets: { isRetweeted: false, count: 0 }
+              },
+              postMetadata: existingMetadata || {
+                title: feedTitle || entryTitle || '',
+                featuredImg: entry.image || '',
+                mediaType: entry.mediaType || 'article',
+                categorySlug: '',
+                postSlug: ''
+              }
+            } as RSSEntryWithData;
+          }
+          
+          return null;
+        })
+        .filter(Boolean) as RSSEntryWithData[];
+      
+      logger.debug(`✅ Transformed ${transformedEntries.length} entries`);
+      
+      // Update state with new entries
+      setAllEntriesState(prevEntries => [...prevEntries, ...transformedEntries]);
+      setCurrentPage(nextPage);
+      setHasMoreState(data.hasMore);
+      
+    } catch (error) {
+      logger.error('❌ Error loading more entries:', error);
+      setFetchError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setIsLoading(false);
     }
+  }, [currentPage, hasMoreState, initialData, isLoading, ITEMS_PER_REQUEST]);
+  
+  // Extract all entry GUIDs for metrics query
+  const entryGuids = useMemo(() => {
+    return allEntriesState
+      .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.guid)
+      .map((entry: RSSEntryWithData) => entry.entry.guid);
+  }, [allEntriesState]);
+  
+  // Use the combined query to fetch entry metrics
+  const combinedData = useQuery(
+    api.entries.getFeedDataWithMetrics,
+    entryGuids.length > 0 ? { entryGuids, feedUrls: [] } : "skip"
+  );
+  
+  // Create a map for metrics lookups
+  const metricsMap = useMemo(() => {
+    if (!combinedData) return new Map();
     
-    // Mark this batch as processed
-    processedMetadataRef.current = metadataSignature;
-  }, [metadataMap, feedUrls, paginatedEntries]);
-
-  // Add a state to handle metadata updates
-  const [paginatedEntriesWithMetadata, setPaginatedEntriesWithMetadata] = useState<RSSEntryWithData[]>([]);
-  
-  // Use either the metadata-updated entries or the original ones
-  const displayEntries = useMemo(() => {
-    return paginatedEntriesWithMetadata.length > 0 ? paginatedEntriesWithMetadata : paginatedEntries;
-  }, [paginatedEntriesWithMetadata, paginatedEntries]);
-  
-  // Reset metadata entries when page refreshes
-  useEffect(() => {
-    if (paginatedEntries.length === 0) {
-      setPaginatedEntriesWithMetadata([]);
-    }
-  }, [paginatedEntries.length]);
+    return new Map(
+      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
+    );
+  }, [combinedData]);
   
   // Get entry metrics map for use in rendering
   const entryMetricsMap = useMemo(() => {
@@ -914,89 +682,9 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     return metricsObject;
   }, [metricsMap]);
   
-  // Track which pages have already been prefetched to avoid duplicate requests
-  const prefetchedPagesRef = useRef<Set<number>>(new Set());
-  
-  // Function to prefetch the next page of content without incrementing the size
-  const prefetchNextPage = useCallback((nextPageIndex: number) => {
-    if (!hasMore) return;
-    
-    // Skip if we've already prefetched this page
-    if (prefetchedPagesRef.current.has(nextPageIndex)) {
-      logger.debug(`🔍 Page ${nextPageIndex} already prefetched, skipping`);
-      return;
-    }
-    
-    // Mark this page as being prefetched
-    prefetchedPagesRef.current.add(nextPageIndex);
-    
-    // Generate the URL for the next page
-    const baseUrl = new URL('/api/rss', window.location.origin);
-    const offset = nextPageIndex * ITEMS_PER_REQUEST;
-    baseUrl.searchParams.set('offset', offset.toString());
-    baseUrl.searchParams.set('limit', ITEMS_PER_REQUEST.toString());
-    baseUrl.searchParams.set('includePostMetadata', 'true');
-    
-    // Add post titles if available
-    if (initialData && initialData.postTitles) {
-      baseUrl.searchParams.set('postTitles', JSON.stringify(initialData.postTitles));
-    } else if (initialData && initialData.entries && initialData.entries.length > 0) {
-      const feedTitles = [...new Set(
-        initialData.entries
-          .filter(entry => entry && entry.postMetadata && entry.postMetadata.title)
-          .map(entry => entry.postMetadata.title)
-      )];
-      
-      if (feedTitles.length > 0) {
-        baseUrl.searchParams.set('postTitles', JSON.stringify(feedTitles));
-      }
-    }
-    
-    // Fetch the next page in the background but don't update state
-    logger.debug(`🔄 Prefetching next page: ${nextPageIndex} (offset: ${offset})`);
-    fetch(baseUrl.toString())
-      .then(res => {
-        if (res.ok) {
-          logger.debug(`✅ Successfully prefetched next page (offset: ${offset})`);
-          // No need to do anything with the result - it will be cached by the browser
-          // and used when the user actually requests this page
-        }
-      })
-      .catch(error => {
-        // On error, remove from prefetched pages set so we can try again later
-        prefetchedPagesRef.current.delete(nextPageIndex);
-        logger.error(`❌ Error prefetching next page: ${error.message}`);
-      });
-  }, [hasMore, ITEMS_PER_REQUEST, initialData]);
-  
-  // Function to load more entries - improved with better state tracking
-  const loadMore = useCallback(() => {
-    if (hasMore && !isPending) {
-      logger.debug('Loading more entries', { currentSize: size });
-      startTransition(() => {
-        setSize(s => s + 1);
-        
-        // Immediately prefetch the next page after loading this one
-        // This ensures we're always one page ahead of what the user is viewing
-        prefetchNextPage(size + 1);
-      });
-    }
-  }, [hasMore, isPending, size, setSize, prefetchNextPage]);
-  
-  // Create a debounced version of loadMore to prevent multiple rapid calls
-  const debouncedLoadMore = useMemo(() => debounce(loadMore, 0), [loadMore]);
-  
-  // Prefetch the first "next page" as soon as the component loads
-  useEffect(() => {
-    // Only run this once after initial render when we have data
-    if (data && data.length > 0) {
-      prefetchNextPage(size);
-    }
-  }, [prefetchNextPage, data, size]);
-
   // Display error message if there's an error
-  if (error || fetchError) {
-    const errorMessage = fetchError?.message || error?.message || 'Error loading entries';
+  if (fetchError) {
+    const errorMessage = fetchError.message || 'Error loading entries';
     logger.error('Feed loading error', { message: errorMessage });
     
     return (
@@ -1006,7 +694,9 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
           variant="outline" 
           onClick={() => {
             setFetchError(null);
-            setSize(1); // Reset to first page
+            setAllEntriesState(initialData.entries || []);
+            setCurrentPage(1);
+            setHasMoreState(initialData.hasMore || false);
           }}
         >
           Try Again
@@ -1015,16 +705,17 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     );
   }
   
-  // Return the EntriesContent directly instead of using tabs
+  // Return the EntriesContent directly
   return (
-    <div className="w-full ">
+    <div className="w-full">
       <EntriesContent
-        paginatedEntries={displayEntries}
-        hasMore={hasMore}
+        paginatedEntries={allEntriesState}
+        hasMore={hasMoreState}
         loadMoreRef={loadMoreRef}
-        isPending={isPending}
-        loadMore={debouncedLoadMore}
+        isPending={isLoading}
+        loadMore={loadMoreEntries}
         entryMetrics={entryMetricsMap}
+        initialData={initialData}
       />
     </div>
   );

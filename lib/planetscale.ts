@@ -30,9 +30,9 @@ export async function fetchRssEntriesFromPlanetScale(feedIds: number[], maxAgeHo
         rss_feeds f ON e.feed_id = f.id
       WHERE 
         e.feed_id IN (${placeholders})
-        AND STR_TO_DATE(e.pub_date, '%Y-%m-%dT%H:%i:%s.000Z') > DATE_SUB(NOW(), INTERVAL ? HOUR)
+        AND e.pub_date > DATE_SUB(NOW(), INTERVAL ? HOUR)
       ORDER BY 
-        STR_TO_DATE(e.pub_date, '%Y-%m-%dT%H:%i:%s.000Z') DESC
+        e.pub_date DESC
     `;
 
     // Pass the maxAgeHours directly to the query
