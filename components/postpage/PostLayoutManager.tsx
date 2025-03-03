@@ -59,7 +59,7 @@ export const PostLayoutManager = ({
   );
 
   return (
-    <div className={`container mx-auto ${className}`}>
+    <div className={`container mx-0 px-0 md:mx-auto ${className}`}>
       <div className="flex min-h-screen gap-6">
         <SidebarContent sidebarContent={sidebarContent}>
           {children}

@@ -112,14 +112,18 @@
   }
 }
 
-
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@media (max-width: 767px) {
+  .w-full.md\:w-\[56\%\].overflow-y-auto.border.bg-card.rounded-lg.mt-6 {
+    border: 0;
   }
 }
 
