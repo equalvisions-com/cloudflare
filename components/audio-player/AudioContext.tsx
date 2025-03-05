@@ -10,6 +10,7 @@ interface AudioContextType {
     image?: string;
   } | null;
   playTrack: (src: string, title: string, image?: string) => void;
+  stopTrack: () => void;
   isPlaying: boolean;
   togglePlayPause: () => void;
   seek: number;
@@ -47,6 +48,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
 
     setCurrentTrack({ src, title, image });
+  };
+
+  const stopTrack = () => {
+    if (howlerRef.current) {
+      howlerRef.current.unload();
+      setCurrentTrack(null);
+      setIsPlaying(false);
+      setSeek(0);
+      setDuration(0);
+    }
   };
 
   const togglePlayPause = () => {
@@ -89,6 +100,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentTrack,
         playTrack,
+        stopTrack,
         isPlaying,
         togglePlayPause,
         seek,

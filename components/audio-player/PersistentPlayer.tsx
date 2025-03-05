@@ -8,6 +8,7 @@ import Image from "next/image";
 import {
   Play,
   Pause,
+  X,
 } from "lucide-react";
 
 export function PersistentPlayer() {
@@ -18,6 +19,7 @@ export function PersistentPlayer() {
     seek,
     duration,
     handleSeek,
+    stopTrack,
   } = useAudio();
 
   if (!currentTrack) return null;
@@ -29,12 +31,12 @@ export function PersistentPlayer() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg z-50">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-start gap-4">
+    <div className="fixed left-0 right-0 bg-background border-t shadow-lg z-50 bottom-[calc(57px+env(safe-area-inset-bottom))] md:bottom-0">
+      <div className="container mx-0 px-0 md:mx-auto">
+        <div className="flex items-start gap-3">
           {/* Image */}
           {currentTrack.image && (
-            <div className="flex-shrink-0 w-16 h-16 relative rounded-md overflow-hidden border border-border">
+            <div className="flex-shrink-0 w-14 h-14 relative overflow-hidden">
               <AspectRatio ratio={1}>
                 <Image
                   src={currentTrack.image}
@@ -48,31 +50,35 @@ export function PersistentPlayer() {
           )}
 
           {/* Title and Controls Stack */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
+          <div className="flex-1 min-w-0 flex flex-col gap-1 mr-3 mt-1.5">
             {/* Title */}
-            <div className="min-w-0">
+            <div className="min-w-0 flex items-center justify-between gap-1">
               <p className="text-sm font-medium truncate">
                 {currentTrack.title}
               </p>
+              <button
+                onClick={stopTrack}
+                className="flex items-center justify-end mr-[-2px]"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
+            <div className="flex items-center gap-1">
+              <button
                 onClick={togglePlayPause}
-                className="h-8 w-8"
+                className="flex items-center justify-center w-4 h-4 ml-[-2px]"
               >
                 {isPlaying ? (
                   <Pause className="h-4 w-4" />
                 ) : (
                   <Play className="h-4 w-4" />
                 )}
-              </Button>
+              </button>
 
               {/* Time and Progress */}
-              <div className="flex items-center gap-4 flex-1">
+              <div className="flex items-center gap-2 flex-1">
                 <span className="text-sm text-muted-foreground w-12 text-right">
                   {formatTime(seek)}
                 </span>
