@@ -1,6 +1,6 @@
 "use client";
 
-// Client wrapper for handling width transitions
+// Simple wrapper for profile sidebar content
 interface ProfileSidebarWrapperProps {
   className?: string;
   children: React.ReactNode;

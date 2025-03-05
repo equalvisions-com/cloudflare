@@ -1,13 +1,8 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
-import { CollapsibleSidebarWithErrorBoundary } from "./CollapsibleSidebar";
-import { RightSidebar } from "@/components/homepage/RightSidebar";
-import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { FeedTabsContainerWithErrorBoundary } from "@/components/rss-feed/FeedTabsContainer";
+import { Suspense } from "react";
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
-
-// Import the types we need
+import { FeedTabsContainerWithErrorBoundary } from "./FeedTabsContainer";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
 // Error fallback component
@@ -98,47 +93,30 @@ interface FeaturedData {
   totalEntries: number;
 }
 
-interface LayoutManagerClientProps {
+interface FeedTabsContainerClientWrapperProps {
   initialData: InitialData | null;
   featuredData?: FeaturedData | null;
+  pageSize: number;
 }
 
-export function LayoutManagerClientWithErrorBoundary(props: LayoutManagerClientProps) {
+/**
+ * Client component wrapper for FeedTabsContainer to handle client-side functionality
+ * like error boundaries and Suspense
+ */
+export function FeedTabsContainerClientWrapper({ 
+  initialData, 
+  featuredData, 
+  pageSize 
+}: FeedTabsContainerClientWrapperProps) {
   return (
-    <ErrorBoundary>
-      <LayoutManagerClient {...props} />
-    </ErrorBoundary>
-  );
-}
-
-export function LayoutManagerClient({ initialData, featuredData }: LayoutManagerClientProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  const mainContentClass = useMemo(() => {
-    return `w-full ${sidebarCollapsed ? "md:w-[62%]" : "md:w-[56%]"}`;
-  }, [sidebarCollapsed]);
-
-  const rightSidebarClass = useMemo(() => {
-    return `hidden md:block ${sidebarCollapsed ? "md:w-[29%]" : "md:w-[26%]"}`;
-  }, [sidebarCollapsed]);
-
-  return (
-    <div className="container flex flex-col md:flex-row h-screen md:gap-6 p-0 md:px-6">
-      <div className="hidden md:block">
-        <CollapsibleSidebarWithErrorBoundary onCollapse={setSidebarCollapsed} />
-      </div>
-      <main className={mainContentClass}>
-        <Suspense fallback={null}>
-          <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
-            <FeedTabsContainerWithErrorBoundary
-              initialData={initialData}
-              featuredData={featuredData}
-              pageSize={30}
-            />
-          </ReactErrorBoundary>
-        </Suspense>
-      </main>
-      <RightSidebar className={rightSidebarClass} />
-    </div>
+    <Suspense fallback={null}>
+      <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
+        <FeedTabsContainerWithErrorBoundary
+          initialData={initialData}
+          featuredData={featuredData}
+          pageSize={pageSize}
+        />
+      </ReactErrorBoundary>
+    </Suspense>
   );
 } 

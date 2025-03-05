@@ -428,7 +428,7 @@ const EntriesContent = ({
   }
   
   return (
-    <div className="border-0 md:border-l md:border-r md:border-b">
+    <div className="border-0">
       <Virtuoso
         useWindowScroll
         totalCount={paginatedEntries.length}

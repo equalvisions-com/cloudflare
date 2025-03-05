@@ -4,12 +4,13 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
 import { cache } from "react";
-import RSSFeed, { getInitialEntries } from "@/components/postpage/RSSFeed";
+import { getInitialEntries } from "@/components/postpage/RSSFeed";
 import Image from "next/image";
 import { FollowButton } from "@/components/follow-button/FollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { Doc, Id } from "@/convex/_generated/dataModel";
+import { PostTabsWrapperWithErrorBoundary } from "@/components/postpage/PostTabsWrapper";
 
 
 // Add 5-minute ISR
@@ -159,7 +160,7 @@ function PostHeader({ post, followState }: { post: Post; followState: { isAuthen
     <div className="max-w-4xl mx-auto p-6 border-b">
       <div className="flex gap-6">
         {post.featuredImg && (
-          <div className="w-[150px] shrink-0">
+          <div className="w-[150px] h-[150px] shrink-0">
             <Image
               src={post.featuredImg}
               alt={post.title}
@@ -185,7 +186,7 @@ function PostHeader({ post, followState }: { post: Post; followState: { isAuthen
             </div>
           </header>
           <div
-            className="prose prose-lg prose-headings:scroll-mt-28"
+            className="prose prose-lg"
             dangerouslySetInnerHTML={{ __html: post.body }}
           />
           <FollowerCount followerCount={post.followerCount} postId={post._id} />
@@ -207,10 +208,10 @@ export default async function PostPage({ params }: PostPageProps) {
     <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
       <PostHeader post={post} followState={followState} />
       {rssData ? (
-        <RSSFeed
+        <PostTabsWrapperWithErrorBoundary
           postTitle={post.title}
           feedUrl={post.feedUrl}
-          initialData={rssData}
+          rssData={rssData}
           featuredImg={post.featuredImg}
           mediaType={post.mediaType}
         />

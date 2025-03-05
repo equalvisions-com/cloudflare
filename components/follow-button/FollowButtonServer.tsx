@@ -17,7 +17,7 @@ function LoadingFallback() {
   return (
     <Button
       variant="default"
-      className="rounded-full opacity-50 transition-opacity duration-200"
+      className="rounded-full opacity-100 transition-opacity duration-200"
       disabled
     >
       Follow

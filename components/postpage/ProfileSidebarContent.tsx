@@ -34,7 +34,7 @@ export const ProfileSidebarContent = ({
   relatedFollowStates = {}
 }: ProfileSidebarContentProps) => {
   return (
-    <div className={`${className} space-y-6 mt-6`}>
+    <div className={`${className} space-y-6`}>
       <SearchInput />
 
       <AboutCard

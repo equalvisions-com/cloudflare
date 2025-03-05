@@ -110,6 +110,9 @@
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
   }
+  main.flex-1.md\:basis-\[50\%\].md\:max-w-\[50\%\] {
+    border-width: 0px 1px 0px 1px;
+}
 }
 
 @layer base {
@@ -145,23 +148,7 @@
   opacity: 1;
 }
 
-/* CollapsibleSidebar Component Styles */
-/* Prevent animations on the sidebar card */
+/* Sidebar styles */
 .sidebar-card {
-  transform: none !important;
-  transition: width 0.2s ease-in-out !important;
-}
-
-/* Prevent unwanted animations on the collapse button */
-.collapse-button {
-  animation: none !important;
-  transform: none !important;
-  transition: background-color 0.2s ease-in-out !important;
-}
-
-/* Ensure icons don't animate */
-.collapse-button svg {
-  animation: none !important;
-  transform: none !important;
-  transition: none !important;
+  border-radius: 0.5rem;
 }

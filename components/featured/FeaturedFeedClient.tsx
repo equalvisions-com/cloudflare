@@ -435,7 +435,7 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   
   // Return the FeedContent directly instead of using tabs
   return (
-    <div className="w-full border-0 md:border-l md:border-r md:border-b">
+    <div className="w-full">
       <FeedContent
         entries={initialData.entries}
         visibleEntries={visibleEntries}

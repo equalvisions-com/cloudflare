@@ -112,8 +112,9 @@ export function FollowButton({
     <Button
       variant={isFollowing ? "secondary" : "default"}
       onClick={handleClick}
-      className="rounded-full"
+      className="rounded-full opacity-100 hover:opacity-100"
       disabled={!isAuthenticated}
+      style={{ opacity: 1 }}
     >
       {isFollowing ? "Following" : "Follow"}
     </Button>

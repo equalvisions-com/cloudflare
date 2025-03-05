@@ -1,6 +1,6 @@
 import { Id } from "@/convex/_generated/dataModel";
-import { SidebarContent } from "@/components/postpage/SidebarContent";
 import { ProfileSidebarContent } from "@/components/postpage/ProfileSidebarContent";
+import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 
 type Post = {
   _id: Id<"posts">;
@@ -37,14 +37,19 @@ interface PostLayoutManagerProps {
   };
 }
 
+/**
+ * Server component that manages the layout for individual post pages
+ * Uses StandardSidebarLayout for consistent layout across the application
+ */
 export const PostLayoutManager = ({ 
   children,
   post,
   className = "",
   relatedFollowStates
 }: PostLayoutManagerProps) => {
-  // Server component that handles the main layout structure
-  const sidebarContent = (
+  // Prepare sidebar content on the server
+  const rightSidebar = (
+    <div className="sticky top-6">
     <ProfileSidebarContent
       category={post.category}
       author={post.author}
@@ -56,15 +61,19 @@ export const PostLayoutManager = ({
       relatedPosts={post.relatedPosts}
       relatedFollowStates={relatedFollowStates}
     />
+  </div>
   );
 
+  // Use the standardized layout with card styling for post content
+  // Make sure to include flex layout in the container class
   return (
-    <div className={`container mx-0 px-0 md:mx-auto ${className}`}>
-      <div className="flex min-h-screen gap-6">
-        <SidebarContent sidebarContent={sidebarContent}>
-          {children}
-        </SidebarContent>
-      </div>
-    </div>
+    <StandardSidebarLayout
+      rightSidebar={rightSidebar}
+      useCardStyle={true}
+      // Ensure we have the flex layout classes
+      containerClass={`container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-6 ${className}`}
+    >
+      {children}
+    </StandardSidebarLayout>
   );
 }; 
