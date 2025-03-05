@@ -2,7 +2,6 @@
 
 import { useAudio } from './AudioContext';
 import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
 import {
