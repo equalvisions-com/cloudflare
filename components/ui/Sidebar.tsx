@@ -41,7 +41,7 @@ function Sidebar() {
     },
     {
       href: "/search",
-      label: "Explore",
+      label: "Search",
       icon: <Search className="h-5 w-5 shrink-0" strokeWidth={pathname === "/search" ? 3 : 2} />,
     },
     {

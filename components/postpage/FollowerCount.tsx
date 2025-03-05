@@ -17,23 +17,33 @@ import { useState } from "react";
 interface Props {
   followerCount: number;
   postId: Id<"posts">;
+  totalEntries?: number | null;
+  mediaType?: string;
 }
 
-export function FollowerCount({ followerCount, postId }: Props) {
+export function FollowerCount({ followerCount, postId, totalEntries, mediaType }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const followers = useQuery(api.following.getFollowers, 
     isOpen ? { postId } : "skip"
   );
 
+  const getContentLabel = () => {
+    switch (mediaType?.toLowerCase()) {
+      case 'podcast':
+        return totalEntries === 1 ? 'Episode' : 'Episodes';
+      case 'newsletter':
+        return totalEntries === 1 ? 'Newsletter' : 'Newsletters';
+    }
+  };
+
   return (
-    <div className="max-w-4xl mt-4 text-sm">
+    <div className="max-w-4xl mt-2 text-sm flex items-center gap-4">
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-1 h-auto p-0 hover:bg-transparent group">
-            <Users className="h-4 w-4" />
+          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
             <span className="group-hover:underline">
-              <span className="text-primary font-semibold">{followerCount}</span>{' '}
-              <span className="text-muted-foreground">Followers</span>
+              <span className="text-primary font-bold mr-[2px]">{followerCount}</span>{' '}
+              <span className="text-primary">Followers</span>
             </span>
           </Button>
         </DialogTrigger>
@@ -61,6 +71,16 @@ export function FollowerCount({ followerCount, postId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+      {totalEntries ? (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
+            <span className="group-hover:underline">
+              <span className="text-primary font-bold mr-[2px]">{totalEntries}</span>{' '}
+              <span className="text-primary">{getContentLabel()}</span>
+            </span>
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 } 

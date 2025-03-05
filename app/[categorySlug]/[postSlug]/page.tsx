@@ -11,6 +11,9 @@ import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { PostTabsWrapperWithErrorBoundary } from "@/components/postpage/PostTabsWrapper";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { SearchButton } from "@/app/components/ui/search-button";
+import { MenuButton } from "@/app/components/ui/menu-button";
 
 
 // Add 5-minute ISR
@@ -155,43 +158,48 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 }
 
 // Simplified PostHeader component without Suspense
-function PostHeader({ post, followState }: { post: Post; followState: { isAuthenticated: boolean; isFollowing: boolean } }) {
+function PostHeader({ post, followState, rssData }: { 
+  post: Post; 
+  followState: { isAuthenticated: boolean; isFollowing: boolean };
+  rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
+}) {
   return (
-    <div className="max-w-4xl mx-auto p-6 border-b">
-      <div className="flex gap-6">
+    <div className="max-w-4xl mx-auto p-4 border-b">
+      <div className="flex justify-between items-start mb-4">
         {post.featuredImg && (
-          <div className="w-[150px] h-[150px] shrink-0">
-            <Image
-              src={post.featuredImg}
-              alt={post.title}
-              width={150}
-              height={150}
-              sizes="150px"
-              className="object-cover rounded-lg border"
-              priority
-            />
+          <div className="w-24 h-24 shrink-0">
+            <AspectRatio ratio={1}>
+              <Image
+                src={post.featuredImg}
+                alt={post.title}
+                fill
+                sizes="96px"
+                className="object-cover rounded-lg border"
+                priority
+              />
+            </AspectRatio>
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <header className="mb-6">
-            <div className="flex items-center justify-between gap-4">
-              <h1 className="text-3xl font-bold mb-0">{post.title}</h1>
-              <FollowButton
-                postId={post._id}
-                feedUrl={post.feedUrl}
-                postTitle={post.title}
-                initialIsFollowing={followState.isFollowing}
-                isAuthenticated={followState.isAuthenticated}
-              />
-            </div>
-          </header>
-          <div
-            className="prose prose-lg"
-            dangerouslySetInnerHTML={{ __html: post.body }}
+        <div className="flex items-center gap-2">
+          <MenuButton />
+          <SearchButton />
+          <FollowButton
+            postId={post._id}
+            feedUrl={post.feedUrl}
+            postTitle={post.title}
+            initialIsFollowing={followState.isFollowing}
+            isAuthenticated={followState.isAuthenticated}
           />
-          <FollowerCount followerCount={post.followerCount} postId={post._id} />
         </div>
       </div>
+      <h1 className="text-2xl font-bold mb-2 leading-tight">{post.title}</h1>
+      <div className="text-sm mb-2 text-muted-foreground" dangerouslySetInnerHTML={{ __html: post.body }} />
+      <FollowerCount 
+        followerCount={post.followerCount} 
+        postId={post._id} 
+        totalEntries={rssData?.totalEntries ?? null}
+        mediaType={post.mediaType}
+      />
     </div>
   );
 }
@@ -206,7 +214,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
   return (
     <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostHeader post={post} followState={followState} />
+      <PostHeader post={post} followState={followState} rssData={rssData} />
       {rssData ? (
         <PostTabsWrapperWithErrorBoundary
           postTitle={post.title}
