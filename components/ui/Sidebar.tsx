@@ -45,9 +45,9 @@ function Sidebar() {
       icon: <Mail className="h-5 w-5 shrink-0" strokeWidth={pathname === "/newsletters" ? 3 : 2} />,
     },
     {
-      href: "/player",
+      href: "/podcasts",
       label: "Podcasts",
-      icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/player" ? 3 : 2} />,
+      icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/podcasts" ? 3 : 2} />,
     },
     {
       href: "/search",
@@ -67,7 +67,7 @@ function Sidebar() {
   ], [pathname]);
 
   return (
-    <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-fit justify-self-end">
+    <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] justify-self-end">
       <CardContent className="p-0">
         <nav className="flex flex-col gap-4">
           {/* Navigation items */}
