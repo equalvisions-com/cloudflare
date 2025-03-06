@@ -11,6 +11,7 @@ import { Chatbot } from "@/components/chat/ChatBot";
 import { ConvexLogo } from "@/public/ConvexLogo";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import Link from "next/link";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from '@vercel/analytics/next';
 
 const geistSans = Geist({
@@ -65,6 +66,7 @@ export default function RootLayout({
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
+          <SpeedInsights />
           <Analytics />
         </body>
       </html>

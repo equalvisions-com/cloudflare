@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Play, User, Mail, Search, Sparkles, Heart } from "lucide-react";
+import { Home, Podcast, User, Mail, Search, Sparkles, Heart } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -40,11 +40,6 @@ function Sidebar() {
       icon: <Home className="h-5 w-5 shrink-0" strokeWidth={pathname === "/" ? 3 : 2} />,
     },
     {
-      href: "/search",
-      label: "Search",
-      icon: <Search className="h-5 w-5 shrink-0" strokeWidth={pathname === "/search" ? 3 : 2} />,
-    },
-    {
       href: "/newsletters",
       label: "Newsletters",
       icon: <Mail className="h-5 w-5 shrink-0" strokeWidth={pathname === "/newsletters" ? 3 : 2} />,
@@ -52,7 +47,12 @@ function Sidebar() {
     {
       href: "/player",
       label: "Podcasts",
-      icon: <Play className="h-5 w-5 shrink-0" strokeWidth={pathname === "/player" ? 3 : 2} />,
+      icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/player" ? 3 : 2} />,
+    },
+    {
+      href: "/search",
+      label: "Search",
+      icon: <Search className="h-5 w-5 shrink-0" strokeWidth={pathname === "/search" ? 3 : 2} />,
     },
     {
       href: "/likes",
