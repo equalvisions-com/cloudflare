@@ -111,10 +111,6 @@ export function CategorySliderWrapper({
   // Handle search submission
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Hide keyboard by blurring any active element
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
     setSearchQuery(pendingSearchQuery);
     // When searching, we don't want to filter by category
     if (pendingSearchQuery) {
@@ -215,19 +211,13 @@ export function CategorySliderWrapper({
       {/* Sticky header container */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
         {/* Search input */}
-        <form 
-          role="search"
-          onSubmit={handleSearchSubmit} 
-          className="px-4 py-2 mb-2"
-        >
+        <form onSubmit={handleSearchSubmit} className="px-4 py-2 mb-2">
           <SearchInput
-            name="search"
             value={pendingSearchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleKeyDown}
             onClear={handleSearchClear}
             placeholder={`Search ${displayMediaType}...`}
-            aria-label={`Search ${displayMediaType}`}
           />
         </form>
 

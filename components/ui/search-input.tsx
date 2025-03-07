@@ -1,7 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Search, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRef } from "react";
 
 interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   value: string;
@@ -20,8 +19,6 @@ export function SearchInput({
   className,
   ...props
 }: SearchInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
   return (
     <div className="relative">
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -35,16 +32,9 @@ export function SearchInput({
         </button>
       )}
       <Input
-        ref={inputRef}
         type="search"
-        role="searchbox"
-        enterKeyHint="search"
         inputMode="search"
-        maxLength={100}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck="false"
+        enterKeyHint="search"
         placeholder={placeholder}
         value={value}
         onChange={onChange}
