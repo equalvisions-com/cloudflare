@@ -5,12 +5,13 @@ import { useInView } from 'react-intersection-observer';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from './skeleton';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FollowButton } from '@/components/follow-button/FollowButton';
 import { Id } from '@/convex/_generated/dataModel';
+import { cn } from '@/lib/utils';
 
 // Define the shape of a post from the database
 export interface Post {
@@ -140,10 +141,8 @@ export function PostsDisplay({
   // Loading state
   if (isInitialLoad && !postsResult) {
     return (
-      <div className={className}>
-        {[1, 2, 3].map((i) => (
-          <PostCardSkeleton key={i} />
-        ))}
+      <div className={cn("flex justify-center items-center py-12", className)}>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -151,10 +150,12 @@ export function PostsDisplay({
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
     return (
-      <div className={`py-8 text-center text-muted-foreground ${className}`}>
-        {searchQuery 
-          ? `No ${mediaType} found matching "${searchQuery}"`
-          : `No ${mediaType} found in this category`}
+      <div className={cn("py-8 text-center", className)}>
+        <p className="text-muted-foreground text-sm">
+          {searchQuery 
+            ? `No ${mediaType} found matching "${searchQuery}"`
+            : `No ${mediaType} found in this category`}
+        </p>
       </div>
     );
   }
@@ -169,7 +170,7 @@ export function PostsDisplay({
       {/* Loading indicator and intersection observer target */}
       {nextCursor && (
         <div ref={ref} className="py-4 flex justify-center">
-          <PostCardSkeleton />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>
@@ -215,25 +216,6 @@ function PostCard({ post }: { post: Post }) {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Skeleton loader for post cards
-function PostCardSkeleton() {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          <Skeleton className="flex-shrink-0 w-24 h-24 rounded-md" />
-          <div className="flex-1">
-            <Skeleton className="w-3/4 h-6 mb-2" />
-            <Skeleton className="w-full h-4 mb-1" />
-            <Skeleton className="w-full h-4 mb-1" />
-            <Skeleton className="w-2/3 h-4 mb-2" />
           </div>
         </div>
       </CardContent>

@@ -263,6 +263,7 @@ export function CategorySliderWrapper({
                 mediaType={mediaType}
                 searchQuery={searchQuery}
                 className="mt-4 pb-8"
+                isVisible={searchTab === 'entries'}
               />
             </div>
           </div>

@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from './skeleton';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -26,12 +27,14 @@ interface EntriesDisplayProps {
   mediaType: string;
   searchQuery: string;
   className?: string;
+  isVisible?: boolean;
 }
 
 export function EntriesDisplay({
   mediaType,
   searchQuery,
   className,
+  isVisible = false,
 }: EntriesDisplayProps) {
   const [entries, setEntries] = useState<RSSEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +47,14 @@ export function EntriesDisplay({
     rootMargin: '200px',
   });
 
-  // Search entries when query changes or tab is switched
+  // Reset state when tab changes or search query changes
+  useEffect(() => {
+    setEntries([]);
+    setHasMore(true);
+    setPage(1);
+  }, [searchQuery]);
+
+  // Search entries only when tab is visible and we have a query
   useEffect(() => {
     const searchEntries = async () => {
       setIsLoading(true);
@@ -61,15 +71,15 @@ export function EntriesDisplay({
       }
     };
 
-    if (searchQuery) {
+    if (searchQuery && isVisible) {
       searchEntries();
     }
-  }, [searchQuery, mediaType]);
+  }, [searchQuery, mediaType, isVisible]);
 
-  // Load more entries when bottom is reached
+  // Load more entries when bottom is reached (only if tab is visible)
   useEffect(() => {
     const loadMore = async () => {
-      if (!isLoading && hasMore) {
+      if (!isLoading && hasMore && isVisible) {
         setIsLoading(true);
         try {
           const nextPage = page + 1;
@@ -86,18 +96,21 @@ export function EntriesDisplay({
       }
     };
 
-    if (inView && hasMore) {
+    if (inView && hasMore && isVisible) {
       loadMore();
     }
-  }, [inView, hasMore, isLoading, searchQuery, mediaType, page]);
+  }, [inView, hasMore, isLoading, searchQuery, mediaType, page, isVisible]);
+
+  // Don't render anything if tab is not visible
+  if (!isVisible) {
+    return null;
+  }
 
   // Loading state
   if (isLoading && entries.length === 0) {
     return (
-      <div className={className}>
-        {[1, 2, 3].map((i) => (
-          <EntryCardSkeleton key={i} />
-        ))}
+      <div className={cn("flex justify-center items-center py-12", className)}>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -105,7 +118,7 @@ export function EntriesDisplay({
   // No entries state
   if (entries.length === 0 && !isLoading) {
     return (
-      <div className={`py-8 text-center text-muted-foreground ${className}`}>
+      <div className={cn("py-8 text-center", className)}>
         <p className="text-muted-foreground text-sm">No results found for &quot;{searchQuery}&quot;</p>
       </div>
     );
@@ -121,7 +134,7 @@ export function EntriesDisplay({
       {/* Loading indicator and intersection observer target */}
       {hasMore && (
         <div ref={ref} className="py-4 flex justify-center">
-          <EntryCardSkeleton />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>
@@ -161,25 +174,6 @@ function EntryCard({ entry }: { entry: RSSEntry }) {
                 </p>
               )}
             </Link>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Skeleton loader for entry cards
-function EntryCardSkeleton() {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          <Skeleton className="flex-shrink-0 w-24 h-24 rounded-md" />
-          <div className="flex-1">
-            <Skeleton className="w-3/4 h-6 mb-2" />
-            <Skeleton className="w-full h-4 mb-1" />
-            <Skeleton className="w-full h-4 mb-1" />
-            <Skeleton className="w-2/3 h-4" />
           </div>
         </div>
       </CardContent>
