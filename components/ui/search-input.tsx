@@ -49,6 +49,7 @@ export function SearchInput({
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        returnKeyType="search"
         className={cn(
           "w-full pl-9 pr-10 rounded-full border shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
           className
