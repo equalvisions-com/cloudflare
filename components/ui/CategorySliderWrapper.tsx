@@ -111,6 +111,10 @@ export function CategorySliderWrapper({
   // Handle search submission
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Hide keyboard by blurring any active element
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setSearchQuery(pendingSearchQuery);
     // When searching, we don't want to filter by category
     if (pendingSearchQuery) {
