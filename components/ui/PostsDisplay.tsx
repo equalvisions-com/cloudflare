@@ -42,6 +42,7 @@ interface PostsDisplayProps {
   mediaType: string;
   initialPosts?: Post[];
   className?: string;
+  searchQuery?: string;
 }
 
 export function PostsDisplay({
@@ -49,6 +50,7 @@ export function PostsDisplay({
   mediaType,
   initialPosts = [],
   className,
+  searchQuery = '',
 }: PostsDisplayProps) {
   // Store posts and pagination state
   const [posts, setPosts] = useState<Post[]>(initialPosts);
@@ -62,15 +64,12 @@ export function PostsDisplay({
     rootMargin: '200px',
   });
 
-  // Query for posts by category
+  // Query for posts - either search results or category posts
   const postsResult = useQuery(
-    api.categories.getPostsByCategory,
-    { 
-      categoryId, 
-      mediaType,
-      cursor: nextCursor || undefined,
-      limit: 10
-    }
+    searchQuery ? api.posts.searchPosts : api.categories.getPostsByCategory,
+    searchQuery 
+      ? { query: searchQuery, mediaType, cursor: nextCursor || undefined, limit: 10 }
+      : { categoryId, mediaType, cursor: nextCursor || undefined, limit: 10 }
   );
 
   // Query for follow states if authenticated and we have posts
@@ -81,7 +80,7 @@ export function PostsDisplay({
       : "skip"
   );
 
-  // Reset posts when category changes
+  // Reset posts when category or search query changes
   useEffect(() => {
     if (initialPosts.length > 0) {
       setPosts(initialPosts.map(post => ({
@@ -91,7 +90,7 @@ export function PostsDisplay({
       setNextCursor(undefined);
     }
     setIsInitialLoad(initialPosts.length === 0);
-  }, [categoryId, initialPosts, isAuthenticated]);
+  }, [categoryId, searchQuery, initialPosts, isAuthenticated]);
 
   // Load initial posts if not provided
   useEffect(() => {
@@ -153,7 +152,9 @@ export function PostsDisplay({
   if (posts.length === 0 && !isInitialLoad) {
     return (
       <div className={`py-8 text-center text-muted-foreground ${className}`}>
-        No posts found in this category
+        {searchQuery 
+          ? `No ${mediaType} found matching "${searchQuery}"`
+          : `No ${mediaType} found in this category`}
       </div>
     );
   }

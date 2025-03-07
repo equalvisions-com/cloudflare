@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api';
 import { CategorySlider, type Category } from './CategorySlider';
 import { PostsDisplay, type Post } from './PostsDisplay';
 import { cn } from '@/lib/utils';
+import { SearchInput } from '@/components/ui/search-input';
 
 interface CategorySliderWrapperProps {
   mediaType: string;
@@ -31,8 +32,9 @@ export function CategorySliderWrapper({
   mediaType,
   className,
 }: CategorySliderWrapperProps) {
-  // State for selected category
+  // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   
   // Fetch initial data (categories and featured posts)
@@ -40,6 +42,16 @@ export function CategorySliderWrapper({
     mediaType,
     postsPerCategory: 10
   }) as CategoryData | undefined;
+
+  // Search query for posts across all categories
+  const searchResults = useQuery(
+    api.posts.searchPosts,
+    searchQuery ? { 
+      query: searchQuery,
+      mediaType,
+      limit: 10
+    } : "skip"
+  );
   
   // Set loading state based on data availability
   useEffect(() => {
@@ -52,7 +64,7 @@ export function CategorySliderWrapper({
   const allCategories: Category[] = React.useMemo(() => {
     if (!initialData?.categories) return [{ _id: 'featured', name: 'Featured', slug: 'featured', mediaType }];
     
-    // Ensure "Featured" is always the first item and limit the number of categories if there are too many
+    // Ensure "Featured" is always the first item
     const regularCategories = initialData.categories;
     
     return [
@@ -74,6 +86,17 @@ export function CategorySliderWrapper({
     if (!categoryData) return [];
     
     return categoryData.posts;
+  };
+
+  // Handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    // When searching, we don't want to filter by category
+    if (e.target.value) {
+      setSelectedCategoryId('');
+    } else {
+      setSelectedCategoryId('featured');
+    }
   };
   
   // Loading state
@@ -104,19 +127,34 @@ export function CategorySliderWrapper({
   
   return (
     <div className={cn("w-full", className)}>
-      {/* Category slider */}
-      <CategorySlider
-        categories={allCategories}
-        selectedCategoryId={selectedCategoryId}
-        onSelectCategory={setSelectedCategoryId}
-      />
+      {/* Sticky header container */}
+      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
+        {/* Search input */}
+        <div className="px-4 py-2">
+          <SearchInput
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder={`Search ${mediaType}...`}
+          />
+        </div>
+
+        {/* Category slider - only show when not searching */}
+        {!searchQuery && (
+          <CategorySlider
+            categories={allCategories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+          />
+        )}
+      </div>
       
       {/* Posts display */}
       <PostsDisplay
         categoryId={selectedCategoryId}
         mediaType={mediaType}
-        initialPosts={getInitialPostsForCategory(selectedCategoryId)}
+        initialPosts={searchQuery ? (searchResults?.posts || []) : getInitialPostsForCategory(selectedCategoryId)}
         className="mt-4 pb-8"
+        searchQuery={searchQuery}
       />
     </div>
   );

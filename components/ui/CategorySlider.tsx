@@ -142,7 +142,7 @@ export function CategorySlider({
   }, [onSelectCategory]);
 
   return (
-    <div className={cn("grid w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 pt-2 border-b", className)}>
+    <div className={cn("grid w-full overflow-hidden", className)}>
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex mx-4 gap-6">
           {categories.map((category, index) => (

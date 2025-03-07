@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const getBySlug = query({
   args: {
@@ -86,5 +87,71 @@ export const getPostsByFeedUrls = query({
         )
       )
       .collect();
+  },
+});
+
+export const searchPosts = query({
+  args: { 
+    query: v.string(),
+    mediaType: v.string(),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const { query, mediaType, cursor, limit = 10 } = args;
+    
+    // Get user authentication state (but don't require it)
+    const userId = await getAuthUserId(ctx).catch(() => null);
+    const isAuthenticated = !!userId;
+
+    // Create a case-insensitive regex pattern
+    const searchPattern = new RegExp(query, 'i');
+
+    // Get all posts for the media type first
+    const allPosts = await ctx.db
+      .query("posts")
+      .filter(q => q.eq(q.field("mediaType"), mediaType))
+      .collect();
+
+    // Filter posts by title and body using regex
+    const matchingPosts = allPosts.filter(post => 
+      searchPattern.test(post.title) || searchPattern.test(post.body)
+    );
+
+    // Get follow states if authenticated
+    let followStates: { [key: string]: boolean } = {};
+    if (isAuthenticated) {
+      const followings = await ctx.db
+        .query("following")
+        .withIndex("by_user_post")
+        .filter(q => q.eq(q.field("userId"), userId))
+        .collect();
+
+      followStates = followings.reduce((acc, following) => {
+        acc[following.postId] = true;
+        return acc;
+      }, {} as { [key: string]: boolean });
+    }
+    
+    // Handle pagination
+    const startIndex = cursor ? matchingPosts.findIndex(p => p._id === cursor) + 1 : 0;
+    const paginatedPosts = matchingPosts.slice(startIndex, startIndex + limit + 1);
+    
+    // Check if there are more posts
+    const hasMore = paginatedPosts.length > limit;
+    
+    // Add auth states to posts
+    const postsWithState = paginatedPosts.slice(0, limit).map(post => ({
+      ...post,
+      isAuthenticated,
+      isFollowing: followStates[post._id] || false
+    }));
+    
+    // Return only the requested number of posts
+    return {
+      posts: postsWithState,
+      hasMore,
+      nextCursor: hasMore && paginatedPosts.length > 0 ? paginatedPosts[limit - 1]._id : null
+    };
   },
 }); 
