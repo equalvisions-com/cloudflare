@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { 
   Home, 
-  Search, 
   Podcast,
   Mail,
   User,
@@ -55,7 +54,6 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
     { href: "/", icon: Home, label: "Home" },
     { href: "/newsletters", icon: Mail, label: "Newsletters" },
     { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-    { href: "/search", icon: Search, label: "Search" },
     { href: "/ask-ai", icon: Sparkles, label: "Ask AI" },
     { href: "/profile", icon: User, label: "Profile" },
   ], []);
