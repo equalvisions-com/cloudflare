@@ -136,4 +136,26 @@ export const getFollowers = query({
         username: profile.username
       }));
   },
+});
+
+export const getFollowStates = query({
+  args: { postIds: v.array(v.id("posts")) },
+  handler: async (ctx, { postIds }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    // Get all following relationships for the user
+    const followings = await ctx.db
+      .query("following")
+      .withIndex("by_user_post")
+      .filter(q => q.eq(q.field("userId"), userId))
+      .collect();
+
+    // Return array of postIds that the user is following
+    return followings
+      .filter(f => postIds.some(id => id === f.postId))
+      .map(f => f.postId);
+  },
 }); 

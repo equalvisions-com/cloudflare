@@ -4,9 +4,11 @@ import Link from "next/link";
 import { 
   Home, 
   Search, 
-  Play, 
-  Sparkles, 
-  User 
+  Podcast,
+  Mail,
+  Heart,
+  User,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -52,9 +54,10 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => [
     { href: "/", icon: Home, label: "Home" },
+    { href: "/newsletters", icon: Mail, label: "Newsletters" },
+    { href: "/podcasts", icon: Podcast, label: "Podcasts" },
     { href: "/search", icon: Search, label: "Search" },
-    { href: "/messages", icon: Sparkles, label: "Discover" },
-    { href: "/notifications", icon: Play, label: "Audio" },
+    { href: "/likes", icon: Heart, label: "Likes" },
     { href: "/profile", icon: User, label: "Profile" },
   ], []);
 

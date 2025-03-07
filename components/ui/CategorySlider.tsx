@@ -142,18 +142,19 @@ export function CategorySlider({
   }, [onSelectCategory]);
 
   return (
-    <div className={cn("grid w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 py-4 border-b", className)}>
+    <div className={cn("grid w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 pt-2 border-b", className)}>
       <div className="overflow-hidden" ref={emblaRef}>
-        <div className="flex mx-4 gap-4">
+        <div className="flex mx-4 gap-6">
           {categories.map((category, index) => (
             <button
               key={category._id}
               ref={(el) => { buttonRefs.current[index] = el; }}
               className={cn(
-                "flex-none px-4 py-2 rounded-full transition-all duration-200 whitespace-nowrap",
+                "flex-none pb-[12px] transition-all duration-200 whitespace-nowrap relative font-medium text-sm",
+                "after:absolute after:bottom-0 after:left-0 after:w-full after:h-[.25rem] after:transition-all after:duration-200 after:rounded-full",
                 category._id === selectedCategoryId
-                  ? "bg-primary text-primary-foreground font-bold text-sm"
-                  : "bg-accent text-muted-foreground hover:bg-muted font-medium text-sm"
+                  ? "text-primary after:bg-primary after:opacity-100"
+                  : "text-muted-foreground hover:text-foreground after:opacity-0"
               )}
               onClick={() => handleCategoryClick(category._id)}
               aria-selected={category._id === selectedCategoryId}

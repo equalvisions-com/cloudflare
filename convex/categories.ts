@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Get all unique categories for a specific media type
 export const getCategories = query({
@@ -70,6 +71,10 @@ export const getPostsByCategory = query({
   handler: async (ctx, args) => {
     const { categoryId, mediaType, cursor, limit = 10 } = args;
     
+    // Get user authentication state
+    const userId = await getAuthUserId(ctx);
+    const isAuthenticated = !!userId;
+
     // Special case for featured posts
     if (categoryId === 'featured') {
       const posts = await ctx.db
@@ -81,11 +86,31 @@ export const getPostsByCategory = query({
           )
         )
         .take(limit + 1);
-      
+
+      // Get follow states if authenticated
+      let followStates: { [key: string]: boolean } = {};
+      if (isAuthenticated) {
+        const followings = await ctx.db
+          .query("following")
+          .withIndex("by_user_post")
+          .filter(q => q.eq(q.field("userId"), userId))
+          .collect();
+
+        followStates = followings.reduce((acc, following) => {
+          acc[following.postId] = true;
+          return acc;
+        }, {} as { [key: string]: boolean });
+      }
+
       const hasMore = posts.length > limit;
+      const postsWithFollowState = posts.slice(0, limit).map(post => ({
+        ...post,
+        isAuthenticated,
+        isFollowing: followStates[post._id] || false
+      }));
       
       return {
-        posts: posts.slice(0, limit),
+        posts: postsWithFollowState,
         hasMore,
         nextCursor: hasMore && posts.length > 0 ? posts[limit - 1]._id : null
       };
@@ -104,13 +129,35 @@ export const getPostsByCategory = query({
       
       // Get posts with limit + 1 to determine if there are more posts
       const posts = await postsQuery.take(limit + 1);
+
+      // Get follow states if authenticated
+      let followStates: { [key: string]: boolean } = {};
+      if (isAuthenticated) {
+        const followings = await ctx.db
+          .query("following")
+          .withIndex("by_user_post")
+          .filter(q => q.eq(q.field("userId"), userId))
+          .collect();
+
+        followStates = followings.reduce((acc, following) => {
+          acc[following.postId] = true;
+          return acc;
+        }, {} as { [key: string]: boolean });
+      }
       
       // Check if there are more posts
       const hasMore = posts.length > limit;
       
+      // Add follow states to posts
+      const postsWithFollowState = posts.slice(0, limit).map(post => ({
+        ...post,
+        isAuthenticated,
+        isFollowing: followStates[post._id] || false
+      }));
+      
       // Return only the requested number of posts
       return {
-        posts: posts.slice(0, limit),
+        posts: postsWithFollowState,
         hasMore,
         nextCursor: hasMore && posts.length > 0 ? posts[limit - 1]._id : null
       };
@@ -130,18 +177,44 @@ export const getCategorySliderData = query({
   handler: async (ctx, args) => {
     const { mediaType, postsPerCategory = 10 } = args;
     
+    // Get user authentication state
+    const userId = await getAuthUserId(ctx);
+    const isAuthenticated = !!userId;
+
     // Get all posts for the media type
     const allPosts = await ctx.db
       .query("posts")
       .filter(q => q.eq(q.field("mediaType"), mediaType))
       .collect();
+
+    // If authenticated, get all follow states for these posts
+    let followStates: { [key: string]: boolean } = {};
+    if (isAuthenticated) {
+      const followings = await ctx.db
+        .query("following")
+        .withIndex("by_user_post")
+        .filter(q => q.eq(q.field("userId"), userId))
+        .collect();
+
+      followStates = followings.reduce((acc, following) => {
+        acc[following.postId] = true;
+        return acc;
+      }, {} as { [key: string]: boolean });
+    }
+
+    // Add follow state to each post
+    const postsWithFollowState = allPosts.map(post => ({
+      ...post,
+      isAuthenticated,
+      isFollowing: followStates[post._id] || false
+    }));
     
     // Extract unique categories
     const categoriesMap = new Map();
-    allPosts.forEach(post => {
+    postsWithFollowState.forEach(post => {
       if (!categoriesMap.has(post.categorySlug)) {
         categoriesMap.set(post.categorySlug, {
-          _id: post.categorySlug, // Use categorySlug as ID
+          _id: post.categorySlug,
           name: post.category,
           slug: post.categorySlug,
           mediaType: post.mediaType
@@ -155,16 +228,18 @@ export const getCategorySliderData = query({
     );
     
     // Get featured posts
-    const featuredPosts = allPosts.filter(post => post.isFeatured === true).slice(0, postsPerCategory);
+    const featuredPosts = postsWithFollowState
+      .filter(post => post.isFeatured === true)
+      .slice(0, postsPerCategory);
     
     // Get initial posts for each category
     const initialPostsByCategory: Record<string, any> = {};
     
     for (const category of categories) {
       const categorySlug = category.slug;
-      const categoryPosts = allPosts
+      const categoryPosts = postsWithFollowState
         .filter(post => post.categorySlug === categorySlug)
-        .slice(0, postsPerCategory + 1); // +1 to check if there are more
+        .slice(0, postsPerCategory + 1);
       
       initialPostsByCategory[categorySlug] = {
         posts: categoryPosts.slice(0, postsPerCategory),

@@ -2,16 +2,19 @@
 
 import React, { useEffect, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from './skeleton';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import Link from 'next/link';
+import Image from 'next/image';
+import { FollowButton } from '@/components/follow-button/FollowButton';
+import { Id } from '@/convex/_generated/dataModel';
 
 // Define the shape of a post from the database
 export interface Post {
-  _id: string;
+  _id: Id<"posts">;
   _creationTime: number;
   title: string;
   postSlug: string;
@@ -29,6 +32,9 @@ export interface Post {
   twitterUrl?: string;
   websiteUrl?: string;
   platform?: string;
+  // Follow state fields
+  isFollowing?: boolean;
+  isAuthenticated?: boolean;
 }
 
 interface PostsDisplayProps {
@@ -48,6 +54,7 @@ export function PostsDisplay({
   const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [isInitialLoad, setIsInitialLoad] = useState(initialPosts.length === 0);
+  const { isAuthenticated } = useConvexAuth();
   
   // Set up intersection observer for infinite scrolling
   const { ref, inView } = useInView({
@@ -66,30 +73,70 @@ export function PostsDisplay({
     }
   );
 
+  // Query for follow states if authenticated and we have posts
+  const followStates = useQuery(
+    api.following.getFollowStates,
+    isAuthenticated && posts.length > 0
+      ? { postIds: posts.map(post => post._id) }
+      : "skip"
+  );
+
   // Reset posts when category changes
   useEffect(() => {
-    setPosts(initialPosts);
-    setNextCursor(undefined);
+    if (initialPosts.length > 0) {
+      setPosts(initialPosts.map(post => ({
+        ...post,
+        isAuthenticated
+      })));
+      setNextCursor(undefined);
+    }
     setIsInitialLoad(initialPosts.length === 0);
-  }, [categoryId, initialPosts]);
+  }, [categoryId, initialPosts, isAuthenticated]);
 
   // Load initial posts if not provided
   useEffect(() => {
     if (isInitialLoad && postsResult) {
-      setPosts(postsResult.posts as Post[]);
+      const newPosts = postsResult.posts as Post[];
+      const postsWithAuth = newPosts.map(post => ({
+        ...post,
+        isAuthenticated,
+        isFollowing: followStates && Array.isArray(followStates) 
+          ? followStates.includes(post._id)
+          : false
+      }));
+      setPosts(postsWithAuth);
       setNextCursor(postsResult.nextCursor);
       setIsInitialLoad(false);
     }
-  }, [isInitialLoad, postsResult]);
+  }, [isInitialLoad, postsResult, isAuthenticated, followStates]);
+
+  // Update follow states when they load
+  useEffect(() => {
+    if (followStates && Array.isArray(followStates)) {
+      setPosts(currentPosts => 
+        currentPosts.map(post => ({
+          ...post,
+          isAuthenticated,
+          isFollowing: followStates.includes(post._id)
+        }))
+      );
+    }
+  }, [followStates, isAuthenticated]);
 
   // Load more posts when bottom is reached
   useEffect(() => {
     if (inView && nextCursor && !isInitialLoad && postsResult) {
-      // Append new posts to existing ones
-      setPosts(prev => [...prev, ...(postsResult.posts as Post[])]);
+      const newPosts = (postsResult.posts as Post[]).map(post => ({
+        ...post,
+        isAuthenticated,
+        isFollowing: followStates && Array.isArray(followStates) 
+          ? followStates.includes(post._id)
+          : false
+      }));
+      setPosts(prev => [...prev, ...newPosts]);
       setNextCursor(postsResult.nextCursor);
     }
-  }, [inView, nextCursor, isInitialLoad, postsResult]);
+  }, [inView, nextCursor, isInitialLoad, postsResult, isAuthenticated, followStates]);
 
   // Loading state
   if (isInitialLoad && !postsResult) {
@@ -112,7 +159,7 @@ export function PostsDisplay({
   }
 
   return (
-    <div className={`p-4 space-y-4`}>
+    <div className={className}>
       {/* Post cards */}
       {posts.map((post) => (
         <PostCard key={post._id} post={post} />
@@ -131,31 +178,46 @@ export function PostsDisplay({
 // Post card component
 function PostCard({ post }: { post: Post }) {
   return (
-    <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block">
-      <Card className="overflow-hidden transition-all hover:shadow-none shadow-none">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-4">
-            {post.featuredImg && (
-              <div className="flex-shrink-0 w-24 h-24">
-                <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
-                  <img
-                    src={post.featuredImg}
-                    alt={post.title}
-                    className="object-cover w-full h-full"
+    <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          {post.featuredImg && (
+            <div className="flex-shrink-0 w-24 h-24">
+              <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+                <Image
+                  src={post.featuredImg}
+                  alt={post.title}
+                  fill
+                  sizes="96px"
+                  className="object-cover"
+                />
+              </AspectRatio>
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-start gap-4">
+              <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
+                <h3 className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                  {post.body.substring(0, 150)}...
+                </p>
+              </Link>
+              {post.feedUrl && (
+                <div className="flex-shrink-0">
+                  <FollowButton
+                    postId={post._id}
+                    feedUrl={post.feedUrl}
+                    postTitle={post.title}
+                    initialIsFollowing={post.isFollowing ?? false}
+                    isAuthenticated={post.isAuthenticated}
                   />
-                </AspectRatio>
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold mb-2 line-clamp-2">{post.title}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-3">
-                {post.body.substring(0, 150)}...
-              </p>
+                </div>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
