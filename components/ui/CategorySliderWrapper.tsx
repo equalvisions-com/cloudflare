@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { CategorySlider, type Category } from './CategorySlider';
 import { PostsDisplay, type Post } from './PostsDisplay';
+import { EntriesDisplay } from './EntriesDisplay';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
+import useEmblaCarousel from 'embla-carousel-react';
+import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+
+type SearchTab = 'posts' | 'entries';
 
 interface CategorySliderWrapperProps {
   mediaType: string;
@@ -35,6 +40,7 @@ export function CategorySliderWrapper({
   // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchTab, setSearchTab] = useState<SearchTab>('posts');
   const [isLoading, setIsLoading] = useState(true);
   
   // Fetch initial data (categories and featured posts)
@@ -46,7 +52,7 @@ export function CategorySliderWrapper({
   // Search query for posts across all categories
   const searchResults = useQuery(
     api.posts.searchPosts,
-    searchQuery ? { 
+    searchQuery && searchTab === 'posts' ? { 
       query: searchQuery,
       mediaType,
       limit: 10
@@ -96,8 +102,61 @@ export function CategorySliderWrapper({
       setSelectedCategoryId('');
     } else {
       setSelectedCategoryId('featured');
+      setSearchTab('posts'); // Reset to posts tab when clearing search
     }
   };
+
+  // Initialize Embla carousel for content sliding
+  const [contentRef, contentEmblaApi] = useEmblaCarousel(
+    {
+      align: 'start',
+      skipSnaps: false,
+      dragFree: false,
+      containScroll: 'trimSnaps'
+    },
+    [WheelGesturesPlugin()]
+  );
+
+  // Sync tab changes with carousel
+  const onTabChange = useCallback((tab: SearchTab) => {
+    const index = tab === 'posts' ? 0 : 1;
+    contentEmblaApi?.scrollTo(index);
+    setSearchTab(tab);
+  }, [contentEmblaApi]);
+
+  // Sync carousel changes with tabs
+  useEffect(() => {
+    if (!contentEmblaApi) return;
+
+    const onSelect = () => {
+      const index = contentEmblaApi.selectedScrollSnap();
+      setSearchTab(index === 0 ? 'posts' : 'entries');
+    };
+
+    contentEmblaApi.on('select', onSelect);
+
+    return () => {
+      contentEmblaApi.off('select', onSelect);
+    };
+  }, [contentEmblaApi]);
+
+  // Format media type for display (capitalize and pluralize)
+  const displayMediaType = React.useMemo(() => {
+    const capitalized = mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
+    return `${capitalized}s`;
+  }, [mediaType]);
+
+  // Get the entries tab label based on media type
+  const entriesTabLabel = React.useMemo(() => {
+    switch (mediaType) {
+      case 'newsletter':
+        return 'Posts';
+      case 'podcast':
+        return 'Episodes';
+      default:
+        return 'Entries';
+    }
+  }, [mediaType]);
   
   // Loading state
   if (isLoading) {
@@ -130,16 +189,54 @@ export function CategorySliderWrapper({
       {/* Sticky header container */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
         {/* Search input */}
-        <div className="px-4 py-2">
+        <div className="px-4 py-2 mb-2">
           <SearchInput
             value={searchQuery}
             onChange={handleSearchChange}
-            placeholder={`Search ${mediaType}...`}
+            placeholder={`Search ${displayMediaType}...`}
           />
         </div>
 
-        {/* Category slider - only show when not searching */}
-        {!searchQuery && (
+        {searchQuery ? (
+          // Search result tabs
+          <div className="flex mx-4 gap-6">
+            <button
+              className={cn(
+                "flex-1 transition-all duration-200 relative font-medium text-sm",
+                searchTab === 'posts'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => onTabChange('posts')}
+            >
+              <span className="relative inline-flex pb-[12px]">
+                {displayMediaType}
+                <span className={cn(
+                  "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+                  searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
+                )} />
+              </span>
+            </button>
+            <button
+              className={cn(
+                "flex-1 transition-all duration-200 relative font-medium text-sm",
+                searchTab === 'entries'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => onTabChange('entries')}
+            >
+              <span className="relative inline-flex pb-[12px]">
+                {entriesTabLabel}
+                <span className={cn(
+                  "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+                  searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
+                )} />
+              </span>
+            </button>
+          </div>
+        ) : (
+          // Category slider when not searching
           <CategorySlider
             categories={allCategories}
             selectedCategoryId={selectedCategoryId}
@@ -148,14 +245,37 @@ export function CategorySliderWrapper({
         )}
       </div>
       
-      {/* Posts display */}
-      <PostsDisplay
-        categoryId={selectedCategoryId}
-        mediaType={mediaType}
-        initialPosts={searchQuery ? (searchResults?.posts || []) : getInitialPostsForCategory(selectedCategoryId)}
-        className="mt-4 pb-8"
-        searchQuery={searchQuery}
-      />
+      {/* Content display */}
+      {searchQuery ? (
+        <div className="overflow-hidden" ref={contentRef}>
+          <div className="flex">
+            <div className="flex-[0_0_100%] min-w-0">
+              <PostsDisplay
+                categoryId={selectedCategoryId}
+                mediaType={mediaType}
+                initialPosts={searchResults?.posts || []}
+                className="mt-4 pb-8"
+                searchQuery={searchQuery}
+              />
+            </div>
+            <div className="flex-[0_0_100%] min-w-0">
+              <EntriesDisplay
+                mediaType={mediaType}
+                searchQuery={searchQuery}
+                className="mt-4 pb-8"
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Normal posts display when not searching
+        <PostsDisplay
+          categoryId={selectedCategoryId}
+          mediaType={mediaType}
+          initialPosts={getInitialPostsForCategory(selectedCategoryId)}
+          className="mt-4 pb-8"
+        />
+      )}
     </div>
   );
 } 
