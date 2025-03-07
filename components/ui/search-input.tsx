@@ -37,9 +37,13 @@ export function SearchInput({
       <Input
         ref={inputRef}
         type="search"
+        role="searchbox"
         enterKeyHint="search"
         inputMode="search"
+        maxLength={100}
+        autoCapitalize="off"
         autoComplete="off"
+        autoCorrect="off"
         spellCheck="false"
         placeholder={placeholder}
         value={value}
