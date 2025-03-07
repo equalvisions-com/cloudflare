@@ -40,6 +40,7 @@ export function CategorySliderWrapper({
   // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
   const [searchTab, setSearchTab] = useState<SearchTab>('posts');
   const [isLoading, setIsLoading] = useState(true);
   
@@ -94,15 +95,36 @@ export function CategorySliderWrapper({
     return categoryData.posts;
   };
 
-  // Handle search input change
+  // Handle search input change (now just updates pending state)
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+    setPendingSearchQuery(e.target.value);
+  };
+
+  // Handle search clear
+  const handleSearchClear = () => {
+    setPendingSearchQuery('');
+    setSearchQuery('');
+    setSelectedCategoryId('featured');
+    setSearchTab('posts');
+  };
+
+  // Handle search submission
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSearchQuery(pendingSearchQuery);
     // When searching, we don't want to filter by category
-    if (e.target.value) {
+    if (pendingSearchQuery) {
       setSelectedCategoryId('');
     } else {
       setSelectedCategoryId('featured');
       setSearchTab('posts'); // Reset to posts tab when clearing search
+    }
+  };
+
+  // Handle key press for search input
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      handleSearchClear();
     }
   };
 
@@ -189,13 +211,15 @@ export function CategorySliderWrapper({
       {/* Sticky header container */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
         {/* Search input */}
-        <div className="px-4 py-2 mb-2">
+        <form onSubmit={handleSearchSubmit} className="px-4 py-2 mb-2">
           <SearchInput
-            value={searchQuery}
+            value={pendingSearchQuery}
             onChange={handleSearchChange}
+            onKeyDown={handleKeyDown}
+            onClear={handleSearchClear}
             placeholder={`Search ${displayMediaType}...`}
           />
-        </div>
+        </form>
 
         {searchQuery ? (
           // Search result tabs
