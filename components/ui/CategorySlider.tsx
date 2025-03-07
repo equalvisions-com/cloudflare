@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
-import useEmblaCarousel, { EmblaViewportRefType } from 'embla-carousel-react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { cn } from '@/lib/utils';
 
@@ -18,30 +18,27 @@ interface CategorySliderProps {
   selectedCategoryId: string;
   onSelectCategory: (categoryId: string) => void;
   className?: string;
-  emblaRef?: EmblaViewportRefType;
 }
 
-// Define the component first
-function CategorySliderComponent({
+export const CategorySlider = React.memo(({
   categories,
   selectedCategoryId,
   onSelectCategory,
   className,
-  emblaRef,
-}: CategorySliderProps) {
+}: CategorySliderProps) => {
   // Find the index of the selected category.
   const selectedIndex = useMemo(() => 
     categories.findIndex(cat => cat._id === selectedCategoryId),
     [categories, selectedCategoryId]
   );
   
-  // Only initialize local carousel if no external ref is provided
+  // Initialize Embla carousel with options and the WheelGesturesPlugin.
   const carouselOptions = useMemo(() => ({
     align: 'start' as const,
     containScroll: 'keepSnaps' as const,
-    dragFree: true,
+    dragFree: false,
     skipSnaps: false,
-    duration: 0, // Instant/fast scroll
+    duration: 10, // Fast but smooth scroll
   }), []);
 
   const wheelPluginOptions = useMemo(() => ({
@@ -49,44 +46,98 @@ function CategorySliderComponent({
     forceWheelAxis: 'x' as const,
   }), []);
 
-  // Only create internal carousel if no external ref is provided
-  const [internalEmblaRef, emblaApi] = useEmblaCarousel(
-    emblaRef ? undefined : carouselOptions,
-    emblaRef ? [] : [WheelGesturesPlugin(wheelPluginOptions)]
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    carouselOptions,
+    [WheelGesturesPlugin(wheelPluginOptions)]
   );
-  
-  // Use the provided ref or our internal one
-  const useEmblaRef = emblaRef || internalEmblaRef;
 
   // Keep track of button refs for scrolling to the selected button.
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Scroll the selected button into view when the selected category changes.
-  useEffect(() => {
-    if (selectedIndex >= 0 && buttonRefs.current[selectedIndex]) {
-      buttonRefs.current[selectedIndex]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
+  // Scrolls to a specific category button only if it's not fully visible.
+  const scrollToCategory = useCallback((index: number) => {
+    if (!emblaApi) return;
+    
+    const selectedNode = buttonRefs.current[index];
+    if (!selectedNode) return;
+    
+    const emblaViewport = emblaApi.rootNode();
+    if (!emblaViewport) return;
+    
+    const containerRect = emblaViewport.getBoundingClientRect();
+    const selectedRect = selectedNode.getBoundingClientRect();
+    
+    // If button is not fully visible, scroll to it
+    if (
+      selectedRect.right > containerRect.right ||
+      selectedRect.left < containerRect.left
+    ) {
+      emblaApi.scrollTo(index);
     }
-  }, [selectedIndex]);
+  }, [emblaApi]);
 
-  // Scroll to the selected index when emblaApi is available
+  // Define a stable overscroll prevention callback.
+  const preventOverscroll = useCallback(() => {
+    if (!emblaApi) return;
+    const {
+      limit,
+      target,
+      location,
+      offsetLocation,
+      scrollTo,
+      translate,
+      scrollBody,
+    } = emblaApi.internalEngine();
+    
+    let edge: number | null = null;
+    if (limit.reachedMax(target.get())) {
+      edge = limit.max;
+    } else if (limit.reachedMin(target.get())) {
+      edge = limit.min;
+    }
+    
+    if (edge !== null) {
+      offsetLocation.set(edge);
+      location.set(edge);
+      target.set(edge);
+      translate.to(edge);
+      translate.toggleActive(false);
+      scrollBody.useDuration(0).useFriction(0);
+      scrollTo.distance(0, false);
+    } else {
+      translate.toggleActive(true);
+    }
+  }, [emblaApi]);
+
+  // Bind overscroll prevention to scroll-related events.
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on("scroll", preventOverscroll);
+    emblaApi.on("settle", preventOverscroll);
+    emblaApi.on("pointerUp", preventOverscroll);
+    
+    return () => {
+      emblaApi.off("scroll", preventOverscroll);
+      emblaApi.off("settle", preventOverscroll);
+      emblaApi.off("pointerUp", preventOverscroll);
+    };
+  }, [emblaApi, preventOverscroll]);
+
+  // When the selected category changes, scroll to it.
   useEffect(() => {
     if (emblaApi && selectedIndex !== -1) {
-      emblaApi.scrollTo(selectedIndex);
+      scrollToCategory(selectedIndex);
     }
-  }, [emblaApi, selectedIndex]);
+  }, [emblaApi, selectedIndex, scrollToCategory]);
 
-  // Handle button click - select category
+  // Handle category selection.
   const handleCategoryClick = useCallback((categoryId: string) => {
     onSelectCategory(categoryId);
   }, [onSelectCategory]);
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
-      <div className="overflow-hidden" ref={useEmblaRef}>
+      <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex mx-4 gap-6">
           {categories.map((category, index) => (
             <button
@@ -110,10 +161,6 @@ function CategorySliderComponent({
       </div>
     </div>
   );
-}
+});
 
-// Export the memoized component with display name
-export const CategorySlider = Object.assign(
-  React.memo(CategorySliderComponent),
-  { displayName: 'CategorySlider' }
-);
+CategorySlider.displayName = 'CategorySlider';
