@@ -215,13 +215,19 @@ export function CategorySliderWrapper({
       {/* Sticky header container */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
         {/* Search input */}
-        <form onSubmit={handleSearchSubmit} className="px-4 py-2 mb-2">
+        <form 
+          role="search"
+          onSubmit={handleSearchSubmit} 
+          className="px-4 py-2 mb-2"
+        >
           <SearchInput
+            name="search"
             value={pendingSearchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleKeyDown}
             onClear={handleSearchClear}
             placeholder={`Search ${displayMediaType}...`}
+            aria-label={`Search ${displayMediaType}`}
           />
         </form>
 
