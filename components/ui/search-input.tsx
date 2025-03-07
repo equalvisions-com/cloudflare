@@ -22,10 +22,6 @@ export function SearchInput({
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = () => {
-    inputRef.current?.blur(); // Hide keyboard on submit
-  };
-
   return (
     <div className="relative">
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -41,12 +37,9 @@ export function SearchInput({
       <Input
         ref={inputRef}
         type="search"
-        role="searchbox"
         enterKeyHint="search"
         inputMode="search"
-        autoCapitalize="none"
         autoComplete="off"
-        autoCorrect="off"
         spellCheck="false"
         placeholder={placeholder}
         value={value}
