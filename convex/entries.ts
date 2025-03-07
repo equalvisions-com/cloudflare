@@ -373,4 +373,83 @@ export const getEntryWithComments = query({
       }
     };
   },
+});
+
+// Dedicated batch query for EntriesDisplay component
+export const batchGetEntriesMetrics = query({
+  args: {
+    entryGuids: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Make userId optional - it can be null for unauthenticated requests
+    const userId = await getAuthUserId(ctx).catch(() => null);
+
+    // Get all likes, comments, and retweets in parallel but within the same query
+    const [likes, comments, retweets] = await Promise.all([
+      // Get all likes for the requested entries
+      ctx.db
+        .query("likes")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect(),
+
+      // Get all comments for the requested entries
+      ctx.db
+        .query("comments")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect(),
+        
+      // Get all retweets for the requested entries
+      ctx.db
+        .query("retweets")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect()
+    ]);
+
+    // Create maps for each interaction type
+    const metricsMap = new Map();
+
+    // Process all entries
+    for (const entryGuid of args.entryGuids) {
+      const entryLikes = likes.filter(like => like.entryGuid === entryGuid);
+      const entryComments = comments.filter(comment => comment.entryGuid === entryGuid);
+      const entryRetweets = retweets.filter(retweet => retweet.entryGuid === entryGuid);
+
+      metricsMap.set(entryGuid, {
+        likes: {
+          count: entryLikes.length,
+          isLiked: userId ? entryLikes.some(like => like.userId === userId) : false
+        },
+        comments: {
+          count: entryComments.length
+        },
+        retweets: {
+          count: entryRetweets.length,
+          isRetweeted: userId ? entryRetweets.some(retweet => retweet.userId === userId) : false
+        }
+      });
+    }
+
+    return Array.from(metricsMap.entries()).map(([guid, metrics]) => metrics);
+  },
 }); 

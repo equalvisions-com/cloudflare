@@ -1,13 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useInView } from 'react-intersection-observer';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { Headphones, Mail, MoreVertical } from 'lucide-react';
+import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
+import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
+import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
+import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Virtuoso } from 'react-virtuoso';
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -21,6 +31,12 @@ interface RSSEntry {
   image?: string;
   feed_title?: string;
   feed_url?: string;
+  mediaType?: string;
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
 }
 
 interface EntriesDisplayProps {
@@ -28,6 +44,50 @@ interface EntriesDisplayProps {
   searchQuery: string;
   className?: string;
   isVisible?: boolean;
+}
+
+// This interface is now used directly where needed
+interface InteractionStates {
+  likes: { isLiked: boolean; count: number };
+  comments: { count: number };
+  retweets: { isRetweeted: boolean; count: number };
+}
+
+// Custom hook for batch metrics
+function useEntriesMetrics(entryGuids: string[], isVisible: boolean) {
+  const batchMetricsQuery = useQuery(
+    api.entries.batchGetEntriesMetrics,
+    isVisible && entryGuids.length > 0 ? { entryGuids } : "skip"
+  );
+
+  // Create a memoized metrics map
+  const metricsMap = useMemo(() => {
+    if (!batchMetricsQuery) {
+      return new Map<string, InteractionStates>();
+    }
+
+    return new Map(
+      entryGuids.map((guid, index) => [guid, batchMetricsQuery[index]])
+    );
+  }, [batchMetricsQuery, entryGuids]);
+
+  // Memoize default values
+  const defaultInteractions = useMemo(() => ({
+    likes: { isLiked: false, count: 0 },
+    comments: { count: 0 },
+    retweets: { isRetweeted: false, count: 0 }
+  }), []);
+
+  // Return a function to get metrics for a specific entry
+  const getEntryMetrics = useCallback((entryGuid: string) => {
+    return metricsMap.get(entryGuid) || defaultInteractions;
+  }, [metricsMap, defaultInteractions]);
+
+  return {
+    getEntryMetrics,
+    isLoading: isVisible && entryGuids.length > 0 && !batchMetricsQuery,
+    metricsMap
+  };
 }
 
 export function EntriesDisplay({
@@ -40,21 +100,48 @@ export function EntriesDisplay({
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+  const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
-  // Set up intersection observer for infinite scrolling
-  const { ref, inView } = useInView({
-    threshold: 0,
-    rootMargin: '200px',
-  });
+  // Get entry guids for metrics
+  const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
+  
+  // Use our custom hook for metrics
+  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(entryGuids, isVisible);
 
-  // Reset state when tab changes or search query changes
+  // Memoize loadMore function
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoading || !isVisible) return;
+
+    const nextPage = page + 1;
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}`);
+      const data = await response.json();
+      
+      setEntries(prev => [...prev, ...data.entries]);
+      setHasMore(data.hasMore);
+      setPage(nextPage);
+    } catch (error) {
+      console.error('Error loading more entries:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType]);
+
+  // Reset state only when search query changes
   useEffect(() => {
-    setEntries([]);
-    setHasMore(true);
-    setPage(1);
-  }, [searchQuery]);
+    if (searchQuery !== lastSearchQuery) {
+      setEntries([]);
+      setHasMore(true);
+      setPage(1);
+      setLastSearchQuery(searchQuery);
+      setIsInitialLoad(true);
+    }
+  }, [searchQuery, lastSearchQuery]);
 
-  // Search entries only when tab is visible and we have a query
+  // Initial search effect
   useEffect(() => {
     const searchEntries = async () => {
       setIsLoading(true);
@@ -68,46 +155,23 @@ export function EntriesDisplay({
         console.error('Error searching entries:', error);
       } finally {
         setIsLoading(false);
+        setIsInitialLoad(false);
       }
     };
 
-    if (searchQuery && isVisible) {
+    if (searchQuery && isVisible && (searchQuery !== lastSearchQuery || entries.length === 0)) {
       searchEntries();
+      setLastSearchQuery(searchQuery);
     }
-  }, [searchQuery, mediaType, isVisible]);
-
-  // Load more entries when bottom is reached (only if tab is visible)
-  useEffect(() => {
-    const loadMore = async () => {
-      if (!isLoading && hasMore && isVisible) {
-        setIsLoading(true);
-        try {
-          const nextPage = page + 1;
-          const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}`);
-          const data = await response.json();
-          setEntries(prev => [...prev, ...data.entries]);
-          setHasMore(data.hasMore);
-          setPage(nextPage);
-        } catch (error) {
-          console.error('Error loading more entries:', error);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    if (inView && hasMore && isVisible) {
-      loadMore();
-    }
-  }, [inView, hasMore, isLoading, searchQuery, mediaType, page, isVisible]);
+  }, [searchQuery, mediaType, isVisible, lastSearchQuery, entries.length]);
 
   // Don't render anything if tab is not visible
   if (!isVisible) {
     return null;
   }
 
-  // Loading state
-  if (isLoading && entries.length === 0) {
+  // Loading state - only show for initial load and initial metrics fetch
+  if ((isLoading && isInitialLoad) || (isInitialLoad && entries.length > 0 && isMetricsLoading)) {
     return (
       <div className={cn("flex justify-center items-center py-12", className)}>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -126,57 +190,227 @@ export function EntriesDisplay({
 
   return (
     <div className={className}>
-      {/* Entry cards */}
-      {entries.map((entry) => (
-        <EntryCard key={entry.guid} entry={entry} />
-      ))}
-
-      {/* Loading indicator and intersection observer target */}
-      {hasMore && (
-        <div ref={ref} className="py-4 flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      <Virtuoso
+        useWindowScroll
+        totalCount={entries.length}
+        endReached={loadMore}
+        overscan={10}
+        itemContent={index => {
+          const entry = entries[index];
+          return (
+            <EntryCard 
+              key={entry.guid} 
+              entry={entry} 
+              interactions={getEntryMetrics(entry.guid)}
+            />
+          );
+        }}
+        components={{
+          Footer: () => (
+            <div className="py-4 text-center">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading more entries...</span>
+                </div>
+              ) : hasMore ? (
+                <div className="h-8" />
+              ) : (
+                <div className="text-muted-foreground text-sm py-2">
+                  No more entries to load
+                </div>
+              )}
+            </div>
+          )
+        }}
+      />
     </div>
   );
 }
 
-// Entry card component
-function EntryCard({ entry }: { entry: RSSEntry }) {
+// Modified EntryCard to accept interactions prop
+function EntryCard({ entry, interactions }: { 
+  entry: RSSEntry; 
+  interactions: InteractionStates;
+}) {
+  const timestamp = useMemo(() => {
+    const pubDate = new Date(entry.pub_date);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - pubDate.getTime()) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h`;
+    } else if (diffInDays < 30) {
+      return `${diffInDays}d`;
+    } else {
+      return `${diffInMonths}mo`;
+    }
+  }, [entry.pub_date]);
+
+  // Generate post URL if we have category and post slugs
+  const postUrl = entry.category_slug && entry.post_slug 
+    ? `/${entry.category_slug}/${entry.post_slug}`
+    : null;
+
+  // Moved MoreOptionsDropdown outside of EntryCard render to prevent recreation
   return (
-    <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          {entry.image && (
-            <div className="flex-shrink-0 w-24 h-24">
-              <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+    <article>
+      <div className="p-4">
+        {/* Top Row: Featured Image and Title */}
+        <div className="flex items-start gap-4 mb-4">
+          {/* Featured Image */}
+          {entry.post_featured_img && postUrl && (
+            <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
+              <AspectRatio ratio={1}>
                 <Image
-                  src={entry.image}
-                  alt={entry.title}
+                  src={entry.post_featured_img}
+                  alt=""
                   fill
-                  sizes="96px"
                   className="object-cover"
+                  sizes="96px"
+                  loading="lazy"
+                  priority={false}
                 />
               </AspectRatio>
-            </div>
+            </Link>
           )}
-          <div className="flex-1 min-w-0">
-            <Link href={entry.link} target="_blank" rel="noopener noreferrer" className="block">
-              <h3 className="text-lg font-semibold leading-tight line-clamp-2">{entry.title}</h3>
+          
+          {/* Title and Timestamp */}
+          <div className="flex-grow">
+            <div className="w-full">
+              {entry.post_title && postUrl && (
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={postUrl} className="hover:opacity-80 transition-opacity">
+                    <h3 className="text-base font-semibold text-primary leading-tight">
+                      {entry.post_title}
+                    </h3>
+                  </Link>
+                  <span 
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    title={format(new Date(entry.pub_date), 'PPP p')}
+                  >
+                    {timestamp}
+                  </span>
+                </div>
+              )}
+              {entry.post_media_type && (
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                  {entry.post_media_type.toLowerCase() === 'podcast' && <Headphones className="h-3 w-3" />}
+                  {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" />}
+                  {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Entry Content Card */}
+        <a
+          href={entry.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block hover:opacity-80 transition-opacity"
+        >
+          <Card className="overflow-hidden shadow-none">
+            {entry.image && (
+              <CardHeader className="p-0">
+                <AspectRatio ratio={16/9}>
+                  <Image
+                    src={entry.image}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    loading="lazy"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </CardHeader>
+            )}
+            <CardContent className="p-4 bg-secondary/60 border-t">
+              <h3 className="text-lg font-semibold leading-tight">
+                {entry.title}
+              </h3>
               {entry.description && (
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                   {entry.description}
                 </p>
               )}
-              {entry.feed_title && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  From {entry.feed_title}
-                </p>
-              )}
-            </Link>
+            </CardContent>
+          </Card>
+        </a>
+
+        {/* Horizontal Interaction Buttons */}
+        <div className="flex justify-between items-center mt-4 h-[16px]">
+          <div>
+            <LikeButtonClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url || ''}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={interactions.likes}
+            />
+          </div>
+          <div>
+            <CommentSectionClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url || ''}
+              initialData={interactions.comments}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url || ''}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={interactions.retweets}
+            />
+          </div>
+          <div>
+            <ShareButtonClient
+              url={entry.link}
+              title={entry.title}
+            />
+          </div>
+          <div className="flex justify-end">
+            <MoreOptionsDropdown entry={entry} />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      
+      <div id={`comments-${entry.guid}`} className="border-t border-border" />
+    </article>
   );
-} 
+}
+
+// Moved outside of EntryCard to prevent recreation on each render
+const MoreOptionsDropdown = ({ entry }: { entry: RSSEntry }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent p-0">
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      <DropdownMenuItem asChild>
+        <a
+          href={entry.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="cursor-pointer"
+        >
+          Open in new tab
+        </a>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+); 

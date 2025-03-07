@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/planetscale';
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { Doc } from "@/convex/_generated/dataModel";
 
 const ENTRIES_PER_PAGE = 10;
 
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Calculate offset for pagination
     const offset = (page - 1) * ENTRIES_PER_PAGE;
 
-    // Join rss_entries with rss_feeds to get feed titles
+    // Get the entries with feed data from PlanetScale
     const entries = await db.execute(
       `SELECT e.*, f.title as feed_title, f.feed_url
        FROM rss_entries e
@@ -38,12 +41,43 @@ export async function GET(request: NextRequest) {
       ]
     );
 
+    // Get unique feed titles
+    const feedTitles = [...new Set(entries.rows.map(entry => entry.feed_title))];
+
+    // Get post metadata from Convex
+    const posts = feedTitles.length > 0 ? await fetchQuery(api.posts.getByTitles, { titles: feedTitles }) : [];
+
+    // Create a map of feed titles to post metadata
+    const postMetadataMap = new Map(
+      posts.map((post: Doc<"posts">) => [post.title, post])
+    );
+
     // Check if there are more entries
     const hasMore = entries.rows.length > ENTRIES_PER_PAGE;
 
-    // Return only the requested number of entries
+    // Map post metadata to entries
+    const entriesWithMetadata = entries.rows.slice(0, ENTRIES_PER_PAGE).map(entry => {
+      const postMetadata = postMetadataMap.get(entry.feed_title) || {
+        title: entry.feed_title,
+        featuredImg: undefined,
+        mediaType: undefined,
+        categorySlug: undefined,
+        postSlug: undefined
+      };
+      
+      return {
+        ...entry,
+        post_title: postMetadata.title,
+        post_featured_img: postMetadata.featuredImg,
+        post_media_type: postMetadata.mediaType,
+        category_slug: postMetadata.categorySlug,
+        post_slug: postMetadata.postSlug
+      };
+    });
+
+    // Return the entries with metadata
     return NextResponse.json({
-      entries: entries.rows.slice(0, ENTRIES_PER_PAGE),
+      entries: entriesWithMetadata,
       hasMore,
     });
 

@@ -154,4 +154,18 @@ export const searchPosts = query({
       nextCursor: hasMore && paginatedPosts.length > 0 ? paginatedPosts[limit - 1]._id : null
     };
   },
+});
+
+export const getByTitles = query({
+  args: { titles: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const posts = await ctx.db
+      .query("posts")
+      .filter(q => 
+        q.or(...args.titles.map(title => q.eq(q.field("title"), title)))
+      )
+      .collect();
+
+    return posts;
+  },
 }); 

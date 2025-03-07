@@ -33,6 +33,9 @@ interface CategoryData {
   }>;
 }
 
+// Add this constant at the top of the file
+const MOBILE_BREAKPOINT = 768;
+
 export function CategorySliderWrapper({
   mediaType,
   className,
@@ -44,6 +47,9 @@ export function CategorySliderWrapper({
   const [searchTab, setSearchTab] = useState<SearchTab>('posts');
   const [isLoading, setIsLoading] = useState(true);
   
+  // Add window width state
+  const [isMobile, setIsMobile] = useState(false);
+
   // Fetch initial data (categories and featured posts)
   const initialData = useQuery(api.categories.getCategorySliderData, { 
     mediaType,
@@ -132,15 +138,37 @@ export function CategorySliderWrapper({
     }
   };
 
-  // Initialize Embla carousel for content sliding
+  // Update isMobile state based on window width
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    
+    // Check initially
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Initialize Embla carousel with conditional options
   const [contentRef, contentEmblaApi] = useEmblaCarousel(
-    {
+    isMobile ? {
       align: 'start',
       skipSnaps: false,
       dragFree: false,
       containScroll: 'trimSnaps'
+    } : { 
+      align: 'start',
+      skipSnaps: true,
+      dragFree: false,
+      containScroll: false,
+      active: false // Disable carousel on desktop
     },
-    [WheelGesturesPlugin()]
+    isMobile ? [WheelGesturesPlugin()] : []
   );
 
   // Sync tab changes with carousel
@@ -281,9 +309,18 @@ export function CategorySliderWrapper({
       
       {/* Content display */}
       {searchQuery ? (
-        <div className="overflow-hidden" ref={contentRef}>
-          <div className="flex">
-            <div className="flex-[0_0_100%] min-w-0">
+        <div className={cn(
+          "overflow-hidden",
+          !isMobile && "overflow-visible" // Remove overflow hidden on desktop
+        )} ref={contentRef}>
+          <div className={cn(
+            "flex",
+            !isMobile && "!transform-none" // Prevent transform on desktop
+          )}>
+            <div className={cn(
+              "flex-[0_0_100%] min-w-0",
+              !isMobile && searchTab !== 'posts' && "hidden" // Hide when not active on desktop
+            )}>
               <PostsDisplay
                 categoryId={selectedCategoryId}
                 mediaType={mediaType}
@@ -292,7 +329,10 @@ export function CategorySliderWrapper({
                 searchQuery={searchQuery}
               />
             </div>
-            <div className="flex-[0_0_100%] min-w-0">
+            <div className={cn(
+              "flex-[0_0_100%] min-w-0",
+              !isMobile && searchTab !== 'entries' && "hidden" // Hide when not active on desktop
+            )}>
               <EntriesDisplay
                 mediaType={mediaType}
                 searchQuery={searchQuery}
