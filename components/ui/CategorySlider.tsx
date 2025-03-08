@@ -207,7 +207,7 @@ export const CategorySlider = React.memo(({
                 "after:absolute after:bottom-0 after:left-0 after:w-full after:h-[.25rem] after:transition-all after:duration-200 after:rounded-full",
                 category._id === selectedCategoryId
                   ? "text-primary after:bg-primary"
-                  : "text-muted-foreground hover:text-foreground after:bg-background"
+                  : "text-muted-foreground hover:text-foreground after:bg-background opacity-0"
               )}
               onClick={() => handleCategoryClick(category._id)}
               aria-selected={category._id === selectedCategoryId}
