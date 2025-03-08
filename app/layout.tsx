@@ -7,7 +7,6 @@ import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
-import { Chatbot } from "@/components/chat/ChatBot";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from '@vercel/analytics/next';
@@ -60,7 +59,6 @@ export default function RootLayout({
                 </header>
                 <main className="pb-24 md:pb-16">{children}</main>
                 <PersistentPlayer />
-                <Chatbot />
                 <MobileDock />
               </AudioProvider>
             </ThemeProvider>
