@@ -234,7 +234,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
-      <CardContent className="p-4">
+      <CardContent className="p-4 h-[116px]">
         <div className="flex items-start gap-4">
           {post.featuredImg && (
             <Link href={`/${post.categorySlug}/${post.postSlug}`}>
