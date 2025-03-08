@@ -62,31 +62,50 @@ export const CategorySlider = React.memo(({
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
     
-    // Prevent horizontal swipe navigation
+    // Prevent horizontal swipe navigation only when actually dragging
     const preventNavigation = (e: TouchEvent) => {
-      // Only prevent default if we're actively dragging and moving horizontally
-      // This allows clicks to work normally
-      if (emblaApi.internalEngine().dragHandler.pointerDown() && 
-          e.touches.length === 1 && 
-          Math.abs(e.touches[0].clientX) > 0) {
-        e.preventDefault();
-      }
+      if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+      
+      const touch = e.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+      
+      const handleTouchMove = (e: TouchEvent) => {
+        if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+        
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - startX);
+        const deltaY = Math.abs(touch.clientY - startY);
+        
+        // Only prevent default if horizontal movement is greater than vertical
+        if (deltaX > deltaY) {
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      
+      const cleanup = () => {
+        document.removeEventListener('touchmove', handleTouchMove);
+      };
+      
+      document.addEventListener('touchend', cleanup, { once: true });
+      document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
     // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
-      // Only prevent default for horizontal wheel movements
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && emblaApi.internalEngine().dragHandler.pointerDown()) {
         e.preventDefault();
       }
     };
     
     // Add event listeners with passive: false to allow preventDefault
-    viewportElement.addEventListener('touchmove', preventNavigation, { passive: false });
+    viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
     viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      viewportElement.removeEventListener('touchmove', preventNavigation);
+      viewportElement.removeEventListener('touchstart', preventNavigation);
       viewportElement.removeEventListener('wheel', preventWheelNavigation);
     };
   }, [emblaApi]);

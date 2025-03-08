@@ -44,8 +44,8 @@
   /* Prevent browser back/forward gestures */
   .prevent-overscroll-navigation {
     overscroll-behavior-x: none;
-    -webkit-overflow-scrolling: auto;
-    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y pinch-zoom;
   }
 }
 
@@ -116,6 +116,10 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
   main.flex-1.md\:basis-\[50\%\].md\:max-w-\[50\%\] {
     border-width: 0px 1px 0px 1px;
