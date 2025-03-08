@@ -267,7 +267,10 @@ const PostCard = memo(({ post }: { post: Post }) => {
                 </div>
               )}
             </div>
-            <p className={`text-sm !mt-[5px] text-muted-foreground line-clamp-${descriptionLines}`}>
+            <p className={cn(
+              "text-sm !mt-[5px] text-muted-foreground",
+              descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"
+            )}>
               {post.body}
             </p>
           </div>

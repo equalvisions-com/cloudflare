@@ -385,7 +385,7 @@ export function CategorySliderWrapper({
         <form 
           role="search"
           onSubmit={handleSearchSubmit} 
-          className="px-4 py-2 mb-2"
+          className="px-4 py-2 mb-1"
         >
           <SearchInput
             name="search"
