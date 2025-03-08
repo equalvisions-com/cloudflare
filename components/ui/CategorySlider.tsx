@@ -38,7 +38,7 @@ export const CategorySlider = React.memo(({
     containScroll: 'keepSnaps' as const,
     dragFree: false,
     skipSnaps: false,
-    duration: 10, // Fast but smooth scroll
+    duration: 10, // Fast but smooth scrolling
   }), []);
 
   const wheelPluginOptions = useMemo(() => ({
