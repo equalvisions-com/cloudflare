@@ -243,7 +243,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
             </div>
           )}
           <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex justify-between items-end gap-4">
+            <div className="flex justify-between items-center gap-4">
               <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
                 <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
               </Link>
@@ -255,13 +255,13 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     postTitle={post.title}
                     initialIsFollowing={post.isFollowing ?? false}
                     isAuthenticated={post.isAuthenticated}
-                    className="px-3 h-7 text-xs"
+                    className="px-3 h-[23px] text-xs"
                   />
                 </div>
               )}
             </div>
             <p className={`text-sm !mt-[5px] text-muted-foreground line-clamp-${descriptionLines}`}>
-              {post.body.length > 150 ? `${post.body.substring(0, 150)}...` : post.body}
+              {post.body}
             </p>
           </div>
         </div>
