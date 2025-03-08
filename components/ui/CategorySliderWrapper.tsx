@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { CategorySlider, type Category } from './CategorySlider';
@@ -36,6 +36,84 @@ interface CategoryData {
 // Add this constant at the top of the file
 const MOBILE_BREAKPOINT = 768;
 
+// Memoize the loading skeleton
+const LoadingSkeleton = memo(() => (
+  <div className="grid w-full">
+    <div className="w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 py-2">
+      <div className="flex gap-2 px-4">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div 
+            key={i} 
+            className="h-10 w-24 bg-muted/50 rounded-full animate-pulse"
+          />
+        ))}
+      </div>
+    </div>
+    <div className="mt-4 space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div 
+          key={i} 
+          className="h-64 bg-muted/30 rounded-lg animate-pulse"
+        />
+      ))}
+    </div>
+  </div>
+));
+
+LoadingSkeleton.displayName = 'LoadingSkeleton';
+
+// Memoize the search tabs
+const SearchTabs = memo(({ 
+  searchTab, 
+  onTabChange, 
+  displayMediaType, 
+  entriesTabLabel 
+}: { 
+  searchTab: SearchTab;
+  onTabChange: (tab: SearchTab) => void;
+  displayMediaType: string;
+  entriesTabLabel: string;
+}) => (
+  <div className="flex mx-4 gap-6">
+    <button
+      className={cn(
+        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        searchTab === 'posts'
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+      onClick={() => onTabChange('posts')}
+    >
+      <span className="relative inline-flex pb-[12px]">
+        {displayMediaType}
+        <span className={cn(
+          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+          searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
+        )} />
+      </span>
+    </button>
+    <button
+      className={cn(
+        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        searchTab === 'entries'
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+      onClick={() => onTabChange('entries')}
+    >
+      <span className="relative inline-flex pb-[12px]">
+        {entriesTabLabel}
+        <span className={cn(
+          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+          searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
+        )} />
+      </span>
+    </button>
+  </div>
+));
+
+SearchTabs.displayName = 'SearchTabs';
+
 export function CategorySliderWrapper({
   mediaType,
   className,
@@ -49,7 +127,7 @@ export function CategorySliderWrapper({
   
   // Add window width state
   const [isMobile, setIsMobile] = useState(false);
-
+  
   // Fetch initial data (categories and featured posts)
   const initialData = useQuery(api.categories.getCategorySliderData, { 
     mediaType,
@@ -296,28 +374,7 @@ export function CategorySliderWrapper({
   
   // Loading state
   if (isLoading) {
-    return (
-      <div className={cn("grid w-full", className)}>
-        <div className="w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 py-2">
-          <div className="flex gap-2 px-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div 
-                key={i} 
-                className="h-10 w-24 bg-muted/50 rounded-full animate-pulse"
-              />
-            ))}
-          </div>
-        </div>
-        <div className="mt-4 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div 
-              key={i} 
-              className="h-64 bg-muted/30 rounded-lg animate-pulse"
-            />
-          ))}
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
   
   return (
@@ -342,48 +399,16 @@ export function CategorySliderWrapper({
         </form>
 
         {searchQuery ? (
-          // Search result tabs
-          <div className="flex mx-4 gap-6">
-            <button
-              className={cn(
-                "flex-1 transition-all duration-200 relative font-medium text-sm",
-                searchTab === 'posts'
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              onClick={() => onTabChange('posts')}
-            >
-              <span className="relative inline-flex pb-[12px]">
-                {displayMediaType}
-                <span className={cn(
-                  "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-                  searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
-                )} />
-              </span>
-            </button>
-            <button
-              className={cn(
-                "flex-1 transition-all duration-200 relative font-medium text-sm",
-                searchTab === 'entries'
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              onClick={() => onTabChange('entries')}
-            >
-              <span className="relative inline-flex pb-[12px]">
-                {entriesTabLabel}
-                <span className={cn(
-                  "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-                  searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
-                )} />
-              </span>
-            </button>
-          </div>
+          <SearchTabs 
+            searchTab={searchTab}
+            onTabChange={onTabChange}
+            displayMediaType={displayMediaType}
+            entriesTabLabel={entriesTabLabel}
+          />
         ) : (
-          // Category slider when not searching
-          <CategorySlider
-            categories={allCategories}
-            selectedCategoryId={selectedCategoryId}
+      <CategorySlider
+        categories={allCategories}
+        selectedCategoryId={selectedCategoryId}
             onSelectCategory={handleCategorySelect}
           />
         )}
@@ -407,7 +432,7 @@ export function CategorySliderWrapper({
                 categoryId={selectedCategoryId}
                 mediaType={mediaType}
                 initialPosts={searchResults?.posts || []}
-                className="mt-4 pb-8"
+                className="pb-8"
                 searchQuery={searchQuery}
               />
             </div>
@@ -418,7 +443,7 @@ export function CategorySliderWrapper({
               <EntriesDisplay
                 mediaType={mediaType}
                 searchQuery={searchQuery}
-                className="mt-4 pb-8"
+                className="pb-8"
                 isVisible={searchTab === 'entries'}
               />
             </div>
@@ -435,7 +460,7 @@ export function CategorySliderWrapper({
                     categoryId={category._id}
                     mediaType={mediaType}
                     initialPosts={getInitialPostsForCategory(category._id)}
-                    className="mt-4 pb-8"
+                    className="pb-8"
                   />
                 </div>
               ))}
@@ -443,12 +468,12 @@ export function CategorySliderWrapper({
           </div>
         ) : (
           // Normal posts display for desktop
-          <PostsDisplay
-            categoryId={selectedCategoryId}
-            mediaType={mediaType}
-            initialPosts={getInitialPostsForCategory(selectedCategoryId)}
-            className="mt-4 pb-8"
-          />
+      <PostsDisplay
+        categoryId={selectedCategoryId}
+        mediaType={mediaType}
+        initialPosts={getInitialPostsForCategory(selectedCategoryId)}
+            className="pb-8"
+      />
         )
       )}
     </div>

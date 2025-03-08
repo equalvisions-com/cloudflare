@@ -8,9 +8,7 @@ import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { Chatbot } from "@/components/chat/ChatBot";
-import { ConvexLogo } from "@/public/ConvexLogo";
 import { MobileDock } from "@/components/ui/mobile-dock";
-import Link from "next/link";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from '@vercel/analytics/next';
 
@@ -51,12 +49,8 @@ export default function RootLayout({
               <AudioProvider>
                 <header className="block md:hidden">
                   <div className="container mx-auto px-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <Link href="/" className="hover:opacity-80 transition-opacity">
-                        <ConvexLogo width={100} height={16} />
-                      </Link>
+                
                       <UserMenuServer />
-                    </div>
                   </div>
                 </header>
                 <main className="pb-24 md:pb-16">{children}</main>

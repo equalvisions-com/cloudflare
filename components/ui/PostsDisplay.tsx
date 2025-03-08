@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -45,6 +45,37 @@ interface PostsDisplayProps {
   className?: string;
   searchQuery?: string;
 }
+
+// Memoize loading state component
+const LoadingState = memo(() => (
+  <div className="flex justify-center items-center py-12">
+    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+  </div>
+));
+
+LoadingState.displayName = 'LoadingState';
+
+// Memoize no posts state component
+const NoPostsState = memo(({ searchQuery, mediaType }: { searchQuery?: string, mediaType: string }) => (
+  <div className="py-8 text-center">
+    <p className="text-muted-foreground text-sm">
+      {searchQuery 
+        ? `No ${mediaType} found matching "${searchQuery}"`
+        : `No ${mediaType} found in this category`}
+    </p>
+  </div>
+));
+
+NoPostsState.displayName = 'NoPostsState';
+
+// Memoize loading indicator component
+const LoadingIndicator = memo(() => (
+  <div className="py-4 flex justify-center">
+    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+  </div>
+));
+
+LoadingIndicator.displayName = 'LoadingIndicator';
 
 export function PostsDisplay({
   categoryId,
@@ -140,24 +171,12 @@ export function PostsDisplay({
 
   // Loading state
   if (isInitialLoad && !postsResult) {
-    return (
-      <div className={cn("flex justify-center items-center py-12", className)}>
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
-    return (
-      <div className={cn("py-8 text-center", className)}>
-        <p className="text-muted-foreground text-sm">
-          {searchQuery 
-            ? `No ${mediaType} found matching "${searchQuery}"`
-            : `No ${mediaType} found in this category`}
-        </p>
-      </div>
-    );
+    return <NoPostsState searchQuery={searchQuery} mediaType={mediaType} />;
   }
 
   return (
@@ -169,16 +188,16 @@ export function PostsDisplay({
 
       {/* Loading indicator and intersection observer target */}
       {nextCursor && (
-        <div ref={ref} className="py-4 flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div ref={ref}>
+          <LoadingIndicator />
         </div>
       )}
     </div>
   );
 }
 
-// Post card component
-function PostCard({ post }: { post: Post }) {
+// Post card component - memoized with proper props comparison
+const PostCard = memo(({ post }: { post: Post }) => {
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
       <CardContent className="p-4">
@@ -221,4 +240,13 @@ function PostCard({ post }: { post: Post }) {
       </CardContent>
     </Card>
   );
-} 
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memoization
+  return (
+    prevProps.post._id === nextProps.post._id &&
+    prevProps.post.isFollowing === nextProps.post.isFollowing &&
+    prevProps.post.isAuthenticated === nextProps.post.isAuthenticated
+  );
+});
+
+PostCard.displayName = 'PostCard'; 
