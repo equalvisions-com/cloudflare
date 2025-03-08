@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useFollowActions } from "./actions";
 import useSWR, { mutate as globalMutate } from 'swr';
 import { useState, useEffect } from 'react';
+import { cn } from "@/lib/utils";
 
 interface FollowButtonProps {
   postId: Id<"posts">;
@@ -15,6 +16,7 @@ interface FollowButtonProps {
   postTitle: string;
   initialIsFollowing: boolean;
   isAuthenticated?: boolean; // Make optional to maintain backward compatibility
+  className?: string; // Add className prop
 }
 
 const fetcher = async (key: string) => {
@@ -38,7 +40,8 @@ export function FollowButton({
   feedUrl, 
   postTitle, 
   initialIsFollowing,
-  isAuthenticated: serverIsAuthenticated 
+  isAuthenticated: serverIsAuthenticated,
+  className 
 }: FollowButtonProps) {
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
@@ -112,7 +115,7 @@ export function FollowButton({
     <Button
       variant={isFollowing ? "secondary" : "default"}
       onClick={handleClick}
-      className="rounded-full opacity-100 hover:opacity-100"
+      className={cn("rounded-full opacity-100 hover:opacity-100", className)}
       disabled={!isAuthenticated}
       style={{ opacity: 1 }}
     >

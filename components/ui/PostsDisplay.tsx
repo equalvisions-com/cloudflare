@@ -188,7 +188,7 @@ export function PostsDisplay({
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-0", className)}>
       {/* Post cards */}
       {posts.map((post) => (
         <PostCard key={post._id} post={post} />
@@ -209,27 +209,24 @@ const PostCard = memo(({ post }: { post: Post }) => {
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
       <CardContent className="p-4">
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
           {post.featuredImg && (
-            <div className="flex-shrink-0 w-24 h-24">
+            <div className="flex-shrink-0 w-20 h-20">
               <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
                 <Image
                   src={post.featuredImg}
                   alt={post.title}
                   fill
-                  sizes="96px"
+                  sizes="80px"
                   className="object-cover"
                 />
               </AspectRatio>
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-start gap-4">
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex justify-between items-center gap-4">
               <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
                 <h3 className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                  {post.body.substring(0, 150)}...
-                </p>
               </Link>
               {post.feedUrl && (
                 <div className="flex-shrink-0">
@@ -239,10 +236,14 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     postTitle={post.title}
                     initialIsFollowing={post.isFollowing ?? false}
                     isAuthenticated={post.isAuthenticated}
+                    className="px-3 h-7 text-xs"
                   />
                 </div>
               )}
             </div>
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-[4px]">
+              {post.body.length > 150 ? `${post.body.substring(0, 150)}...` : post.body}
+            </p>
           </div>
         </div>
       </CardContent>
