@@ -54,7 +54,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
     { href: "/", icon: Home, label: "Home" },
     { href: "/newsletters", icon: Mail, label: "Newsletters" },
     { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-    { href: "/ask-ai", icon: Sparkles, label: "Ask AI" },
+    { href: "/chat", icon: Sparkles, label: "Ask AI" },
     { href: "/profile", icon: User, label: "Profile" },
   ], []);
 

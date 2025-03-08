@@ -32,13 +32,6 @@ export const CategorySlider = React.memo(({
     [categories, selectedCategoryId]
   );
   
-  // Add event handler to prevent browser back/forward navigation
-  const preventBrowserNavigation = useCallback((e: WheelEvent) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      e.preventDefault();
-    }
-  }, []);
-
   // Initialize Embla carousel with options and the WheelGesturesPlugin.
   const carouselOptions = useMemo(() => ({
     align: 'start' as const,
@@ -62,19 +55,39 @@ export const CategorySlider = React.memo(({
     [WheelGesturesPlugin(wheelPluginOptions)]
   );
 
-  // Add event listener to prevent browser navigation
+  // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
     if (!emblaApi) return;
     
-    const viewport = emblaApi.rootNode();
-    if (!viewport) return;
-
-    viewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
+    const viewportElement = emblaApi.rootNode();
+    if (!viewportElement) return;
+    
+    // Prevent horizontal swipe navigation
+    const preventNavigation = (e: TouchEvent) => {
+      // Only if we have multiple touches or we're actively sliding
+      if (e.touches.length > 1 || (emblaApi && emblaApi.internalEngine().dragHandler.pointerDown())) {
+        e.preventDefault();
+      }
+    };
+    
+    // Prevent mousewheel horizontal navigation (for trackpads)
+    const preventWheelNavigation = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+      }
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault
+    viewportElement.addEventListener('touchstart', preventNavigation, { passive: false });
+    viewportElement.addEventListener('touchmove', preventNavigation, { passive: false });
+    viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      viewport.removeEventListener('wheel', preventBrowserNavigation);
+      viewportElement.removeEventListener('touchstart', preventNavigation);
+      viewportElement.removeEventListener('touchmove', preventNavigation);
+      viewportElement.removeEventListener('wheel', preventWheelNavigation);
     };
-  }, [emblaApi, preventBrowserNavigation]);
+  }, [emblaApi]);
 
   // Keep track of button refs for scrolling to the selected button.
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -162,7 +175,7 @@ export const CategorySlider = React.memo(({
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
-      <div className="overflow-hidden" ref={emblaRef}>
+      <div className="overflow-hidden prevent-overscroll-navigation" ref={emblaRef}>
         <div className="flex mx-4 gap-6">
           {categories.map((category, index) => (
             <button

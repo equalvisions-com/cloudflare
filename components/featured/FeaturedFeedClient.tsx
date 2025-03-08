@@ -12,7 +12,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { MoreVertical, Headphones, Mail } from "lucide-react";
+import { MoreVertical, Podcast, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -207,7 +207,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
               )}
               {postMetadata.mediaType && (
                 <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
-                  {postMetadata.mediaType.toLowerCase() === 'podcast' && <Headphones className="h-3 w-3" />}
+                  {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" />}
                   {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
                 </span>

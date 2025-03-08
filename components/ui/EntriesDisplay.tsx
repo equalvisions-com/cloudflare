@@ -8,7 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Headphones, Mail, MoreVertical } from 'lucide-react';
+import { Podcast, Mail, MoreVertical } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Virtuoso } from 'react-virtuoso';
+import { useAudio } from '@/components/audio-player/AudioContext';
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -233,6 +234,9 @@ const EntryCard = React.memo(({ entry, interactions }: {
   entry: RSSEntry; 
   interactions: InteractionStates;
 }) => {
+  const { playTrack, currentTrack } = useAudio();
+  const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
   const timestamp = useMemo(() => {
     const pubDate = new Date(entry.pub_date);
     const now = new Date();
@@ -260,6 +264,14 @@ const EntryCard = React.memo(({ entry, interactions }: {
       : null,
     [entry.category_slug, entry.post_slug]
   );
+
+  // Handle card click for podcasts
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') {
+      e.preventDefault();
+      playTrack(entry.link, entry.title, entry.image || undefined);
+    }
+  }, [entry, playTrack]);
 
   // Moved MoreOptionsDropdown outside of EntryCard render to prevent recreation
   return (
@@ -304,7 +316,7 @@ const EntryCard = React.memo(({ entry, interactions }: {
               )}
               {entry.post_media_type && (
                 <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
-                  {entry.post_media_type.toLowerCase() === 'podcast' && <Headphones className="h-3 w-3" />}
+                  {entry.post_media_type.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" />}
                   {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
                 </span>
@@ -314,40 +326,77 @@ const EntryCard = React.memo(({ entry, interactions }: {
         </div>
 
         {/* Entry Content Card */}
-        <a
-          href={entry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block hover:opacity-80 transition-opacity"
-        >
-          <Card className="overflow-hidden shadow-none">
-            {entry.image && (
-              <CardHeader className="p-0">
-                <AspectRatio ratio={16/9}>
-                  <Image
-                    src={entry.image}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 768px"
-                    loading="lazy"
-                    priority={false}
-                  />
-                </AspectRatio>
-              </CardHeader>
-            )}
-            <CardContent className="p-4 bg-secondary/60 border-t">
-              <h3 className="text-lg font-semibold leading-tight">
-                {entry.title}
-              </h3>
-              {entry.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                  {entry.description}
-                </p>
+        {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') ? (
+          <div>
+            <div 
+              onClick={handleCardClick}
+              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+            >
+              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={16/9}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <CardContent className="p-4 bg-secondary/60 border-t">
+                  <h3 className="text-lg font-semibold leading-tight">
+                    {entry.title}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      {entry.description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          <a
+            href={entry.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block hover:opacity-80 transition-opacity"
+          >
+            <Card className="overflow-hidden shadow-none">
+              {entry.image && (
+                <CardHeader className="p-0">
+                  <AspectRatio ratio={16/9}>
+                    <Image
+                      src={entry.image}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 768px"
+                      loading="lazy"
+                      priority={false}
+                    />
+                  </AspectRatio>
+                </CardHeader>
               )}
-            </CardContent>
-          </Card>
-        </a>
+              <CardContent className="p-4 bg-secondary/60 border-t">
+                <h3 className="text-lg font-semibold leading-tight">
+                  {entry.title}
+                </h3>
+                {entry.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    {entry.description}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </a>
+        )}
 
         {/* Horizontal Interaction Buttons */}
         <div className="flex justify-between items-center mt-4 h-[16px]">

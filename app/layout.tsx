@@ -41,6 +41,9 @@ export default function RootLayout({
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
@@ -49,8 +52,10 @@ export default function RootLayout({
               <AudioProvider>
                 <header className="block md:hidden">
                   <div className="container mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
                 
                       <UserMenuServer />
+                    </div>
                   </div>
                 </header>
                 <main className="pb-24 md:pb-16">{children}</main>

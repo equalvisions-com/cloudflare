@@ -127,13 +127,6 @@ export function CategorySliderWrapper({
   
   // Add window width state
   const [isMobile, setIsMobile] = useState(false);
-  
-  // Add event handler to prevent browser back/forward navigation
-  const preventBrowserNavigation = useCallback((e: WheelEvent) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      e.preventDefault();
-    }
-  }, []);
 
   // Fetch initial data (categories and featured posts)
   const initialData = useQuery(api.categories.getCategorySliderData, { 
@@ -270,33 +263,77 @@ export function CategorySliderWrapper({
       containScroll: 'trimSnaps' as const,
       loop: false,
       duration: 20 // Fast but smooth scroll
-    } : { 
-      active: false // Disable carousel on desktop
-    },
+    } : { active: false },
     isMobile ? [WheelGesturesPlugin()] : []
   );
 
-  // Add event listeners to prevent browser navigation for both carousels
+  // Prevent browser back/forward navigation when interacting with the content carousels
   useEffect(() => {
-    const contentViewport = contentEmblaApi?.rootNode();
-    const categoryViewport = categoryContentEmblaApi?.rootNode();
-
-    if (contentViewport) {
-      contentViewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
-    }
-    if (categoryViewport) {
-      categoryViewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
-    }
-
-    return () => {
-      if (contentViewport) {
-        contentViewport.removeEventListener('wheel', preventBrowserNavigation);
-      }
-      if (categoryViewport) {
-        categoryViewport.removeEventListener('wheel', preventBrowserNavigation);
+    if (!contentEmblaApi || !isMobile) return;
+    
+    const contentViewport = contentEmblaApi.rootNode();
+    if (!contentViewport) return;
+    
+    // Prevent horizontal swipe navigation
+    const preventNavigation = (e: TouchEvent) => {
+      // Only if we have multiple touches or we're actively sliding
+      if (e.touches.length > 1 || contentEmblaApi.internalEngine().dragHandler.pointerDown()) {
+        e.preventDefault();
       }
     };
-  }, [contentEmblaApi, categoryContentEmblaApi, preventBrowserNavigation]);
+    
+    // Prevent mousewheel horizontal navigation (for trackpads)
+    const preventWheelNavigation = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+      }
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault
+    contentViewport.addEventListener('touchstart', preventNavigation, { passive: false });
+    contentViewport.addEventListener('touchmove', preventNavigation, { passive: false });
+    contentViewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
+    
+    return () => {
+      contentViewport.removeEventListener('touchstart', preventNavigation);
+      contentViewport.removeEventListener('touchmove', preventNavigation);
+      contentViewport.removeEventListener('wheel', preventWheelNavigation);
+    };
+  }, [contentEmblaApi, isMobile]);
+
+  // Prevent browser back/forward navigation for category content carousel
+  useEffect(() => {
+    if (!categoryContentEmblaApi || !isMobile) return;
+    
+    const categoryViewport = categoryContentEmblaApi.rootNode();
+    if (!categoryViewport) return;
+    
+    // Prevent horizontal swipe navigation
+    const preventNavigation = (e: TouchEvent) => {
+      // Only if we have multiple touches or we're actively sliding
+      if (e.touches.length > 1 || categoryContentEmblaApi.internalEngine().dragHandler.pointerDown()) {
+        e.preventDefault();
+      }
+    };
+    
+    // Prevent mousewheel horizontal navigation (for trackpads)
+    const preventWheelNavigation = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+      }
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault
+    categoryViewport.addEventListener('touchstart', preventNavigation, { passive: false });
+    categoryViewport.addEventListener('touchmove', preventNavigation, { passive: false });
+    categoryViewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
+    
+    return () => {
+      categoryViewport.removeEventListener('touchstart', preventNavigation);
+      categoryViewport.removeEventListener('touchmove', preventNavigation);
+      categoryViewport.removeEventListener('wheel', preventWheelNavigation);
+    };
+  }, [categoryContentEmblaApi, isMobile]);
 
   // Sync tab changes with carousel
   const onTabChange = useCallback((tab: SearchTab) => {
@@ -445,7 +482,7 @@ export function CategorySliderWrapper({
       {/* Content display */}
       {searchQuery ? (
         <div className={cn(
-          "overflow-hidden",
+          "overflow-hidden prevent-overscroll-navigation",
           !isMobile && "overflow-visible" // Remove overflow hidden on desktop
         )} ref={contentRef}>
           <div className={cn(
@@ -480,7 +517,7 @@ export function CategorySliderWrapper({
       ) : (
         // Category content carousel for mobile, normal display for desktop
         isMobile ? (
-          <div className="overflow-hidden" ref={categoryContentRef}>
+          <div className="overflow-hidden prevent-overscroll-navigation" ref={categoryContentRef}>
             <div className="flex">
               {allCategories.map((category) => (
                 <div key={category._id} className="flex-[0_0_100%] min-w-0">

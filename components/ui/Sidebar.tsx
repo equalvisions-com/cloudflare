@@ -47,7 +47,7 @@ function Sidebar() {
     {
       href: "/podcasts",
       label: "Podcasts",
-      icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/podcasts" ? 3 : 2} />,
+      icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/podcasts" ? 2.75 : 2} />,
     },
     {
       href: "/search",
@@ -93,7 +93,7 @@ function Sidebar() {
           </div>
 
           {/* Ask AI Button */}
-          <Link href="/ask-ai" className="flex justify-center" prefetch={true}>
+          <Link href="/chat" className="flex justify-center" prefetch={true}>
             <Button
               variant="default"
               className="w-full rounded-full gap-2"
