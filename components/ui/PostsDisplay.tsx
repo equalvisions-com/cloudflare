@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, memo } from 'react';
+import React, { useEffect, useState, memo, useRef } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -188,7 +188,7 @@ export function PostsDisplay({
   }
 
   return (
-    <div className={cn("space-y-0", className)}>
+    <div className={cn("space-y-4", className)}>
       {/* Post cards */}
       {posts.map((post) => (
         <PostCard key={post._id} post={post} />
@@ -206,27 +206,46 @@ export function PostsDisplay({
 
 // Post card component - memoized with proper props comparison
 const PostCard = memo(({ post }: { post: Post }) => {
+  const [descriptionLines, setDescriptionLines] = useState(2);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    const checkTitleHeight = () => {
+      if (titleRef.current) {
+        const lineHeight = parseInt(window.getComputedStyle(titleRef.current).lineHeight);
+        const titleHeight = titleRef.current.offsetHeight;
+        // If title height is less than or equal to single line height (with small buffer), show 3 lines of description
+        setDescriptionLines(titleHeight <= lineHeight * 1.2 ? 3 : 2);
+      }
+    };
+
+    checkTitleHeight();
+    // Add resize listener to handle window size changes
+    window.addEventListener('resize', checkTitleHeight);
+    return () => window.removeEventListener('resize', checkTitleHeight);
+  }, []);
+
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
       <CardContent className="p-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           {post.featuredImg && (
-            <div className="flex-shrink-0 w-20 h-20">
+            <div className="flex-shrink-0 w-24 h-24">
               <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
                 <Image
                   src={post.featuredImg}
                   alt={post.title}
                   fill
-                  sizes="80px"
+                  sizes="96px"
                   className="object-cover"
                 />
               </AspectRatio>
             </div>
           )}
           <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex justify-between items-center gap-4">
+            <div className="flex justify-between items-end gap-4">
               <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
-                <h3 className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
+                <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
               </Link>
               {post.feedUrl && (
                 <div className="flex-shrink-0">
@@ -241,7 +260,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                 </div>
               )}
             </div>
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-[4px]">
+            <p className={`text-sm !mt-[5px] text-muted-foreground line-clamp-${descriptionLines}`}>
               {post.body.length > 150 ? `${post.body.substring(0, 150)}...` : post.body}
             </p>
           </div>

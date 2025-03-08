@@ -144,7 +144,7 @@ export const CategorySlider = React.memo(({
               key={category._id}
               ref={(el) => { buttonRefs.current[index] = el; }}
               className={cn(
-                "flex-none pb-[12px] transition-all duration-200 whitespace-nowrap relative font-medium text-base",
+                "flex-none pb-[12px] transition-all duration-200 whitespace-nowrap relative font-medium text-sm",
                 "after:absolute after:bottom-0 after:left-0 after:w-full after:h-[.25rem] after:transition-all after:duration-200 after:rounded-full",
                 category._id === selectedCategoryId
                   ? "text-primary after:bg-primary after:opacity-100"
