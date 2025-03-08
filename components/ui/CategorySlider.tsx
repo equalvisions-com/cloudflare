@@ -32,24 +32,49 @@ export const CategorySlider = React.memo(({
     [categories, selectedCategoryId]
   );
   
+  // Add event handler to prevent browser back/forward navigation
+  const preventBrowserNavigation = useCallback((e: WheelEvent) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+    }
+  }, []);
+
   // Initialize Embla carousel with options and the WheelGesturesPlugin.
   const carouselOptions = useMemo(() => ({
     align: 'start' as const,
     containScroll: 'keepSnaps' as const,
-    dragFree: false,
+    dragFree: true, // Allow free-form dragging
     skipSnaps: false,
-    duration: 10, // Fast but smooth scrolling
+    duration: 10, // Longer duration for smoother animation
+    inViewThreshold: 0.7, // Helps with smoother snapping
+    slidesToScroll: 1
   }), []);
 
   const wheelPluginOptions = useMemo(() => ({
     wheelDraggingClass: '',
     forceWheelAxis: 'x' as const,
+    wheelDuration: 50, // Smooth out wheel scrolling
+    wheelSmoothness: 0.4 // Add some smoothness to wheel scrolling (0 to 1)
   }), []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
     [WheelGesturesPlugin(wheelPluginOptions)]
   );
+
+  // Add event listener to prevent browser navigation
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const viewport = emblaApi.rootNode();
+    if (!viewport) return;
+
+    viewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
+    
+    return () => {
+      viewport.removeEventListener('wheel', preventBrowserNavigation);
+    };
+  }, [emblaApi, preventBrowserNavigation]);
 
   // Keep track of button refs for scrolling to the selected button.
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);

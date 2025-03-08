@@ -237,22 +237,24 @@ const PostCard = memo(({ post }: { post: Post }) => {
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
           {post.featuredImg && (
-            <div className="flex-shrink-0 w-24 h-24">
-              <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
-                <Image
-                  src={post.featuredImg}
-                  alt={post.title}
-                  fill
-                  sizes="96px"
-                  className="object-cover"
-                />
-              </AspectRatio>
-            </div>
+            <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+              <div className="flex-shrink-0 w-[82px] h-[82px]">
+                <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+                  <Image
+                    src={post.featuredImg}
+                    alt={post.title}
+                    fill
+                    sizes="82px"
+                    className="object-cover"
+                  />
+                </AspectRatio>
+              </div>
+            </Link>
           )}
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex justify-between items-center gap-4">
+          <div className="flex-1 min-w-0 space-y-2 pt-0">
+            <div className="flex justify-between items-start gap-4 mt-[-4px]">
               <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
-                <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2">{post.title}</h3>
+                <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
               </Link>
               {post.feedUrl && (
                 <div className="flex-shrink-0">
@@ -262,17 +264,19 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     postTitle={post.title}
                     initialIsFollowing={post.isFollowing ?? false}
                     isAuthenticated={post.isAuthenticated}
-                    className="px-3 h-[23px] text-xs"
+                    className="px-2 h-[23px] text-xs"
                   />
                 </div>
               )}
             </div>
-            <p className={cn(
-              "text-sm !mt-[5px] text-muted-foreground",
-              descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"
-            )}>
-              {post.body}
-            </p>
+            <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block !mt-[3px]">
+              <p className={cn(
+                "text-sm text-muted-foreground",
+                descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"
+              )}>
+                {post.body}
+              </p>
+            </Link>
           </div>
         </div>
       </CardContent>

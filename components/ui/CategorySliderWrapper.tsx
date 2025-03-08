@@ -128,6 +128,13 @@ export function CategorySliderWrapper({
   // Add window width state
   const [isMobile, setIsMobile] = useState(false);
   
+  // Add event handler to prevent browser back/forward navigation
+  const preventBrowserNavigation = useCallback((e: WheelEvent) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+    }
+  }, []);
+
   // Fetch initial data (categories and featured posts)
   const initialData = useQuery(api.categories.getCategorySliderData, { 
     mediaType,
@@ -232,7 +239,7 @@ export function CategorySliderWrapper({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Memoize carousel options based on isMobile
+  // Initialize Embla carousel with conditional options for search tabs
   const carouselOptions = useMemo(() => 
     isMobile ? {
       align: 'start' as const,
@@ -249,7 +256,6 @@ export function CategorySliderWrapper({
     [isMobile]
   );
 
-  // Initialize Embla carousel with conditional options for search tabs
   const [contentRef, contentEmblaApi] = useEmblaCarousel(
     carouselOptions,
     isMobile ? [WheelGesturesPlugin()] : []
@@ -269,6 +275,28 @@ export function CategorySliderWrapper({
     },
     isMobile ? [WheelGesturesPlugin()] : []
   );
+
+  // Add event listeners to prevent browser navigation for both carousels
+  useEffect(() => {
+    const contentViewport = contentEmblaApi?.rootNode();
+    const categoryViewport = categoryContentEmblaApi?.rootNode();
+
+    if (contentViewport) {
+      contentViewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
+    }
+    if (categoryViewport) {
+      categoryViewport.addEventListener('wheel', preventBrowserNavigation, { passive: false });
+    }
+
+    return () => {
+      if (contentViewport) {
+        contentViewport.removeEventListener('wheel', preventBrowserNavigation);
+      }
+      if (categoryViewport) {
+        categoryViewport.removeEventListener('wheel', preventBrowserNavigation);
+      }
+    };
+  }, [contentEmblaApi, categoryContentEmblaApi, preventBrowserNavigation]);
 
   // Sync tab changes with carousel
   const onTabChange = useCallback((tab: SearchTab) => {
