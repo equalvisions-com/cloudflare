@@ -47,8 +47,8 @@ interface PostsDisplayProps {
 }
 
 // Memoize loading state component
-const LoadingState = memo(() => (
-  <div className="flex justify-center items-center py-12">
+const LoadingState = memo(({ className }: { className?: string }) => (
+  <div className={cn("flex justify-center items-center py-12", className)}>
     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
   </div>
 ));
@@ -56,8 +56,16 @@ const LoadingState = memo(() => (
 LoadingState.displayName = 'LoadingState';
 
 // Memoize no posts state component
-const NoPostsState = memo(({ searchQuery, mediaType }: { searchQuery?: string, mediaType: string }) => (
-  <div className="py-8 text-center">
+const NoPostsState = memo(({ 
+  searchQuery, 
+  mediaType, 
+  className 
+}: { 
+  searchQuery?: string;
+  mediaType: string;
+  className?: string;
+}) => (
+  <div className={cn("py-8 text-center", className)}>
     <p className="text-muted-foreground text-sm">
       {searchQuery 
         ? `No ${mediaType} found matching "${searchQuery}"`
@@ -171,16 +179,16 @@ export function PostsDisplay({
 
   // Loading state
   if (isInitialLoad && !postsResult) {
-    return <LoadingState />;
+    return <LoadingState className={className} />;
   }
 
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
-    return <NoPostsState searchQuery={searchQuery} mediaType={mediaType} />;
+    return <NoPostsState searchQuery={searchQuery} mediaType={mediaType} className={className} />;
   }
 
   return (
-    <div className={className}>
+    <div className={cn("space-y-4", className)}>
       {/* Post cards */}
       {posts.map((post) => (
         <PostCard key={post._id} post={post} />
