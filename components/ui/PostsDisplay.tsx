@@ -212,10 +212,17 @@ const PostCard = memo(({ post }: { post: Post }) => {
   useEffect(() => {
     const checkTitleHeight = () => {
       if (titleRef.current) {
-        const lineHeight = parseInt(window.getComputedStyle(titleRef.current).lineHeight);
+        const styles = window.getComputedStyle(titleRef.current);
+        const lineHeight = styles.lineHeight;
         const titleHeight = titleRef.current.offsetHeight;
-        // If title height is less than or equal to single line height (with small buffer), show 3 lines of description
-        setDescriptionLines(titleHeight <= lineHeight * 1.2 ? 3 : 2);
+        const fontSize = parseInt(styles.fontSize);
+        
+        // Calculate approximate number of lines (using fontSize as fallback if lineHeight is 'normal')
+        const effectiveLineHeight = lineHeight === 'normal' ? fontSize * 1.2 : parseInt(lineHeight);
+        const numberOfLines = Math.round(titleHeight / effectiveLineHeight);
+        
+        // If title is single line, show 3 lines of description, else show 2
+        setDescriptionLines(numberOfLines === 1 ? 3 : 2);
       }
     };
 
