@@ -276,26 +276,28 @@ export function CategorySliderWrapper({
     
     // Prevent horizontal swipe navigation
     const preventNavigation = (e: TouchEvent) => {
-      // Only if we have multiple touches or we're actively sliding
-      if (e.touches.length > 1 || contentEmblaApi.internalEngine().dragHandler.pointerDown()) {
+      // Only prevent default if we're actively dragging and moving horizontally
+      // This allows clicks to work normally
+      if (contentEmblaApi.internalEngine().dragHandler.pointerDown() && 
+          e.touches.length === 1 && 
+          Math.abs(e.touches[0].clientX) > 0) {
         e.preventDefault();
       }
     };
     
     // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      // Only prevent default for horizontal wheel movements
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
         e.preventDefault();
       }
     };
     
     // Add event listeners with passive: false to allow preventDefault
-    contentViewport.addEventListener('touchstart', preventNavigation, { passive: false });
     contentViewport.addEventListener('touchmove', preventNavigation, { passive: false });
     contentViewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      contentViewport.removeEventListener('touchstart', preventNavigation);
       contentViewport.removeEventListener('touchmove', preventNavigation);
       contentViewport.removeEventListener('wheel', preventWheelNavigation);
     };
@@ -310,26 +312,28 @@ export function CategorySliderWrapper({
     
     // Prevent horizontal swipe navigation
     const preventNavigation = (e: TouchEvent) => {
-      // Only if we have multiple touches or we're actively sliding
-      if (e.touches.length > 1 || categoryContentEmblaApi.internalEngine().dragHandler.pointerDown()) {
+      // Only prevent default if we're actively dragging and moving horizontally
+      // This allows clicks to work normally
+      if (categoryContentEmblaApi.internalEngine().dragHandler.pointerDown() && 
+          e.touches.length === 1 && 
+          Math.abs(e.touches[0].clientX) > 0) {
         e.preventDefault();
       }
     };
     
     // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      // Only prevent default for horizontal wheel movements
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
         e.preventDefault();
       }
     };
     
     // Add event listeners with passive: false to allow preventDefault
-    categoryViewport.addEventListener('touchstart', preventNavigation, { passive: false });
     categoryViewport.addEventListener('touchmove', preventNavigation, { passive: false });
     categoryViewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      categoryViewport.removeEventListener('touchstart', preventNavigation);
       categoryViewport.removeEventListener('touchmove', preventNavigation);
       categoryViewport.removeEventListener('wheel', preventWheelNavigation);
     };

@@ -64,26 +64,28 @@ export const CategorySlider = React.memo(({
     
     // Prevent horizontal swipe navigation
     const preventNavigation = (e: TouchEvent) => {
-      // Only if we have multiple touches or we're actively sliding
-      if (e.touches.length > 1 || (emblaApi && emblaApi.internalEngine().dragHandler.pointerDown())) {
+      // Only prevent default if we're actively dragging and moving horizontally
+      // This allows clicks to work normally
+      if (emblaApi.internalEngine().dragHandler.pointerDown() && 
+          e.touches.length === 1 && 
+          Math.abs(e.touches[0].clientX) > 0) {
         e.preventDefault();
       }
     };
     
     // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      // Only prevent default for horizontal wheel movements
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
         e.preventDefault();
       }
     };
     
     // Add event listeners with passive: false to allow preventDefault
-    viewportElement.addEventListener('touchstart', preventNavigation, { passive: false });
     viewportElement.addEventListener('touchmove', preventNavigation, { passive: false });
     viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      viewportElement.removeEventListener('touchstart', preventNavigation);
       viewportElement.removeEventListener('touchmove', preventNavigation);
       viewportElement.removeEventListener('wheel', preventWheelNavigation);
     };
