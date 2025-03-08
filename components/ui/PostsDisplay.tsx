@@ -188,7 +188,7 @@ export function PostsDisplay({
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-0", className)}>
       {/* Post cards */}
       {posts.map((post) => (
         <PostCard key={post._id} post={post} />
