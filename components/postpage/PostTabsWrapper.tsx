@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
+import { SwipeableTabs } from "@/components/ui/swipeable-tabs-posts";
 import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
 import About from "@/components/postpage/about";
 import type { RSSItem } from "@/lib/rss";

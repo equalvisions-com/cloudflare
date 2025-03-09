@@ -37,7 +37,6 @@ const TabHeaders = React.memo(({
 
   return (
     <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-10 border-b">
-      
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
