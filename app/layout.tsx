@@ -48,7 +48,7 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
-                <div className="h-screen">
+                <div className="">
                   {children}
                 </div>
                 <PersistentPlayer />
