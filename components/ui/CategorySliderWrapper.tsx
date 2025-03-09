@@ -532,25 +532,25 @@ export function CategorySliderWrapper({
             !isMobile && "!transform-none" // Prevent transform on desktop
           )}>
             <div className={cn(
-              "flex-[0_0_100%] min-w-0",
+              "flex-[0_0_100%] min-w-0 pb-16",
               !isMobile && searchTab !== 'posts' && "hidden" // Hide when not active on desktop
             )}>
               <PostsDisplay
                 categoryId={selectedCategoryId}
                 mediaType={mediaType}
                 initialPosts={searchResults?.posts || []}
-                className="pb-16"
+                className="pb-8"
                 searchQuery={searchQuery}
               />
             </div>
             <div className={cn(
-              "flex-[0_0_100%] min-w-0",
+              "flex-[0_0_100%] min-w-0 pb-16",
               !isMobile && searchTab !== 'entries' && "hidden" // Hide when not active on desktop
             )}>
               <EntriesDisplay
                 mediaType={mediaType}
                 searchQuery={searchQuery}
-                className="pb-16"
+                className="pb-8"
                 isVisible={searchTab === 'entries'}
               />
             </div>
@@ -562,12 +562,12 @@ export function CategorySliderWrapper({
           <div className="overflow-hidden prevent-overscroll-navigation" ref={categoryContentRef}>
             <div className="flex">
               {allCategories.map((category) => (
-                <div key={category._id} className="flex-[0_0_100%] min-w-0">
+                <div key={category._id} className="flex-[0_0_100%] min-w-0 pb-16">
                   <PostsDisplay
                     categoryId={category._id}
                     mediaType={mediaType}
                     initialPosts={getInitialPostsForCategory(category._id)}
-                    className="pb-16"
+                    className="pb-8"
                   />
                 </div>
               ))}
@@ -579,7 +579,7 @@ export function CategorySliderWrapper({
         categoryId={selectedCategoryId}
         mediaType={mediaType}
         initialPosts={getInitialPostsForCategory(selectedCategoryId)}
-            className="pb-16"
+            className="pb-8"
       />
         )
       )}
