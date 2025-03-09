@@ -539,7 +539,7 @@ export function CategorySliderWrapper({
                 categoryId={selectedCategoryId}
                 mediaType={mediaType}
                 initialPosts={searchResults?.posts || []}
-                className="pb-8"
+                className="pb-16"
                 searchQuery={searchQuery}
               />
             </div>
@@ -550,7 +550,7 @@ export function CategorySliderWrapper({
               <EntriesDisplay
                 mediaType={mediaType}
                 searchQuery={searchQuery}
-                className="pb-8"
+                className="pb-16"
                 isVisible={searchTab === 'entries'}
               />
             </div>
@@ -567,7 +567,7 @@ export function CategorySliderWrapper({
                     categoryId={category._id}
                     mediaType={mediaType}
                     initialPosts={getInitialPostsForCategory(category._id)}
-                    className="pb-8"
+                    className="pb-16"
                   />
                 </div>
               ))}
@@ -579,7 +579,7 @@ export function CategorySliderWrapper({
         categoryId={selectedCategoryId}
         mediaType={mediaType}
         initialPosts={getInitialPostsForCategory(selectedCategoryId)}
-            className="pb-8"
+            className="pb-16"
       />
         )
       )}
