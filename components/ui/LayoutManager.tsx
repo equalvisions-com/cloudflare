@@ -32,7 +32,7 @@ export async function LayoutManager() {
   // Use the standardized layout with mobile header
   return (
     <>
-      <header className="block md:hidden">
+      <header className="hidden">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <UserMenuServer />
