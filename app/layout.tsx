@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
+import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
@@ -48,10 +49,9 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
-                <div className="flex min-h-screen flex-col">
-                  {/* Remove the mobile header from here since we only want it on the homepage */}
+                <main className="pb-24 md:pb-16">
                   {children}
-                </div>
+                </main>
                 <PersistentPlayer />
                 <MobileDock />
               </AudioProvider>
