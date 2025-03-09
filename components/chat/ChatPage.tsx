@@ -558,8 +558,8 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef}
-      className="flex flex-col h-screen overflow-hidden"
-      style={{ height: isMobile ? `${viewportHeight}px` : "100vh" }}
+      className="flex flex-col overflow-hidden"
+      style={{ height: isMobile ? `${viewportHeight}px` : "90vh" }}
     >
       {/* Add scrollbar hide styles */}
       <style dangerouslySetInnerHTML={{ __html: scrollbarHideStyles }} />
