@@ -1469,8 +1469,13 @@ ensureRSSLocksTableExists().catch(err => {
  * This function is used to incorporate the 4-hour revalidation logic
  * into components that use direct PlanetScale queries
  */
-export async function checkAndRefreshFeeds(postTitles: string[]): Promise<void> {
-  if (!postTitles || postTitles.length === 0) {
+export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: string[]): Promise<void> {
+  if (!postTitles || postTitles.length === 0 || !feedUrls || feedUrls.length === 0) {
+    return;
+  }
+
+  if (postTitles.length !== feedUrls.length) {
+    logger.error('Mismatch between postTitles and feedUrls arrays');
     return;
   }
   
@@ -1486,13 +1491,37 @@ export async function checkAndRefreshFeeds(postTitles: string[]): Promise<void> 
       `SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`,
       [...postTitles]
     );
-    
-    if (feedsResult.rows.length === 0) {
-      logger.debug(`No feeds found for titles: ${postTitles.join(', ')}`);
-      return;
+
+    // Create a map of existing feeds
+    const existingFeeds = new Map(
+      (feedsResult.rows as RSSFeedRow[]).map(feed => [feed.title, feed])
+    );
+
+    // Find feeds that don't exist yet
+    const newFeeds = postTitles.map((title, index) => ({
+      title,
+      feedUrl: feedUrls[index]
+    })).filter(feed => !existingFeeds.has(feed.title));
+
+    // Create new feeds
+    for (const feed of newFeeds) {
+      try {
+        logger.info(`Creating new feed: ${feed.title} (${feed.feedUrl})`);
+        const freshFeed = await fetchAndParseFeed(feed.feedUrl);
+        const feedId = await getOrCreateFeed(feed.feedUrl, feed.title);
+        
+        if (freshFeed.items.length > 0) {
+          await storeRSSEntriesWithTransaction(feedId, freshFeed.items);
+          logger.info(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items`);
+        } else {
+          logger.warn(`Created new feed ${feed.title} but no items were found`);
+        }
+      } catch (error) {
+        logger.error(`Error creating new feed ${feed.title}: ${error}`);
+      }
     }
     
-    // Check each feed to see if it needs refreshing
+    // Process existing feeds that need refreshing
     const feedsToRefresh: Array<{feedId: number, feedUrl: string, postTitle: string, mediaType?: string}> = [];
     
     for (const feed of feedsResult.rows as RSSFeedRow[]) {
@@ -1562,5 +1591,84 @@ export async function checkAndRefreshFeeds(postTitles: string[]): Promise<void> 
     }
   } catch (error) {
     logger.error(`Error checking and refreshing feeds: ${error}`);
+  }
+}
+
+/**
+ * Refreshes existing feeds without creating new ones
+ * Used for endpoints like paginate where we know the feeds already exist
+ */
+export async function refreshExistingFeeds(postTitles: string[]): Promise<void> {
+  if (!postTitles || postTitles.length === 0) {
+    return;
+  }
+  
+  const currentTime = Date.now();
+  const fourHoursInMs = 4 * 60 * 60 * 1000;
+  
+  try {
+    // Create placeholders for the SQL query
+    const placeholders = postTitles.map(() => '?').join(',');
+    
+    // Get feed information for all requested feeds
+    const feedsResult = await executeQuery<RSSFeedRow>(
+      `SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`,
+      [...postTitles]
+    );
+    
+    // Process existing feeds that need refreshing
+    const feedsToRefresh: Array<{feedId: number, feedUrl: string, postTitle: string, mediaType?: string}> = [];
+    
+    for (const feed of feedsResult.rows as RSSFeedRow[]) {
+      const feedId = Number(feed.id);
+      const feedUrl = feed.feed_url;
+      const postTitle = feed.title;
+      const lastFetchedMs = Number(feed.last_fetched);
+      const timeSinceLastFetch = currentTime - lastFetchedMs;
+      
+      // Check if feed was fetched recently (less than 4 hours ago)
+      if (timeSinceLastFetch >= fourHoursInMs) {
+        logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        feedsToRefresh.push({ feedId, feedUrl, postTitle });
+      } else {
+        logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+      }
+    }
+    
+    // Process feeds that need refreshing
+    for (const feed of feedsToRefresh) {
+      // Try to acquire a lock before fetching fresh data
+      const lockAcquired = await acquireFeedRefreshLock(feed.feedUrl);
+      
+      if (lockAcquired) {
+        try {
+          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
+          const freshFeed = await fetchAndParseFeed(feed.feedUrl);
+          
+          if (freshFeed.items.length > 0) {
+            await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items);
+            logger.info(`Successfully refreshed feed: ${feed.postTitle} with ${freshFeed.items.length} items`);
+          } else {
+            logger.warn(`No new items found for feed: ${feed.postTitle}`);
+          }
+          
+          // Update the last_fetched timestamp
+          await executeQuery(
+            'UPDATE rss_feeds SET last_fetched = ? WHERE id = ?',
+            [Date.now(), feed.feedId]
+          );
+        } catch (error) {
+          logger.error(`Error refreshing feed ${feed.postTitle}: ${error}`);
+        } finally {
+          // Release the lock
+          await releaseFeedRefreshLock(feed.feedUrl);
+          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+        }
+      } else {
+        logger.warn(`Could not acquire refresh lock for ${feed.postTitle}, skipping refresh`);
+      }
+    }
+  } catch (error) {
+    logger.error(`Error in refreshExistingFeeds: ${error}`);
   }
 }

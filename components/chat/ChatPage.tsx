@@ -1,9 +1,12 @@
 'use client';
 
+import "ios-vibrator-pro-max"
+
 import { type Message as UIMessage, useChat } from 'ai/react';
+import { useState, useRef, useEffect } from "react";
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Card } from '@/components/ui/card';
 import {
   Carousel,
   CarouselContent,
@@ -13,34 +16,233 @@ import {
 } from "@/components/ui/carousel";
 import { MessageContent, MessageSchema } from '@/app/types/article';
 import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { useAudio } from '@/components/audio-player/AudioContext';
+import {
+  ArrowUp,
+  Copy,
+  Share2,
+  ThumbsUp,
+  ThumbsDown,
+  Mail,
+  Podcast,
+  Newspaper,
+} from "lucide-react";
+import { AspectRatio } from '@/components/ui/aspect-ratio';
+
+// Add CSS for hiding scrollbars
+const scrollbarHideStyles = `
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+`;
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
   return (
     <div className="flex space-x-1">
-      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce"></div>
-      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce delay-100"></div>
-      <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce delay-200"></div>
+      <div className="animate-bounce h-1.5 w-1.5 bg-muted-foreground rounded-full delay-0"></div>
+      <div className="animate-bounce h-1.5 w-1.5 bg-muted-foreground rounded-full delay-150"></div>
+      <div className="animate-bounce h-1.5 w-1.5 bg-muted-foreground rounded-full delay-300"></div>
     </div>
   );
 }
 
-// Helper function to truncate text with ellipsis
+// Helper function to truncate text
 function truncateText(text: string, maxLength: number): string {
-  if (!text) return '';
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
+// Types for enhanced UI features
+type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
+
 export function ChatPage() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  // State for managing messages and input
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit: originalHandleSubmit,
+    isLoading,
+  } = useChat({
     api: '/api/chat',
-    onError: (error) => {
-      console.error('Chat error:', error);
+    onResponse: (response) => {
+      // This callback is called when a response is received from the API
+      if (response.status === 200) {
+        // Reset streaming state when a new response starts
+        setIsStreaming(false);
+      }
+    },
+    body: {
+      // Include the active button type in the request
+      activeButton: 'none' // This will be updated before submission
     }
   });
 
+  // Audio player hook for podcast playback
+  const { playTrack, currentTrack } = useAudio();
+  
+  // New state for enhanced UI features
+  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("none");
+  const [isMobile, setIsMobile] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  
+  // Refs for DOM elements
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+  const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null });
+  
+  // Constants for layout calculations
+  const BOTTOM_PADDING = 128;
+  const MOBILE_DOCK_HEIGHT = 64; // Height of the mobile dock
+  const IOS_SAFE_BOTTOM = 34; // Safe area inset for iOS devices
+  
+  // Additional state for input handling
+  const [hasTyped, setHasTyped] = useState(false);
+
+  // Check if device is mobile and get viewport height
+  useEffect(() => {
+    const checkMobileAndViewport = () => {
+      const isMobileDevice = window.innerWidth < 768;
+      setIsMobile(isMobileDevice);
+
+      // Capture the viewport height
+      const vh = window.innerHeight;
+      setViewportHeight(vh);
+
+      // Apply fixed height to main container on mobile
+      if (isMobileDevice && mainContainerRef.current) {
+        mainContainerRef.current.style.height = `${vh}px`;
+      }
+    };
+
+    checkMobileAndViewport();
+    window.addEventListener('resize', checkMobileAndViewport);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobileAndViewport);
+    };
+  }, []);
+
+  // Calculate bottom padding to account for mobile dock and iOS safe area
+  const getBottomPadding = () => {
+    const audioPlayerHeight = currentTrack ? 72 : 0;
+    if (!isMobile) return BOTTOM_PADDING + audioPlayerHeight;
+    return BOTTOM_PADDING + MOBILE_DOCK_HEIGHT + (isIOS() ? IOS_SAFE_BOTTOM : 0) + audioPlayerHeight;
+  };
+
+  // Detect iOS device
+  const isIOS = () => {
+    if (typeof window === 'undefined') return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  };
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Save the current selection state
+  const saveSelectionState = () => {
+    if (textareaRef.current) {
+      selectionStateRef.current = {
+        start: textareaRef.current.selectionStart,
+        end: textareaRef.current.selectionEnd,
+      };
+    }
+  };
+
+  // Restore selection state after toggling
+  const restoreSelectionState = () => {
+    if (textareaRef.current) {
+      const { start, end } = selectionStateRef.current;
+      if (start !== null && end !== null) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start, end);
+      }
+    }
+  };
+
   // Compute the ID of the last message in the conversation.
-  const lastMessageId = messages[messages.length - 1]?.id;
+  useEffect(() => {
+    if (messages.length > 0) {
+      setLastMessageId(messages[messages.length - 1].id);
+    }
+  }, [messages]);
+
+  // Safely attempt to vibrate if supported
+  const safeVibrate = (pattern: number | number[]) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(pattern);
+      }
+      // Silently fail if vibration is not supported
+    } catch {
+      // Ignore errors
+    }
+  };
+
+  // Toggle action buttons with selection preservation
+  const toggleButton = (buttonType: ActiveButton) => {
+    if (!isStreaming) {
+      // Save the current selection state before toggling
+      saveSelectionState();
+
+      // Set the active button (clicking the same button won't deactivate it)
+      setActiveButton(buttonType);
+
+      // Restore the selection state after toggling
+      setTimeout(() => {
+        restoreSelectionState();
+      }, 0);
+    }
+  };
+
+  // Handle input container click
+  const handleInputContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only focus if clicking directly on the container, not on buttons or other interactive elements
+    if (
+      e.target === e.currentTarget ||
+      (e.currentTarget === inputContainerRef.current && !(e.target as HTMLElement).closest("button"))
+    ) {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  };
+
+  // Handle key down events
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle Cmd+Enter on both mobile and desktop
+    if (!isStreaming && e.key === "Enter" && e.metaKey) {
+      e.preventDefault();
+      if (input.trim()) {
+        customHandleSubmit(new Event('submit'));
+      }
+      return;
+    }
+
+    // Handle regular Enter key (without Shift) on desktop and mobile
+    // For mobile, we'll allow Enter key submission as well for better UX
+    if (!isStreaming && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim()) {
+        customHandleSubmit(new Event('submit'));
+      }
+    }
+  };
 
   // Custom message rendering function
   const renderMessage = (message: UIMessage) => {
@@ -61,10 +263,10 @@ export function ChatPage() {
           </div>
         );
       }
-      
-      // Extract content from message with priority order
+
+      // Parse the message content
       try {
-        // 1. Check for tool invocation results first (most reliable source)
+        // Check for tool invocation results first (most reliable source)
         const toolInvocation = message.toolInvocations?.[0];
         if (toolInvocation?.state === 'result' && toolInvocation.result) {
           if (typeof toolInvocation.result === 'object' && 
@@ -83,7 +285,7 @@ export function ChatPage() {
           } else {
             content = { message: 'Received response', articles: [] };
           }
-        } 
+        }
         // 2. Check message content
         else if (message.content) {
           if (typeof message.content === 'string') {
@@ -143,12 +345,55 @@ export function ChatPage() {
       }
     }
 
+    // Message actions for non-user messages
+    const messageActions = !isUser && (
+      <div className="flex items-center gap-1 mt-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full hover:bg-muted"
+          title="Copy"
+        >
+          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="sr-only">Copy</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full hover:bg-muted"
+          title="Share"
+        >
+          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="sr-only">Share</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full hover:bg-muted"
+          title="Like"
+        >
+          <ThumbsUp className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="sr-only">Like</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full hover:bg-muted"
+          title="Dislike"
+        >
+          <ThumbsDown className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="sr-only">Dislike</span>
+        </Button>
+      </div>
+    );
+
     return (
       <div className="flex flex-col w-full mb-4 overflow-hidden" key={message.id}>
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full overflow-hidden`}>
           {typeof content === 'string' ? (
             <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
               <p className="break-words whitespace-normal overflow-hidden">{content}</p>
+              {!isUser && messageActions}
             </div>
           ) : content.articles?.length > 0 ? (
             <div className="w-full max-w-full overflow-hidden">
@@ -169,37 +414,60 @@ export function ChatPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block"
+                          onClick={(e) => {
+                            // Check if this is a podcast entry (based on activeButton)
+                            if (activeButton === 'podcasts') {
+                              e.preventDefault();
+                              // Play the podcast in the audio player
+                              playTrack(article.link, article.title, article.publisherIconUrl);
+                            }
+                          }}
                         >
-                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none">
-                            <CardHeader className="p-3">
-                              <div className="space-y-2">
-                                <CardTitle className="text-sm font-medium line-clamp-2 text-card-foreground h-[40px] overflow-hidden">
-                                  {article.title}
-                                </CardTitle>
-                                <div className="flex items-center gap-2">
-                                  {article.publisherIconUrl && (
-                                    <div className="flex-shrink-0 w-4 h-4 relative">
-                                      <Image
-                                        src={article.publisherIconUrl}
-                                        alt={article.source || "Publisher"}
-                                        width={16}
-                                        height={16}
-                                        className="object-contain"
-                                      />
-                                    </div>
+                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none overflow-hidden">
+                            <div className="flex">
+                              {/* Image on the left in 1:1 aspect ratio */}
+                              {article.publisherIconUrl ? (
+                                <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20">
+                                  <AspectRatio ratio={1} className="h-full">
+                                    <Image
+                                      src={article.publisherIconUrl}
+                                      alt={article.source || "Publisher"}
+                                      fill
+                                      className="object-cover"
+                                    />
+                                  </AspectRatio>
+                                </div>
+                              ) : (
+                                <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 bg-muted flex items-center justify-center">
+                                  {activeButton === 'podcasts' ? (
+                                    <Podcast className="h-8 w-8 text-muted-foreground" />
+                                  ) : activeButton === 'newsletters' ? (
+                                    <Mail className="h-8 w-8 text-muted-foreground" />
+                                  ) : (
+                                    <Newspaper className="h-8 w-8 text-muted-foreground" />
                                   )}
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                    {article.source && <span className="font-medium" title={article.source}>{truncateText(article.source, 26)}</span>}
-                                    {article.date && (
-                                      <>
-                                        <span>•</span>
-                                        <span>{article.date}</span>
-                                      </>
-                                    )}
-                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Content on the right */}
+                              <div className="flex-1 p-3 md:p-4 flex flex-col justify-center">
+                                <div className="text-sm md:text-base font-medium line-clamp-2 text-card-foreground mb-1">
+                                  {activeButton === 'podcasts' && (
+                                    <Podcast className="inline-block mr-1 h-4 w-4 text-primary" />
+                                  )}
+                                  {article.title}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                  {article.source && <span className="font-medium" title={article.source}>{truncateText(article.source, 20)}</span>}
+                                  {article.date && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{article.date}</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
-                            </CardHeader>
+                            </div>
                           </Card>
                         </a>
                       </CarouselItem>
@@ -209,10 +477,12 @@ export function ChatPage() {
                   <CarouselNext className="-right-3 bg-card border-border hidden md:flex" />
                 </Carousel>
               </div>
+              {messageActions}
             </div>
           ) : (
             <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
               <p className="mb-2 break-words whitespace-normal overflow-hidden">{content.message}</p>
+              {!isUser && messageActions}
             </div>
           )}
         </div>
@@ -220,42 +490,207 @@ export function ChatPage() {
     );
   };
 
-  return (
-    <div className="w-full h-[calc(100vh-100px)] overflow-hidden" style={{ maxWidth: '100%', width: '100%' }}>
-      {/* Chat messages area */}
-      <div className="h-full flex flex-col">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-          {messages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <p className="text-muted-foreground text-center max-w-md">
-                Start a conversation with our AI assistant. You can ask questions about articles, products, or get general information.
-              </p>
-            </div>
-          )}
-          <div className="w-full" style={{ maxWidth: '100%' }}>
-            {messages.map((message, index) => (
-              <div key={index} className="w-full overflow-hidden" style={{ maxWidth: '100%' }}>
-                {renderMessage(message)}
-              </div>
-            ))}
-          </div>
-        </div>
+  // Custom submit handler that wraps the original handleSubmit
+  const customHandleSubmit = (e: React.FormEvent<HTMLFormElement> | Event) => {
+    e.preventDefault();
+    
+    // Only submit if there's input, we're not already streaming, and a button is selected
+    if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
+      // Add vibration when message is submitted
+      safeVibrate(50);
+      
+      // Only focus the textarea on desktop, not on mobile
+      if (!isMobile) {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      } else {
+        // On mobile, blur the textarea to dismiss the keyboard
+        if (textareaRef.current) {
+          textareaRef.current.blur();
+        }
+      }
+      
+      // Call our custom handleSubmit function
+      handleSubmit(e as React.FormEvent<HTMLFormElement>);
+    }
+  };
 
-        {/* Input Form */}
-        <div className="p-4 border-t border-border">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={handleInputChange}
-              placeholder="Ask me anything..."
-              className="flex-1 min-w-0"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading}>
-              Send
-            </Button>
-          </form>
+  // Custom input change handler that wraps the original handleInputChange
+  const customHandleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+
+    // Only allow input changes when not streaming
+    if (!isLoading) {
+      // Call the original handler
+      handleInputChange(e);
+
+      // No explicit haptic feedback for typing in the original implementation
+      // The ios-vibrator-pro-max package likely handles this automatically
+
+      if (newValue.trim() !== "" && !hasTyped) {
+        setHasTyped(true);
+      } else if (newValue.trim() === "" && hasTyped) {
+        setHasTyped(false);
+      }
+
+      // Auto-resize textarea
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.style.height = "auto";
+        const newHeight = Math.max(24, Math.min(textarea.scrollHeight, 160));
+        textarea.style.height = `${newHeight}px`;
+      }
+    }
+  };
+
+  // Custom handleSubmit that includes the active button type
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    // Include the active button type in the request
+    const body = {
+      activeButton: activeButton
+    };
+    
+    // Call the original handleSubmit with the updated body
+    originalHandleSubmit(e, { body });
+  };
+
+  return (
+    <div 
+      ref={mainContainerRef}
+      className="flex flex-col h-screen overflow-hidden"
+      style={{ height: isMobile ? `${viewportHeight}px` : "100vh" }}
+    >
+      {/* Add scrollbar hide styles */}
+      <style dangerouslySetInnerHTML={{ __html: scrollbarHideStyles }} />
+      
+      {/* Chat messages area */}
+      <div 
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4"
+        style={{ paddingBottom: `${getBottomPadding()}px` }}
+      >
+        {messages.length === 0 && (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-muted-foreground text-center max-w-md">
+              Start a conversation with our AI assistant. You can ask questions about articles, products, or get general information.
+            </p>
+          </div>
+        )}
+        <div className="w-full max-w-3xl mx-auto space-y-4">
+          {messages.map((message, index) => (
+            <div key={index} className="w-full overflow-hidden">
+              {renderMessage(message)}
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
         </div>
+      </div>
+
+      {/* Input Form */}
+      <div 
+        className={cn(
+          "fixed left-0 right-0 p-4 bg-background border-t border-border",
+          isMobile ? "pb-safe-bottom" : ""
+        )}
+        style={{ 
+          bottom: isMobile 
+            ? `${MOBILE_DOCK_HEIGHT + (currentTrack ? 72 : 0)}px` 
+            : currentTrack ? '72px' : 0,
+          zIndex: 40 // Below the mobile dock (z-50) but above most content
+        }}
+      >
+        <form onSubmit={customHandleSubmit} className="max-w-3xl mx-auto">
+          <div
+            ref={inputContainerRef}
+            className={cn(
+              "relative w-full rounded-3xl border border-input bg-background p-3 cursor-text",
+              isLoading && "opacity-80"
+            )}
+            onClick={handleInputContainerClick}
+          >
+            <div className="pb-9">
+              <Textarea
+                ref={textareaRef}
+                placeholder={isLoading ? "Waiting for response..." : "Ask me anything..."}
+                className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                value={input}
+                onChange={customHandleInputChange}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="absolute bottom-3 left-3 right-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 overflow-x-auto scrollbar-hide pr-2 mr-2">
+                  <div className="flex items-center space-x-2 min-w-max">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        activeButton === "newsletters" && "bg-muted border-border"
+                      )}
+                      onClick={() => toggleButton("newsletters")}
+                      disabled={isLoading}
+                    >
+                      <Mail className={cn("h-4 w-4 text-muted-foreground", activeButton === "newsletters" && "text-foreground")} />
+                      <span className={cn("text-foreground text-sm", activeButton === "newsletters" && "font-medium")}>
+                        Newsletters
+                      </span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        activeButton === "podcasts" && "bg-muted border-border"
+                      )}
+                      onClick={() => toggleButton("podcasts")}
+                      disabled={isLoading}
+                    >
+                      <Podcast className={cn("h-4 w-4 text-muted-foreground", activeButton === "podcasts" && "text-foreground")} />
+                      <span className={cn("text-foreground text-sm", activeButton === "podcasts" && "font-medium")}>
+                        Podcasts
+                      </span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        activeButton === "articles" && "bg-muted border-border"
+                      )}
+                      onClick={() => toggleButton("articles")}
+                      disabled={isLoading}
+                    >
+                      <Newspaper className={cn("h-4 w-4 text-muted-foreground", activeButton === "articles" && "text-foreground")} />
+                      <span className={cn("text-foreground text-sm", activeButton === "articles" && "font-medium")}>
+                        Articles
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!input.trim() || isLoading || activeButton === "none"}
+                  className={cn(
+                    "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                    (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                  <span className="sr-only">Send</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

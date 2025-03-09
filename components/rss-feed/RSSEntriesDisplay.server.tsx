@@ -75,15 +75,17 @@ export const getInitialEntries = cache(async () => {
       return null;
     }
 
-    // 2. Extract post titles correctly from the posts array
+    // 2. Extract post titles and feed URLs correctly from the posts array
     const postTitles = rssKeysWithPosts.posts.map(post => post.title);
+    const feedUrls = rssKeysWithPosts.posts.map(post => post.feedUrl);
     
     devLog(`📋 SERVER: Found ${postTitles.length} post titles to refresh:`, postTitles);
+    devLog(`🔗 SERVER: Associated feed URLs:`, feedUrls);
     
-    // 3. Check if any feeds need refreshing (4-hour revalidation)
+    // 3. Check if any feeds need refreshing (4-hour revalidation) and create new feeds if needed
     devLog(`🔄 SERVER: Checking if feeds need refreshing for titles:`, postTitles);
     try {
-      await checkAndRefreshFeeds(postTitles);
+      await checkAndRefreshFeeds(postTitles, feedUrls);
       devLog('✅ SERVER: Feed refresh check completed');
     } catch (refreshError) {
       errorLog('⚠️ SERVER: Feed refresh check failed:', refreshError);
@@ -201,7 +203,8 @@ export const getInitialEntries = cache(async () => {
         entries: entriesWithPublicData,
         totalEntries,
         hasMore,
-        postTitles // Include the correctly extracted post titles
+        postTitles,
+        feedUrls
       };
     } catch (dbError: unknown) {
       errorLog('❌ SERVER: Error querying PlanetScale:', dbError);

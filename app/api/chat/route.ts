@@ -2,6 +2,243 @@ import { Message } from 'ai';
 import { streamText, jsonSchema } from 'ai';
 import { openai as openaiClient } from '@ai-sdk/openai';
 import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
+import { connect } from '@planetscale/database';
+
+// Create a connection to PlanetScale
+const connection = connect({
+  url: process.env.DATABASE_URL,
+  // Add connection timeout settings
+  fetch: (url, init) => {
+    return fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+  }
+});
+
+// Function to fetch newsletter entries from PlanetScale
+async function fetchNewsletterEntries(query: string): Promise<Article[]> {
+  try {
+    // Prepare the search query
+    const searchTerms = query.split(' ').filter(term => term.length > 2);
+    
+    if (searchTerms.length === 0) {
+      return [];
+    }
+    
+    // Create a simple LIKE query since we don't know if full-text search is available
+    const searchPattern = `%${searchTerms.join('%')}%`;
+    
+    // Query the database for matching newsletter entries
+    const result = await connection.execute(
+      `SELECT 
+        e.id, 
+        e.guid, 
+        e.title, 
+        e.link, 
+        e.description, 
+        e.pub_date, 
+        e.image,
+        e.media_type,
+        f.title as feed_title
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE 
+        (e.title LIKE ? OR e.description LIKE ?)
+        AND e.media_type = 'newsletter'
+      ORDER BY e.pub_date DESC
+      LIMIT 15`,
+      [searchPattern, searchPattern]
+    );
+    
+    if (!result.rows || result.rows.length === 0) {
+      // Let's try a more lenient search as a fallback
+      const fallbackResult = await connection.execute(
+        `SELECT 
+          e.id, 
+          e.guid, 
+          e.title, 
+          e.link, 
+          e.description, 
+          e.pub_date, 
+          e.image,
+          e.media_type,
+          f.title as feed_title
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE 
+          e.media_type = 'newsletter'
+        ORDER BY e.pub_date DESC
+        LIMIT 5`,
+        []
+      );
+      
+      if (!fallbackResult.rows || fallbackResult.rows.length === 0) {
+        return [];
+      }
+      
+      // Use the fallback results
+      result.rows = fallbackResult.rows;
+    }
+    
+    // Format the date for each entry
+    const now = new Date();
+    
+    // Map the database results to the Article format
+    return result.rows.map((entry: Record<string, unknown>) => {
+      // Format the date
+      let formattedDate = '';
+      if (entry.pub_date) {
+        const date = new Date(entry.pub_date as string);
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        
+        if (diffMins < 60) {
+          // For entries less than an hour old
+          formattedDate = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
+        } else {
+          const diffHrs = Math.floor(diffMins / 60);
+          if (diffHrs < 24) {
+            formattedDate = diffHrs === 1 ? '1 hr ago' : `${diffHrs} hrs ago`;
+          } else {
+            const diffDays = Math.floor(diffHrs / 24);
+            formattedDate = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+          }
+        }
+      }
+      
+      // Extract the publisher name from the feed title
+      const source = (entry.feed_title as string) || 'Unknown Source';
+      
+      // Use the image from the entry if available
+      const publisherIconUrl = (entry.image as string) || '';
+      
+      return {
+        title: (entry.title as string) || 'No title available',
+        link: (entry.link as string) || '#',
+        date: formattedDate,
+        source: source,
+        publisherIconUrl: publisherIconUrl,
+        description: (entry.description as string) || 'No description available'
+      };
+    });
+  } catch {
+    // Silently handle errors and return empty array
+    return [];
+  }
+}
+
+// Function to fetch podcast entries from PlanetScale
+async function fetchPodcastEntries(query: string): Promise<Article[]> {
+  try {
+    // Prepare the search query
+    const searchTerms = query.split(' ').filter(term => term.length > 2);
+    
+    if (searchTerms.length === 0) {
+      return [];
+    }
+    
+    // Create a simple LIKE query since we don't know if full-text search is available
+    const searchPattern = `%${searchTerms.join('%')}%`;
+    
+    // Query the database for matching podcast entries
+    const result = await connection.execute(
+      `SELECT 
+        e.id, 
+        e.guid, 
+        e.title, 
+        e.link, 
+        e.description, 
+        e.pub_date, 
+        e.image,
+        e.media_type,
+        f.title as feed_title
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE 
+        (e.title LIKE ? OR e.description LIKE ?)
+        AND e.media_type = 'podcast'
+      ORDER BY e.pub_date DESC
+      LIMIT 15`,
+      [searchPattern, searchPattern]
+    );
+    
+    if (!result.rows || result.rows.length === 0) {
+      // Let's try a more lenient search as a fallback
+      const fallbackResult = await connection.execute(
+        `SELECT 
+          e.id, 
+          e.guid, 
+          e.title, 
+          e.link, 
+          e.description, 
+          e.pub_date, 
+          e.image,
+          e.media_type,
+          f.title as feed_title
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE 
+          e.media_type = 'podcast'
+        ORDER BY e.pub_date DESC
+        LIMIT 5`,
+        []
+      );
+      
+      if (!fallbackResult.rows || fallbackResult.rows.length === 0) {
+        return [];
+      }
+      
+      // Use the fallback results
+      result.rows = fallbackResult.rows;
+    }
+    
+    // Format the date for each entry
+    const now = new Date();
+    
+    // Map the database results to the Article format
+    return result.rows.map((entry: Record<string, unknown>) => {
+      // Format the date
+      let formattedDate = '';
+      if (entry.pub_date) {
+        const date = new Date(entry.pub_date as string);
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        
+        if (diffMins < 60) {
+          // For entries less than an hour old
+          formattedDate = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
+        } else {
+          const diffHrs = Math.floor(diffMins / 60);
+          if (diffHrs < 24) {
+            formattedDate = diffHrs === 1 ? '1 hr ago' : `${diffHrs} hrs ago`;
+          } else {
+            const diffDays = Math.floor(diffHrs / 24);
+            formattedDate = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+          }
+        }
+      }
+      
+      // Extract the publisher name from the feed title
+      const source = (entry.feed_title as string) || 'Unknown Source';
+      
+      // Use the image from the entry if available
+      const publisherIconUrl = (entry.image as string) || '';
+      
+      return {
+        title: (entry.title as string) || 'No title available',
+        link: (entry.link as string) || '#',
+        date: formattedDate,
+        source: source,
+        publisherIconUrl: publisherIconUrl,
+        description: (entry.description as string) || 'No description available'
+      };
+    });
+  } catch {
+    // Silently handle errors and return empty array
+    return [];
+  }
+}
 
 // Function to fetch articles from Google News API via RapidAPI
 async function fetchArticles(topic: string): Promise<Article[]> {
@@ -28,15 +265,15 @@ async function fetchArticles(topic: string): Promise<Article[]> {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error('RapidAPI Google News error:', response.status);
-      throw new Error(`RapidAPI request failed with status ${response.status}`);
+      // Handle non-200 responses silently
+      return [];
     }
 
     const data = await response.json() as RapidAPINewsResponse;
 
     if (!data.is_successful) {
-      console.error('RapidAPI returned unsuccessful response:', data.message);
-      throw new Error(`RapidAPI request was unsuccessful: ${data.message}`);
+      // Handle unsuccessful API responses silently
+      return [];
     }
 
     const now = new Date();
@@ -46,7 +283,7 @@ async function fetchArticles(topic: string): Promise<Article[]> {
     return (data.data?.articles || [])
       .filter(article => {
         // Filter out articles with missing required fields
-        if (!article || !article.headline || !article.external_url) return false;
+        if (!article.headline || !article.external_url) return false;
         
         // Filter out articles older than 7 days
         if (article.publish_timestamp) {
@@ -54,12 +291,10 @@ async function fetchArticles(topic: string): Promise<Article[]> {
           return publishDate >= sevenDaysAgo;
         }
         
-        // If no timestamp, include the article (assume it's recent)
         return true;
       })
-      .slice(0, 15) // Take up to 15 articles
-      .map((article) => {
-        // Format the date if available
+      .map(article => {
+        // Format the date
         let formattedDate = '';
         if (article.publish_timestamp) {
           const date = new Date(article.publish_timestamp * 1000);
@@ -67,7 +302,6 @@ async function fetchArticles(topic: string): Promise<Article[]> {
           const diffMins = Math.floor(diffMs / (1000 * 60));
           
           if (diffMins < 60) {
-            // For articles less than an hour old
             formattedDate = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
           } else {
             const diffHrs = Math.floor(diffMins / 60);
@@ -79,17 +313,17 @@ async function fetchArticles(topic: string): Promise<Article[]> {
             }
           }
         }
-
+        
         return {
           title: article.headline || 'No title available',
           link: article.external_url || '#',
           date: formattedDate,
-          source: article.publisher || '',
+          source: article.publisher || 'Unknown Source',
           publisherIconUrl: article.publisher_icon_url || '',
         };
       });
-  } catch (error) {
-    console.error('Error fetching articles:', error instanceof Error ? error.message : 'Unknown error');
+  } catch {
+    // Silently handle errors and return empty array
     return [];
   }
 }
@@ -98,12 +332,17 @@ export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const { messages, activeButton } = await req.json();
 
     // Only keep messages from the most recent user query onward.
     // This assumes that the latest user message indicates a new topic.
     const lastUserIndex = messages.map((m: Message) => m.role).lastIndexOf('user');
     const trimmedMessages = lastUserIndex !== -1 ? messages.slice(lastUserIndex) : messages;
+
+    // Determine the search type based on the active button
+    const isArticleSearch = activeButton === 'articles';
+    const isNewsletterSearch = activeButton === 'newsletters';
+    const isPodcastSearch = activeButton === 'podcasts';
 
     // Convert messages to OpenAI format
     const openAIMessages = trimmedMessages.map((message: Message) => ({
@@ -111,7 +350,8 @@ export async function POST(req: Request) {
       content: message.content,
     }));
 
-    const result = await streamText({
+    // Create the streamText options
+    const streamOptions = {
       model: openaiClient('gpt-3.5-turbo-0125'),
       messages: openAIMessages,
       tools: {
@@ -142,16 +382,14 @@ export async function POST(req: Request) {
               // Validate the response against our schema
               try {
                 return MessageSchema.parse(response);
-              } catch (validationError) {
-                console.error('Validation error:', validationError);
+              } catch {
                 // Return a fallback response if validation fails
                 return {
                   message: `I found some information about ${topic}, but there was an issue processing it.`,
                   articles: [],
                 };
               }
-            } catch (error) {
-              console.error('Error in getArticles tool:', error instanceof Error ? error.message : 'Unknown error');
+            } catch {
               // Return a fallback response if article fetching fails
               return {
                 message: `I couldn't fetch articles about ${topic} at the moment. Please try again later.`,
@@ -160,16 +398,128 @@ export async function POST(req: Request) {
             }
           },
         },
+        getNewsletters: {
+          description: 'Get newsletter entries about a specific topic from our database',
+          parameters: jsonSchema({
+            type: 'object',
+            properties: {
+              topic: {
+                type: 'string',
+                description: 'The topic to search for in newsletters',
+              },
+            },
+            required: ['topic'],
+          }),
+          execute: async ({ topic }: { topic: string }) => {
+            try {
+              const newsletters = await fetchNewsletterEntries(topic);
+              
+              // Create a response object that conforms to our schema
+              const response = {
+                message: newsletters.length > 0 
+                  ? `Here are some newsletter entries about ${topic}:` 
+                  : `I couldn't find any newsletter entries about ${topic}. Please try a different topic.`,
+                articles: newsletters,
+              };
+              
+              // Validate the response against our schema
+              try {
+                return MessageSchema.parse(response);
+              } catch {
+                // Return a fallback response if validation fails
+                return {
+                  message: `I found some newsletter entries about ${topic}, but there was an issue processing them.`,
+                  articles: [],
+                };
+              }
+            } catch {
+              // Return a fallback response if newsletter fetching fails
+              return {
+                message: `I couldn't fetch newsletter entries about ${topic} at the moment. Please try again later.`,
+                articles: [],
+              };
+            }
+          },
+        },
+        getPodcasts: {
+          description: 'Get podcast episodes about a specific topic from our database',
+          parameters: jsonSchema({
+            type: 'object',
+            properties: {
+              topic: {
+                type: 'string',
+                description: 'The topic to search for in podcasts',
+              },
+            },
+            required: ['topic'],
+          }),
+          execute: async ({ topic }: { topic: string }) => {
+            try {
+              const podcasts = await fetchPodcastEntries(topic);
+              
+              // Create a response object that conforms to our schema
+              const response = {
+                message: podcasts.length > 0 
+                  ? `Here are some podcast episodes about ${topic}:` 
+                  : `I couldn't find any podcast episodes about ${topic}. Please try a different topic.`,
+                articles: podcasts,
+              };
+              
+              // Validate the response against our schema
+              try {
+                return MessageSchema.parse(response);
+              } catch {
+                // Return a fallback response if validation fails
+                return {
+                  message: `I found some podcast episodes about ${topic}, but there was an issue processing them.`,
+                  articles: [],
+                };
+              }
+            } catch {
+              // Return a fallback response if podcast fetching fails
+              return {
+                message: `I couldn't fetch podcast episodes about ${topic} at the moment. Please try again later.`,
+                articles: [],
+              };
+            }
+          },
+        },
       },
-    });
+    };
+    
+    // If this is an article search, add a system message to force using the getArticles tool
+    if (isArticleSearch) {
+      openAIMessages.unshift({
+        role: 'system',
+        content: 'The user is specifically looking for news articles. You MUST use the getArticles tool to search for relevant articles on their topic. Do not respond without using this tool.'
+      });
+    }
+    
+    // If this is a newsletter search, add a system message to force using the getNewsletters tool
+    if (isNewsletterSearch) {
+      openAIMessages.unshift({
+        role: 'system',
+        content: 'The user is specifically looking for newsletter entries. You MUST use the getNewsletters tool to search for relevant newsletters on their topic. Do not respond without using this tool.'
+      });
+    }
+    
+    // If this is a podcast search, add a system message to force using the getPodcasts tool
+    if (isPodcastSearch) {
+      openAIMessages.unshift({
+        role: 'system',
+        content: 'The user is specifically looking for podcast episodes. You MUST use the getPodcasts tool to search for relevant podcasts on their topic. Do not respond without using this tool.'
+      });
+    }
+
+    const result = await streamText(streamOptions);
 
     return result.toDataStreamResponse({
       headers: {
         'x-vercel-ai-data-stream': 'v1',
       },
     });
-  } catch (error) {
-    console.error('Error in POST handler:', error instanceof Error ? error.message : 'Unknown error');
+  } catch {
+    // Return a generic error response
     return new Response(JSON.stringify({ 
       error: 'An error occurred processing your request' 
     }), { 

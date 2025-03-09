@@ -532,7 +532,7 @@ export function CategorySliderWrapper({
             !isMobile && "!transform-none" // Prevent transform on desktop
           )}>
             <div className={cn(
-              "flex-[0_0_100%] min-w-0 pb-16",
+              "flex-[0_0_100%] min-w-0",
               !isMobile && searchTab !== 'posts' && "hidden" // Hide when not active on desktop
             )}>
               <PostsDisplay
@@ -544,7 +544,7 @@ export function CategorySliderWrapper({
               />
             </div>
             <div className={cn(
-              "flex-[0_0_100%] min-w-0 pb-16",
+              "flex-[0_0_100%] min-w-0",
               !isMobile && searchTab !== 'entries' && "hidden" // Hide when not active on desktop
             )}>
               <EntriesDisplay
@@ -562,7 +562,7 @@ export function CategorySliderWrapper({
           <div className="overflow-hidden prevent-overscroll-navigation" ref={categoryContentRef}>
             <div className="flex">
               {allCategories.map((category) => (
-                <div key={category._id} className="flex-[0_0_100%] min-w-0 pb-16">
+                <div key={category._id} className="flex-[0_0_100%] min-w-0">
                   <PostsDisplay
                     categoryId={category._id}
                     mediaType={mediaType}

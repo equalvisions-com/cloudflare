@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { db } from '@/lib/planetscale';
-import { checkAndRefreshFeeds } from '@/lib/rss.server';
+import { refreshExistingFeeds } from '@/lib/rss.server';
 import type { RSSEntryRow } from '@/lib/types';
 
 // Define interface for the joined query result
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Check if any feeds need refreshing (4-hour revalidation)
     console.log(`🔄 API: Checking if any feeds need refreshing (4-hour revalidation)`);
-    await checkAndRefreshFeeds(postTitles);
+    await refreshExistingFeeds(postTitles);
 
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;

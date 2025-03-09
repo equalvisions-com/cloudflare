@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <StandardSidebarLayout
-      mainContentClass="flex-1 md:basis-[50%] md:max-w-[50%] overflow-hidden"
+      mainContentClass="flex-1 md:basis-[50%] md:max-w-[50%] overflow-hidden flex flex-col h-full"
       rightSidebar={
         <div className="p-4">
           <h2 className="text-lg font-semibold mb-4">Chat Information</h2>

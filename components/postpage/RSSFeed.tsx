@@ -26,9 +26,10 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
   try {
     console.log(`🔍 SERVER: Fetching entries for feed: ${feedUrl}`);
     
-    // First, check if feeds need refreshing using rss.server.ts
+    // First, check if feeds need refreshing and create if doesn't exist
     try {
-      await checkAndRefreshFeeds([postTitle]);
+      await checkAndRefreshFeeds([postTitle], [feedUrl]);
+      console.log('✅ Feed refresh/creation check completed');
     } catch (refreshError) {
       // Log but don't fail if refresh check fails
       console.error('Warning: Feed refresh check failed:', refreshError);
@@ -42,7 +43,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
     const feedRows = feedResult.rows as Array<{ id: number }>;
     if (!feedRows.length) {
-      console.log('⚠️ No feed found');
+      console.log('⚠️ Feed not found after refresh attempt, something went wrong');
       return null;
     }
 
@@ -58,8 +59,10 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     );
 
     const entryRows = entriesResult.rows as RSSEntryRow[];
+    
+    // If no entries found after refresh, something is wrong with the feed
     if (!entryRows.length) {
-      console.log('⚠️ No entries found for feed');
+      console.log('⚠️ No entries found for feed after refresh attempt');
       return null;
     }
 
@@ -89,7 +92,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     // Only check if it's NaN, since we've already handled the conversion
     if (isNaN(totalCount)) {
       console.error('Invalid count value:', rawTotal);
-      // Instead of throwing, use 0 as a fallback
       totalCount = 0;
     }
 
@@ -133,7 +135,8 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       entries: entriesWithPublicData,
       totalEntries: totalCount,
       hasMore: entriesWithPublicData.length < totalCount,
-      postTitles: [postTitle]
+      postTitles: [postTitle],
+      feedUrls: [feedUrl]
     };
 
   } catch (error) {

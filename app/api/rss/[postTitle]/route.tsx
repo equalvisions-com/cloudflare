@@ -48,7 +48,7 @@ export async function GET(
 
     // Check if the feed needs refreshing (4-hour revalidation)
     console.log(`🔄 API: Checking if feed needs refreshing (4-hour revalidation): ${decodedTitle}`);
-    await checkAndRefreshFeeds([decodedTitle]);
+    await checkAndRefreshFeeds([decodedTitle], [feedUrl]);
     
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
