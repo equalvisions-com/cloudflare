@@ -80,7 +80,7 @@ const getPageData = cache(async (categorySlug: string, postSlug: string): Promis
       getInitialEntries(
         post.title,
         post.feedUrl,
-        typeof post.mediaType === 'string' ? post.mediaType : 'article'
+        post.mediaType
       ),
 
       // Get follow states for related posts if they exist
@@ -164,7 +164,7 @@ function PostHeader({ post, followState, rssData }: {
   rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
 }) {
   return (
-    <div className="max-w-4xl mx-auto p-4 border-b">
+    <div className="max-w-4xl mx-auto p-4 border-b border-l border-r">
       <div className="flex justify-between items-start mb-4">
         {post.featuredImg && (
           <div className="w-24 h-24 shrink-0">

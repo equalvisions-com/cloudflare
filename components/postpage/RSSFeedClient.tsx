@@ -13,7 +13,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Mail, MoreVertical } from "lucide-react";
+import { Podcast, Mail, MoreVertical, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -162,7 +162,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
 
   return (
     <article>
-      <div className="p-4">
+      <div className="p-4 border-l border-r">
         <div className="flex items-start gap-4 mb-4">
           {featuredImg && (
             <div className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
@@ -390,7 +390,7 @@ const FeedContent = React.memo(({
         initialTopMostItemIndex={0}
         components={{ 
           Footer: () => isPending ? (
-            <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+            <div ref={loadMoreRef} className="flex text-center py-4 items-center justify-center"><Loader2 className="h-6 w-6 mb-16 animate-spin" /></div>
           ) : hasMore ? (
             <div ref={loadMoreRef} className="h-8" />
           ) : (

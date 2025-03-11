@@ -1,7 +1,5 @@
 'use client';
 
-import "ios-vibrator-pro-max"
-
 import { type Message as UIMessage, useChat } from 'ai/react';
 import { useState, useRef, useEffect } from "react";
 import { Button } from '@/components/ui/button';
@@ -29,17 +27,6 @@ import {
   Newspaper,
 } from "lucide-react";
 import { AspectRatio } from '@/components/ui/aspect-ratio';
-
-// Add CSS for hiding scrollbars
-const scrollbarHideStyles = `
-  .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
-  }
-`;
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
@@ -79,79 +66,91 @@ export function ChatPage() {
     },
     body: {
       // Include the active button type in the request
-      activeButton: 'none' // This will be updated before submission
+      activeButton: 'newsletters' // This will be updated before submission
     }
   });
 
   // Audio player hook for podcast playback
-  const { playTrack, currentTrack } = useAudio();
+  const { playTrack } = useAudio();
   
   // New state for enhanced UI features
-  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("none");
-  const [isMobile, setIsMobile] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
+  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   
   // Refs for DOM elements
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null });
   
-  // Constants for layout calculations
-  const BOTTOM_PADDING = 128;
-  const MOBILE_DOCK_HEIGHT = 64; // Height of the mobile dock
-  const IOS_SAFE_BOTTOM = 34; // Safe area inset for iOS devices
-  
   // Additional state for input handling
   const [hasTyped, setHasTyped] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(() => {
+    // Calculate initial height immediately
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    return isMobile ? 'calc(100dvh - 65px)' : 'calc(100dvh - 65px)';
+  });
 
-  // Check if device is mobile and get viewport height
+  // Adjust container height based on viewport and mobile menu
   useEffect(() => {
-    const checkMobileAndViewport = () => {
-      const isMobileDevice = window.innerWidth < 768;
-      setIsMobile(isMobileDevice);
-
-      // Capture the viewport height
-      const vh = window.innerHeight;
-      setViewportHeight(vh);
-
-      // Apply fixed height to main container on mobile
-      if (isMobileDevice && mainContainerRef.current) {
-        mainContainerRef.current.style.height = `${vh}px`;
-      }
+    const adjustHeight = () => {
+      const isMobile = window.innerWidth < 768;
+      setContainerHeight(isMobile ? 'calc(100dvh - 65px)' : 'calc(100dvh - 65px)');
     };
-
-    checkMobileAndViewport();
-    window.addEventListener('resize', checkMobileAndViewport);
     
-    return () => {
-      window.removeEventListener('resize', checkMobileAndViewport);
-    };
+    // Run once to ensure correct height
+    adjustHeight();
+    
+    // Add resize listener
+    window.addEventListener('resize', adjustHeight);
+    return () => window.removeEventListener('resize', adjustHeight);
   }, []);
 
-  // Calculate bottom padding to account for mobile dock and iOS safe area
-  const getBottomPadding = () => {
-    const audioPlayerHeight = currentTrack ? 72 : 0;
-    if (!isMobile) return BOTTOM_PADDING + audioPlayerHeight;
-    return BOTTOM_PADDING + MOBILE_DOCK_HEIGHT + (isIOS() ? IOS_SAFE_BOTTOM : 0) + audioPlayerHeight;
-  };
-
-  // Detect iOS device
-  const isIOS = () => {
-    if (typeof window === 'undefined') return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Simple scroll to bottom function
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   };
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
+  }, [messages]);
+
+  // Additional scroll handler for carousel content load
+  useEffect(() => {
+    const handleCarouselLoad = () => {
+      scrollToBottom();
+    };
+
+    // Add event listener for image load events within carousels
+    const carouselItems = document.querySelectorAll('.embla__slide img');
+    carouselItems.forEach(img => {
+      img.addEventListener('load', handleCarouselLoad);
+    });
+
+    // Also handle MutationObserver to detect when carousel content is added
+    const observer = new MutationObserver(() => {
+      scrollToBottom();
+    });
+
+    if (chatContainerRef.current) {
+      observer.observe(chatContainerRef.current, { 
+        childList: true, 
+        subtree: true 
+      });
     }
+
+    return () => {
+      // Cleanup
+      carouselItems.forEach(img => {
+        img.removeEventListener('load', handleCarouselLoad);
+      });
+      observer.disconnect();
+    };
   }, [messages]);
 
   // Save the current selection state
@@ -182,10 +181,19 @@ export function ChatPage() {
     }
   }, [messages]);
 
+  // Move vibration setup into useEffect
+  useEffect(() => {
+    // Import vibration functionality only on client side
+    import('ios-vibrator-pro-max').catch(() => {
+      // Silently fail if import fails
+      console.debug('Vibration not supported');
+    });
+  }, []);
+
   // Safely attempt to vibrate if supported
   const safeVibrate = (pattern: number | number[]) => {
     try {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      if (typeof window !== 'undefined' && navigator?.vibrate) {
         navigator.vibrate(pattern);
       }
       // Silently fail if vibration is not supported
@@ -234,8 +242,7 @@ export function ChatPage() {
       return;
     }
 
-    // Handle regular Enter key (without Shift) on desktop and mobile
-    // For mobile, we'll allow Enter key submission as well for better UX
+    // Handle regular Enter key (without Shift)
     if (!isStreaming && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (input.trim()) {
@@ -388,27 +395,27 @@ export function ChatPage() {
     );
 
     return (
-      <div className="flex flex-col w-full mb-4 overflow-hidden" key={message.id}>
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full overflow-hidden`}>
+      <div className="flex flex-col w-full mb-2" key={message.id}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
           {typeof content === 'string' ? (
-            <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
-              <p className="break-words whitespace-normal overflow-hidden">{content}</p>
+            <div className={`max-w-[90%] p-2 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
+              <p className="break-words whitespace-normal">{content}</p>
               {!isUser && messageActions}
             </div>
           ) : content.articles?.length > 0 ? (
-            <div className="w-full max-w-full overflow-hidden">
-              <p className="text-sm text-muted-foreground break-words whitespace-normal mb-4 overflow-hidden">{content.message}</p>
-              <div className="w-full max-w-full overflow-hidden">
+            <div className="w-full">
+              <p className="text-sm text-muted-foreground break-words whitespace-normal mb-2">{content.message}</p>
+              <div className="w-full max-w-full">
                 <Carousel
                   opts={{
                     align: "start",
                     loop: true,
                   }}
-                  className="w-full max-w-full"
+                  className="w-full"
                 >
-                  <CarouselContent className="-ml-2 md:-ml-4 max-w-full">
+                  <CarouselContent className="-ml-2 md:-ml-4">
                     {content.articles.map((article, index) => (
-                      <CarouselItem key={`${article.link}-${index}`} className="pl-2 md:pl-4 basis-[90%] sm:basis-[70%] md:basis-[70%] lg:basis-[70%] max-w-full">
+                      <CarouselItem key={`${article.link}-${index}`} className="pl-2 md:pl-4 basis-[90%] sm:basis-[70%] md:basis-[70%] lg:basis-[70%]">
                         <a
                           href={article.link}
                           target="_blank"
@@ -423,7 +430,7 @@ export function ChatPage() {
                             }
                           }}
                         >
-                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none overflow-hidden">
+                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none">
                             <div className="flex">
                               {/* Image on the left in 1:1 aspect ratio */}
                               {article.publisherIconUrl ? (
@@ -450,11 +457,8 @@ export function ChatPage() {
                               )}
                               
                               {/* Content on the right */}
-                              <div className="flex-1 p-3 md:p-4 flex flex-col justify-center">
+                              <div className="p-3 md:p-4 flex flex-col justify-center">
                                 <div className="text-sm md:text-base font-medium line-clamp-2 text-card-foreground mb-1">
-                                  {activeButton === 'podcasts' && (
-                                    <Podcast className="inline-block mr-1 h-4 w-4 text-primary" />
-                                  )}
                                   {article.title}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -480,8 +484,8 @@ export function ChatPage() {
               {messageActions}
             </div>
           ) : (
-            <div className={`max-w-[80%] p-3 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
-              <p className="mb-2 break-words whitespace-normal overflow-hidden">{content.message}</p>
+            <div className={`max-w-[90%] p-2 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
+              <p className="mb-2 break-words whitespace-normal">{content.message}</p>
               {!isUser && messageActions}
             </div>
           )}
@@ -499,17 +503,16 @@ export function ChatPage() {
       // Add vibration when message is submitted
       safeVibrate(50);
       
-      // Only focus the textarea on desktop, not on mobile
-      if (!isMobile) {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-        }
-      } else {
-        // On mobile, blur the textarea to dismiss the keyboard
-        if (textareaRef.current) {
-          textareaRef.current.blur();
-        }
+      // Focus the textarea
+      if (textareaRef.current) {
+        textareaRef.current.focus();
       }
+      
+      // Set streaming state
+      setIsStreaming(true);
+      
+      // Scroll to bottom immediately when sending
+      scrollToBottom();
       
       // Call our custom handleSubmit function
       handleSubmit(e as React.FormEvent<HTMLFormElement>);
@@ -524,9 +527,6 @@ export function ChatPage() {
     if (!isLoading) {
       // Call the original handler
       handleInputChange(e);
-
-      // No explicit haptic feedback for typing in the original implementation
-      // The ios-vibrator-pro-max package likely handles this automatically
 
       if (newValue.trim() !== "" && !hasTyped) {
         setHasTyped(true);
@@ -544,7 +544,6 @@ export function ChatPage() {
     }
   };
 
-  // Custom handleSubmit that includes the active button type
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     // Include the active button type in the request
     const body = {
@@ -555,52 +554,67 @@ export function ChatPage() {
     originalHandleSubmit(e, { body });
   };
 
+  // Handle touch events for better mobile scrolling
+  useEffect(() => {
+    const chatContainer = chatContainerRef.current;
+    
+    // Passive touch listener to prevent scrolling issues on mobile
+    const handleTouchStart = () => {
+      // This empty handler ensures the element stays "active" for scrolling
+      // The passive: true option improves scroll performance
+    };
+    
+    if (chatContainer) {
+      chatContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+    }
+    
+    return () => {
+      if (chatContainer) {
+        chatContainer.removeEventListener('touchstart', handleTouchStart);
+      }
+    };
+  }, []);
+
   return (
     <div 
-      ref={mainContainerRef}
-      className="flex flex-col overflow-hidden"
-      style={{ height: isMobile ? `${viewportHeight}px` : "90vh" }}
+      ref={mainContainerRef} 
+      className="w-full flex flex-col fixed inset-0"
+      style={{ height: containerHeight }}
     >
-      {/* Add scrollbar hide styles */}
-      <style dangerouslySetInnerHTML={{ __html: scrollbarHideStyles }} />
-      
       {/* Chat messages area */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden p-4"
-        style={{ paddingBottom: `${getBottomPadding()}px` }}
+        className="flex-1 overflow-y-auto w-full"
+        style={{ 
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'none'
+        }}
       >
-        {messages.length === 0 && (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-muted-foreground text-center max-w-md">
-              Start a conversation with our AI assistant. You can ask questions about articles, products, or get general information.
-            </p>
-          </div>
-        )}
-        <div className="w-full max-w-3xl mx-auto space-y-4">
-          {messages.map((message, index) => (
-            <div key={index} className="w-full overflow-hidden">
-              {renderMessage(message)}
+        <div className="min-h-full pl-4 pr-4 pt-4 pb-2 flex flex-col">
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center py-20 w-full">
+              <p className="text-muted-foreground text-center">
+                Start a conversation with our AI assistant. You can ask questions about articles, products, or get general information.
+              </p>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
+          ) : (
+            <div className="w-full space-y-4">
+              {messages.map((message, index) => (
+                <div key={index} className="w-full">
+                  {renderMessage(message)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Input Form */}
       <div 
-        className={cn(
-          "fixed left-0 right-0 p-4 bg-background border-t border-border",
-          isMobile ? "pb-safe-bottom" : ""
-        )}
-        style={{ 
-          bottom: isMobile 
-            ? `${MOBILE_DOCK_HEIGHT + (currentTrack ? 72 : 0)}px` 
-            : currentTrack ? '72px' : 0,
-          zIndex: 40 // Below the mobile dock (z-50) but above most content
-        }}
+        className="sticky bottom-0 left-0 right-0 bg-background border-t border-border w-full p-4 z-10"
+        style={{ height: '135px', minHeight: '135px' }}
       >
-        <form onSubmit={customHandleSubmit} className="max-w-3xl mx-auto">
+        <form onSubmit={customHandleSubmit} className="w-full h-full">
           <div
             ref={inputContainerRef}
             className={cn(
@@ -623,15 +637,16 @@ export function ChatPage() {
 
             <div className="absolute bottom-3 left-3 right-3">
               <div className="flex items-center justify-between">
-                <div className="flex-1 overflow-x-auto scrollbar-hide pr-2 mr-2">
+                <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
                   <div className="flex items-center space-x-2 min-w-max">
                     <Button
                       type="button"
                       variant="outline"
                       className={cn(
-                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
                         activeButton === "newsletters" && "bg-muted border-border"
                       )}
+                      data-state={activeButton === "newsletters" ? "active" : "inactive"}
                       onClick={() => toggleButton("newsletters")}
                       disabled={isLoading}
                     >
@@ -645,9 +660,10 @@ export function ChatPage() {
                       type="button"
                       variant="outline"
                       className={cn(
-                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
                         activeButton === "podcasts" && "bg-muted border-border"
                       )}
+                      data-state={activeButton === "podcasts" ? "active" : "inactive"}
                       onClick={() => toggleButton("podcasts")}
                       disabled={isLoading}
                     >
@@ -661,9 +677,10 @@ export function ChatPage() {
                       type="button"
                       variant="outline"
                       className={cn(
-                        "rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
+                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
                         activeButton === "articles" && "bg-muted border-border"
                       )}
+                      data-state={activeButton === "articles" ? "active" : "inactive"}
                       onClick={() => toggleButton("articles")}
                       disabled={isLoading}
                     >

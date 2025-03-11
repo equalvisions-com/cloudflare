@@ -28,7 +28,11 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     
     // First, check if feeds need refreshing and create if doesn't exist
     try {
-      await checkAndRefreshFeeds([postTitle], [feedUrl]);
+      await checkAndRefreshFeeds(
+        [postTitle], 
+        [feedUrl], 
+        mediaType ? [mediaType] : undefined
+      );
       console.log('✅ Feed refresh/creation check completed');
     } catch (refreshError) {
       // Log but don't fail if refresh check fails

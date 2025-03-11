@@ -487,7 +487,7 @@ export function CategorySliderWrapper({
   return (
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
-      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
+      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b border-l border-r">
         {/* Search input */}
         <form 
           role="search"

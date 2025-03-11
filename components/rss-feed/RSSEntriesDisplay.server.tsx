@@ -78,14 +78,16 @@ export const getInitialEntries = cache(async () => {
     // 2. Extract post titles and feed URLs correctly from the posts array
     const postTitles = rssKeysWithPosts.posts.map(post => post.title);
     const feedUrls = rssKeysWithPosts.posts.map(post => post.feedUrl);
+    const mediaTypes = rssKeysWithPosts.posts.map(post => post.mediaType);
     
     devLog(`📋 SERVER: Found ${postTitles.length} post titles to refresh:`, postTitles);
     devLog(`🔗 SERVER: Associated feed URLs:`, feedUrls);
+    devLog(`🎯 SERVER: Associated media types:`, mediaTypes);
     
     // 3. Check if any feeds need refreshing (4-hour revalidation) and create new feeds if needed
     devLog(`🔄 SERVER: Checking if feeds need refreshing for titles:`, postTitles);
     try {
-      await checkAndRefreshFeeds(postTitles, feedUrls);
+      await checkAndRefreshFeeds(postTitles, feedUrls, mediaTypes);
       devLog('✅ SERVER: Feed refresh check completed');
     } catch (refreshError) {
       errorLog('⚠️ SERVER: Feed refresh check failed:', refreshError);

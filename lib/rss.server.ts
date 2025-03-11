@@ -1087,7 +1087,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
       [feedId]
     );
     
-    // Create a Set for faster lookups - use type assertion to ensure TypeScript knows rows is an array
+    // Create a Set for faster lookups
     const existingGuids = new Set((existingEntriesResult.rows as Array<{ guid: string }>).map(row => row.guid));
     
     // Filter entries that don't exist yet
@@ -1120,21 +1120,18 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     
     // Create operations for each chunk
     const operations = chunks.map(chunk => {
-      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
       const values = chunk.flatMap(entry => {
         // Ensure pubDate is properly formatted for MySQL
-        // Convert ISO date to MySQL format (YYYY-MM-DD HH:MM:SS)
         let pubDateForMySQL: string;
         try {
           const date = new Date(entry.pubDate);
           if (isNaN(date.getTime())) {
-            // If invalid date, use current date
             pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
           } else {
             pubDateForMySQL = date.toISOString().slice(0, 19).replace('T', ' ');
           }
         } catch {
-          // If error parsing date, use current date
           pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
         }
         
@@ -1144,15 +1141,16 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
           String(entry.title),
           String(entry.link),
           String(entry.description?.slice(0, 200) || ''),
-          pubDateForMySQL, // Use MySQL format date
+          pubDateForMySQL,
           entry.image ? String(entry.image) : null,
-          entry.mediaType || mediaType || null, // Use entry's mediaType, or the feed's mediaType, or null
+          entry.mediaType || mediaType || null,
+          String(now),
           String(now)
         ];
       });
       
       return {
-        query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at) VALUES ${placeholders}`,
+        query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`,
         params: values
       };
     });
@@ -1469,13 +1467,13 @@ ensureRSSLocksTableExists().catch(err => {
  * This function is used to incorporate the 4-hour revalidation logic
  * into components that use direct PlanetScale queries
  */
-export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: string[]): Promise<void> {
+export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: string[], mediaTypes?: string[]): Promise<void> {
   if (!postTitles || postTitles.length === 0 || !feedUrls || feedUrls.length === 0) {
     return;
   }
 
-  if (postTitles.length !== feedUrls.length) {
-    logger.error('Mismatch between postTitles and feedUrls arrays');
+  if (postTitles.length !== feedUrls.length || (mediaTypes && mediaTypes.length !== feedUrls.length)) {
+    logger.error('Mismatch between postTitles, feedUrls, and mediaTypes arrays');
     return;
   }
   
@@ -1500,18 +1498,19 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
     // Find feeds that don't exist yet
     const newFeeds = postTitles.map((title, index) => ({
       title,
-      feedUrl: feedUrls[index]
+      feedUrl: feedUrls[index],
+      mediaType: mediaTypes?.[index]
     })).filter(feed => !existingFeeds.has(feed.title));
 
     // Create new feeds
     for (const feed of newFeeds) {
       try {
         logger.info(`Creating new feed: ${feed.title} (${feed.feedUrl})`);
-        const freshFeed = await fetchAndParseFeed(feed.feedUrl);
-        const feedId = await getOrCreateFeed(feed.feedUrl, feed.title);
+        const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
+        const feedId = await getOrCreateFeed(feed.feedUrl, feed.title, feed.mediaType);
         
         if (freshFeed.items.length > 0) {
-          await storeRSSEntriesWithTransaction(feedId, freshFeed.items);
+          await storeRSSEntriesWithTransaction(feedId, freshFeed.items, feed.mediaType);
           logger.info(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items`);
         } else {
           logger.warn(`Created new feed ${feed.title} but no items were found`);
@@ -1531,10 +1530,14 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
       const lastFetchedMs = Number(feed.last_fetched);
       const timeSinceLastFetch = currentTime - lastFetchedMs;
       
-      // Check if feed was fetched recently (less than 4 hours ago)
       if (timeSinceLastFetch >= fourHoursInMs) {
         logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
-        feedsToRefresh.push({ feedId, feedUrl, postTitle });
+        feedsToRefresh.push({ 
+          feedId, 
+          feedUrl, 
+          postTitle, 
+          mediaType: feed.media_type || undefined 
+        });
       } else {
         logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       }
@@ -1626,10 +1629,14 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       const lastFetchedMs = Number(feed.last_fetched);
       const timeSinceLastFetch = currentTime - lastFetchedMs;
       
-      // Check if feed was fetched recently (less than 4 hours ago)
       if (timeSinceLastFetch >= fourHoursInMs) {
         logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
-        feedsToRefresh.push({ feedId, feedUrl, postTitle });
+        feedsToRefresh.push({ 
+          feedId, 
+          feedUrl, 
+          postTitle, 
+          mediaType: feed.media_type || undefined 
+        });
       } else {
         logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       }

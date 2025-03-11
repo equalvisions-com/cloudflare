@@ -211,8 +211,7 @@ export function EntriesDisplay({
             <div className="py-4 text-center">
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2 py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading more entries...</span>
+                  <Loader2 className="h-6 w-6 mb-16 animate-spin" />
                 </div>
               ) : hasMore ? (
                 <div className="h-8" />
@@ -276,7 +275,7 @@ const EntryCard = React.memo(({ entry, interactions }: {
   // Moved MoreOptionsDropdown outside of EntryCard render to prevent recreation
   return (
     <article>
-      <div className="p-4">
+      <div className="p-4 border-l border-r">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
           {/* Featured Image */}

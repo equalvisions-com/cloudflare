@@ -47,6 +47,25 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y pinch-zoom;
   }
+
+  /* Hide scrollbars but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
+  /* Prevent hover effects on touch devices for chat filter buttons */
+  @media (hover: none) {
+    .chat-filter-button:not([data-state='active']):hover,
+    .chat-filter-button:not([data-state='active']):active {
+      background-color: transparent !important;
+      opacity: 1 !important;
+    }
+  }
 }
 
 /* To change the theme colors, change the values below
@@ -112,45 +131,46 @@
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
-  body {
+  html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
-    min-height: 100vh;
-    overflow-x: hidden;
-    overscroll-behavior-x: none;
-    touch-action: pan-y;
   }
-  main.flex-1.md\:basis-\[50\%\].md\:max-w-\[50\%\] {
-    border-width: 0px 1px 0px 1px;
-}
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-geist-sans);
+    @apply bg-background text-foreground;
+  }
+  /* Remove all main styling related to height */
+  main {
+    border-width: 0px;
+  }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
 }
 
+/* Remove media query styles that control height */
 @media (max-width: 767px) {
   .w-full.md\:w-\[56\%\].overflow-y-auto.border.bg-card.rounded-lg.mt-6 {
     border: 0;
   }
-  main.flex-1.md\:basis-\[50\%\].md\:max-w-\[50\%\] {
+  main {
     border-width: 0px;
+  }
 }
+
+/* Remove scroll-freeze class that controls overflow */
+.scroll-freeze {
+  /* Removed overflow control */
 }
 
 /* SwipeableTabs Component Styles */
-.scroll-freeze {
-  /* Prevent scroll jumps during tab transitions */
-  overflow: hidden !important;
-}
-
-/* Ensure content becomes visible after transition */
 .opacity-0 {
   transition: opacity 0ms;
   opacity: 0;
