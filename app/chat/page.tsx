@@ -5,6 +5,7 @@ import { StandardSidebarLayout } from '@/components/ui/StandardSidebarLayout';
 export const metadata: Metadata = {
   title: 'Chat',
   description: 'Chat with our AI assistant',
+  viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
 };
 
 export default function Page() {
@@ -18,6 +19,8 @@ export default function Page() {
           </p>
         </div>
       }
+      containerClass="overscroll-none"
+      mainContentClass="overflow-visible"
     >
       <ChatPage />
     </StandardSidebarLayout>
