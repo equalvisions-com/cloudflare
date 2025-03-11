@@ -25,6 +25,7 @@ import {
   Mail,
   Podcast,
   Newspaper,
+  SquarePen,
 } from "lucide-react";
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 
@@ -55,6 +56,7 @@ export function ChatPage() {
     handleInputChange,
     handleSubmit: originalHandleSubmit,
     isLoading,
+    setMessages,
   } = useChat({
     api: '/api/chat',
     onResponse: (response) => {
@@ -87,28 +89,8 @@ export function ChatPage() {
   
   // Additional state for input handling
   const [hasTyped, setHasTyped] = useState(false);
-  const [containerHeight, setContainerHeight] = useState(() => {
-    // Calculate initial height immediately
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    return isMobile ? 'calc(100dvh - 65px)' : 'calc(100dvh - 65px)';
-  });
 
-  // Adjust container height based on viewport and mobile menu
-  useEffect(() => {
-    const adjustHeight = () => {
-      const isMobile = window.innerWidth < 768;
-      setContainerHeight(isMobile ? 'calc(100dvh - 65px)' : 'calc(100dvh - 65px)');
-    };
-    
-    // Run once to ensure correct height
-    adjustHeight();
-    
-    // Add resize listener
-    window.addEventListener('resize', adjustHeight);
-    return () => window.removeEventListener('resize', adjustHeight);
-  }, []);
-
-  // Simple scroll to bottom function
+  // Scroll to bottom function
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -575,16 +557,55 @@ export function ChatPage() {
     };
   }, []);
 
+  // Add reset chat function
+  const resetChat = () => {
+    // Only reset if there are messages
+    if (messages.length > 0) {
+      // Vibrate when resetting chat
+      safeVibrate(100);
+      
+      // Clear the chat using the setMessages method from useChat
+      setMessages([]);
+      
+      // Reset any other state if needed
+      setIsStreaming(false);
+      setLastMessageId(null);
+      
+      // Focus the textarea after clearing
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  };
+
   return (
     <div 
       ref={mainContainerRef} 
-      className="w-full flex flex-col fixed inset-0"
-      style={{ height: containerHeight }}
+      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
     >
-      {/* Chat messages area */}
+      {/* Top bar */}
+      <div className="h-[45px] border-b flex items-center justify-between px-4">
+        <div></div>
+        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+          <span className="text-sm font-medium">Chat</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={resetChat}
+          className="h-8 w-8 rounded-full hover:bg-transparent disabled:opacity-100"
+          title="Reset Chat"
+          disabled={isLoading || messages.length === 0}
+        >
+          <SquarePen className="h-4 w-4 text-primary" />
+          <span className="sr-only">Reset Chat</span>
+        </Button>
+      </div>
+
+      {/* Chat messages area - adjust padding to account for top bar */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto w-full"
+        className="flex-1 overflow-y-auto w-full md:pb-[135px]"
         style={{ 
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'none'
@@ -609,105 +630,117 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Input Form */}
+      {/* Input Form - Mobile: sticky, Desktop: fixed */}
       <div 
-        className="sticky bottom-0 left-0 right-0 bg-background border-t border-border w-full p-4 z-10"
-        style={{ height: '135px', minHeight: '135px' }}
+        className="sticky bottom-0 left-0 right-0 bg-transparent p-0 z-10"
+        style={{ 
+          height: '135px', 
+          minHeight: '135px'
+        }}
       >
-        <form onSubmit={customHandleSubmit} className="w-full h-full">
-          <div
-            ref={inputContainerRef}
-            className={cn(
-              "relative w-full rounded-3xl border border-input bg-background p-3 cursor-text",
-              isLoading && "opacity-80"
-            )}
-            onClick={handleInputContainerClick}
-          >
-            <div className="pb-9">
-              <Textarea
-                ref={textareaRef}
-                placeholder={isLoading ? "Waiting for response..." : "Ask me anything..."}
-                className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
-                value={input}
-                onChange={customHandleInputChange}
-                onKeyDown={handleKeyDown}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="absolute bottom-3 left-3 right-3">
-              <div className="flex items-center justify-between">
-                <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
-                  <div className="flex items-center space-x-2 min-w-max">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
-                        activeButton === "newsletters" && "bg-muted border-border"
-                      )}
-                      data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                      onClick={() => toggleButton("newsletters")}
+        <div className="mx-auto flex flex-row p-0 max-w-screen-lg">
+          <div className="hidden md:block"></div>
+          <div className="w-full md:flex md:justify-center">
+            <div className="w-full pl-4 pr-4 pt-4 pb-4">
+              <form onSubmit={customHandleSubmit} className="w-full h-full">
+                <div
+                  ref={inputContainerRef}
+                  className={cn(
+                    "relative w-full rounded-3xl border border-input p-3 cursor-text",
+                    "bg-secondary/60",
+                    isLoading && "opacity-80"
+                  )}
+                  onClick={handleInputContainerClick}
+                >
+                  <div className="pb-9">
+                    <Textarea
+                      ref={textareaRef}
+                      placeholder={isLoading ? "Waiting for response..." : "Ask me anything..."}
+                      className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                      value={input}
+                      onChange={customHandleInputChange}
+                      onKeyDown={handleKeyDown}
                       disabled={isLoading}
-                    >
-                      <Mail className={cn("h-4 w-4 text-muted-foreground", activeButton === "newsletters" && "text-foreground")} />
-                      <span className={cn("text-foreground text-sm", activeButton === "newsletters" && "font-medium")}>
-                        Newsletters
-                      </span>
-                    </Button>
+                    />
+                  </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
-                        activeButton === "podcasts" && "bg-muted border-border"
-                      )}
-                      data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                      onClick={() => toggleButton("podcasts")}
-                      disabled={isLoading}
-                    >
-                      <Podcast className={cn("h-4 w-4 text-muted-foreground", activeButton === "podcasts" && "text-foreground")} />
-                      <span className={cn("text-foreground text-sm", activeButton === "podcasts" && "font-medium")}>
-                        Podcasts
-                      </span>
-                    </Button>
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <div className="flex items-center justify-between">
+                      <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
+                        <div className="flex items-center space-x-2 min-w-max">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              activeButton === "newsletters" && "bg-primary text-primary-foreground"
+                            )}
+                            data-state={activeButton === "newsletters" ? "active" : "inactive"}
+                            onClick={() => toggleButton("newsletters")}
+                            disabled={isLoading}
+                          >
+                            <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
+                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
+                              Newsletters
+                            </span>
+                          </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "chat-filter-button rounded-full h-8 px-3 flex items-center border-input gap-1.5 transition-colors shrink-0",
-                        activeButton === "articles" && "bg-muted border-border"
-                      )}
-                      data-state={activeButton === "articles" ? "active" : "inactive"}
-                      onClick={() => toggleButton("articles")}
-                      disabled={isLoading}
-                    >
-                      <Newspaper className={cn("h-4 w-4 text-muted-foreground", activeButton === "articles" && "text-foreground")} />
-                      <span className={cn("text-foreground text-sm", activeButton === "articles" && "font-medium")}>
-                        Articles
-                      </span>
-                    </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              activeButton === "podcasts" && "bg-primary text-primary-foreground"
+                            )}
+                            data-state={activeButton === "podcasts" ? "active" : "inactive"}
+                            onClick={() => toggleButton("podcasts")}
+                            disabled={isLoading}
+                          >
+                            <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
+                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
+                              Podcasts
+                            </span>
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              activeButton === "articles" && "bg-primary text-primary-foreground"
+                            )}
+                            data-state={activeButton === "articles" ? "active" : "inactive"}
+                            onClick={() => toggleButton("articles")}
+                            disabled={isLoading}
+                          >
+                            <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
+                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
+                              Articles
+                            </span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        size="icon"
+                        disabled={!input.trim() || isLoading || activeButton === "none"}
+                        className={cn(
+                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                          (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                        <span className="sr-only">Send</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
-
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!input.trim() || isLoading || activeButton === "none"}
-                  className={cn(
-                    "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                    (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <ArrowUp className="h-4 w-4" />
-                  <span className="sr-only">Send</span>
-                </Button>
-              </div>
+              </form>
             </div>
           </div>
-        </form>
+          <div className="hidden md:block"></div>
+        </div>
       </div>
     </div>
   );

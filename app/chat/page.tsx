@@ -10,8 +10,6 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <StandardSidebarLayout
-      mainContentClass="w-full"
-      containerClass="w-full"
       rightSidebar={
         <div className="p-4">
           <h2 className="text-lg font-semibold mb-4">Chat Information</h2>

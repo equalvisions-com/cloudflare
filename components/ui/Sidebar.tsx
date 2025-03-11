@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, Search, Sparkles, Heart } from "lucide-react";
+import { Home, Podcast, User, Mail, Sparkles, Heart } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -50,9 +50,9 @@ function Sidebar() {
       icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={pathname === "/podcasts" ? 2.75 : 2} />,
     },
     {
-      href: "/search",
-      label: "Search",
-      icon: <Search className="h-5 w-5 shrink-0" strokeWidth={pathname === "/search" ? 3 : 2} />,
+      href: "/chat",
+      label: "Ask AI",
+      icon: <Sparkles className="h-5 w-5 shrink-0" strokeWidth={pathname === "/chat" ? 2.65 : 2} />,
     },
     {
       href: "/likes",
@@ -91,17 +91,6 @@ function Sidebar() {
               </Link>
             ))}
           </div>
-
-          {/* Ask AI Button */}
-          <Link href="/chat" className="flex justify-center" prefetch={true}>
-            <Button
-              variant="default"
-              className="w-full rounded-full gap-2"
-            >
-              <Sparkles className="h-5 w-5 shrink-0" />
-              <span className="text-base">Ask AI</span>
-            </Button>
-          </Link>
         </nav>
       </CardContent>
     </Card>

@@ -49,6 +49,7 @@ export default function RootLayout({
             <ThemeProvider attribute="class">
               <AudioProvider>
                 <div className="">
+                  
                   {children}
                 </div>
                 <PersistentPlayer />
