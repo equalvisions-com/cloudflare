@@ -584,11 +584,9 @@ export function ChatPage() {
       className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
     >
       {/* Top bar */}
-      <div className="h-[45px] border-b flex items-center justify-between px-4">
-        <div></div>
-        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-          <span className="text-sm font-medium">Chat</span>
-        </div>
+      <div className="h-[45px] min-h-[45px] max-h-[45px] border-b flex items-center justify-between px-4 overflow-hidden">
+        <div className="w-8"></div>
+        <span className="text-sm font-medium">Chat</span>
         <Button
           variant="ghost"
           size="icon"
