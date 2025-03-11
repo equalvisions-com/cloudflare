@@ -25,7 +25,6 @@ import {
   Mail,
   Podcast,
   Newspaper,
-  SquarePen,
 } from "lucide-react";
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 
@@ -56,7 +55,6 @@ export function ChatPage() {
     handleInputChange,
     handleSubmit: originalHandleSubmit,
     isLoading,
-    setMessages,
   } = useChat({
     api: '/api/chat',
     onResponse: (response) => {
@@ -557,50 +555,12 @@ export function ChatPage() {
     };
   }, []);
 
-  // Add reset chat function
-  const resetChat = () => {
-    // Only reset if there are messages
-    if (messages.length > 0) {
-      // Vibrate when resetting chat
-      safeVibrate(100);
-      
-      // Clear the chat using the setMessages method from useChat
-      setMessages([]);
-      
-      // Reset any other state if needed
-      setIsStreaming(false);
-      setLastMessageId(null);
-      
-      // Focus the textarea after clearing
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-    }
-  };
-
   return (
     <div 
       ref={mainContainerRef} 
       className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
     >
-      {/* Top bar */}
-      <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
-        <div style={{ width: '32px' }}></div>
-        <span className="text-sm font-medium">Chat</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={resetChat}
-          className="h-8 w-8 rounded-full hover:bg-transparent disabled:opacity-100"
-          title="Reset Chat"
-          disabled={isLoading || messages.length === 0}
-        >
-          <SquarePen className="h-4 w-4 text-primary" />
-          <span className="sr-only">Reset Chat</span>
-        </Button>
-      </div>
-
-      {/* Chat messages area - adjust padding to account for top bar */}
+      {/* Chat messages area */}
       <div 
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto w-full md:pb-[135px]"
