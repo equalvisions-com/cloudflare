@@ -581,7 +581,7 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef} 
-      className="chat-page-container border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
+      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
     >
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
@@ -603,7 +603,7 @@ export function ChatPage() {
       {/* Chat messages area - adjust padding to account for top bar */}
       <div 
         ref={chatContainerRef}
-        className="chat-content-scroll flex-1 overflow-y-auto w-full md:pb-[135px]"
+        className="flex-1 overflow-y-auto w-full md:pb-[135px]"
         style={{ 
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'none'
