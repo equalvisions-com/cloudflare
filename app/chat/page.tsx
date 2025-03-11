@@ -19,8 +19,6 @@ export default function Page() {
           </p>
         </div>
       }
-      containerClass="overflow-hidden md:overflow-auto"
-      mainContentClass="overflow-hidden md:overflow-auto"
     >
       <ChatPage />
     </StandardSidebarLayout>
