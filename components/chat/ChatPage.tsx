@@ -185,7 +185,10 @@ export function ChatPage() {
   };
 
   // Toggle action buttons with selection preservation
-  const toggleButton = (buttonType: ActiveButton) => {
+  const toggleButton = (buttonType: ActiveButton, e: React.MouseEvent) => {
+    // Stop propagation to prevent parent handlers from interfering
+    e.stopPropagation();
+    
     if (!isStreaming) {
       // Save the current selection state before toggling
       saveSelectionState();
@@ -682,7 +685,7 @@ export function ChatPage() {
                               activeButton === "newsletters" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                            onClick={() => toggleButton("newsletters")}
+                            onClick={(e) => toggleButton("newsletters", e)}
                             disabled={isLoading}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
@@ -699,7 +702,7 @@ export function ChatPage() {
                               activeButton === "podcasts" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                            onClick={() => toggleButton("podcasts")}
+                            onClick={(e) => toggleButton("podcasts", e)}
                             disabled={isLoading}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
@@ -716,7 +719,7 @@ export function ChatPage() {
                               activeButton === "articles" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
-                            onClick={() => toggleButton("articles")}
+                            onClick={(e) => toggleButton("articles", e)}
                             disabled={isLoading}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
@@ -735,6 +738,12 @@ export function ChatPage() {
                           "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
                           (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
                         )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (input.trim() && !isLoading && activeButton !== "none") {
+                            customHandleSubmit(new Event('submit'));
+                          }
+                        }}
                       >
                         <ArrowUp className="h-4 w-4" />
                         <span className="sr-only">Send</span>
