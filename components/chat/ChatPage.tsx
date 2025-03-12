@@ -49,11 +49,6 @@ function truncateText(text: string, maxLength: number): string {
 type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
 
 export function ChatPage() {
-  // New state for enhanced UI features
-  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
-  
   // State for managing messages and input
   const {
     messages,
@@ -73,12 +68,17 @@ export function ChatPage() {
     },
     body: {
       // Include the active button type in the request
-      activeButton: activeButton // Use the current state value instead of hardcoded value
+      activeButton: 'newsletters' // This will be updated before submission
     }
   });
 
   // Audio player hook for podcast playback
   const { playTrack } = useAudio();
+  
+  // New state for enhanced UI features
+  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   
   // Refs for DOM elements
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -505,8 +505,8 @@ export function ChatPage() {
   const customHandleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
 
-    // Allow input changes when not streaming (even if loading)
-    if (!isStreaming) {
+    // Only allow input changes when not streaming
+    if (!isLoading) {
       // Call the original handler
       handleInputChange(e);
 
@@ -658,7 +658,7 @@ export function ChatPage() {
                       value={input}
                       onChange={customHandleInputChange}
                       onKeyDown={handleKeyDown}
-                      disabled={isStreaming}
+                      disabled={isLoading}
                     />
                   </div>
 
@@ -675,7 +675,7 @@ export function ChatPage() {
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
                             onClick={() => toggleButton("newsletters")}
-                            disabled={isStreaming}
+                            disabled={isLoading}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
@@ -692,7 +692,7 @@ export function ChatPage() {
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
                             onClick={() => toggleButton("podcasts")}
-                            disabled={isStreaming}
+                            disabled={isLoading}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
@@ -709,7 +709,7 @@ export function ChatPage() {
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
                             onClick={() => toggleButton("articles")}
-                            disabled={isStreaming}
+                            disabled={isLoading}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
@@ -722,10 +722,10 @@ export function ChatPage() {
                       <Button
                         type="submit"
                         size="icon"
-                        disabled={!input.trim() || isStreaming || activeButton === "none"}
+                        disabled={!input.trim() || isLoading || activeButton === "none"}
                         className={cn(
                           "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                          (!input.trim() || isStreaming || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                          (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
                         )}
                       >
                         <ArrowUp className="h-4 w-4" />
