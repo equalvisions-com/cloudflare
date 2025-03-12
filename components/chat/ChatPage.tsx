@@ -185,34 +185,29 @@ export function ChatPage() {
   };
 
   // Toggle action buttons with selection preservation
-  const toggleButton = (buttonType: ActiveButton) => {
+  const toggleButton = (buttonType: ActiveButton, e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!isStreaming) {
-      // Save the current selection state before toggling
-      saveSelectionState();
-
       // Set the active button (clicking the same button won't deactivate it)
       setActiveButton(buttonType);
-
-      // Restore the selection state after toggling
-      setTimeout(() => {
-        restoreSelectionState();
-      }, 0);
     }
   };
 
   // Handle input container click
   const handleInputContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only focus if clicking directly on the container, not on buttons or other interactive elements
-    if (
-      e.target === e.currentTarget ||
-      (e.currentTarget === inputContainerRef.current && 
-       !(e.target as HTMLElement).closest("button") && 
-       !(e.target as HTMLElement).closest(".chat-filter-button"))
-    ) {
-      if (textareaRef.current) {
-        e.stopPropagation(); // Prevent event bubbling
-        textareaRef.current.focus();
-      }
+    // Check if we're clicking on a button or inside the textarea
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.tagName === 'TEXTAREA') {
+      return; // Don't do anything if clicking on buttons or textarea
+    }
+    
+    // Otherwise focus the textarea
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   };
 
@@ -677,83 +672,74 @@ export function ChatPage() {
                     <div className="flex items-center justify-between">
                       <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
                         <div className="flex items-center space-x-2 min-w-max">
-                          <Button
+                          <button
                             type="button"
-                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "newsletters" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent event bubbling
-                              toggleButton("newsletters");
-                            }}
+                            onClick={(e) => toggleButton("newsletters", e)}
                             disabled={isLoading}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
                               Newsletters
                             </span>
-                          </Button>
+                          </button>
 
-                          <Button
+                          <button
                             type="button"
-                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "podcasts" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent event bubbling
-                              toggleButton("podcasts");
-                            }}
+                            onClick={(e) => toggleButton("podcasts", e)}
                             disabled={isLoading}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
                               Podcasts
                             </span>
-                          </Button>
+                          </button>
 
-                          <Button
+                          <button
                             type="button"
-                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "articles" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent event bubbling
-                              toggleButton("articles");
-                            }}
+                            onClick={(e) => toggleButton("articles", e)}
                             disabled={isLoading}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
                               Articles
                             </span>
-                          </Button>
+                          </button>
                         </div>
                       </div>
 
-                      <Button
+                      <button
                         type="submit"
-                        size="icon"
                         disabled={!input.trim() || isLoading || activeButton === "none"}
                         className={cn(
-                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0 flex items-center justify-center",
                           (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
                         )}
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent event bubbling
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
+                            customHandleSubmit(new Event('submit'));
+                          }
                         }}
                       >
                         <ArrowUp className="h-4 w-4" />
                         <span className="sr-only">Send</span>
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </div>
