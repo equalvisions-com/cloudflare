@@ -49,6 +49,11 @@ function truncateText(text: string, maxLength: number): string {
 type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
 
 export function ChatPage() {
+  // New state for enhanced UI features
+  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  
   // State for managing messages and input
   const {
     messages,
@@ -68,23 +73,19 @@ export function ChatPage() {
     },
     body: {
       // Include the active button type in the request
-      activeButton: 'newsletters' // This will be updated before submission
+      activeButton: activeButton // Use the current state value instead of hardcoded value
     }
   });
 
   // Audio player hook for podcast playback
   const { playTrack } = useAudio();
   
-  // New state for enhanced UI features
-  const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
-  
   // Refs for DOM elements
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null });
   
   // Additional state for input handling
   const [hasTyped, setHasTyped] = useState(false);
@@ -134,6 +135,27 @@ export function ChatPage() {
     };
   }, [messages]);
 
+  // Save the current selection state
+  const saveSelectionState = () => {
+    if (textareaRef.current) {
+      selectionStateRef.current = {
+        start: textareaRef.current.selectionStart,
+        end: textareaRef.current.selectionEnd,
+      };
+    }
+  };
+
+  // Restore selection state after toggling
+  const restoreSelectionState = () => {
+    if (textareaRef.current) {
+      const { start, end } = selectionStateRef.current;
+      if (start !== null && end !== null) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start, end);
+      }
+    }
+  };
+
   // Compute the ID of the last message in the conversation.
   useEffect(() => {
     if (messages.length > 0) {
@@ -163,29 +185,31 @@ export function ChatPage() {
   };
 
   // Toggle action buttons with selection preservation
-  const toggleButton = (buttonType: ActiveButton, e?: React.MouseEvent | React.TouchEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
+  const toggleButton = (buttonType: ActiveButton) => {
     if (!isStreaming) {
+      // Save the current selection state before toggling
+      saveSelectionState();
+
       // Set the active button (clicking the same button won't deactivate it)
       setActiveButton(buttonType);
+
+      // Restore the selection state after toggling
+      setTimeout(() => {
+        restoreSelectionState();
+      }, 0);
     }
   };
 
   // Handle input container click
   const handleInputContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Check if we're clicking on a button or inside the textarea
-    const target = e.target as HTMLElement;
-    if (target.closest('button') || target.tagName === 'TEXTAREA') {
-      return; // Don't do anything if clicking on buttons or textarea
-    }
-    
-    // Otherwise focus the textarea
-    if (textareaRef.current) {
-      textareaRef.current.focus();
+    // Only focus if clicking directly on the container, not on buttons or other interactive elements
+    if (
+      e.target === e.currentTarget ||
+      (e.currentTarget === inputContainerRef.current && !(e.target as HTMLElement).closest("button"))
+    ) {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
     }
   };
 
@@ -455,7 +479,6 @@ export function ChatPage() {
   // Custom submit handler that wraps the original handleSubmit
   const customHandleSubmit = (e: React.FormEvent<HTMLFormElement> | Event) => {
     e.preventDefault();
-    e.stopPropagation(); // Prevent event bubbling
     
     // Only submit if there's input, we're not already streaming, and a button is selected
     if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
@@ -482,8 +505,8 @@ export function ChatPage() {
   const customHandleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
 
-    // Only allow input changes when not streaming
-    if (!isLoading) {
+    // Allow input changes when not streaming (even if loading)
+    if (!isStreaming) {
       // Call the original handler
       handleInputChange(e);
 
@@ -626,13 +649,6 @@ export function ChatPage() {
                     isLoading && "opacity-80"
                   )}
                   onClick={handleInputContainerClick}
-                  onTouchEnd={(e) => {
-                    // Handle touch events specifically for mobile
-                    e.preventDefault();
-                    if (textareaRef.current) {
-                      textareaRef.current.focus();
-                    }
-                  }}
                 >
                   <div className="pb-9">
                     <Textarea
@@ -642,7 +658,7 @@ export function ChatPage() {
                       value={input}
                       onChange={customHandleInputChange}
                       onKeyDown={handleKeyDown}
-                      disabled={isLoading}
+                      disabled={isStreaming}
                     />
                   </div>
 
@@ -650,74 +666,71 @@ export function ChatPage() {
                     <div className="flex items-center justify-between">
                       <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
                         <div className="flex items-center space-x-2 min-w-max">
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "newsletters" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("newsletters", e)}
-                            disabled={isLoading}
+                            onClick={() => toggleButton("newsletters")}
+                            disabled={isStreaming}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
                               Newsletters
                             </span>
-                          </button>
+                          </Button>
 
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "podcasts" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("podcasts", e)}
-                            disabled={isLoading}
+                            onClick={() => toggleButton("podcasts")}
+                            disabled={isStreaming}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
                               Podcasts
                             </span>
-                          </button>
+                          </Button>
 
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
                               activeButton === "articles" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("articles", e)}
-                            disabled={isLoading}
+                            onClick={() => toggleButton("articles")}
+                            disabled={isStreaming}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
                             <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
                               Articles
                             </span>
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
-                      <button
+                      <Button
                         type="submit"
-                        disabled={!input.trim() || isLoading || activeButton === "none"}
+                        size="icon"
+                        disabled={!input.trim() || isStreaming || activeButton === "none"}
                         className={cn(
-                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0 flex items-center justify-center",
-                          (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                          (!input.trim() || isStreaming || activeButton === "none") && "opacity-50 cursor-not-allowed"
                         )}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
-                            customHandleSubmit(new Event('submit'));
-                          }
-                        }}
                       >
                         <ArrowUp className="h-4 w-4" />
                         <span className="sr-only">Send</span>
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
