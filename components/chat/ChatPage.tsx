@@ -135,27 +135,6 @@ export function ChatPage() {
     };
   }, [messages]);
 
-  // Save the current selection state
-  const saveSelectionState = () => {
-    if (textareaRef.current) {
-      selectionStateRef.current = {
-        start: textareaRef.current.selectionStart,
-        end: textareaRef.current.selectionEnd,
-      };
-    }
-  };
-
-  // Restore selection state after toggling
-  const restoreSelectionState = () => {
-    if (textareaRef.current) {
-      const { start, end } = selectionStateRef.current;
-      if (start !== null && end !== null) {
-        textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(start, end);
-      }
-    }
-  };
-
   // Compute the ID of the last message in the conversation.
   useEffect(() => {
     if (messages.length > 0) {
