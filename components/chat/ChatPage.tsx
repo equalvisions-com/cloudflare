@@ -85,7 +85,6 @@ export function ChatPage() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
-  const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null });
   
   // Additional state for input handling
   const [hasTyped, setHasTyped] = useState(false);
