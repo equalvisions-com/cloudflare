@@ -208,6 +208,7 @@ export function ChatPage() {
       (e.currentTarget === inputContainerRef.current && !(e.target as HTMLElement).closest("button"))
     ) {
       if (textareaRef.current) {
+        e.stopPropagation(); // Prevent event bubbling
         textareaRef.current.focus();
       }
     }
@@ -649,6 +650,13 @@ export function ChatPage() {
                     isLoading && "opacity-80"
                   )}
                   onClick={handleInputContainerClick}
+                  onTouchEnd={(e) => {
+                    // Handle touch events specifically for mobile
+                    e.preventDefault();
+                    if (textareaRef.current) {
+                      textareaRef.current.focus();
+                    }
+                  }}
                 >
                   <div className="pb-9">
                     <Textarea
