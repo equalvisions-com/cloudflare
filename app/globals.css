@@ -60,11 +60,85 @@
 
   /* Prevent hover effects on touch devices for chat filter buttons */
   @media (hover: none) {
+    /* Inactive buttons */
     .chat-filter-button:not([data-state='active']):hover,
-    .chat-filter-button:not([data-state='active']):active {
-      background-color: transparent !important;
+    .chat-filter-button:not([data-state='active']):active,
+    .chat-filter-button:not([data-state='active']):focus {
+      background-color: hsl(var(--background) / 0.6) !important;
+      color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
     }
+    
+    .chat-filter-button:not([data-state='active']) span {
+      color: hsl(var(--foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    .chat-filter-button:not([data-state='active']) svg {
+      color: hsl(var(--foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    /* Active buttons */
+    .chat-filter-button[data-state='active']:hover,
+    .chat-filter-button[data-state='active']:active,
+    .chat-filter-button[data-state='active']:focus {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
+    }
+    
+    .chat-filter-button[data-state='active'] span {
+      color: hsl(var(--primary-foreground)) !important;
+      font-weight: 500 !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    .chat-filter-button[data-state='active'] svg {
+      color: hsl(var(--primary-foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+
+    /* Safari-specific fixes */
+    @supports (-webkit-touch-callout: none) {
+      .chat-filter-button {
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-user-select: none !important;
+        background-clip: padding-box !important;
+      }
+
+      .chat-filter-button:active {
+        -webkit-transform: translateZ(0) !important;
+        transform: translateZ(0) !important;
+      }
+    }
+  }
+}
+
+/* Disable tap highlight color and add Safari-specific fixes for all devices */
+.chat-filter-button, 
+.chat-filter-button * {
+  -webkit-tap-highlight-color: transparent !important;
+  tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Touch-specific behaviors - only apply to touch devices */
+@media (hover: none) {
+  .chat-filter-button, 
+  .chat-filter-button * {
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 }
 

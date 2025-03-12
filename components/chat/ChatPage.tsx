@@ -48,6 +48,25 @@ function truncateText(text: string, maxLength: number): string {
 // Types for enhanced UI features
 type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
 
+// Add a custom hook for handling touch events
+function useTouchActiveState() {
+  const [activeTouchButton, setActiveTouchButton] = useState<string | null>(null);
+
+  const handleTouchStart = (buttonType: string) => {
+    setActiveTouchButton(buttonType);
+  };
+
+  const handleTouchEnd = () => {
+    setActiveTouchButton(null);
+  };
+
+  return {
+    activeTouchButton,
+    handleTouchStart,
+    handleTouchEnd
+  };
+}
+
 export function ChatPage() {
   // State for managing messages and input
   const {
@@ -92,6 +111,21 @@ export function ChatPage() {
 
   // Add a new state to track if animation should run
   const [shouldAnimate, setShouldAnimate] = useState(false);
+
+  // Add touch state handling
+  const { activeTouchButton, handleTouchStart, handleTouchEnd } = useTouchActiveState();
+
+  // Safely attempt to vibrate if supported
+  const safeVibrate = (pattern: number | number[]) => {
+    try {
+      if (typeof window !== 'undefined' && navigator?.vibrate) {
+        navigator.vibrate(pattern);
+      }
+      // Silently fail if vibration is not supported
+    } catch {
+      // Ignore errors
+    }
+  };
 
   // Scroll to bottom function
   const scrollToBottom = () => {
@@ -175,21 +209,12 @@ export function ChatPage() {
     });
   }, []);
 
-  // Safely attempt to vibrate if supported
-  const safeVibrate = (pattern: number | number[]) => {
-    try {
-      if (typeof window !== 'undefined' && navigator?.vibrate) {
-        navigator.vibrate(pattern);
-      }
-      // Silently fail if vibration is not supported
-    } catch {
-      // Ignore errors
-    }
-  };
-
   // Toggle action buttons with selection preservation
   const toggleButton = (buttonType: ActiveButton) => {
     if (!isStreaming) {
+      // Add vibration feedback on mobile
+      safeVibrate(50);
+
       // Save the current selection state before toggling
       saveSelectionState();
 
@@ -731,10 +756,14 @@ What topic are you interested in?
                             variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "newsletters" && "bg-primary text-primary-foreground"
+                              activeButton === "newsletters" && "bg-primary text-primary-foreground",
+                              activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
                             onClick={() => toggleButton("newsletters")}
+                            onTouchStart={() => handleTouchStart("newsletters")}
+                            onTouchEnd={handleTouchEnd}
+                            onTouchCancel={handleTouchEnd}
                             disabled={isLoading}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
@@ -748,10 +777,14 @@ What topic are you interested in?
                             variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "podcasts" && "bg-primary text-primary-foreground"
+                              activeButton === "podcasts" && "bg-primary text-primary-foreground",
+                              activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
                             onClick={() => toggleButton("podcasts")}
+                            onTouchStart={() => handleTouchStart("podcasts")}
+                            onTouchEnd={handleTouchEnd}
+                            onTouchCancel={handleTouchEnd}
                             disabled={isLoading}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
@@ -765,10 +798,14 @@ What topic are you interested in?
                             variant="outline"
                             className={cn(
                               "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "articles" && "bg-primary text-primary-foreground"
+                              activeButton === "articles" && "bg-primary text-primary-foreground",
+                              activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
                             onClick={() => toggleButton("articles")}
+                            onTouchStart={() => handleTouchStart("articles")}
+                            onTouchEnd={handleTouchEnd}
+                            onTouchCancel={handleTouchEnd}
                             disabled={isLoading}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
