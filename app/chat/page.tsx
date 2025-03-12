@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { ChatPage } from '../../components/chat/ChatPage';
 import { StandardSidebarLayout } from '@/components/ui/StandardSidebarLayout';
+import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 
 export const metadata: Metadata = {
   title: 'Chat',
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="fixed inset-0 md:static md:inset-auto md:overflow-auto">
+    <div className="fixed inset-0 md:static md:inset-auto w-full">
       <StandardSidebarLayout
         rightSidebar={
           <div className="p-4">
@@ -19,6 +20,9 @@ export default function Page() {
             </p>
           </div>
         }
+        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
+        mainContentClass={LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS}
+        rightSidebarClass={LAYOUT_CONSTANTS.RIGHT_SIDEBAR_CLASS}
       >
         <ChatPage />
       </StandardSidebarLayout>
