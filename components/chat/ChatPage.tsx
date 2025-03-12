@@ -90,6 +90,9 @@ export function ChatPage() {
   // Additional state for input handling
   const [hasTyped, setHasTyped] = useState(false);
 
+  // Add a new state to track if animation should run
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+
   // Scroll to bottom function
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -476,12 +479,17 @@ export function ChatPage() {
     );
   };
 
-  // Custom submit handler that wraps the original handleSubmit
+  // Modify custom submit handler to trigger animation on first message
   const customHandleSubmit = (e: React.FormEvent<HTMLFormElement> | Event) => {
     e.preventDefault();
     
     // Only submit if there's input, we're not already streaming, and a button is selected
     if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
+      // Check if this is the first message being sent
+      if (messages.length === 0) {
+        setShouldAnimate(true);
+      }
+      
       // Add vibration when message is submitted
       safeVibrate(50);
       
@@ -571,10 +579,54 @@ export function ChatPage() {
       setIsStreaming(false);
       setLastMessageId(null);
       
+      // Reset the animation state to reposition the input to the middle
+      setShouldAnimate(false);
+      
       // Focus the textarea after clearing
       if (textareaRef.current) {
         textareaRef.current.focus();
       }
+    }
+  };
+
+  // New function to handle topic card clicks
+  const handleTopicClick = (topic: string, subtopic: string) => {
+    if (textareaRef.current) {
+      // Set an appropriate starter question based on the topic
+      const starterQuestions = {
+        sports: `Tell me the latest news about ${subtopic}.`,
+        investing: `What's happening with ${subtopic} recently?`,
+        politics: `What's the latest news about ${subtopic}?`,
+        technology: `What are the latest developments in ${subtopic}?`
+      };
+      
+      // Map topics to appropriate content types
+      const topicToContentType: Record<string, ActiveButton> = {
+        sports: "articles",
+        investing: "newsletters",
+        politics: "podcasts",
+        technology: "articles"
+      };
+      
+      // Get the question text based on topic
+      const questionText = starterQuestions[topic.toLowerCase() as keyof typeof starterQuestions];
+      
+      // Set the appropriate content type button
+      const contentType = topicToContentType[topic.toLowerCase() as keyof typeof topicToContentType];
+      setActiveButton(contentType);
+      
+      // Set the input value programmatically
+      const e = {
+        target: {
+          value: questionText
+        }
+      } as React.ChangeEvent<HTMLTextAreaElement>;
+      
+      // Call the input change handler to update the state
+      customHandleInputChange(e);
+      
+      // Focus the textarea
+      textareaRef.current.focus();
     }
   };
 
@@ -586,7 +638,7 @@ export function ChatPage() {
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
         <div style={{ width: '32px' }}></div>
-        <span className="text-sm font-medium">Chat</span>
+        <span className="font-medium leading-none flex items-center">Chat <span className="ml-1.5 text-xs leading-none font-medium px-1.5 py-1 rounded bg-green-500/20 text-green-500 ml-1">beta</span></span>
         <Button
           variant="ghost"
           size="icon"
@@ -611,10 +663,8 @@ export function ChatPage() {
       >
         <div className="min-h-full pl-4 pr-4 pt-4 pb-2 flex flex-col">
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center py-20 w-full">
-              <p className="text-muted-foreground text-center">
-                Start a conversation with our AI assistant. You can ask questions about articles, products, or get general information.
-              </p>
+            <div className="flex-1 flex">
+              {/* Empty space to push content down */}
             </div>
           ) : (
             <div className="w-full space-y-4">
@@ -628,19 +678,29 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Input Form - Mobile: sticky, Desktop: fixed */}
+      {/* Input Form with Topic Cards - Mobile: sticky, Desktop: fixed 
+          Add conditional positioning and transition */}
       <div 
-        className="sticky bottom-0 left-0 right-0 bg-transparent p-0 z-10"
+        className={cn(
+          "sticky left-0 right-0 bg-transparent p-0 z-10 transition-all duration-0 ease-in-out",
+          messages.length === 0 && !shouldAnimate ? "bottom-[50%] transform translate-y-1/2" : "bottom-0"
+        )}
         style={{ 
-          height: '135px', 
+          height: 'auto', 
           minHeight: '135px'
         }}
       >
-        <div className="mx-auto flex flex-row p-0 max-w-screen-lg">
-          <div className="hidden md:block"></div>
+        {messages.length === 0 && (
+          <div className="px-4">
+            <h2 className="text-2xl font-medium text-center leading-tight">
+What topic are you interested in?
+            </h2>
+          </div>
+        )}
+        <div className="mx-auto flex flex-col p-0 max-w-screen-lg">
           <div className="w-full md:flex md:justify-center">
             <div className="w-full pl-4 pr-4 pt-4 pb-4">
-              <form onSubmit={customHandleSubmit} className="w-full h-full">
+              <form onSubmit={customHandleSubmit} className="w-full">
                 <div
                   ref={inputContainerRef}
                   className={cn(
@@ -653,7 +713,7 @@ export function ChatPage() {
                   <div className="pb-9">
                     <Textarea
                       ref={textareaRef}
-                      placeholder={isLoading ? "Waiting for response..." : "Ask me anything..."}
+                      placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
                       className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
                       value={input}
                       onChange={customHandleInputChange}
@@ -670,7 +730,7 @@ export function ChatPage() {
                             type="button"
                             variant="outline"
                             className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
                               activeButton === "newsletters" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
@@ -687,7 +747,7 @@ export function ChatPage() {
                             type="button"
                             variant="outline"
                             className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
                               activeButton === "podcasts" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
@@ -704,7 +764,7 @@ export function ChatPage() {
                             type="button"
                             variant="outline"
                             className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background border-0 transition-none",
+                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
                               activeButton === "articles" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
@@ -737,7 +797,61 @@ export function ChatPage() {
               </form>
             </div>
           </div>
-          <div className="hidden md:block"></div>
+          
+          {/* Topic suggestion cards - only display when no messages */}
+          {messages.length === 0 && (
+            <div className="w-full px-4 mb-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Sports card */}
+                <div 
+                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                  onClick={() => handleTopicClick('sports', 'NFL')}
+                >
+                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                    <span className="mr-2">🏈</span>
+                    <span>Sports</span>
+                  </h3>
+                  <p className="text-primary text-sm leading-none">NFL Free Agency</p>
+                </div>
+                
+                {/* Investing card */}
+                <div 
+                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                  onClick={() => handleTopicClick('investing', 'Bitcoin')}
+                >
+                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                    <span className="mr-2">📈</span>
+                    <span>Investing</span>
+                  </h3>
+                  <p className="text-primary text-sm leading-none">Stock Market</p>
+                </div>
+                
+                {/* Pop Culture card */}
+                <div 
+                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                  onClick={() => handleTopicClick('politics', 'Kendrick Lamar')}
+                >
+                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                    <span className="mr-2">🍿</span>
+                    <span>Pop Culture</span>
+                  </h3>
+                  <p className="text-primary text-sm leading-none">Kendrick Lamar</p>
+                </div>
+                
+                {/* Technology card */}
+                <div 
+                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                  onClick={() => handleTopicClick('technology', 'AI')}
+                >
+                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                    <span className="mr-2">🤖</span>
+                    <span>Technology</span>
+                  </h3>
+                  <p className="text-primary text-sm leading-none">Artificial Intelligence</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
