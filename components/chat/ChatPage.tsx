@@ -185,10 +185,7 @@ export function ChatPage() {
   };
 
   // Toggle action buttons with selection preservation
-  const toggleButton = (buttonType: ActiveButton, e: React.MouseEvent) => {
-    // Stop propagation to prevent parent handlers from interfering
-    e.stopPropagation();
-    
+  const toggleButton = (buttonType: ActiveButton) => {
     if (!isStreaming) {
       // Save the current selection state before toggling
       saveSelectionState();
@@ -208,7 +205,9 @@ export function ChatPage() {
     // Only focus if clicking directly on the container, not on buttons or other interactive elements
     if (
       e.target === e.currentTarget ||
-      (e.currentTarget === inputContainerRef.current && !(e.target as HTMLElement).closest("button"))
+      (e.currentTarget === inputContainerRef.current && 
+       !(e.target as HTMLElement).closest("button") && 
+       !(e.target as HTMLElement).closest(".chat-filter-button"))
     ) {
       if (textareaRef.current) {
         e.stopPropagation(); // Prevent event bubbling
@@ -483,6 +482,7 @@ export function ChatPage() {
   // Custom submit handler that wraps the original handleSubmit
   const customHandleSubmit = (e: React.FormEvent<HTMLFormElement> | Event) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
     
     // Only submit if there's input, we're not already streaming, and a button is selected
     if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
@@ -685,7 +685,10 @@ export function ChatPage() {
                               activeButton === "newsletters" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("newsletters", e)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent event bubbling
+                              toggleButton("newsletters");
+                            }}
                             disabled={isLoading}
                           >
                             <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
@@ -702,7 +705,10 @@ export function ChatPage() {
                               activeButton === "podcasts" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("podcasts", e)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent event bubbling
+                              toggleButton("podcasts");
+                            }}
                             disabled={isLoading}
                           >
                             <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
@@ -719,7 +725,10 @@ export function ChatPage() {
                               activeButton === "articles" && "bg-primary text-primary-foreground"
                             )}
                             data-state={activeButton === "articles" ? "active" : "inactive"}
-                            onClick={(e) => toggleButton("articles", e)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent event bubbling
+                              toggleButton("articles");
+                            }}
                             disabled={isLoading}
                           >
                             <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
@@ -739,10 +748,7 @@ export function ChatPage() {
                           (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
                         )}
                         onClick={(e) => {
-                          e.stopPropagation();
-                          if (input.trim() && !isLoading && activeButton !== "none") {
-                            customHandleSubmit(new Event('submit'));
-                          }
+                          e.stopPropagation(); // Prevent event bubbling
                         }}
                       >
                         <ArrowUp className="h-4 w-4" />
