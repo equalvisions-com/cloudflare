@@ -37,33 +37,35 @@ const TabHeaders = React.memo(({
 
   return (
     <div className="embla-tabs-header">
-      {tabs.map((tab, index) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabClick(index)}
-          className={cn(
-            'flex-1 py-3 text-center font-medium text-sm relative transition-colors',
-            selectedTab === index 
-              ? 'text-primary' 
-              : 'text-muted-foreground hover:text-primary/80'
-          )}
-          role="tab"
-          aria-controls={`panel-${tab.id}`}
-          id={`tab-${tab.id}`}
-        >
-          <span ref={(el) => { labelRefs.current[index] = el; }}>{tab.label}</span>
-          {selectedTab === index && (
-            <div 
-              className="absolute bottom-0 h-1 bg-primary rounded-full" 
-              style={{ 
-                width: labelRefs.current[index]?.offsetWidth || 'auto',
-                left: '50%',
-                transform: 'translateX(-50%)'
-              }} 
-            />
-          )}
-        </button>
-      ))}
+      <div className="flex w-full">
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.id}
+            onClick={() => onTabClick(index)}
+            className={cn(
+              'flex-1 py-3 text-center font-medium text-sm relative transition-colors',
+              selectedTab === index 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-primary/80'
+            )}
+            role="tab"
+            aria-controls={`panel-${tab.id}`}
+            id={`tab-${tab.id}`}
+          >
+            <span ref={(el) => { labelRefs.current[index] = el; }}>{tab.label}</span>
+            {selectedTab === index && (
+              <div 
+                className="absolute bottom-0 h-1 bg-primary rounded-full" 
+                style={{ 
+                  width: labelRefs.current[index]?.offsetWidth || 'auto',
+                  left: '50%',
+                  transform: 'translateX(-50%)'
+                }} 
+              />
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 });

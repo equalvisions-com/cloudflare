@@ -20,11 +20,12 @@
 /* Sticky header tabs */
 .embla-tabs-header {
   position: sticky;
-  top: max(0px, env(safe-area-inset-top), -webkit-safe-area-inset-top);
+  top: 0;
+  padding-top: max(0px, env(safe-area-inset-top), -webkit-safe-area-inset-top);
   background: var(--background);
   backdrop-filter: blur(8px);
   z-index: 40;
+  display: flex;
+  width: 100%;
   border-bottom: 1px solid var(--border);
-  margin: 0 -1px;
-  padding: 0 1px;
 } 
