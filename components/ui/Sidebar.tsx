@@ -67,7 +67,7 @@ function Sidebar() {
   ], [pathname]);
 
   return (
-    <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] justify-self-end">
+    <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">
       <CardContent className="p-0">
         <nav className="flex flex-col gap-4">
           {/* Navigation items */}

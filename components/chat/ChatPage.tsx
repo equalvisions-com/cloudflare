@@ -597,17 +597,15 @@ export function ChatPage() {
       // Vibrate when resetting chat
       safeVibrate(100);
       
-      // Clear the chat using the setMessages method from useChat
-      setMessages([]);
+      // Reset animation state
+      setShouldAnimate(false);
       
-      // Reset any other state if needed
+      // Reset message state
+      setMessages([]);
       setIsStreaming(false);
       setLastMessageId(null);
       
-      // Reset the animation state to reposition the input to the middle
-      setShouldAnimate(false);
-      
-      // Focus the textarea after clearing
+      // Focus the textarea
       if (textareaRef.current) {
         textareaRef.current.focus();
       }
