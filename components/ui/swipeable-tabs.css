@@ -15,4 +15,16 @@
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
+}
+
+/* Sticky header tabs */
+.embla-tabs-header {
+  position: sticky;
+  top: max(0px, env(safe-area-inset-top), -webkit-safe-area-inset-top);
+  background: var(--background);
+  backdrop-filter: blur(8px);
+  z-index: 40;
+  border-bottom: 1px solid var(--border);
+  margin: 0 -1px;
+  padding: 0 1px;
 } 

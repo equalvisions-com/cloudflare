@@ -36,8 +36,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-10 border-b border-l border-r">
-      
+    <div className="embla-tabs-header">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
