@@ -19,13 +19,23 @@
 
 /* Sticky header tabs */
 .embla-tabs-header {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   top: 0;
-  padding-top: max(0px, env(safe-area-inset-top), -webkit-safe-area-inset-top);
-  background: var(--background);
-  backdrop-filter: blur(8px);
+  min-height: env(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+  background-color: var(--background);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 40;
   display: flex;
   width: 100%;
   border-bottom: 1px solid var(--border);
+}
+
+/* Add padding to content to account for fixed header */
+.embla-tabs-content {
+  padding-top: calc(env(safe-area-inset-top) + 48px); /* 48px is the height of the tab buttons */
+  width: 100%;
 } 

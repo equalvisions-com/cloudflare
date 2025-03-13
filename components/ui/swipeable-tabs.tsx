@@ -279,7 +279,7 @@ export function SwipeableTabs({
       />
 
       {/* All tab contents are rendered but only the selected one is visible */}
-      <div className="w-full">
+      <div className="embla-tabs-content">
         {renderedTabs}
       </div>
 
