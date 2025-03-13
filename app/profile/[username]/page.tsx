@@ -3,7 +3,8 @@ import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { Suspense } from "react";
+import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
+import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -75,13 +76,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
   
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Suspense fallback={<div className="text-center">Loading profile...</div>}>
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-4">{normalizedUsername}</h1>
-          <div className="prose">
+    <ProfileLayoutManager>
+      <div>
+        <div>
+          <div className="prose dark:prose-invert p-4 border-l border-r">
+            <h1 className="text-3xl font-bold mb-4">{normalizedUsername}</h1>
             <p>User ID: {profile.userId}</p>
             {profile.rssKeys && profile.rssKeys.length > 0 ? (
               <div>
@@ -96,8 +96,13 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
               <p>No followed feeds yet.</p>
             )}
           </div>
+          
+          <ProfileActivityData 
+            userId={profile.userId} 
+            username={normalizedUsername} 
+          />
         </div>
-      </Suspense>
-    </div>
+      </div>
+    </ProfileLayoutManager>
   );
 }

@@ -15,21 +15,4 @@
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
-}
-
-/* Sticky header with safe area padding and blur effect */
-.swipeable-tabs-header {
-  position: sticky;
-  top: 0;
-  padding-top: env(safe-area-inset-top, 0px);
-  background: rgba(var(--background), 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 50;
-  border-bottom: 1px solid hsl(var(--border));
-}
-
-/* Ensure content starts below the safe area on iOS */
-.swipeable-tabs-content {
-  padding-top: env(safe-area-inset-top, 0px);
 } 

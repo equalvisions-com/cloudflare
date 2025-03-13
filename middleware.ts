@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isProtectedRoute = createRouteMatcher(["/product(.*)"]);
 const isProfileRoute = createRouteMatcher(["/@:username"]);
-const isLegacyProfileRoute = createRouteMatcher(["/user/@:username"]);
+const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
 
 // Helper to normalize username for internal routing
 const normalizeUsername = (username: string) => {
@@ -21,7 +21,7 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   if (isLegacyProfileRoute(request)) {
     const url = request.nextUrl.clone();
     // Extract username part and normalize it
-    const username = url.pathname.replace('/user/', '');
+    const username = url.pathname.replace('/profile/', '');
     url.pathname = normalizeUsername(username);
     return NextResponse.redirect(new URL(url.pathname, request.url), 301);
   }
@@ -31,7 +31,7 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     const url = request.nextUrl.clone();
     // For internal routing, we keep the normalized version
     const username = url.pathname.substring(1); // remove leading slash
-    url.pathname = `/user/${normalizeUsername(username)}`;
+    url.pathname = `/profile/${normalizeUsername(username)}`;
     return NextResponse.rewrite(url);
   }
 

@@ -25,6 +25,7 @@ import type * as posts from "../posts.js";
 import type * as profiles from "../profiles.js";
 import type * as retweets from "../retweets.js";
 import type * as rssKeys from "../rssKeys.js";
+import type * as userActivity from "../userActivity.js";
 import type * as users from "../users.js";
 
 /**
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   profiles: typeof profiles;
   retweets: typeof retweets;
   rssKeys: typeof rssKeys;
+  userActivity: typeof userActivity;
   users: typeof users;
 }>;
 export declare const api: FilterApi<

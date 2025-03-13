@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
+import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
@@ -49,7 +50,9 @@ export default function RootLayout({
             <ThemeProvider attribute="class">
               <AudioProvider>
                 <div className="">
-                  
+                  <div className="flex justify-end hidden">
+                    <UserMenuServer />
+                  </div>
                   {children}
                 </div>
                 <PersistentPlayer />

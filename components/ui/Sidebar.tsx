@@ -93,6 +93,7 @@ function Sidebar() {
           </div>
         </nav>
       </CardContent>
+ 
     </Card>
   );
 } 
