@@ -512,25 +512,47 @@ export function ChatPage() {
     if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
       // Check if this is the first message being sent
       if (messages.length === 0) {
+        // Set animation state before submitting to ensure smooth transition
         setShouldAnimate(true);
+        
+        // Give the animation a moment to start before continuing with the submission
+        setTimeout(() => {
+          // Add vibration when message is submitted
+          safeVibrate(50);
+          
+          // Focus the textarea
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+          
+          // Set streaming state
+          setIsStreaming(true);
+          
+          // Scroll to bottom immediately when sending
+          scrollToBottom();
+          
+          // Call our custom handleSubmit function
+          handleSubmit(e as React.FormEvent<HTMLFormElement>);
+        }, 300); // Longer delay to allow animation to complete
+      } else {
+        // For subsequent messages, no animation delay is needed
+        // Add vibration when message is submitted
+        safeVibrate(50);
+        
+        // Focus the textarea
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+        
+        // Set streaming state
+        setIsStreaming(true);
+        
+        // Scroll to bottom immediately when sending
+        scrollToBottom();
+        
+        // Call our custom handleSubmit function
+        handleSubmit(e as React.FormEvent<HTMLFormElement>);
       }
-      
-      // Add vibration when message is submitted
-      safeVibrate(50);
-      
-      // Focus the textarea
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-      
-      // Set streaming state
-      setIsStreaming(true);
-      
-      // Scroll to bottom immediately when sending
-      scrollToBottom();
-      
-      // Call our custom handleSubmit function
-      handleSubmit(e as React.FormEvent<HTMLFormElement>);
     }
   };
 
@@ -597,18 +619,23 @@ export function ChatPage() {
       // Vibrate when resetting chat
       safeVibrate(100);
       
-      // Reset animation state
+      // First set the animation state to false to trigger the transition
       setShouldAnimate(false);
       
-      // Reset message state
-      setMessages([]);
-      setIsStreaming(false);
-      setLastMessageId(null);
-      
-      // Focus the textarea
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
+      // Wait for transition to begin before clearing messages
+      setTimeout(() => {
+        // Clear the chat using the setMessages method from useChat
+        setMessages([]);
+        
+        // Reset any other state
+        setIsStreaming(false);
+        setLastMessageId(null);
+        
+        // Focus the textarea after clearing
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 300); // Longer delay to allow animation to complete
     }
   };
 
@@ -656,7 +683,7 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef} 
-      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh]"
+      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden"
     >
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
@@ -703,192 +730,312 @@ export function ChatPage() {
 
       {/* Input Form with Topic Cards - Mobile: sticky, Desktop: fixed 
           Add conditional positioning and transition */}
-      <div 
-        className={cn(
-          "sticky left-0 right-0 bg-transparent p-0 z-10 transition-all duration-0 ease-in-out",
-          messages.length === 0 && !shouldAnimate ? "bottom-[50%] transform translate-y-1/2" : "bottom-0"
-        )}
-        style={{ 
-          height: 'auto', 
-          minHeight: '135px'
-        }}
-      >
-        {messages.length === 0 && (
-          <div className="px-4">
-            <h2 className="text-2xl font-medium text-center leading-tight">
-What topic are you interested in?
-            </h2>
-          </div>
-        )}
-        <div className="mx-auto flex flex-col p-0 max-w-screen-lg">
-          <div className="w-full md:flex md:justify-center">
-            <div className="w-full pl-4 pr-4 pt-4 pb-4">
-              <form onSubmit={customHandleSubmit} className="w-full">
-                <div
-                  ref={inputContainerRef}
-                  className={cn(
-                    "relative w-full rounded-3xl border border-input p-3 cursor-text",
-                    "bg-secondary/60",
-                    isLoading && "opacity-80"
-                  )}
-                  onClick={handleInputContainerClick}
-                >
-                  <div className="pb-9">
-                    <Textarea
-                      ref={textareaRef}
-                      placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
-                      className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
-                      value={input}
-                      onChange={customHandleInputChange}
-                      onKeyDown={handleKeyDown}
-                      disabled={isLoading}
-                    />
-                  </div>
+      {messages.length === 0 && !shouldAnimate ? (
+        <div 
+          className="absolute inset-0 flex items-center justify-center w-full transition-all duration-300 ease-out"
+          style={{ 
+            top: '45px', // Account for top bar height
+            height: 'calc(100% - 45px)', // Adjust height to exclude top bar
+          }}
+        >
+          <div className="w-full max-w-screen-lg px-4">
+            {/* Group all three elements together for proper centering */}
+            <div className="w-full">
+              {/* Title */}
+              <div className="mb-4">
+                <h2 className="text-2xl font-medium text-center leading-tight">
+                  What topic are you interested in?
+                </h2>
+              </div>
+              
+              {/* Input area */}
+              <div className="w-full mb-4">
+                <form onSubmit={customHandleSubmit} className="w-full">
+                  <div
+                    ref={inputContainerRef}
+                    className={cn(
+                      "relative w-full rounded-3xl border border-input p-3 cursor-text",
+                      "bg-secondary/60",
+                      isLoading && "opacity-80"
+                    )}
+                    onClick={handleInputContainerClick}
+                  >
+                    <div className="pb-9">
+                      <Textarea
+                        ref={textareaRef}
+                        placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
+                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                        value={input}
+                        onChange={customHandleInputChange}
+                        onKeyDown={handleKeyDown}
+                        disabled={isLoading}
+                      />
+                    </div>
 
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <div className="flex items-center justify-between">
-                      <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
-                        <div className="flex items-center space-x-2 min-w-max">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "newsletters" && "bg-primary text-primary-foreground",
-                              activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
-                            )}
-                            data-state={activeButton === "newsletters" ? "active" : "inactive"}
-                            onClick={() => toggleButton("newsletters")}
-                            onTouchStart={() => handleTouchStart("newsletters")}
-                            onTouchEnd={handleTouchEnd}
-                            onTouchCancel={handleTouchEnd}
-                            disabled={isLoading}
-                          >
-                            <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
-                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
-                              Newsletters
-                            </span>
-                          </Button>
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <div className="flex items-center justify-between">
+                        <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
+                          <div className="flex items-center space-x-2 min-w-max">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "newsletters" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "newsletters" ? "active" : "inactive"}
+                              onClick={() => toggleButton("newsletters")}
+                              onTouchStart={() => handleTouchStart("newsletters")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
+                                Newsletters
+                              </span>
+                            </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "podcasts" && "bg-primary text-primary-foreground",
-                              activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
-                            )}
-                            data-state={activeButton === "podcasts" ? "active" : "inactive"}
-                            onClick={() => toggleButton("podcasts")}
-                            onTouchStart={() => handleTouchStart("podcasts")}
-                            onTouchEnd={handleTouchEnd}
-                            onTouchCancel={handleTouchEnd}
-                            disabled={isLoading}
-                          >
-                            <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
-                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
-                              Podcasts
-                            </span>
-                          </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "podcasts" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "podcasts" ? "active" : "inactive"}
+                              onClick={() => toggleButton("podcasts")}
+                              onTouchStart={() => handleTouchStart("podcasts")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
+                                Podcasts
+                              </span>
+                            </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
-                              activeButton === "articles" && "bg-primary text-primary-foreground",
-                              activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
-                            )}
-                            data-state={activeButton === "articles" ? "active" : "inactive"}
-                            onClick={() => toggleButton("articles")}
-                            onTouchStart={() => handleTouchStart("articles")}
-                            onTouchEnd={handleTouchEnd}
-                            onTouchCancel={handleTouchEnd}
-                            disabled={isLoading}
-                          >
-                            <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
-                            <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
-                              Articles
-                            </span>
-                          </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "articles" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "articles" ? "active" : "inactive"}
+                              onClick={() => toggleButton("articles")}
+                              onTouchStart={() => handleTouchStart("articles")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
+                                Articles
+                              </span>
+                            </Button>
+                          </div>
                         </div>
-                      </div>
 
-                      <Button
-                        type="submit"
-                        size="icon"
-                        disabled={!input.trim() || isLoading || activeButton === "none"}
-                        className={cn(
-                          "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                          (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                        <span className="sr-only">Send</span>
-                      </Button>
+                        <Button
+                          type="submit"
+                          size="icon"
+                          disabled={!input.trim() || isLoading || activeButton === "none"}
+                          className={cn(
+                            "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                            (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                          <span className="sr-only">Send</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </form>
-            </div>
-          </div>
-          
-          {/* Topic suggestion cards - only display when no messages */}
-          {messages.length === 0 && (
-            <div className="w-full px-4 mb-4">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Sports card */}
-                <div 
-                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
-                  onClick={() => handleTopicClick('sports', 'NFL')}
-                >
-                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                    <span className="mr-2">🏈</span>
-                    <span>Sports</span>
-                  </h3>
-                  <p className="text-primary text-sm leading-none">NFL Free Agency</p>
-                </div>
-                
-                {/* Investing card */}
-                <div 
-                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
-                  onClick={() => handleTopicClick('investing', 'Bitcoin')}
-                >
-                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                    <span className="mr-2">📈</span>
-                    <span>Investing</span>
-                  </h3>
-                  <p className="text-primary text-sm leading-none">Stock Market</p>
-                </div>
-                
-                {/* Pop Culture card */}
-                <div 
-                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
-                  onClick={() => handleTopicClick('politics', 'Kendrick Lamar')}
-                >
-                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                    <span className="mr-2">🍿</span>
-                    <span>Pop Culture</span>
-                  </h3>
-                  <p className="text-primary text-sm leading-none">Kendrick Lamar</p>
-                </div>
-                
-                {/* Technology card */}
-                <div 
-                  className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
-                  onClick={() => handleTopicClick('technology', 'AI')}
-                >
-                  <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                    <span className="mr-2">🤖</span>
-                    <span>Technology</span>
-                  </h3>
-                  <p className="text-primary text-sm leading-none">Artificial Intelligence</p>
+                </form>
+              </div>
+              
+              {/* Topic grid */}
+              <div className="w-full">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Sports card */}
+                  <div 
+                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    onClick={() => handleTopicClick('sports', 'NFL')}
+                  >
+                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                      <span className="mr-2">🏈</span>
+                      <span>Sports</span>
+                    </h3>
+                    <p className="text-primary text-sm leading-none">NFL Free Agency</p>
+                  </div>
+                  
+                  {/* Investing card */}
+                  <div 
+                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    onClick={() => handleTopicClick('investing', 'Bitcoin')}
+                  >
+                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                      <span className="mr-2">📈</span>
+                      <span>Investing</span>
+                    </h3>
+                    <p className="text-primary text-sm leading-none">Stock Market</p>
+                  </div>
+                  
+                  {/* Pop Culture card */}
+                  <div 
+                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    onClick={() => handleTopicClick('politics', 'Kendrick Lamar')}
+                  >
+                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                      <span className="mr-2">🍿</span>
+                      <span>Pop Culture</span>
+                    </h3>
+                    <p className="text-primary text-sm leading-none">Kendrick Lamar</p>
+                  </div>
+                  
+                  {/* Technology card */}
+                  <div 
+                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    onClick={() => handleTopicClick('technology', 'AI')}
+                  >
+                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
+                      <span className="mr-2">🤖</span>
+                      <span>Technology</span>
+                    </h3>
+                    <p className="text-primary text-sm leading-none">Artificial Intelligence</p>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div 
+          className="sticky bottom-0 left-0 right-0 bg-transparent p-0 z-10 transition-all duration-300 ease-out w-full"
+          style={{ 
+            overflow: 'hidden', // Prevent overflow during transition
+          }}
+        >
+          <div className="mx-auto flex flex-col p-0 max-w-screen-lg">
+            <div className="w-full md:flex md:justify-center">
+              <div className="w-full pl-4 pr-4 pt-4 pb-4">
+                <form onSubmit={customHandleSubmit} className="w-full">
+                  <div
+                    ref={inputContainerRef}
+                    className={cn(
+                      "relative w-full rounded-3xl border border-input p-3 cursor-text",
+                      "bg-secondary/60",
+                      isLoading && "opacity-80"
+                    )}
+                    onClick={handleInputContainerClick}
+                  >
+                    <div className="pb-9">
+                      <Textarea
+                        ref={textareaRef}
+                        placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
+                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                        value={input}
+                        onChange={customHandleInputChange}
+                        onKeyDown={handleKeyDown}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <div className="flex items-center justify-between">
+                        <div className="overflow-x-auto scrollbar-hide pr-2 mr-2">
+                          <div className="flex items-center space-x-2 min-w-max">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "newsletters" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "newsletters" ? "active" : "inactive"}
+                              onClick={() => toggleButton("newsletters")}
+                              onTouchStart={() => handleTouchStart("newsletters")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
+                                Newsletters
+                              </span>
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "podcasts" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "podcasts" ? "active" : "inactive"}
+                              onClick={() => toggleButton("podcasts")}
+                              onTouchStart={() => handleTouchStart("podcasts")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
+                                Podcasts
+                              </span>
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                activeButton === "articles" && "bg-primary text-primary-foreground",
+                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
+                              )}
+                              data-state={activeButton === "articles" ? "active" : "inactive"}
+                              onClick={() => toggleButton("articles")}
+                              onTouchStart={() => handleTouchStart("articles")}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
+                              disabled={isLoading}
+                            >
+                              <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
+                              <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
+                                Articles
+                              </span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="submit"
+                          size="icon"
+                          disabled={!input.trim() || isLoading || activeButton === "none"}
+                          className={cn(
+                            "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
+                            (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                          <span className="sr-only">Send</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
