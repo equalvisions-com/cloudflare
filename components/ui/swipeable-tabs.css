@@ -17,25 +17,19 @@
   min-width: 0;
 }
 
-/* Sticky header tabs */
-.embla-tabs-header {
-  position: fixed;
-  left: 0;
-  right: 0;
+/* Sticky header with safe area padding and blur effect */
+.swipeable-tabs-header {
+  position: sticky;
   top: 0;
-  min-height: env(safe-area-inset-top);
-  padding-top: env(safe-area-inset-top);
-  background-color: var(--background);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  z-index: 40;
-  display: flex;
-  width: 100%;
-  border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top, 0px);
+  background: rgba(var(--background), 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 50;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
-/* Add padding to content to account for fixed header */
-.embla-tabs-content {
-  padding-top: calc(env(safe-area-inset-top) + 48px); /* 48px is the height of the tab buttons */
-  width: 100%;
+/* Ensure content starts below the safe area on iOS */
+.swipeable-tabs-content {
+  padding-top: env(safe-area-inset-top, 0px);
 } 

@@ -36,7 +36,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="embla-tabs-header">
+    <div className="swipeable-tabs-header">
       <div className="flex w-full">
         {tabs.map((tab, index) => (
           <button
@@ -279,7 +279,7 @@ export function SwipeableTabs({
       />
 
       {/* All tab contents are rendered but only the selected one is visible */}
-      <div className="embla-tabs-content">
+      <div className="swipeable-tabs-content">
         {renderedTabs}
       </div>
 
