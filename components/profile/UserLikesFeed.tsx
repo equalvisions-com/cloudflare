@@ -72,10 +72,9 @@ interface UserActivityFeedProps {
     entryMetrics?: Record<string, InteractionStates>;
   } | null;
   pageSize?: number;
-  apiEndpoint?: string;
 }
 
-// Custom hook for batch metrics - similar to EntriesDisplay.tsx
+// Custom hook for batch metrics - same as in UserActivityFeed
 function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
   // Fetch batch metrics for all entries
   const batchMetricsQuery = useQuery(
@@ -502,10 +501,10 @@ const ActivityCard = React.memo(({
 ActivityCard.displayName = 'ActivityCard';
 
 /**
- * Client component that displays a user's activity feed with virtualization and pagination
+ * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserActivityFeed({ userId, username, initialData, pageSize = 30, apiEndpoint = "/api/activity" }: UserActivityFeedProps) {
+export function UserLikesFeed({ userId, username, initialData, pageSize = 30 }: UserActivityFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
@@ -516,7 +515,6 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
   const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
-  const totalCount = initialData?.totalCount || 0;
   
   // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
@@ -536,7 +534,7 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
   // Log when initial data is received
   useEffect(() => {
     if (initialData?.activities) {
-      console.log('📋 Initial activity data received from server:', {
+      console.log('📋 Initial likes data received from server:', {
         activitiesCount: initialData.activities.length,
         totalCount: initialData.totalCount,
         hasMore: initialData.hasMore,
@@ -561,10 +559,10 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
     setIsLoading(true);
     
     try {
-      console.log(`📡 Fetching more activities from API, skip=${currentSkip}, limit=${pageSize}`);
+      console.log(`📡 Fetching more likes from API, skip=${currentSkip}, limit=${pageSize}`);
       
       // Use the API route to fetch the next page
-      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
+      const result = await fetch(`/api/likes?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
@@ -579,7 +577,7 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
       });
       
       if (!data.activities?.length) {
-        console.log('⚠️ No activities returned from API');
+        console.log('⚠️ No likes returned from API');
         setHasMore(false);
         setIsLoading(false);
         return;
@@ -590,13 +588,13 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
       setCurrentSkip(prev => prev + data.activities.length);
       setHasMore(data.hasMore);
       
-      console.log(`📊 Updated state - total activities: ${activities.length + data.activities.length}, hasMore: ${data.hasMore}`);
+      console.log(`📊 Updated state - total likes: ${activities.length + data.activities.length}, hasMore: ${data.hasMore}`);
     } catch (error) {
-      console.error('❌ Error loading more activities:', error);
+      console.error('❌ Error loading more likes:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMore, currentSkip, userId, pageSize, activities.length, apiEndpoint]);
+  }, [isLoading, hasMore, currentSkip, userId, pageSize, activities.length]);
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {
@@ -608,7 +606,7 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
       
       // If the document is shorter than the viewport, load more
       if (documentHeight <= viewportHeight && activities.length > 0) {
-        console.log('📏 Content is shorter than viewport, loading more activities');
+        console.log('📏 Content is shorter than viewport, loading more likes');
         loadMoreActivities();
       }
     };
@@ -628,11 +626,11 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
     );
   }
 
-  // No activities state
+  // No likes state
   if (activities.length === 0 && !isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No activity found for this user.</p>
+        <p>No likes found for this user.</p>
       </div>
     );
   }
@@ -665,10 +663,7 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
                 <div className="h-8" />
               ) : (
                 <div className="text-muted-foreground text-sm py-2">
-                  {activities.length > 0 ? 
-                    `Showing ${activities.length} of ${totalCount} activities` : 
-                    "No activities"
-                  }
+                  {activities.length > 0 ? 'No more likes to load' : 'No likes found'}
                 </div>
               )}
             </div>

@@ -4,7 +4,7 @@ import { fetchQuery } from "convex/nextjs";
 import { cache } from "react";
 
 // Import the client component
-import { UserActivityFeed } from "./UserActivityFeed";
+import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";
 
 interface ProfileActivityDataProps {
   userId: Id<"users">;
@@ -55,10 +55,111 @@ type ConvexPost = {
   postSlug: string;
 };
 
+// Helper function to fetch entry details from PlanetScale
+async function fetchEntryDetails(guids: string[]) {
+  if (!guids.length) return {};
+  
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ guids }),
+      cache: 'no-store'
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch entry details: ${response.status}`);
+      return {};
+    }
+    
+    const data = await response.json();
+    return data.entries;
+  } catch (error) {
+    console.error("Error fetching entry details:", error);
+    return {};
+  }
+}
+
+// Helper function to fetch post data from Convex
+async function fetchPostData(feedTitles: string[]) {
+  if (!feedTitles.length) return [];
+  
+  try {
+    console.log(`[Convex] Fetching post data for ${feedTitles.length} feed titles`);
+    const postsStartTime = Date.now();
+    
+    const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
+    
+    console.log(`[Convex] Fetched ${posts.length} posts in ${Date.now() - postsStartTime}ms`);
+    return posts;
+  } catch (error) {
+    console.error("Error fetching post data from Convex:", error);
+    return [];
+  }
+}
+
+// Enhanced function to fetch and process entry details with parallel post fetching
+async function fetchAndProcessEntryDetails(guids: string[]) {
+  if (!guids.length) return {};
+  
+  try {
+    // Step 1: Fetch entry details
+    const entries = await fetchEntryDetails(guids);
+    
+    if (!entries || !Array.isArray(entries) || entries.length === 0) {
+      return {};
+    }
+    
+    // Step 2: Create a map of guid to entry details
+    const entryDetails = Object.fromEntries(
+      entries.map((entry: RSSEntry) => [entry.guid, entry])
+    );
+    
+    // Step 3: Extract feed titles to fetch post data from Convex
+    const feedTitles = [...new Set(entries
+      .map((entry: RSSEntry) => entry.feed_title)
+      .filter(Boolean) as string[])];
+    
+    if (feedTitles.length > 0) {
+      // Step 4: Fetch posts from Convex
+      const posts = await fetchPostData(feedTitles);
+      
+      // Step 5: Create a map of feed title to post
+      const feedTitleToPostMap = new Map(
+        posts.map((post: ConvexPost) => [post.title, post])
+      );
+      
+      // Step 6: Enrich entry details with post data
+      for (const guid in entryDetails) {
+        const entry = entryDetails[guid];
+        if (entry.feed_title) {
+          const post = feedTitleToPostMap.get(entry.feed_title);
+          
+          if (post) {
+            entry.post_title = post.title;
+            entry.post_featured_img = post.featuredImg;
+            entry.post_media_type = post.mediaType;
+            entry.category_slug = post.categorySlug;
+            entry.post_slug = post.postSlug;
+          }
+        }
+      }
+    }
+    
+    return entryDetails;
+  } catch (error) {
+    console.error("Error processing entry details:", error);
+    return {};
+  }
+}
+
 // Cache the initial data fetching
 export const getInitialActivityData = cache(async (userId: Id<"users">) => {
   try {
-    console.log(`🔍 SERVER: Fetching initial activity data for user: ${userId}`);
+    console.log(`[Convex] Fetching activity data (comments and retweets) for user: ${userId}`);
+    const startTime = Date.now();
     
     // Fetch only the first 30 items, similar to RSS feed implementation
     const result = await fetchQuery(api.userActivity.getUserActivityFeed, { 
@@ -67,101 +168,13 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
       limit: 30
     }) as { activities: ActivityItem[]; totalCount: number; hasMore: boolean };
     
-    console.log(`🚀 SERVER: Fetched ${result.activities.length} initial activities`);
+    console.log(`[Convex] Fetched ${result.activities.length} activities (comments and retweets) in ${Date.now() - startTime}ms`);
     
     // Extract GUIDs from activities to fetch entry details
     const guids = result.activities.map(activity => activity.entryGuid);
     
-    // If we have GUIDs, fetch entry details from PlanetScale
-    let entryDetails: Record<string, RSSEntry> = {};
-    
-    if (guids.length > 0) {
-      try {
-        console.log(`🔍 SERVER: Fetching entry details for ${guids.length} GUIDs`);
-        
-        // Fetch entry details from our API route
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ guids }),
-          cache: 'no-store'
-        });
-        
-        if (!response.ok) {
-          console.warn(`⚠️ SERVER: Failed to fetch entry details: ${response.status}`);
-        } else {
-          const data = await response.json();
-          
-          // Create a map of guid to entry details
-          entryDetails = Object.fromEntries(
-            data.entries.map((entry: RSSEntry) => [entry.guid, entry])
-          );
-          
-          console.log(`✅ SERVER: Fetched details for ${Object.keys(entryDetails).length} entries`);
-          
-          // Extract feed titles to fetch post data from Convex
-          const feedTitles = [...new Set(data.entries
-            .map((entry: RSSEntry) => entry.feed_title)
-            .filter(Boolean) as string[])];
-          
-          if (feedTitles.length > 0) {
-            try {
-              console.log(`🔍 SERVER: Fetching post data for ${feedTitles.length} feed titles`);
-              
-              // Fetch posts from Convex
-              const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
-              
-              // Create a map of feed title to post
-              const feedTitleToPostMap = new Map(
-                posts.map((post: ConvexPost) => [post.title, post])
-              );
-              
-              console.log(`✅ SERVER: Fetched ${posts.length} posts from Convex`);
-              console.log('Posts from Convex:', posts.map(post => ({
-                title: post.title,
-                categorySlug: post.categorySlug,
-                postSlug: post.postSlug
-              })));
-              
-              // Enrich entry details with post data
-              for (const guid in entryDetails) {
-                const entry = entryDetails[guid];
-                if (entry.feed_title) {
-                  const post = feedTitleToPostMap.get(entry.feed_title);
-                  console.log('Matching post for feed_title:', entry.feed_title, post ? {
-                    title: post.title,
-                    categorySlug: post.categorySlug,
-                    postSlug: post.postSlug
-                  } : 'No matching post');
-                  
-                  if (post) {
-                    entry.post_title = post.title;
-                    entry.post_featured_img = post.featuredImg;
-                    entry.post_media_type = post.mediaType;
-                    entry.category_slug = post.categorySlug;
-                    entry.post_slug = post.postSlug;
-                    
-                    console.log('Updated entry:', {
-                      guid,
-                      post_title: entry.post_title,
-                      category_slug: entry.category_slug,
-                      post_slug: entry.post_slug
-                    });
-                  }
-                }
-              }
-            } catch (error) {
-              console.error("⚠️ SERVER: Error fetching post data from Convex:", error);
-            }
-          }
-        }
-      } catch (error) {
-        // Log the error but continue with empty entry details
-        console.error("⚠️ SERVER: Error fetching entry details:", error);
-      }
-    }
+    // Fetch and process entry details in a single step
+    const entryDetails = await fetchAndProcessEntryDetails(guids);
     
     return {
       activities: result.activities,
@@ -170,7 +183,46 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
       entryDetails
     };
   } catch (error) {
-    console.error("❌ SERVER: Error fetching initial activity data:", error);
+    console.error("Error fetching initial activity data:", error);
+    // Return empty data instead of null to avoid loading state
+    return {
+      activities: [],
+      totalCount: 0,
+      hasMore: false,
+      entryDetails: {}
+    };
+  }
+});
+
+// Cache the initial likes data fetching
+export const getInitialLikesData = cache(async (userId: Id<"users">) => {
+  try {
+    console.log(`[Convex] Fetching likes data for user: ${userId}`);
+    const startTime = Date.now();
+    
+    // Fetch only the first 30 likes directly using the dedicated query
+    const result = await fetchQuery(api.userActivity.getUserLikes, { 
+      userId,
+      skip: 0,
+      limit: 30
+    }) as { activities: ActivityItem[]; totalCount: number; hasMore: boolean };
+    
+    console.log(`[Convex] Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
+    
+    // Extract GUIDs from activities to fetch entry details
+    const guids = result.activities.map(activity => activity.entryGuid);
+    
+    // Fetch and process entry details in a single step
+    const entryDetails = await fetchAndProcessEntryDetails(guids);
+    
+    return {
+      activities: result.activities,
+      totalCount: result.totalCount,
+      hasMore: result.hasMore,
+      entryDetails
+    };
+  } catch (error) {
+    console.error("Error fetching initial likes data:", error);
     // Return empty data instead of null to avoid loading state
     return {
       activities: [],
@@ -185,15 +237,16 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
  * Server component that fetches initial activity data and renders the client component
  */
 export async function ProfileActivityData({ userId, username }: ProfileActivityDataProps) {
-  // Fetch initial data - only the first 30 items
-  const initialData = await getInitialActivityData(userId);
+  // Fetch only activity data initially - likes will be loaded on demand
+  const activityData = await getInitialActivityData(userId);
   
   return (
     <div className="mt-0">
-      <UserActivityFeed 
+      <UserProfileTabsWithErrorBoundary 
         userId={userId} 
         username={username} 
-        initialData={initialData}
+        activityData={activityData}
+        likesData={null} // Pass null to indicate likes should be loaded on demand
         pageSize={30}
       />
     </div>

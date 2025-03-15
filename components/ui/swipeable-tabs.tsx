@@ -15,6 +15,7 @@ interface SwipeableTabsProps {
   defaultTabIndex?: number;
   className?: string;
   animationDuration?: number; // Animation duration in milliseconds
+  onTabChange?: (index: number) => void; // Callback when tab changes
 }
 
 // Memoized tab header component to prevent re-renders
@@ -104,6 +105,7 @@ export function SwipeableTabs({
   defaultTabIndex = 0,
   className,
   animationDuration = 0, // Set to 0 for immediate animation with no transition
+  onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [visitedTabs, setVisitedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
@@ -113,6 +115,12 @@ export function SwipeableTabs({
   
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
+  
+  // Ref to track the last tab change to prevent duplicate events
+  const lastTabChangeRef = useRef<{ index: number; time: number }>({ 
+    index: defaultTabIndex, 
+    time: Date.now() 
+  });
   
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
@@ -192,6 +200,26 @@ export function SwipeableTabs({
     });
   }, []);
 
+  // Function to handle tab change with debouncing
+  const handleTabChangeWithDebounce = useCallback((index: number) => {
+    // Skip if it's the same tab or if the change happened too recently (within 300ms)
+    const now = Date.now();
+    if (
+      index === lastTabChangeRef.current.index || 
+      (now - lastTabChangeRef.current.time < 300 && index !== selectedTab)
+    ) {
+      return;
+    }
+    
+    // Update the last tab change ref
+    lastTabChangeRef.current = { index, time: now };
+    
+    // Call the onTabChange callback if provided
+    if (onTabChange) {
+      onTabChange(index);
+    }
+  }, [onTabChange, selectedTab]);
+  
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -211,6 +239,9 @@ export function SwipeableTabs({
         // Update selected tab
         setSelectedTab(index);
         
+        // Handle tab change with debounce
+        handleTabChangeWithDebounce(index);
+        
         // Restore scroll position
         restoreScrollPosition(index);
       }
@@ -221,7 +252,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, restoreScrollPosition]);
+  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]);
 
   // Handle tab click
   const handleTabClick = useCallback(
@@ -242,10 +273,13 @@ export function SwipeableTabs({
       // Update selected tab
       setSelectedTab(index);
       
+      // Handle tab change with debounce
+      handleTabChangeWithDebounce(index);
+      
       // Restore scroll position
       restoreScrollPosition(index);
     },
-    [emblaApi, selectedTab, restoreScrollPosition]
+    [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]
   );
 
   // Pre-render all tab contents but keep them hidden when not active

@@ -37,6 +37,13 @@ type RSSEntry = {
   post_slug?: string;
 };
 
+// Define the shape of interaction states for batch metrics
+interface InteractionStates {
+  likes: { isLiked: boolean; count: number };
+  comments: { count: number };
+  retweets: { isRetweeted: boolean; count: number };
+}
+
 interface ActivityResponse {
   activities: ActivityItem[];
   totalCount: number;
@@ -151,10 +158,36 @@ export async function GET(request: NextRequest) {
         console.error("⚠️ API: Error fetching entry details:", error);
       }
     }
+    
+    // Fetch entry metrics for all guids
+    let entryMetrics: Record<string, InteractionStates> = {};
+    if (guids.length > 0) {
+      try {
+        console.log(`🔍 API: Fetching metrics for ${guids.length} entries`);
+        const metricsStartTime = Date.now();
+        
+        // Fetch metrics from Convex
+        const metrics = await fetchQuery(
+          api.entries.batchGetEntriesMetrics,
+          { entryGuids: guids },
+          token ? { token } : undefined
+        );
+        
+        // Create a map of guid to metrics
+        entryMetrics = Object.fromEntries(
+          guids.map((guid, index) => [guid, metrics[index] as InteractionStates])
+        );
+        
+        console.log(`✅ API: Fetched metrics in ${Date.now() - metricsStartTime}ms`);
+      } catch (error) {
+        console.error("⚠️ API: Error fetching entry metrics:", error);
+      }
+    }
 
     return NextResponse.json({
       ...result,
-      entryDetails
+      entryDetails,
+      entryMetrics
     });
   } catch (error) {
     console.error("Error fetching activity data:", error);

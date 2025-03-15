@@ -46,13 +46,8 @@ export const getUserActivityFeed = query({
     const limit = args.limit || 30;
     const skip = args.skip || 0;
     
-    // Fetch all user's likes, comments, and retweets in a single batch
-    const [likes, comments, retweets] = await Promise.all([
-      ctx.db
-        .query("likes")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect(),
-      
+    // Fetch only user's comments and retweets (excluding likes)
+    const [comments, retweets] = await Promise.all([
       ctx.db
         .query("comments")
         .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -63,18 +58,6 @@ export const getUserActivityFeed = query({
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .collect()
     ]);
-    
-    // Transform likes into activity items
-    const likeActivities: LikeActivity[] = likes.map(like => ({
-      type: "like",
-      _id: like._id.toString(),
-      timestamp: like._creationTime,
-      entryGuid: like.entryGuid,
-      feedUrl: like.feedUrl,
-      title: like.title,
-      link: like.link,
-      pubDate: like.pubDate,
-    }));
     
     // Transform comments into activity items
     const commentActivities: CommentActivity[] = comments.map(comment => ({
@@ -99,9 +82,8 @@ export const getUserActivityFeed = query({
       retweetedAt: retweet.retweetedAt,
     }));
     
-    // Combine all activities
+    // Combine all activities (excluding likes)
     const allActivities: UserActivity[] = [
-      ...likeActivities,
       ...commentActivities,
       ...retweetActivities,
     ];
@@ -120,6 +102,58 @@ export const getUserActivityFeed = query({
     
     return {
       activities: paginatedActivities,
+      totalCount,
+      hasMore
+    };
+  },
+});
+
+/**
+ * Query to get a user's likes with pagination support
+ */
+export const getUserLikes = query({
+  args: {
+    userId: v.id("users"),
+    skip: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = args.userId;
+    const limit = args.limit || 30;
+    const skip = args.skip || 0;
+    
+    // Fetch only the user's likes
+    const likes = await ctx.db
+      .query("likes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    // Transform likes into activity items
+    const likeActivities: LikeActivity[] = likes.map(like => ({
+      type: "like",
+      _id: like._id.toString(),
+      timestamp: like._creationTime,
+      entryGuid: like.entryGuid,
+      feedUrl: like.feedUrl,
+      title: like.title,
+      link: like.link,
+      pubDate: like.pubDate,
+    }));
+    
+    // Sort by timestamp (newest first)
+    likeActivities.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Get total count
+    const totalCount = likeActivities.length;
+    
+    // Apply pagination
+    const paginatedLikes = likeActivities.slice(skip, skip + limit);
+    
+    // Check if there are more items
+    const hasMore = skip + limit < totalCount;
+    
+    return {
+      activities: paginatedLikes,
       totalCount,
       hasMore
     };

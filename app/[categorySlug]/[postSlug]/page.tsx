@@ -12,8 +12,8 @@ import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/n
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { PostTabsWrapperWithErrorBoundary } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { SearchButton } from "@/app/components/ui/search-button";
-import { MenuButton } from "@/app/components/ui/menu-button";
+import { SearchButton } from "@/components/ui/search-button";
+import { MenuButton } from "@/components/ui/menu-button";
 
 
 // Add 5-minute ISR
