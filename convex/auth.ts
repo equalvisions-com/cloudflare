@@ -26,7 +26,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
               Authorization: `Bearer ${resendApiKey}`,
             },
             body: JSON.stringify({
-              from: "Grasper <nickalevras@gmail.com>", // Use your verified email as the sender
+              from: "Grasper <noreply@socialnetworksandbox.com>", // Use your verified email as the sender
               to: email,
               subject: `Sign in to ${host}`,
               html: `<p>Click <a href="${url}">here</a> to sign in to Grasper.</p>`,
