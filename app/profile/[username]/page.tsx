@@ -6,6 +6,7 @@ import { cache } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileImage } from "@/components/profile/ProfileImage";
+import { FriendButton } from "@/components/profile/FriendButton";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -83,12 +84,18 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         <div>
           <div className="max-w-4xl mx-auto p-4 border-l border-r">
             <div className="flex flex-col items-start mb-4">
-              <ProfileImage 
-                profileImage={profile.profileImage} 
-                username={normalizedUsername}
-                size="lg"
-                className="mb-4"
-              />
+              <div className="flex w-full items-center justify-between">
+                <ProfileImage 
+                  profileImage={profile.profileImage} 
+                  username={normalizedUsername}
+                  size="lg"
+                  className="mb-4"
+                />
+                <FriendButton 
+                  username={normalizedUsername}
+                  userId={profile.userId}
+                />
+              </div>
               <div className="text-left">
                 <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
                 <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>

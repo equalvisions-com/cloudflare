@@ -34,6 +34,17 @@ export default defineSchema({
   })
     .index("email", ["email"]),
 
+  friends: defineTable({
+    requesterId: v.id("users"),    // User who sent the friend request
+    requesteeId: v.id("users"),    // User who received the friend request
+    status: v.string(),            // "pending" or "accepted"
+    createdAt: v.number(),         // Timestamp when the request was created
+    updatedAt: v.optional(v.number()), // Timestamp when the status was last updated
+  })
+  .index("by_requester", ["requesterId", "status"])  // Find all friends/requests by requester
+  .index("by_requestee", ["requesteeId", "status"])  // Find all friends/requests received
+  .index("by_users", ["requesterId", "requesteeId"]), // Check if specific friendship exists
+
   following: defineTable({
     userId: v.id("users"),
     postId: v.id("posts"),

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, Sparkles, Heart } from "lucide-react";
+import { Home, Podcast, User, Mail, Sparkles, Handshake } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -56,8 +56,8 @@ function Sidebar() {
     },
     {
       href: "/likes",
-      label: "Likes",
-      icon: <Heart className="h-5 w-5 shrink-0" strokeWidth={pathname === "/likes" ? 3 : 2} />,
+      label: "Friends",
+      icon: <Handshake className="h-5 w-5 shrink-0" strokeWidth={pathname === "/likes" ? 3 : 2} />,
     },
     {
       href: "/profile",

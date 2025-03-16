@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { MessageCircle, CornerDownRight, X } from "lucide-react";
@@ -74,8 +74,22 @@ export function CommentSectionClient({
   const [comment, setComment] = useState('');
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
   const [optimisticTimestamp, setOptimisticTimestamp] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   // State to track which comment is being replied to
   const [replyToComment, setReplyToComment] = useState<CommentFromAPI | null>(null);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -100,6 +114,8 @@ export function CommentSectionClient({
   
   // Only reset optimistic count when real data arrives and matches our expected state
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (metrics && optimisticCount !== null && optimisticTimestamp !== null) {
       // Only clear optimistic state if:
       // 1. The server count is equal to or greater than our optimistic count (meaning our update was processed)
@@ -117,33 +133,46 @@ export function CommentSectionClient({
   const addComment = useMutation(api.comments.addComment);
   
   const handleSubmit = useCallback(async () => {
-    if (!comment.trim()) return;
+    if (!comment.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
     
     // Optimistic update with timestamp
-    setOptimisticCount(commentCount + 1);
+    setOptimisticCount(prevCount => (prevCount ?? commentCount) + 1);
     setOptimisticTimestamp(Date.now());
     
+    // Store values before awaiting to prevent closure issues
+    const commentContent = comment.trim();
+    const parentId = replyToComment?._id;
+    
     try {
-      await addComment({
-        entryGuid,
-        feedUrl,
-        content: comment.trim(),
-        parentId: replyToComment?._id // Add parentId if replying to a comment
-      });
-      
-      // Clear the comment input and reset reply state
+      // Clear the comment input and reset reply state immediately for better UX
       setComment('');
       setReplyToComment(null);
       
-      // Convex will automatically update the UI with the new state
-      // No need to manually update as the useQuery hook will receive the update
+      const result = await addComment({
+        entryGuid,
+        feedUrl,
+        content: commentContent,
+        parentId // Add parentId if replying to a comment
+      });
+      
+      // Successful submission - no need to do anything as Convex will update the UI
+      console.log('Comment added successfully', result);
+      
     } catch (error) {
       console.error('Error adding comment:', error);
       // Revert optimistic update on error
-      setOptimisticCount(null);
-      setOptimisticTimestamp(null);
+      if (isMountedRef.current) {
+        setOptimisticCount(null);
+        setOptimisticTimestamp(null);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
-  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment]);
+  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting]);
   
   const toggleComments = () => {
     setIsOpen(!isOpen);
@@ -265,8 +294,11 @@ export function CommentSectionClient({
               onChange={(e) => setComment(e.target.value)}
               className="resize-none"
             />
-            <Button onClick={handleSubmit} disabled={!comment.trim()}>
-              {replyToComment ? "Reply" : "Post"}
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!comment.trim() || isSubmitting}
+            >
+              {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
             </Button>
           </div>
         </div>
