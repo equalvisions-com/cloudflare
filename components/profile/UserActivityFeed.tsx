@@ -168,23 +168,25 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
             className="flex-shrink-0"
           />
           <div className="flex-1">
-            <div className="mb-1 flex justify-between items-center">
+            <div className="h-[56px]">
+            <div className="flex justify-between items-center">
               <div>
                 <span className="font-medium">{name}</span>
               </div>
               {timestamp && (
-                <span className="text-sm leading-none text-muted-foreground flex-shrink-0">
+                <span className="leading-none text-muted-foreground flex-shrink-0">
                   {timestamp}
                 </span>
               )}
             </div>
-            <div className="mb-2">
-              <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+            <div className="mt-[-5px]">
+              <Link href={`/@${username}`} className="leading-none text-muted-foreground text-xs">
                 @{username}
               </Link>
             </div>
+            </div>
             {item.content && (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-md mt-[-5px]">
                 {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
               </div>
             )}
@@ -360,7 +362,7 @@ const ActivityCard = React.memo(({
               timestamp={activity.type === "comment" ? activityTimestamp : undefined}
             />
             {activity.type !== "comment" && (
-              <div className="text-xs text-gray-500 mt-2">
+              <div className="text-sm text-gray-500 mt-2">
                 {activity.type === "retweet" ? (
                   <span className="hidden">{activityTimestamp}</span>
                 ) : (
@@ -415,7 +417,7 @@ const ActivityCard = React.memo(({
         {/* Different layouts based on activity type */}
         {activity.type === "comment" ? (
           // Comment layout with connecting line - Entry card in second column
-        <div className="flex items-start gap-4 mb-4 relative">
+        <div className="flex items-start gap-4 relative">
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
           {(entryDetails.post_featured_img || entryDetails.image) && (
@@ -461,7 +463,7 @@ const ActivityCard = React.memo(({
                   </h3>
                 </Link>
                 <span 
-                  className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                  className="leading-none text-muted-foreground flex-shrink-0"
                   title={entryDetails.pub_date ? 
                     format(new Date(entryDetails.pub_date), 'PPP p') : 
                     new Date(activity.timestamp).toLocaleString()
@@ -560,7 +562,7 @@ const ActivityCard = React.memo(({
         </div>
 
                 {/* Horizontal Interaction Buttons - In second column for comments */}
-                <div className="flex justify-between items-center mt-4 h-[16px]">
+                <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
                   <div>
                     <LikeButtonClient
                       entryGuid={entryDetails.guid}
@@ -604,57 +606,57 @@ const ActivityCard = React.memo(({
         ) : (
           // Original full-width layout for retweets/likes
           <>
-            {/* Top Row: Featured Image and Title */}
-            <div className="flex items-start gap-4 mb-4 relative">
-              {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
-              {(entryDetails.post_featured_img || entryDetails.image) && (
+        {/* Top Row: Featured Image and Title */}
+        <div className="flex items-start gap-4 mb-4 relative">
+          {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+          {(entryDetails.post_featured_img || entryDetails.image) && (
                 <div className="flex-shrink-0 w-14 h-14">
-                  <Link 
-                    href={entryDetails.category_slug && entryDetails.post_slug ? 
-                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                      entryDetails.link}
-                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
-                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
-                  >
-                    <AspectRatio ratio={1}>
-                      <Image
-                        src={entryDetails.post_featured_img || entryDetails.image || ''}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="96px"
-                        loading="lazy"
-                        priority={false}
-                      />
-                    </AspectRatio>
-                  </Link>
-                </div>
-              )}
-              
-              {/* Title and Timestamp */}
-              <div className="flex-grow">
-                <div className="w-full">
-                  <div className="flex items-center justify-between gap-2">
-                    <Link 
-                      href={entryDetails.category_slug && entryDetails.post_slug ? 
-                        `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                        entryDetails.link}
-                      className="hover:opacity-80 transition-opacity"
-                      target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                      rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
-                    >
-                      <h3 className="text-base font-semibold text-primary leading-tight">
-                        {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
-                      </h3>
-                    </Link>
-                    <span 
-                      className="text-sm leading-none text-muted-foreground flex-shrink-0"
-                      title={entryDetails.pub_date ? 
-                        format(new Date(entryDetails.pub_date), 'PPP p') : 
-                        new Date(activity.timestamp).toLocaleString()
-                      }
-                    >
+              <Link 
+                href={entryDetails.category_slug && entryDetails.post_slug ? 
+                  `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                  entryDetails.link}
+                className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+              >
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={entryDetails.post_featured_img || entryDetails.image || ''}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="96px"
+                    loading="lazy"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </Link>
+            </div>
+          )}
+          
+          {/* Title and Timestamp */}
+          <div className="flex-grow">
+            <div className="w-full">
+              <div className="flex items-center justify-between gap-2">
+                <Link 
+                  href={entryDetails.category_slug && entryDetails.post_slug ? 
+                    `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                    entryDetails.link}
+                  className="hover:opacity-80 transition-opacity"
+                  target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                  rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                >
+                  <h3 className="text-base font-semibold text-primary leading-tight">
+                    {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                  </h3>
+                </Link>
+                <span 
+                  className="leading-none text-muted-foreground flex-shrink-0"
+                  title={entryDetails.pub_date ? 
+                    format(new Date(entryDetails.pub_date), 'PPP p') : 
+                    new Date(activity.timestamp).toLocaleString()
+                  }
+                >
                       {(() => {
                         if (!entryDetails.pub_date) return '';
 
@@ -701,24 +703,24 @@ const ActivityCard = React.memo(({
                           return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
                         }
                       })()}
-                    </span>
-                  </div>
-                  {/* Use post_media_type if available, otherwise fallback to mediaType */}
-                  {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
-                      {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
-                        <Podcast className="h-3 w-3" />
-                      }
-                      {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                        <Mail className="h-3 w-3" />
-                      }
-                      {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                       (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
-                    </span>
-                  )}
-                </div>
+                </span>
               </div>
+              {/* Use post_media_type if available, otherwise fallback to mediaType */}
+              {(entryDetails.post_media_type || entryDetails.mediaType) && (
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                    <Podcast className="h-3 w-3" />
+                  }
+                  {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                    <Mail className="h-3 w-3" />
+                  }
+                  {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
+                   (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                </span>
+              )}
             </div>
+          </div>
+        </div>
 
             {/* Entry Content Card - Full width for retweets/likes */}
         <div>
@@ -796,7 +798,7 @@ const ActivityCard = React.memo(({
         </div>
 
             {/* Horizontal Interaction Buttons - Full width for retweets/likes */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
+        <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
           <div>
             <LikeButtonClient
               entryGuid={entryDetails.guid}
@@ -842,7 +844,7 @@ const ActivityCard = React.memo(({
       
       {/* User Comment Activity - moved below the entry card */}
       {activity.type === "comment" && (
-        <div className="px-4 py-3 border-l border-r border-b relative">
+        <div className="p-4 border-l border-r border-b relative">
           <div className="relative z-10">
             <ActivityDescription 
               item={activity} 
@@ -1238,7 +1240,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                     </h3>
                   </Link>
                   <span 
-                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    className="leading-none text-muted-foreground flex-shrink-0"
                     title={entryDetail.pub_date ? 
                       format(new Date(entryDetail.pub_date), 'PPP p') : 
                       new Date(group.firstActivity.timestamp).toLocaleString()
@@ -1382,7 +1384,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 </div>
                 
                 {/* Horizontal Interaction Buttons - In second column for comments */}
-                <div className="flex justify-between items-center mt-4 h-[16px]">
+                <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
                   <div>
                     <LikeButtonClient
                       entryGuid={entryDetail.guid}
@@ -1433,7 +1435,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             return (
               <div 
                 key={`comment-${comment._id}`} 
-                className="px-4 py-3 relative"
+                className="px-4 pb-4 relative"
               >
                 {/* Remove individual connector lines */}
                 <div className="relative z-10">

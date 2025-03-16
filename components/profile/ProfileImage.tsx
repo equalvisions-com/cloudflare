@@ -40,7 +40,7 @@ export function ProfileImage({
   // If no profile image is provided, show a fallback
   if (!profileImage) {
     return (
-      <div className={`${sizeClass} bg-muted flex items-center justify-center rounded-lg overflow-hidden border border-border ${className}`}>
+      <div className={`${sizeClass} bg-muted flex items-center justify-center rounded-full overflow-hidden border border-border ${className}`}>
         <User className={iconSize} />
       </div>
     );
@@ -48,7 +48,7 @@ export function ProfileImage({
 
   // With profile image
   return (
-    <div className={`${sizeClass} relative rounded-lg overflow-hidden border border-border ${className}`}>
+    <div className={`${sizeClass} relative rounded-full overflow-hidden border border-border ${className}`}>
       <AspectRatio ratio={1} className="h-full">
         <Image
           src={profileImage}

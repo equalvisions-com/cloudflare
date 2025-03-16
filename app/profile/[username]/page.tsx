@@ -90,10 +90,8 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 className="mb-4"
               />
               <div className="text-left">
-                <h1 className="text-2xl font-bold mb-2 leading-tight">{normalizedUsername}</h1>
-                {profile.name && profile.name !== normalizedUsername && (
-                  <p className="text-sm mb-2 text-muted-foreground">{profile.name}</p>
-                )}
+                <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
+                <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>
                 {profile.bio && (
                   <p className="text-sm text-muted-foreground">{profile.bio}</p>
                 )}
