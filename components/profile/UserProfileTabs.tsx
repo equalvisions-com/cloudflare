@@ -247,7 +247,7 @@ export function UserProfileTabs({
   ], [userId, username, name, profileImage, activityData, likesData, pageSize, isLoadingLikes]);
 
   return (
-    <div className="w-full border-t">
+    <div className="w-full border-t z-50">
       <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}

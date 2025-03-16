@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, AtSign } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -137,7 +137,7 @@ function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
     case "comment":
       return <MessageCircle className="h-4 w-4 text-blue-500" />;
     case "retweet":
-      return <Repeat className="h-4 w-4 text-green-500" />;
+      return <Repeat className="h-3.5 w-3.5 text-muted-foreground stroke-[2.5px]" />;
   }
 }
 
@@ -179,9 +179,8 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
               )}
             </div>
             <div className="mb-2">
-              <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
-                <AtSign className="h-3 w-3" />
-                {username}
+              <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                @{username}
               </Link>
             </div>
             {item.content && (
@@ -194,11 +193,8 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
       );
     case "retweet":
       return (
-        <span>
-          <span className="font-medium">{name}</span> shared{" "}
-          <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-            {item.title || "a post"}
-          </Link>
+        <span className="text-muted-foreground text-sm">
+          <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
         </span>
       );
   }
@@ -365,7 +361,11 @@ const ActivityCard = React.memo(({
             />
             {activity.type !== "comment" && (
               <div className="text-xs text-gray-500 mt-2">
-                {activityTimestamp}
+                {activity.type === "retweet" ? (
+                  <span className="hidden">{activityTimestamp}</span>
+                ) : (
+                  activityTimestamp
+                )}
               </div>
             )}
           </div>
@@ -376,41 +376,50 @@ const ActivityCard = React.memo(({
   
   // With entry details, show a rich card similar to EntriesDisplay
   return (
-    <article className="">
+    <article className={activity.type === "comment" ? "relative" : ""}>
+      {/* Vertical line for comments - positioned absolutely relative to the article */}
+      {activity.type === "comment" && (
+        <div className="absolute left-[44.5px] top-[60px] bottom-[80px] w-[1px] bg-border z-0"></div>
+      )}
+      
       <div className="p-4 border-l border-r">
         {/* Activity header with icon and description */}
-        <div className="flex items-start mb-4 relative">
+        <div className="flex items-start mb-0 relative">
           {activity.type !== "comment" && (
-            <div className="mt-1 mr-3">
+            <div className="mr-2">
               <ActivityIcon type={activity.type} />
             </div>
           )}
-          <div className="flex-1">
+          <div className={`flex-1 ${activity.type === "retweet" ? "mt-[-6px]" : ""}`}>
+            {activity.type !== "comment" && (
             <ActivityDescription 
               item={activity} 
               username={username}
               name={name}
               profileImage={profileImage}
-              timestamp={activity.type === "comment" ? activityTimestamp : undefined}
+                timestamp={undefined}
             />
+            )}
             {activity.type !== "comment" && (
               <div className="text-xs text-gray-500 mt-2">
-                {activityTimestamp}
+                {activity.type === "retweet" ? (
+                  <span className="hidden">{entryTimestamp}</span>
+                ) : (
+                  entryTimestamp
+                )}
               </div>
             )}
           </div>
         </div>
         
-        {/* Top Row: Featured Image and Title */}
+        {/* Different layouts based on activity type */}
+        {activity.type === "comment" ? (
+          // Comment layout with connecting line - Entry card in second column
         <div className="flex items-start gap-4 mb-4 relative">
-          {/* Vertical connector line for comments - positioned relative to this container */}
-          {activity.type === "comment" && (entryDetails.post_featured_img || entryDetails.image) && (
-            <div className="absolute left-7 top-[-30px] w-px bg-border" style={{ height: '30px' }}></div>
-          )}
-          
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+            <div className="flex-shrink-0 relative">
           {(entryDetails.post_featured_img || entryDetails.image) && (
-            <div className={activity.type === "comment" ? "flex-shrink-0 w-14 h-14 ml-0" : "flex-shrink-0 w-14 h-14"}>
+                <div className="w-14 h-14 relative z-10">
               <Link 
                 href={entryDetails.category_slug && entryDetails.post_slug ? 
                   `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
@@ -433,6 +442,7 @@ const ActivityCard = React.memo(({
               </Link>
             </div>
           )}
+            </div>
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
@@ -473,11 +483,244 @@ const ActivityCard = React.memo(({
                    (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
                 </span>
               )}
+                
+                {/* Entry Content Card - In second column for comments */}
+                <div className="mt-4">
+                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+                    <div>
+                      <div 
+                        onClick={handleCardClick}
+                        className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                      >
+                        <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                          {entryDetails.image && (
+                            <CardHeader className="p-0">
+                              <AspectRatio ratio={16/9}>
+                                <Image
+                                  src={entryDetails.image}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                  sizes="(max-width: 768px) 100vw, 768px"
+                                  loading="lazy"
+                                  priority={false}
+                                />
+                              </AspectRatio>
+                            </CardHeader>
+                          )}
+                          <CardContent className="p-4 bg-secondary/60 border-t">
+                            <h3 className="text-lg font-semibold leading-tight">
+                              {entryDetails.title}
+                            </h3>
+                            {entryDetails.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {entryDetails.description}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
             </div>
           </div>
+                  ) : (
+                    <a
+                      href={entryDetails.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:opacity-80 transition-opacity"
+                    >
+                      <Card className="overflow-hidden shadow-none">
+                        {entryDetails.image && (
+                          <CardHeader className="p-0">
+                            <AspectRatio ratio={16/9}>
+                              <Image
+                                src={entryDetails.image}
+                                alt=""
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 768px"
+                                loading="lazy"
+                                priority={false}
+                              />
+                            </AspectRatio>
+                          </CardHeader>
+                        )}
+                        <CardContent className="p-4 bg-secondary/60 border-t">
+                          <h3 className="text-lg font-semibold leading-tight">
+                            {entryDetails.title}
+                          </h3>
+                          {entryDetails.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                              {entryDetails.description}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </a>
+                  )}
         </div>
 
-        {/* Entry Content Card */}
+                {/* Horizontal Interaction Buttons - In second column for comments */}
+                <div className="flex justify-between items-center mt-4 h-[16px]">
+                  <div>
+                    <LikeButtonClient
+                      entryGuid={entryDetails.guid}
+                      feedUrl={entryDetails.feed_url || ''}
+                      title={entryDetails.title}
+                      pubDate={entryDetails.pub_date}
+                      link={entryDetails.link}
+                      initialData={interactions?.likes || { isLiked: false, count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <CommentSectionClient
+                      entryGuid={entryDetails.guid}
+                      feedUrl={entryDetails.feed_url || ''}
+                      initialData={interactions?.comments || { count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <RetweetButtonClientWithErrorBoundary
+                      entryGuid={entryDetails.guid}
+                      feedUrl={entryDetails.feed_url || ''}
+                      title={entryDetails.title}
+                      pubDate={entryDetails.pub_date}
+                      link={entryDetails.link}
+                      initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <ShareButtonClient
+                      url={entryDetails.link}
+                      title={entryDetails.title}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <MoreOptionsDropdown entry={entryDetails} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Original full-width layout for retweets/likes
+          <>
+            {/* Top Row: Featured Image and Title */}
+            <div className="flex items-start gap-4 mb-4 relative">
+              {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+              {(entryDetails.post_featured_img || entryDetails.image) && (
+                <div className="flex-shrink-0 w-14 h-14">
+                  <Link 
+                    href={entryDetails.category_slug && entryDetails.post_slug ? 
+                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                      entryDetails.link}
+                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetails.post_featured_img || entryDetails.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </div>
+              )}
+              
+              {/* Title and Timestamp */}
+              <div className="flex-grow">
+                <div className="w-full">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link 
+                      href={entryDetails.category_slug && entryDetails.post_slug ? 
+                        `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                        entryDetails.link}
+                      className="hover:opacity-80 transition-opacity"
+                      target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                      rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                    >
+                      <h3 className="text-base font-semibold text-primary leading-tight">
+                        {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                      </h3>
+                    </Link>
+                    <span 
+                      className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                      title={entryDetails.pub_date ? 
+                        format(new Date(entryDetails.pub_date), 'PPP p') : 
+                        new Date(activity.timestamp).toLocaleString()
+                      }
+                    >
+                      {(() => {
+                        if (!entryDetails.pub_date) return '';
+
+                        // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+                        const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                        let pubDate: Date;
+                        
+                        if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
+                          // Convert MySQL datetime string to UTC time
+                          const [datePart, timePart] = entryDetails.pub_date.split(' ');
+                          pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+                        } else {
+                          // Handle other formats
+                          pubDate = new Date(entryDetails.pub_date);
+                        }
+                        
+                        const now = new Date();
+                        
+                        // Ensure we're working with valid dates
+                        if (isNaN(pubDate.getTime())) {
+                          return '';
+                        }
+
+                        // Calculate time difference
+                        const diffInMs = now.getTime() - pubDate.getTime();
+                        const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                        const diffInHours = Math.floor(diffInMinutes / 60);
+                        const diffInDays = Math.floor(diffInHours / 24);
+                        const diffInMonths = Math.floor(diffInDays / 30);
+                        
+                        // For future dates (more than 1 minute ahead), show 'in X'
+                        const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                        const prefix = isFuture ? 'in ' : '';
+                        const suffix = isFuture ? '' : ' ago';
+                        
+                        // Format based on the time difference
+                        if (diffInMinutes < 60) {
+                          return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                        } else if (diffInHours < 24) {
+                          return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                        } else if (diffInDays < 30) {
+                          return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                        } else {
+                          return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                        }
+                      })()}
+                    </span>
+                  </div>
+                  {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                  {(entryDetails.post_media_type || entryDetails.mediaType) && (
+                    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                      {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                        <Podcast className="h-3 w-3" />
+                      }
+                      {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                        <Mail className="h-3 w-3" />
+                      }
+                      {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
+                       (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Entry Content Card - Full width for retweets/likes */}
         <div>
           {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
             <div>
@@ -552,7 +795,7 @@ const ActivityCard = React.memo(({
           )}
         </div>
 
-        {/* Horizontal Interaction Buttons */}
+            {/* Horizontal Interaction Buttons - Full width for retweets/likes */}
         <div className="flex justify-between items-center mt-4 h-[16px]">
           <div>
             <LikeButtonClient
@@ -591,9 +834,57 @@ const ActivityCard = React.memo(({
             <MoreOptionsDropdown entry={entryDetails} />
           </div>
         </div>
+          </>
+        )}
       </div>
       
-      <div id={`comments-${entryDetails.guid}`} className="border-t border-border" />
+      <div id={`comments-${entryDetails.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
+      
+      {/* User Comment Activity - moved below the entry card */}
+      {activity.type === "comment" && (
+        <div className="px-4 py-3 border-l border-r border-b relative">
+          <div className="relative z-10">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={(() => {
+                const now = new Date();
+                const commentDate = new Date(activity.timestamp);
+                
+                // Ensure we're working with valid dates
+                if (isNaN(commentDate.getTime())) {
+                  return '';
+                }
+
+                // Calculate time difference
+                const diffInMs = now.getTime() - commentDate.getTime();
+                const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                const diffInHours = Math.floor(diffInMinutes / 60);
+                const diffInDays = Math.floor(diffInHours / 24);
+                const diffInMonths = Math.floor(diffInDays / 30);
+                
+                // For future dates (more than 1 minute ahead), show 'in X'
+                const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                const prefix = isFuture ? 'in ' : '';
+                const suffix = isFuture ? '' : ' ago';
+                
+                // Format based on the time difference
+                if (diffInMinutes < 60) {
+                  return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                } else if (diffInHours < 24) {
+                  return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                } else if (diffInDays < 30) {
+                  return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                } else {
+                  return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                }
+              })()}
+            />
+          </div>
+        </div>
+      )}
     </article>
   );
 });
@@ -619,6 +910,9 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
   // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
   
+  // Get audio context at the component level
+  const { playTrack, currentTrack } = useAudio();
+  
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid), 
@@ -630,6 +924,69 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
     entryGuids,
     initialData?.entryMetrics
   );
+
+  // Group activities by entry GUID for comments
+  const groupedActivities = useMemo(() => {
+    // Create a map to store activities by entry GUID and type
+    const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
+    
+    // First pass: collect all activities by entry GUID and type
+    activities.forEach(activity => {
+      const key = activity.entryGuid;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, new Map());
+      }
+      
+      // Group only comments together, keep likes and retweets separate
+      const typeKey = activity.type === 'comment' ? 'comment' : `${activity.type}-${activity._id}`;
+      
+      if (!groupedMap.get(key)!.has(typeKey)) {
+        groupedMap.get(key)!.set(typeKey, []);
+      }
+      groupedMap.get(key)!.get(typeKey)!.push(activity);
+    });
+    
+    // Second pass: create final structure
+    const result: Array<{
+      entryGuid: string;
+      firstActivity: ActivityItem;
+      comments: ActivityItem[];
+      hasMultipleComments: boolean;
+      type: string;
+    }> = [];
+    
+    groupedMap.forEach((typeMap, entryGuid) => {
+      typeMap.forEach((activitiesForType, typeKey) => {
+        // Sort activities by timestamp (oldest first)
+        const sortedActivities = [...activitiesForType].sort((a, b) => a.timestamp - b.timestamp);
+        
+        if (typeKey === 'comment') {
+          // For comments, group them together
+          result.push({
+            entryGuid,
+            firstActivity: sortedActivities[0],
+            comments: sortedActivities,
+            hasMultipleComments: sortedActivities.length > 1,
+            type: 'comment'
+          });
+        } else {
+          // For likes and retweets, each is a separate entry
+          sortedActivities.forEach(activity => {
+            result.push({
+              entryGuid,
+              firstActivity: activity,
+              comments: [],
+              hasMultipleComments: false,
+              type: activity.type
+            });
+          });
+        }
+      });
+    });
+    
+    // Sort the result by the timestamp of the first activity (newest first for the feed)
+    return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
+  }, [activities]);
 
   // Log when initial data is received
   useEffect(() => {
@@ -735,24 +1092,406 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
     );
   }
 
+  // Render a group of activities for the same entry
+  const renderActivityGroup = (group: {
+    entryGuid: string;
+    firstActivity: ActivityItem;
+    comments: ActivityItem[];
+    hasMultipleComments: boolean;
+    type: string;
+  }, index: number) => {
+    const entryDetail = entryDetails[group.entryGuid];
+    
+    if (!entryDetail) {
+      return null;
+    }
+    
+    // Check if this entry is currently playing
+    const isCurrentlyPlaying = currentTrack?.src === entryDetail.link;
+    
+    // Handle card click for podcasts
+    const handleCardClick = (e: React.MouseEvent) => {
+      if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
+        e.preventDefault();
+        playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
+      }
+    };
+    
+    // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
+    if (group.type !== 'comment' || group.comments.length <= 1) {
+  return (
+          <ActivityCard 
+          key={`group-${group.entryGuid}-${group.type}-${index}`}
+          activity={group.firstActivity}
+            username={username}
+            name={name}
+            profileImage={profileImage}
+          entryDetails={entryDetail}
+            getEntryMetrics={getEntryMetrics}
+          />
+      );
+    }
+    
+    // For multiple comments, render a special daisy-chained version
+    return (
+      <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
+        {/* Main vertical line for the entry card to comments - stops at the last comment's top */}
+        <div className="absolute left-[44.5px] top-[60px] bottom-[80px] w-[1px] bg-border z-0"></div>
+        
+        <div className="p-4 border-l border-r">
+          {/* Activity header with icon and description */}
+          {group.firstActivity.type !== "comment" && (
+            <div className="flex items-start mb-4 relative">
+              <div className="mt-1 mr-3">
+                <ActivityIcon type={group.firstActivity.type} />
+              </div>
+              <div className="flex-1">
+                <ActivityDescription 
+                  item={group.firstActivity} 
+                  username={username}
+                  name={name}
+                  profileImage={profileImage}
+                  timestamp={undefined}
+                />
+                <div className="text-xs text-gray-500 mt-2">
+                  {(() => {
+                    const now = new Date();
+                    const activityDate = new Date(group.firstActivity.timestamp);
+                    
+                    // Ensure we're working with valid dates
+                    if (isNaN(activityDate.getTime())) {
+                      return '';
+                    }
+
+                    // Calculate time difference
+                    const diffInMs = now.getTime() - activityDate.getTime();
+                    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                    const diffInHours = Math.floor(diffInMinutes / 60);
+                    const diffInDays = Math.floor(diffInHours / 24);
+                    const diffInMonths = Math.floor(diffInDays / 30);
+                    
+                    // For future dates (more than 1 minute ahead), show 'in X'
+                    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                    const prefix = isFuture ? 'in ' : '';
+                    const suffix = isFuture ? '' : ' ago';
+                    
+                    // Format based on the time difference
+                    if (diffInMinutes < 60) {
+                      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                    } else if (diffInHours < 24) {
+                      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                    } else if (diffInDays < 30) {
+                      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                    } else {
+                      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                    }
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Comment layout with connecting line - Entry card in second column */}
+          <div className="flex items-start gap-4 mb-4 relative">
+            {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+            <div className="flex-shrink-0 relative">
+              {(entryDetail.post_featured_img || entryDetail.image) && (
+                <div className="w-14 h-14 relative z-10">
+                  <Link 
+                    href={entryDetail.category_slug && entryDetail.post_slug ? 
+                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                      entryDetail.link}
+                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetail.post_featured_img || entryDetail.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </div>
+              )}
+            </div>
+            
+            {/* Title and Timestamp */}
+            <div className="flex-grow">
+              <div className="w-full">
+                <div className="flex items-center justify-between gap-2">
+                  <Link 
+                    href={entryDetail.category_slug && entryDetail.post_slug ? 
+                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                      entryDetail.link}
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <h3 className="text-base font-semibold text-primary leading-tight">
+                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                    </h3>
+                  </Link>
+                  <span 
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    title={entryDetail.pub_date ? 
+                      format(new Date(entryDetail.pub_date), 'PPP p') : 
+                      new Date(group.firstActivity.timestamp).toLocaleString()
+                    }
+                  >
+                    {(() => {
+                      if (!entryDetail.pub_date) return '';
+
+                      // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+                      const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                      let pubDate: Date;
+                      
+                      if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
+                        // Convert MySQL datetime string to UTC time
+                        const [datePart, timePart] = entryDetail.pub_date.split(' ');
+                        pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+                      } else {
+                        // Handle other formats
+                        pubDate = new Date(entryDetail.pub_date);
+                      }
+                      
+                      const now = new Date();
+                      
+                      // Ensure we're working with valid dates
+                      if (isNaN(pubDate.getTime())) {
+                        return '';
+                      }
+
+                      // Calculate time difference
+                      const diffInMs = now.getTime() - pubDate.getTime();
+                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                      const diffInHours = Math.floor(diffInMinutes / 60);
+                      const diffInDays = Math.floor(diffInHours / 24);
+                      const diffInMonths = Math.floor(diffInDays / 30);
+                      
+                      // For future dates (more than 1 minute ahead), show 'in X'
+                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                      const prefix = isFuture ? 'in ' : '';
+                      const suffix = isFuture ? '' : ' ago';
+                      
+                      // Format based on the time difference
+                      if (diffInMinutes < 60) {
+                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                      } else if (diffInHours < 24) {
+                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                      } else if (diffInDays < 30) {
+                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                      } else {
+                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                      }
+                    })()}
+                  </span>
+                </div>
+                {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                {(entryDetail.post_media_type || entryDetail.mediaType) && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
+                      <Mail className="h-3 w-3" />
+                    }
+                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                  </span>
+                )}
+                
+                {/* Entry Content Card - In second column for comments */}
+                <div className="mt-4">
+                  {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+                    <div>
+                      <div 
+                        onClick={handleCardClick}
+                        className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                      >
+                        <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                          {entryDetail.image && (
+                            <CardHeader className="p-0">
+                              <AspectRatio ratio={16/9}>
+                                <Image
+                                  src={entryDetail.image}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                  sizes="(max-width: 768px) 100vw, 768px"
+                                  loading="lazy"
+                                  priority={false}
+                                />
+                              </AspectRatio>
+                            </CardHeader>
+                          )}
+                          <CardContent className="p-4 bg-secondary/60 border-t">
+                            <h3 className="text-lg font-semibold leading-tight">
+                              {entryDetail.title}
+                            </h3>
+                            {entryDetail.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {entryDetail.description}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+                  ) : (
+                    <a
+                      href={entryDetail.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:opacity-80 transition-opacity"
+                    >
+                      <Card className="overflow-hidden shadow-none">
+                        {entryDetail.image && (
+                          <CardHeader className="p-0">
+                            <AspectRatio ratio={16/9}>
+                              <Image
+                                src={entryDetail.image}
+                                alt=""
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 768px"
+                                loading="lazy"
+                                priority={false}
+                              />
+                            </AspectRatio>
+                          </CardHeader>
+                        )}
+                        <CardContent className="p-4 bg-secondary/60 border-t">
+                          <h3 className="text-lg font-semibold leading-tight">
+                            {entryDetail.title}
+                          </h3>
+                          {entryDetail.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                              {entryDetail.description}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </a>
+                  )}
+                </div>
+                
+                {/* Horizontal Interaction Buttons - In second column for comments */}
+                <div className="flex justify-between items-center mt-4 h-[16px]">
+                  <div>
+                    <LikeButtonClient
+                      entryGuid={entryDetail.guid}
+                      feedUrl={entryDetail.feed_url || ''}
+                      title={entryDetail.title}
+                      pubDate={entryDetail.pub_date}
+                      link={entryDetail.link}
+                      initialData={getEntryMetrics(entryDetail.guid)?.likes || { isLiked: false, count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <CommentSectionClient
+                      entryGuid={entryDetail.guid}
+                      feedUrl={entryDetail.feed_url || ''}
+                      initialData={getEntryMetrics(entryDetail.guid)?.comments || { count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <RetweetButtonClientWithErrorBoundary
+                      entryGuid={entryDetail.guid}
+                      feedUrl={entryDetail.feed_url || ''}
+                      title={entryDetail.title}
+                      pubDate={entryDetail.pub_date}
+                      link={entryDetail.link}
+                      initialData={getEntryMetrics(entryDetail.guid)?.retweets || { isRetweeted: false, count: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <ShareButtonClient
+                      url={entryDetail.link}
+                      title={entryDetail.title}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <MoreOptionsDropdown entry={entryDetail} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div id={`comments-${entryDetail.guid}`} className="" />
+        
+        {/* Render all comments in chronological order */}
+        <div className="border-l border-r border-b">
+          {group.comments.map((comment, commentIndex) => {
+            return (
+              <div 
+                key={`comment-${comment._id}`} 
+                className="px-4 py-3 relative"
+              >
+                {/* Remove individual connector lines */}
+                <div className="relative z-10">
+                  <ActivityDescription 
+                    item={comment} 
+                    username={username}
+                    name={name}
+                    profileImage={profileImage}
+                    timestamp={(() => {
+                      const now = new Date();
+                      const commentDate = new Date(comment.timestamp);
+                      
+                      // Ensure we're working with valid dates
+                      if (isNaN(commentDate.getTime())) {
+                        return '';
+                      }
+
+                      // Calculate time difference
+                      const diffInMs = now.getTime() - commentDate.getTime();
+                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                      const diffInHours = Math.floor(diffInMinutes / 60);
+                      const diffInDays = Math.floor(diffInHours / 24);
+                      const diffInMonths = Math.floor(diffInDays / 30);
+                      
+                      // For future dates (more than 1 minute ahead), show 'in X'
+                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                      const prefix = isFuture ? 'in ' : '';
+                      const suffix = isFuture ? '' : ' ago';
+                      
+                      // Format based on the time difference
+                      if (diffInMinutes < 60) {
+                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                      } else if (diffInHours < 24) {
+                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                      } else if (diffInDays < 30) {
+                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                      } else {
+                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                      }
+                    })()}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className="w-full">
       <Virtuoso
         useWindowScroll
-        data={activities}
+        data={groupedActivities}
         endReached={loadMoreActivities}
         overscan={200}
-        itemContent={(index, activity) => (
-          <ActivityCard 
-            key={activity._id} 
-            activity={activity} 
-            username={username}
-            name={name}
-            profileImage={profileImage}
-            entryDetails={entryDetails[activity.entryGuid]}
-            getEntryMetrics={getEntryMetrics}
-          />
-        )}
+        itemContent={(index, group) => renderActivityGroup(group, index)}
         components={{
           Footer: () => (
             <div className="py-4 text-center">
