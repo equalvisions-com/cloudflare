@@ -9,7 +9,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Google, 
     Resend({
-      from: "noreply@socialnetworksandbox.com", // Replace with your verified domain email
+      from: process.env.AUTH_EMAIL ?? "My App <noreply@socialnetworksandbox.com>",
     })
   ],
 });
