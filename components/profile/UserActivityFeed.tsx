@@ -1429,7 +1429,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
         
         {/* Render all comments in chronological order */}
         <div className="border-l border-r border-b">
-          {group.comments.map((comment, commentIndex) => {
+          {group.comments.map((comment) => {
             return (
               <div 
                 key={`comment-${comment._id}`} 
