@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, AtSign } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -61,9 +61,10 @@ interface InteractionStates {
   retweets: { isRetweeted: boolean; count: number };
 }
 
-interface UserActivityFeedProps {
+interface UserLikesFeedProps {
   userId: Id<"users">;
   username: string;
+  name: string;
   initialData: {
     activities: ActivityItem[];
     totalCount: number;
@@ -137,39 +138,60 @@ function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
   }
 }
 
-function ActivityDescription({ item, username }: { item: ActivityItem; username: string }) {
+function ActivityDescription({ item, username, name }: { item: ActivityItem; username: string; name: string }) {
   switch (item.type) {
     case "like":
       return (
-        <span>
-          <span className="font-medium">{username}</span> liked{" "}
-          <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-            {item.title || "a post"}
-          </Link>
-        </span>
+        <div>
+          <div>
+            <span className="font-medium">{name}</span> liked{" "}
+            <Link href={item.link || "#"} className="text-blue-500 hover:underline">
+              {item.title || "a post"}
+            </Link>
+          </div>
+          <div className="mt-1">
+            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
+              <AtSign className="h-3 w-3" />
+              {username}
+            </Link>
+          </div>
+        </div>
       );
     case "comment":
       return (
-        <span>
-          <span className="font-medium">{username}</span> commented on{" "}
-          <Link href={`/entry/${encodeURIComponent(item.feedUrl)}/${encodeURIComponent(item.entryGuid)}`} className="text-blue-500 hover:underline">
-            a post
-          </Link>
+        <div>
+          <div>
+            <span className="font-medium">{name}</span>
+          </div>
+          <div className="mt-1 mb-2">
+            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
+              <AtSign className="h-3 w-3" />
+              {username}
+            </Link>
+          </div>
           {item.content && (
             <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-sm">
-              &ldquo;{item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}&rdquo;
+              {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
             </div>
           )}
-        </span>
+        </div>
       );
     case "retweet":
       return (
-        <span>
-          <span className="font-medium">{username}</span> shared{" "}
-          <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-            {item.title || "a post"}
-          </Link>
-        </span>
+        <div>
+          <div>
+            <span className="font-medium">{name}</span> shared{" "}
+            <Link href={item.link || "#"} className="text-blue-500 hover:underline">
+              {item.title || "a post"}
+            </Link>
+          </div>
+          <div className="mt-1">
+            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
+              <AtSign className="h-3 w-3" />
+              {username}
+            </Link>
+          </div>
+        </div>
       );
   }
 }
@@ -202,11 +224,13 @@ MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
 const ActivityCard = React.memo(({ 
   activity, 
   username, 
+  name,
   entryDetails,
   getEntryMetrics
 }: { 
   activity: ActivityItem; 
   username: string;
+  name: string;
   entryDetails?: RSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
 }) => {
@@ -284,7 +308,7 @@ const ActivityCard = React.memo(({
             <ActivityIcon type={activity.type} />
           </div>
           <div className="flex-1">
-            <ActivityDescription item={activity} username={username} />
+            <ActivityDescription item={activity} username={username} name={name} />
             <div className="text-xs text-gray-500 mt-1">
               {timestamp}
             </div>
@@ -304,7 +328,7 @@ const ActivityCard = React.memo(({
             <ActivityIcon type={activity.type} />
           </div>
           <div className="flex-1">
-            <ActivityDescription item={activity} username={username} />
+            <ActivityDescription item={activity} username={username} name={name} />
             <div className="text-xs text-gray-500 mt-1">
               {timestamp}
             </div>
@@ -504,7 +528,7 @@ ActivityCard.displayName = 'ActivityCard';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed({ userId, username, initialData, pageSize = 30 }: UserActivityFeedProps) {
+export function UserLikesFeed({ userId, username, name, initialData, pageSize = 30 }: UserLikesFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
@@ -646,7 +670,8 @@ export function UserLikesFeed({ userId, username, initialData, pageSize = 30 }: 
           <ActivityCard 
             key={activity._id} 
             activity={activity} 
-            username={username} 
+            username={username}
+            name={name}
             entryDetails={entryDetails[activity.entryGuid]}
             getEntryMetrics={getEntryMetrics}
           />

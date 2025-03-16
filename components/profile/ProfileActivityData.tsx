@@ -9,6 +9,8 @@ import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";
 interface ProfileActivityDataProps {
   userId: Id<"users">;
   username: string;
+  name?: string;
+  profileImage?: string | null;
 }
 
 // Types for activity items
@@ -236,7 +238,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
 /**
  * Server component that fetches initial activity data and renders the client component
  */
-export async function ProfileActivityData({ userId, username }: ProfileActivityDataProps) {
+export async function ProfileActivityData({ userId, username, name, profileImage }: ProfileActivityDataProps) {
   // Fetch only activity data initially - likes will be loaded on demand
   const activityData = await getInitialActivityData(userId);
   
@@ -244,7 +246,9 @@ export async function ProfileActivityData({ userId, username }: ProfileActivityD
     <div className="mt-0">
       <UserProfileTabsWithErrorBoundary 
         userId={userId} 
-        username={username} 
+        username={username}
+        name={name || username}
+        profileImage={profileImage}
         activityData={activityData}
         likesData={null} // Pass null to indicate likes should be loaded on demand
         pageSize={30}

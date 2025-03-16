@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, AtSign } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -19,6 +19,7 @@ import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { ProfileImage } from "@/components/profile/ProfileImage";
 
 // Types for activity items
 type ActivityItem = {
@@ -64,6 +65,8 @@ interface InteractionStates {
 interface UserActivityFeedProps {
   userId: Id<"users">;
   username: string;
+  name: string;
+  profileImage?: string | null;
   initialData: {
     activities: ActivityItem[];
     totalCount: number;
@@ -138,12 +141,18 @@ function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
   }
 }
 
-function ActivityDescription({ item, username }: { item: ActivityItem; username: string }) {
+function ActivityDescription({ item, username, name, profileImage, timestamp }: { 
+  item: ActivityItem; 
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  timestamp?: string;
+}) {
   switch (item.type) {
     case "like":
       return (
         <span>
-          <span className="font-medium">{username}</span> liked{" "}
+          <span className="font-medium">{name}</span> liked{" "}
           <Link href={item.link || "#"} className="text-blue-500 hover:underline">
             {item.title || "a post"}
           </Link>
@@ -151,22 +160,42 @@ function ActivityDescription({ item, username }: { item: ActivityItem; username:
       );
     case "comment":
       return (
-        <span>
-          <span className="font-medium">{username}</span> commented on{" "}
-          <Link href={`/entry/${encodeURIComponent(item.feedUrl)}/${encodeURIComponent(item.entryGuid)}`} className="text-blue-500 hover:underline">
-            a post
-          </Link>
-          {item.content && (
-            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-sm">
-              &ldquo;{item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}&rdquo;
+        <div className="flex items-start gap-4">
+          <ProfileImage 
+            profileImage={profileImage}
+            username={username}
+            size="md-lg"
+            className="flex-shrink-0"
+          />
+          <div className="flex-1">
+            <div className="mb-1 flex justify-between items-center">
+              <div>
+                <span className="font-medium">{name}</span>
+              </div>
+              {timestamp && (
+                <span className="text-sm leading-none text-muted-foreground flex-shrink-0">
+                  {timestamp}
+                </span>
+              )}
             </div>
-          )}
-        </span>
+            <div className="mb-2">
+              <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
+                <AtSign className="h-3 w-3" />
+                {username}
+              </Link>
+            </div>
+            {item.content && (
+              <div className="text-sm text-muted-foreground">
+                {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
+              </div>
+            )}
+          </div>
+        </div>
       );
     case "retweet":
       return (
         <span>
-          <span className="font-medium">{username}</span> shared{" "}
+          <span className="font-medium">{name}</span> shared{" "}
           <Link href={item.link || "#"} className="text-blue-500 hover:underline">
             {item.title || "a post"}
           </Link>
@@ -203,11 +232,15 @@ MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
 const ActivityCard = React.memo(({ 
   activity, 
   username, 
+  name,
+  profileImage,
   entryDetails,
   getEntryMetrics
 }: { 
   activity: ActivityItem; 
   username: string;
+  name: string;
+  profileImage?: string | null;
   entryDetails?: RSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
 }) => {
@@ -220,8 +253,8 @@ const ActivityCard = React.memo(({
     return getEntryMetrics(entryDetails.guid);
   }, [entryDetails, getEntryMetrics]);
   
-  // Format timestamp using the same logic as RSSFeedClient
-  const timestamp = useMemo(() => {
+  // Format entry timestamp using the same logic as RSSFeedClient
+  const entryTimestamp = useMemo(() => {
     if (!entryDetails?.pub_date) return '';
 
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
@@ -268,6 +301,42 @@ const ActivityCard = React.memo(({
     }
   }, [entryDetails?.pub_date]);
 
+  // Format activity timestamp for comments
+  const activityTimestamp = useMemo(() => {
+    if (!activity.timestamp) return '';
+    
+    const now = new Date();
+    const activityDate = new Date(activity.timestamp);
+    
+    // Ensure we're working with valid dates
+    if (isNaN(activityDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - activityDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : ' ago';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+    }
+  }, [activity.timestamp]);
+
   // Handle card click for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
@@ -280,15 +349,25 @@ const ActivityCard = React.memo(({
   if (!entryDetails) {
     return (
       <div className="p-4 rounded-lg shadow-sm mb-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-1">
-            <ActivityIcon type={activity.type} />
-          </div>
-          <div className="flex-1">
-            <ActivityDescription item={activity} username={username} />
-            <div className="text-xs text-gray-500 mt-1">
-              {timestamp}
+        <div className="flex items-start">
+          {activity.type !== "comment" && (
+            <div className="mt-1 mr-3">
+              <ActivityIcon type={activity.type} />
             </div>
+          )}
+          <div className="flex-1">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={activity.type === "comment" ? activityTimestamp : undefined}
+            />
+            {activity.type !== "comment" && (
+              <div className="text-xs text-gray-500 mt-2">
+                {activityTimestamp}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -300,42 +379,59 @@ const ActivityCard = React.memo(({
     <article className="">
       <div className="p-4 border-l border-r">
         {/* Activity header with icon and description */}
-        <div className="flex items-start gap-3 mb-4">
-          <div className="mt-1">
-            <ActivityIcon type={activity.type} />
-          </div>
-          <div className="flex-1">
-            <ActivityDescription item={activity} username={username} />
-            <div className="text-xs text-gray-500 mt-1">
-              {timestamp}
+        <div className="flex items-start mb-4 relative">
+          {activity.type !== "comment" && (
+            <div className="mt-1 mr-3">
+              <ActivityIcon type={activity.type} />
             </div>
+          )}
+          <div className="flex-1">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={activity.type === "comment" ? activityTimestamp : undefined}
+            />
+            {activity.type !== "comment" && (
+              <div className="text-xs text-gray-500 mt-2">
+                {activityTimestamp}
+              </div>
+            )}
           </div>
         </div>
         
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-start gap-4 mb-4 relative">
+          {/* Vertical connector line for comments - positioned relative to this container */}
+          {activity.type === "comment" && (entryDetails.post_featured_img || entryDetails.image) && (
+            <div className="absolute left-7 top-[-30px] w-px bg-border" style={{ height: '30px' }}></div>
+          )}
+          
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
-            <Link 
-              href={entryDetails.category_slug && entryDetails.post_slug ? 
-                `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                entryDetails.link}
-              className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
-              target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-              rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
-            >
-              <AspectRatio ratio={1}>
-                <Image
-                  src={entryDetails.post_featured_img || entryDetails.image || ''}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="96px"
-                  loading="lazy"
-                  priority={false}
-                />
-              </AspectRatio>
-            </Link>
+            <div className={activity.type === "comment" ? "flex-shrink-0 w-14 h-14 ml-0" : "flex-shrink-0 w-14 h-14"}>
+              <Link 
+                href={entryDetails.category_slug && entryDetails.post_slug ? 
+                  `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                  entryDetails.link}
+                className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+              >
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={entryDetails.post_featured_img || entryDetails.image || ''}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="96px"
+                    loading="lazy"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </Link>
+            </div>
           )}
           
           {/* Title and Timestamp */}
@@ -361,7 +457,7 @@ const ActivityCard = React.memo(({
                     new Date(activity.timestamp).toLocaleString()
                   }
                 >
-                  {timestamp}
+                  {entryTimestamp}
                 </span>
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
@@ -382,13 +478,50 @@ const ActivityCard = React.memo(({
         </div>
 
         {/* Entry Content Card */}
-        {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
-          <div>
-            <div 
-              onClick={handleCardClick}
-              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+        <div>
+          {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+            <div>
+              <div 
+                onClick={handleCardClick}
+                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              >
+                <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                  {entryDetails.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={16/9}>
+                        <Image
+                          src={entryDetails.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-4 bg-secondary/60 border-t">
+                    <h3 className="text-lg font-semibold leading-tight">
+                      {entryDetails.title}
+                    </h3>
+                    {entryDetails.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {entryDetails.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : (
+            <a
+              href={entryDetails.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block hover:opacity-80 transition-opacity"
             >
-              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+              <Card className="overflow-hidden shadow-none">
                 {entryDetails.image && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={16/9}>
@@ -415,44 +548,9 @@ const ActivityCard = React.memo(({
                   )}
                 </CardContent>
               </Card>
-            </div>
-          </div>
-        ) : (
-          <a
-            href={entryDetails.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block hover:opacity-80 transition-opacity"
-          >
-            <Card className="overflow-hidden shadow-none">
-              {entryDetails.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={16/9}>
-                    <Image
-                      src={entryDetails.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 768px"
-                      loading="lazy"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <CardContent className="p-4 bg-secondary/60 border-t">
-                <h3 className="text-lg font-semibold leading-tight">
-                  {entryDetails.title}
-                </h3>
-                {entryDetails.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                    {entryDetails.description}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </a>
-        )}
+            </a>
+          )}
+        </div>
 
         {/* Horizontal Interaction Buttons */}
         <div className="flex justify-between items-center mt-4 h-[16px]">
@@ -505,7 +603,7 @@ ActivityCard.displayName = 'ActivityCard';
  * Client component that displays a user's activity feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserActivityFeed({ userId, username, initialData, pageSize = 30, apiEndpoint = "/api/activity" }: UserActivityFeedProps) {
+export function UserActivityFeed({ userId, username, name, profileImage, initialData, pageSize = 30, apiEndpoint = "/api/activity" }: UserActivityFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
@@ -648,7 +746,9 @@ export function UserActivityFeed({ userId, username, initialData, pageSize = 30,
           <ActivityCard 
             key={activity._id} 
             activity={activity} 
-            username={username} 
+            username={username}
+            name={name}
+            profileImage={profileImage}
             entryDetails={entryDetails[activity.entryGuid]}
             getEntryMetrics={getEntryMetrics}
           />

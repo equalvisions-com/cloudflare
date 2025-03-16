@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
+import { ProfileImage } from "@/components/profile/ProfileImage";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -80,26 +81,31 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     <ProfileLayoutManager>
       <div>
         <div>
-          <div className="prose dark:prose-invert p-4 border-l border-r">
-            <h1 className="text-3xl font-bold mb-4">{normalizedUsername}</h1>
-            <p>User ID: {profile.userId}</p>
-            {profile.rssKeys && profile.rssKeys.length > 0 ? (
-              <div>
-                <h2 className="text-xl font-semibold mt-6 mb-2">Followed Feeds</h2>
-                <ul className="list-disc pl-5">
-                  {profile.rssKeys.map((key) => (
-                    <li key={key}>{key}</li>
-                  ))}
-                </ul>
+          <div className="max-w-4xl mx-auto p-4 border-l border-r">
+            <div className="flex flex-col items-start mb-4">
+              <ProfileImage 
+                profileImage={profile.profileImage} 
+                username={normalizedUsername}
+                size="lg"
+                className="mb-4"
+              />
+              <div className="text-left">
+                <h1 className="text-2xl font-bold mb-2 leading-tight">{normalizedUsername}</h1>
+                {profile.name && profile.name !== normalizedUsername && (
+                  <p className="text-sm mb-2 text-muted-foreground">{profile.name}</p>
+                )}
+                {profile.bio && (
+                  <p className="text-sm text-muted-foreground">{profile.bio}</p>
+                )}
               </div>
-            ) : (
-              <p>No followed feeds yet.</p>
-            )}
+            </div>
           </div>
           
           <ProfileActivityData 
             userId={profile.userId} 
-            username={normalizedUsername} 
+            username={normalizedUsername}
+            name={profile.name || normalizedUsername}
+            profileImage={profile.profileImage}
           />
         </div>
       </div>

@@ -45,6 +45,8 @@ type RSSEntry = {
 interface UserProfileTabsProps {
   userId: Id<"users">;
   username: string;
+  name: string;
+  profileImage?: string | null;
   activityData: {
     activities: ActivityItem[];
     totalCount: number;
@@ -63,12 +65,16 @@ interface UserProfileTabsProps {
 // Memoized component for the "Activity" tab content
 const ActivityTabContent = React.memo(({ 
   userId, 
-  username, 
+  username,
+  name,
+  profileImage,
   activityData, 
   pageSize 
 }: { 
   userId: Id<"users">, 
-  username: string, 
+  username: string,
+  name: string,
+  profileImage?: string | null,
   activityData: UserProfileTabsProps['activityData'], 
   pageSize: number 
 }) => {
@@ -84,6 +90,8 @@ const ActivityTabContent = React.memo(({
     <UserActivityFeed
       userId={userId}
       username={username}
+      name={name}
+      profileImage={profileImage}
       initialData={activityData}
       pageSize={pageSize}
       apiEndpoint="/api/activity"
@@ -95,13 +103,15 @@ ActivityTabContent.displayName = 'ActivityTabContent';
 // Memoized component for the "Likes" tab content
 const LikesTabContent = React.memo(({ 
   userId, 
-  username, 
+  username,
+  name,
   likesData, 
   pageSize,
   isLoading
 }: { 
   userId: Id<"users">, 
-  username: string, 
+  username: string,
+  name: string,
   likesData: UserProfileTabsProps['likesData'], 
   pageSize: number,
   isLoading: boolean
@@ -127,6 +137,7 @@ const LikesTabContent = React.memo(({
     <UserLikesFeed
       userId={userId}
       username={username}
+      name={name}
       initialData={likesData}
       pageSize={pageSize}
     />
@@ -136,7 +147,9 @@ LikesTabContent.displayName = 'LikesTabContent';
 
 export function UserProfileTabs({ 
   userId, 
-  username, 
+  username,
+  name,
+  profileImage,
   activityData, 
   likesData: initialLikesData, 
   pageSize = 30 
@@ -212,6 +225,8 @@ export function UserProfileTabs({
       content: <ActivityTabContent 
                 userId={userId} 
                 username={username} 
+                name={name}
+                profileImage={profileImage}
                 activityData={activityData} 
                 pageSize={pageSize} 
               />
@@ -223,15 +238,16 @@ export function UserProfileTabs({
       content: <LikesTabContent 
                 userId={userId} 
                 username={username} 
+                name={name}
                 likesData={likesData} 
                 pageSize={pageSize}
                 isLoading={isLoadingLikes}
               />
     }
-  ], [userId, username, activityData, likesData, pageSize, isLoadingLikes]);
+  ], [userId, username, name, profileImage, activityData, likesData, pageSize, isLoadingLikes]);
 
   return (
-    <div className="w-full">
+    <div className="w-full border-t">
       <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}
