@@ -119,7 +119,7 @@ type CommentWithUser = {
   user?: {
     userId: Id<"users">;
     username: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 
@@ -178,5 +178,31 @@ export const batchGetComments = query({
 
     // Return comments in the same order as input guids
     return args.entryGuids.map(guid => commentsByEntry.get(guid) || []);
+  },
+});
+
+export const getCommentReplies = query({
+  args: {
+    commentId: v.id("comments"),
+  },
+  handler: async (ctx, args) => {
+    // Get all replies to this comment
+    const replies = await ctx.db
+      .query("comments")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.commentId))
+      .order("asc")
+      .collect();
+
+    // Get user info for each reply
+    const userIds = new Set(replies.map(c => c.userId));
+    const users = await Promise.all(
+      Array.from(userIds).map(id => ctx.db.get(id))
+    );
+    const userMap = new Map(users.map(u => [u!._id, u]));
+
+    return replies.map(reply => ({
+      ...reply,
+      user: userMap.get(reply.userId),
+    }));
   },
 }); 

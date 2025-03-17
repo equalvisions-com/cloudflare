@@ -51,6 +51,7 @@ export const getUserActivityFeed = query({
       ctx.db
         .query("comments")
         .withIndex("by_user", (q) => q.eq("userId", userId))
+        .filter(q => q.eq(q.field("parentId"), undefined)) // Only include top-level comments (not replies)
         .collect(),
       
       ctx.db

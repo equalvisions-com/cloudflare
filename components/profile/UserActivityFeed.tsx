@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -17,9 +17,12 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { ProfileImage } from "@/components/profile/ProfileImage";
+import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
+import { Textarea } from "@/components/ui/textarea";
+
 
 // Types for activity items
 type ActivityItem = {
@@ -31,7 +34,7 @@ type ActivityItem = {
   link?: string;
   pubDate?: string;
   content?: string;
-  _id: string;
+  _id: string | Id<"comments">;
 };
 
 // Type for RSS entry from PlanetScale
@@ -54,6 +57,25 @@ type RSSEntry = {
   category_slug?: string;
   post_slug?: string;
 };
+
+// Comment type based on the schema
+interface Comment {
+  _id: Id<"comments">;
+  _creationTime: number;
+  userId: Id<"users">;
+  username: string;
+  content: string;
+  parentId?: Id<"comments">;
+  entryGuid: string;
+  feedUrl: string;
+  createdAt: number;
+  user?: {
+    name?: string;
+    username?: string;
+    profileImage?: string;
+    image?: string;
+  } | null;
+}
 
 // Define the shape of interaction states for batch metrics
 interface InteractionStates {
@@ -141,13 +163,331 @@ function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
   }
 }
 
-function ActivityDescription({ item, username, name, profileImage, timestamp }: { 
+// Export ActivityDescription for reuse
+export function ActivityDescription({ item, username, name, profileImage, timestamp }: { 
   item: ActivityItem; 
   username: string;
   name: string;
   profileImage?: string | null;
   timestamp?: string;
 }) {
+  // Create a ref to store the like count element
+  const likeCountRef = useRef<HTMLDivElement>(null);
+  // State to track if replies are expanded
+  const [repliesExpanded, setRepliesExpanded] = useState(false);
+  // State to track reply input
+  const [replyText, setReplyText] = useState('');
+  // State to track if submitting a reply
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  // State to store replies
+  const [replies, setReplies] = useState<Comment[]>([]);
+  // State to track if replies are loading
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  // State to track if replies have been loaded at least once
+  const [repliesLoaded, setRepliesLoaded] = useState(false);
+  // Create a map of refs for reply like counts
+  const replyLikeCountRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  
+  // Fetch replies when expanded
+  const fetchReplies = useCallback(async () => {
+    if (item.type !== 'comment' || !item._id || repliesLoaded) return;
+    
+    const commentId = typeof item._id === 'string' ? 
+      item._id as unknown as Id<"comments"> : 
+      item._id;
+    
+    setRepliesLoading(true);
+    try {
+      // Use the Convex query to fetch replies
+      const repliesData = await fetch(`/api/comments/replies?commentId=${commentId}`);
+      const data = await repliesData.json();
+      setReplies(data.replies || []);
+      setRepliesLoaded(true);
+    } catch (error) {
+      console.error('Error fetching replies:', error);
+    } finally {
+      setRepliesLoading(false);
+    }
+  }, [item, repliesLoaded]);
+  
+  // Toggle replies visibility
+  const toggleReplies = useCallback(() => {
+    const newExpandedState = !repliesExpanded;
+    setRepliesExpanded(newExpandedState);
+    
+    if (newExpandedState && !repliesLoaded) {
+      fetchReplies();
+    }
+  }, [repliesExpanded, fetchReplies, repliesLoaded]);
+  
+  // Submit a reply
+  const submitReply = useCallback(async () => {
+    if (!replyText.trim() || isSubmittingReply || item.type !== 'comment' || !item._id) return;
+    
+    const commentId = typeof item._id === 'string' ? 
+      item._id as unknown as Id<"comments"> : 
+      item._id;
+    
+    setIsSubmittingReply(true);
+    
+    try {
+      // Call the API to submit the reply
+      const response = await fetch('/api/comments/reply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          parentId: commentId,
+          content: replyText,
+          entryGuid: item.entryGuid,
+          feedUrl: item.feedUrl
+        }),
+      });
+      
+      if (response.ok) {
+        // Clear the input
+        setReplyText('');
+        
+        // Force a refresh of the replies
+        setReplies([]);
+        fetchReplies();
+      } else {
+        console.error('Failed to submit reply');
+      }
+    } catch (error) {
+      console.error('Error submitting reply:', error);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  }, [replyText, isSubmittingReply, item, fetchReplies]);
+  
+  // Function to update the like count text
+  const updateLikeCount = (count: number) => {
+    if (likeCountRef.current) {
+      if (count > 0) {
+        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+        const countElement = likeCountRef.current.querySelector('span:last-child');
+        if (countElement) {
+          countElement.textContent = countText;
+        }
+        likeCountRef.current.classList.remove('hidden');
+      } else {
+        likeCountRef.current.classList.add('hidden');
+      }
+    }
+  };
+  
+  // Check for initial like count from Convex
+  useEffect(() => {
+    if (item.type === 'comment' && item._id) {
+      // No need to convert the ID here since we're not using it
+      // We just need to make sure the ref is ready
+      if (likeCountRef.current) {
+        // The initial state is hidden, the button will update it if needed
+        likeCountRef.current.classList.add('hidden');
+      }
+    }
+  }, [item]);
+  
+  // Add authentication state
+  const { isAuthenticated } = useConvexAuth();
+  const [isCurrentUser, setIsCurrentUser] = useState(false);
+  const viewer = useQuery(api.users.viewer);
+  
+  // Check if the comment belongs to the current user
+  useEffect(() => {
+    // Set current user status based on username
+    if (isAuthenticated && viewer && item.type === 'comment') {
+      // If the viewer has a username and it matches this comment's username,
+      // then this comment belongs to the current user
+      setIsCurrentUser(viewer.name === username || viewer.username === username);
+    }
+  }, [isAuthenticated, viewer, username, item.type]);
+  
+  // Function to delete a comment
+  const deleteComment = useCallback(async () => {
+    if (item.type !== 'comment' || !item._id) return;
+    
+    const commentId = typeof item._id === 'string' ? 
+      item._id as unknown as Id<"comments"> : 
+      item._id;
+    
+    try {
+      const response = await fetch(`/api/comments/delete?commentId=${commentId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        // Handle successful deletion - could refresh the feed or add a state update
+        window.location.reload(); // Simple reload for now
+      } else {
+        console.error('Failed to delete comment');
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  }, [item]);
+  
+  // Function to update the like count text for replies
+  const updateReplyLikeCount = useCallback((replyId: string, count: number) => {
+    const replyLikeCountElement = replyLikeCountRefs.current.get(replyId);
+    if (replyLikeCountElement) {
+      if (count > 0) {
+        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+        const countElement = replyLikeCountElement.querySelector('span');
+        if (countElement) {
+          countElement.textContent = countText;
+        }
+        replyLikeCountElement.classList.remove('hidden');
+      } else {
+        replyLikeCountElement.classList.add('hidden');
+      }
+    }
+  }, []);
+  
+  // Render a single reply
+  const renderReply = (reply: Comment) => {
+    // Check if this reply belongs to the current user
+    const isReplyFromCurrentUser = isAuthenticated && viewer && 
+      (viewer.name === reply.username || viewer.username === reply.username);
+    
+    // Function to delete a reply
+    const deleteReply = () => {
+      if (!reply._id) return;
+      
+      fetch(`/api/comments/delete?commentId=${reply._id}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (response.ok) {
+            // Remove the deleted reply from the state
+            setReplies(prevReplies => prevReplies.filter(r => r._id !== reply._id));
+          } else {
+            console.error('Failed to delete reply');
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting reply:', error);
+        });
+    };
+    
+    // Function to set reference for the like count element
+    const setReplyLikeCountRef = (el: HTMLDivElement | null) => {
+      if (el && reply._id) {
+        replyLikeCountRefs.current.set(reply._id.toString(), el);
+      }
+    };
+    
+    // Get profile image - check multiple possible locations based on data structure
+    const profileImageUrl = 
+      reply.user?.profileImage || // From profiles table
+      reply.user?.image ||        // From users table
+      null;                       // Fallback
+      
+    // Get display name from various possible locations
+    const displayName = 
+      reply.user?.name ||      // From profiles or users table
+      reply.username ||        // Fallback to username in comment
+      'Anonymous';             // Last resort fallback
+    
+    return (
+      <div key={reply._id} className="mt-0">
+        <div className="flex items-start gap-4 border-t pl-4 py-4">
+          <ProfileImage 
+            profileImage={profileImageUrl}
+            username={reply.username}
+            size="md-lg"
+            className="flex-shrink-0"
+          />
+          <div className="flex-1 flex">
+            <div className="flex-1">
+              <div className="flex items-center mb-1">
+                <span className="text-sm font-bold leading-none">{displayName}</span>
+              </div>
+              <p className="text-sm">{reply.content}</p>
+              
+              {/* Actions row with timestamp and like count */}
+              <div className="flex items-center gap-4 mt-1">
+                {/* Timestamp */}
+                <div className="leading-none font-semibold text-muted-foreground text-xs">
+                  {(() => {
+                    const now = new Date();
+                    const replyDate = new Date(reply._creationTime);
+                    
+                    // Ensure we're working with valid dates
+                    if (isNaN(replyDate.getTime())) {
+                      return '';
+                    }
+
+                    // Calculate time difference
+                    const diffInMs = now.getTime() - replyDate.getTime();
+                    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                    const diffInHours = Math.floor(diffInMinutes / 60);
+                    const diffInDays = Math.floor(diffInHours / 24);
+                    const diffInMonths = Math.floor(diffInDays / 30);
+                    
+                    // Format based on the time difference
+                    if (diffInMinutes < 60) {
+                      return `${diffInMinutes}m`;
+                    } else if (diffInHours < 24) {
+                      return `${diffInHours}h`;
+                    } else if (diffInDays < 30) {
+                      return `${diffInDays}d`;
+                    } else {
+                      return `${diffInMonths}mo`;
+                    }
+                  })()}
+                </div>
+                
+                {/* Like count for reply */}
+                <div 
+                  ref={setReplyLikeCountRef}
+                  className="leading-none font-semibold text-muted-foreground text-xs hidden"
+                >
+                  <span>0 Likes</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex-shrink-0 flex items-center ml-2 pr-4">
+              <div className="flex flex-col items-end w-full">
+                {/* Add menu for reply owner at the top */}
+                {isReplyFromCurrentUser && (
+                  <div className="mb-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={deleteReply}
+                          className="text-red-500 focus:text-red-500 cursor-pointer"
+                        >
+                          Delete Reply
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+                
+                {/* Like button */}
+                <CommentLikeButton 
+                  commentId={reply._id as unknown as Id<"comments">}
+                  size="sm"
+                  hideCount={true}
+                  onCountChange={(count) => updateReplyLikeCount(reply._id.toString(), count)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   switch (item.type) {
     case "like":
       return (
@@ -160,34 +500,121 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
       );
     case "comment":
       return (
-        <div className="flex items-start gap-4">
-          <ProfileImage 
-            profileImage={profileImage}
-            username={username}
-            size="md-lg"
-            className="flex-shrink-0"
-          />
-          <div className="flex-1">
-              <div className="flex items-center mb-0">
-                <div className="leading-none mt-[-3px] mb-[5px]">
-                  <span className="text-sm font-bold leading-none">{name}</span>
+        <div className="flex flex-col">
+          <div className="flex items-start gap-4 pl-4 pt-4">
+            <ProfileImage 
+              profileImage={profileImage}
+              username={username}
+              size="md-lg"
+              className="flex-shrink-0"
+            />
+            <div className="flex-1 flex pr-4 pb-4">
+              <div className="flex-1">
+                <div className="flex items-center mb-0">
+                  <div className="leading-none mt-[-3px] mb-[5px]">
+                    <span className="text-sm font-bold leading-none">{name}</span>
+                  </div>
+                </div>
+                
+                {item.content && (
+                  <div className="text-sm mb-[7px]">
+                    {item.content}
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-4">
+                  {timestamp && (
+                    <div className="leading-none font-semibold text-muted-foreground text-xs">
+                      {timestamp}
+                    </div>
+                  )}
+                  <div className="leading-none font-semibold text-muted-foreground text-xs">
+                    <button 
+                      onClick={toggleReplies}
+                      className="text-muted-foreground hover:underline focus:outline-none"
+                    >
+                      Replies
+                    </button>
+                  </div>
+                  <div 
+                    ref={likeCountRef} 
+                    className="leading-none font-semibold text-muted-foreground text-xs hidden"
+                  >
+                    <span>0 Likes</span>
+                  </div>
                 </div>
               </div>
               
-            {item.content && (
-              <div className="text-sm mb-[7px]">
-                {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
+              <div className="flex-shrink-0 flex items-center ml-2">
+                <div className="flex flex-col items-end w-full">
+                  {/* Add the dropdown menu for comment owner at the top */}
+                  {isCurrentUser && (
+                    <div className="mb-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={deleteComment}
+                            className="text-red-500 focus:text-red-500 cursor-pointer"
+                          >
+                            Delete Comment
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                  
+                  {item._id && (
+                    <CommentLikeButton 
+                      commentId={typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id}
+                      size="sm"
+                      hideCount={true}
+                      onCountChange={updateLikeCount}
+                    />
+                  )}
+                </div>
               </div>
-            )}
-            
-            <div className="flex items-center gap-1">
-              {timestamp && (
-                <span className="leading-none font-semibold text-muted-foreground text-xs">
-                  {timestamp}
-                </span>
-              )}
             </div>
           </div>
+          
+          {/* Replies section - outside the flex layout */}
+          {repliesExpanded && (
+            <div className="mt-0">
+              {repliesLoading ? (
+                <div className="py-2 text-sm text-muted-foreground">Loading replies...</div>
+              ) : replies.length > 0 ? (
+                <div className="space-y-0">
+                  {replies.map(reply => renderReply(reply))}
+                </div>
+              ) : null}
+              
+              {/* Reply form */}
+              <div className="p-4 border-t flex gap-2">
+                <Textarea
+                  placeholder="Write a reply..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="resize-none text-sm min-h-[60px]"
+                />
+                <Button 
+                  onClick={submitReply} 
+                  disabled={!replyText.trim() || isSubmittingReply}
+                  size="sm"
+                >
+                  {isSubmittingReply ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Posting...
+                    </span>
+                  ) : "Reply"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       );
     case "retweet":
@@ -318,7 +745,8 @@ const ActivityCard = React.memo(({
     // For future dates (more than 1 minute ahead), show 'in X'
     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : ' ago';
+    // For comments, we don't want to show "ago"
+    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
@@ -380,34 +808,84 @@ const ActivityCard = React.memo(({
       
       <div className="p-4 border-l border-r">
         {/* Activity header with icon and description */}
-        <div className="flex items-start mb-0 relative">
+        <div className="flex items-start mb-2 relative h-[16px]">
           <div className="mr-2">
             <ActivityIcon type={activity.type} />
           </div>
-          <div className={`flex-1 ${activity.type === "retweet" ? "mt-[-6px]" : ""}`}>
-            {activity.type !== "comment" && (
+          <div className="flex-1">
+            {activity.type === "like" && (
             <ActivityDescription 
               item={activity} 
               username={username}
               name={name}
               profileImage={profileImage}
-                timestamp={undefined}
+              timestamp={undefined}
             />
             )}
+            {activity.type === "retweet" && (
+              <span className="text-muted-foreground text-sm block leading-none pt-[0px]">
+                <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
+              </span>
+            )}
             {activity.type === "comment" && (
-              <span className="text-muted-foreground text-sm">
+              <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
                 <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
               </span>
             )}
-            {activity.type !== "comment" && (
-              <div className="text-xs text-gray-500 mt-2">
-                {activity.type === "retweet" ? (
-                  <span className="hidden">{entryTimestamp}</span>
-                ) : (
-                  entryTimestamp
-                )}
-              </div>
-            )}
+            <div className="text-xs text-gray-500 mt-2">
+              {activity.type === "retweet" ? (
+                <span className="hidden"></span>
+              ) : activity.type === "comment" ? (
+                <span className="hidden"></span>
+              ) : (
+                (() => {
+                  if (!entryDetails.pub_date) return '';
+
+                  // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+                  const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                  let pubDate: Date;
+                  
+                  if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
+                    // Convert MySQL datetime string to UTC time
+                    const [datePart, timePart] = entryDetails.pub_date.split(' ');
+                    pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+                  } else {
+                    // Handle other formats
+                    pubDate = new Date(entryDetails.pub_date);
+                  }
+                  
+                  const now = new Date();
+                  
+                  // Ensure we're working with valid dates
+                  if (isNaN(pubDate.getTime())) {
+                    return '';
+                  }
+
+                  // Calculate time difference
+                  const diffInMs = now.getTime() - pubDate.getTime();
+                  const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                  const diffInHours = Math.floor(diffInMinutes / 60);
+                  const diffInDays = Math.floor(diffInHours / 24);
+                  const diffInMonths = Math.floor(diffInDays / 30);
+                  
+                  // For future dates (more than 1 minute ahead), show 'in X'
+                  const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                  const prefix = isFuture ? 'in ' : '';
+                  const suffix = isFuture ? '' : ' ago';
+                  
+                  // Format based on the time difference
+                  if (diffInMinutes < 60) {
+                    return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                  } else if (diffInHours < 24) {
+                    return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                  } else if (diffInDays < 30) {
+                    return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                  } else {
+                    return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                  }
+                })()
+              )}
+            </div>
           </div>
         </div>
         
@@ -755,9 +1233,62 @@ const ActivityCard = React.memo(({
             </a>
           )}
         </div>
+          </>
+        )}
+      </div>
+      
+      <div id={`comments-${entryDetails.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
+      
+      {/* User Comment Activity - moved below the entry card */}
+      {activity.type === "comment" && (
+        <div className="border-l border-r border-b border-t relative">
+          <div className="relative z-10">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={(() => {
+                const now = new Date();
+                const commentDate = new Date(activity.timestamp);
+                
+                // Ensure we're working with valid dates
+                if (isNaN(commentDate.getTime())) {
+                  return '';
+                }
 
-            {/* Horizontal Interaction Buttons - Full width for retweets/likes */}
-        <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
+                // Calculate time difference
+                const diffInMs = now.getTime() - commentDate.getTime();
+                const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                const diffInHours = Math.floor(diffInMinutes / 60);
+                const diffInDays = Math.floor(diffInHours / 24);
+                const diffInMonths = Math.floor(diffInDays / 30);
+                
+                // For future dates (more than 1 minute ahead), show 'in X'
+                const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                const prefix = isFuture ? 'in ' : '';
+                // Remove suffix for comments to eliminate "ago"
+                const suffix = isFuture ? '' : '';
+                
+                // Format based on the time difference
+                if (diffInMinutes < 60) {
+                  return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                } else if (diffInHours < 24) {
+                  return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                } else if (diffInDays < 30) {
+                  return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                } else {
+                  return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                }
+              })()}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Move engagement buttons below comments for comment type */}
+      {activity.type === "comment" && (
+        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
           <div>
             <LikeButtonClient
               entryGuid={entryDetails.guid}
@@ -795,60 +1326,10 @@ const ActivityCard = React.memo(({
             <MoreOptionsDropdown entry={entryDetails} />
           </div>
         </div>
-          </>
-        )}
-      </div>
-      
-      <div id={`comments-${entryDetails.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
-      
-      {/* User Comment Activity - moved below the entry card */}
-      {activity.type === "comment" && (
-        <div className="p-4 border-l border-r border-b border-t relative">
-          <div className="relative z-10">
-            <ActivityDescription 
-              item={activity} 
-              username={username}
-              name={name}
-              profileImage={profileImage}
-              timestamp={(() => {
-                const now = new Date();
-                const commentDate = new Date(activity.timestamp);
-                
-                // Ensure we're working with valid dates
-                if (isNaN(commentDate.getTime())) {
-                  return '';
-                }
-
-                // Calculate time difference
-                const diffInMs = now.getTime() - commentDate.getTime();
-                const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                const diffInHours = Math.floor(diffInMinutes / 60);
-                const diffInDays = Math.floor(diffInHours / 24);
-                const diffInMonths = Math.floor(diffInDays / 30);
-                
-                // For future dates (more than 1 minute ahead), show 'in X'
-                const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                const prefix = isFuture ? 'in ' : '';
-                const suffix = isFuture ? '' : ' ago';
-                
-                // Format based on the time difference
-                if (diffInMinutes < 60) {
-                  return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                } else if (diffInHours < 24) {
-                  return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                } else if (diffInDays < 30) {
-                  return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                } else {
-                  return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                }
-              })()}
-            />
-          </div>
-        </div>
       )}
       
-      {/* Move engagement buttons below comments for comment type */}
-      {activity.type === "comment" && (
+      {/* Move engagement buttons below for retweet/like types */}
+      {activity.type !== "comment" && (
         <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
           <div>
             <LikeButtonClient
@@ -1142,12 +1623,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
         
         <div className="p-4 border-l border-r">
           {/* Activity header with icon and description */}
-          {group.firstActivity.type !== "comment" && (
-            <div className="flex items-start mb-4 relative">
-              <div className="mt-1 mr-3">
-                <ActivityIcon type={group.firstActivity.type} />
-              </div>
-              <div className="flex-1">
+          <div className="flex items-start mb-2 relative h-[16px]">
+            <div className="mr-2">
+              <ActivityIcon type={group.firstActivity.type} />
+            </div>
+            <div className="flex-1">
+              {group.firstActivity.type === "like" && (
                 <ActivityDescription 
                   item={group.firstActivity} 
                   username={username}
@@ -1155,18 +1636,48 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                   profileImage={profileImage}
                   timestamp={undefined}
                 />
-                <div className="text-xs text-gray-500 mt-2">
-                  {(() => {
+              )}
+              {group.firstActivity.type === "retweet" && (
+                <span className="text-muted-foreground text-sm">
+                  <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
+                </span>
+              )}
+              {group.firstActivity.type === "comment" && (
+                <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
+                  <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+                </span>
+              )}
+              <div className="text-xs text-gray-500 mt-2">
+                {group.firstActivity.type === "retweet" ? (
+                  <span className="hidden"></span>
+                ) : group.firstActivity.type === "comment" ? (
+                  <span className="hidden"></span>
+                ) : (
+                  (() => {
+                    if (!entryDetail.pub_date) return '';
+
+                    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+                    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                    let pubDate: Date;
+                    
+                    if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
+                      // Convert MySQL datetime string to UTC time
+                      const [datePart, timePart] = entryDetail.pub_date.split(' ');
+                      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+                    } else {
+                      // Handle other formats
+                      pubDate = new Date(entryDetail.pub_date);
+                    }
+                    
                     const now = new Date();
-                    const activityDate = new Date(group.firstActivity.timestamp);
                     
                     // Ensure we're working with valid dates
-                    if (isNaN(activityDate.getTime())) {
+                    if (isNaN(pubDate.getTime())) {
                       return '';
                     }
 
                     // Calculate time difference
-                    const diffInMs = now.getTime() - activityDate.getTime();
+                    const diffInMs = now.getTime() - pubDate.getTime();
                     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
                     const diffInHours = Math.floor(diffInMinutes / 60);
                     const diffInDays = Math.floor(diffInHours / 24);
@@ -1187,24 +1698,11 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                     } else {
                       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
                     }
-                  })()}
-                </div>
+                  })()
+                )}
               </div>
             </div>
-          )}
-          
-          {group.firstActivity.type === "comment" && (
-            <div className="flex items-start mb-4 relative">
-              <div className="mr-2">
-                <ActivityIcon type="comment" />
-              </div>
-              <div className="flex-1">
-                <span className="text-muted-foreground text-sm">
-                  <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
-                </span>
-              </div>
-            </div>
-          )}
+          </div>
           
           {/* Featured Image and Title in flex layout */}
           <div className="flex items-start gap-4 mb-4 relative">
@@ -1436,7 +1934,8 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                       // For future dates (more than 1 minute ahead), show 'in X'
                       const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
                       const prefix = isFuture ? 'in ' : '';
-                      const suffix = isFuture ? '' : ' ago';
+                      // Remove suffix for comments to eliminate "ago"
+                      const suffix = isFuture ? '' : '';
                       
                       // Format based on the time difference
                       if (diffInMinutes < 60) {

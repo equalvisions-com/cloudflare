@@ -104,4 +104,13 @@ export default defineSchema({
     .index("by_user", ["userId"])          // To get all comments by a user
     .index("by_parent", ["parentId"])      // To get all replies to a comment
     .index("by_entry_time", ["entryGuid", "createdAt"]), // For sorted comments
+    
+  commentLikes: defineTable({
+    userId: v.id("users"),
+    commentId: v.id("comments"),
+    likedAt: v.number(),      // Timestamp for when the like was created
+  })
+  .index("by_user_comment", ["userId", "commentId"])  // To check if a user liked a comment
+  .index("by_comment", ["commentId"])                 // To count likes for a comment
+  .index("by_user", ["userId"]),                      // To get all comments liked by a user
 });
