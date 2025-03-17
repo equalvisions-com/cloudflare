@@ -164,29 +164,30 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
           <ProfileImage 
             profileImage={profileImage}
             username={username}
-            size="md-lg"
+            size="sm"
             className="flex-shrink-0"
           />
           <div className="flex-1">
-            <div className="h-[56px]">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="font-medium">{name}</span>
+              <div className="flex items-center mb-0">
+                <div className="leading-none mt-[2px] mb-1">
+                  <span className="text-sm font-bold leading-none">{name}</span>
+                </div>
               </div>
-              {timestamp && (
-                <span className="leading-none text-muted-foreground flex-shrink-0">
-                  {timestamp}
-                </span>
-              )}
-            </div>
-            <div className="mt-[-5px]">
-              <Link href={`/@${username}`} className="leading-none text-muted-foreground text-xs">
-                @{username}
-              </Link>
-            </div>
-            </div>
+              <div className="flex items-center gap-1 mb-2">
+                <Link href={`/@${username}`} className="leading-none text-muted-foreground text-xs">
+                  @{username}
+                </Link>
+                {timestamp && (
+                  <>
+                    <span className="text-muted-foreground text-xs">•</span>
+                    <span className="leading-none text-muted-foreground text-xs">
+                      {timestamp}
+                    </span>
+                  </>
+                )}
+              </div>
             {item.content && (
-              <div className="text-md mt-[-5px]">
+              <div className="text-sm">
                 {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
               </div>
             )}
@@ -379,10 +380,7 @@ const ActivityCard = React.memo(({
   // With entry details, show a rich card similar to EntriesDisplay
   return (
     <article className={activity.type === "comment" ? "relative" : ""}>
-      {/* Vertical line for comments - positioned absolutely relative to the article */}
-      {activity.type === "comment" && (
-        <div className="absolute left-[44.5px] top-[60px] bottom-[80px] w-[1px] bg-border z-0"></div>
-      )}
+      {/* Removed vertical line for comments */}
       
       <div className="p-4 border-l border-r">
         {/* Activity header with icon and description */}
@@ -416,193 +414,155 @@ const ActivityCard = React.memo(({
         
         {/* Different layouts based on activity type */}
         {activity.type === "comment" ? (
-          // Comment layout with connecting line - Entry card in second column
-        <div className="flex items-start gap-4 relative">
-          {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+          <>
+          {/* Featured Image and Title in flex layout */}
+          <div className="flex items-start gap-4 mb-4 relative">
+            {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
-          {(entryDetails.post_featured_img || entryDetails.image) && (
+              {(entryDetails.post_featured_img || entryDetails.image) && (
                 <div className="w-14 h-14 relative z-10">
-              <Link 
-                href={entryDetails.category_slug && entryDetails.post_slug ? 
-                  `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                  entryDetails.link}
-                className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
-                target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
-              >
-                <AspectRatio ratio={1}>
-                  <Image
-                    src={entryDetails.post_featured_img || entryDetails.image || ''}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                    loading="lazy"
-                    priority={false}
-                  />
-                </AspectRatio>
-              </Link>
-            </div>
-          )}
-            </div>
-          
-          {/* Title and Timestamp */}
-          <div className="flex-grow">
-            <div className="w-full">
-              <div className="flex items-center justify-between gap-2">
-                <Link 
-                  href={entryDetails.category_slug && entryDetails.post_slug ? 
-                    `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                    entryDetails.link}
-                  className="hover:opacity-80 transition-opacity"
-                  target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                  rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
-                >
-                  <h3 className="text-base font-semibold text-primary leading-tight">
-                    {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
-                  </h3>
-                </Link>
-                <span 
-                  className="leading-none text-muted-foreground flex-shrink-0"
-                  title={entryDetails.pub_date ? 
-                    format(new Date(entryDetails.pub_date), 'PPP p') : 
-                    new Date(activity.timestamp).toLocaleString()
-                  }
-                >
-                  {entryTimestamp}
-                </span>
-              </div>
-              {/* Use post_media_type if available, otherwise fallback to mediaType */}
-              {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
-                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
-                    <Podcast className="h-3 w-3" />
-                  }
-                  {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Mail className="h-3 w-3" />
-                  }
-                  {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                   (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
-                </span>
+                  <Link 
+                    href={entryDetails.category_slug && entryDetails.post_slug ? 
+                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                      entryDetails.link}
+                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetails.post_featured_img || entryDetails.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </div>
               )}
-                
-                {/* Entry Content Card - In second column for comments */}
-                <div className="mt-4">
-                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
-                    <div>
-                      <div 
-                        onClick={handleCardClick}
-                        className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-                      >
-                        <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                          {entryDetails.image && (
-                            <CardHeader className="p-0">
-                              <AspectRatio ratio={16/9}>
-                                <Image
-                                  src={entryDetails.image}
-                                  alt=""
-                                  fill
-                                  className="object-cover"
-                                  sizes="(max-width: 768px) 100vw, 768px"
-                                  loading="lazy"
-                                  priority={false}
-                                />
-                              </AspectRatio>
-                            </CardHeader>
-                          )}
-                          <CardContent className="p-4 bg-secondary/60 border-t">
-                            <h3 className="text-lg font-semibold leading-tight">
-                              {entryDetails.title}
-                            </h3>
-                            {entryDetails.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                                {entryDetails.description}
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
+            </div>
+            
+            {/* Title and Timestamp */}
+            <div className="flex-grow">
+              <div className="w-full">
+                <div className="flex items-center justify-between gap-2">
+                  <Link 
+                    href={entryDetails.category_slug && entryDetails.post_slug ? 
+                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                      entryDetails.link}
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
+                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <h3 className="text-base font-semibold text-primary leading-tight">
+                      {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                    </h3>
+                  </Link>
+                  <span 
+                    className="leading-none text-muted-foreground flex-shrink-0"
+                    title={entryDetails.pub_date ? 
+                      format(new Date(entryDetails.pub_date), 'PPP p') : 
+                      new Date(activity.timestamp).toLocaleString()
+                    }
+                  >
+                    {entryTimestamp}
+                  </span>
+                </div>
+                {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                {(entryDetails.post_media_type || entryDetails.mediaType) && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                    {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                      <Mail className="h-3 w-3" />
+                    }
+                    {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-                  ) : (
-                    <a
-                      href={entryDetails.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block hover:opacity-80 transition-opacity"
-                    >
-                      <Card className="overflow-hidden shadow-none">
-                        {entryDetails.image && (
-                          <CardHeader className="p-0">
-                            <AspectRatio ratio={16/9}>
-                              <Image
-                                src={entryDetails.image}
-                                alt=""
-                                fill
-                                className="object-cover"
-                                sizes="(max-width: 768px) 100vw, 768px"
-                                loading="lazy"
-                                priority={false}
-                              />
-                            </AspectRatio>
-                          </CardHeader>
-                        )}
-                        <CardContent className="p-4 bg-secondary/60 border-t">
-                          <h3 className="text-lg font-semibold leading-tight">
-                            {entryDetails.title}
-                          </h3>
-                          {entryDetails.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                              {entryDetails.description}
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </a>
-                  )}
-        </div>
-
-                {/* Horizontal Interaction Buttons - In second column for comments */}
-                <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
-                  <div>
-                    <LikeButtonClient
-                      entryGuid={entryDetails.guid}
-                      feedUrl={entryDetails.feed_url || ''}
-                      title={entryDetails.title}
-                      pubDate={entryDetails.pub_date}
-                      link={entryDetails.link}
-                      initialData={interactions?.likes || { isLiked: false, count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <CommentSectionClient
-                      entryGuid={entryDetails.guid}
-                      feedUrl={entryDetails.feed_url || ''}
-                      initialData={interactions?.comments || { count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <RetweetButtonClientWithErrorBoundary
-                      entryGuid={entryDetails.guid}
-                      feedUrl={entryDetails.feed_url || ''}
-                      title={entryDetails.title}
-                      pubDate={entryDetails.pub_date}
-                      link={entryDetails.link}
-                      initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <ShareButtonClient
-                      url={entryDetails.link}
-                      title={entryDetails.title}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <MoreOptionsDropdown entry={entryDetails} />
-                  </div>
+                
+          {/* Entry Content Card - Full width */}
+          <div className="mt-4">
+            {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+              <div>
+                <div 
+                  onClick={handleCardClick}
+                  className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                >
+                  <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                    {entryDetails.image && (
+                      <CardHeader className="p-0">
+                        <AspectRatio ratio={16/9}>
+                          <Image
+                            src={entryDetails.image}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 768px"
+                            loading="lazy"
+                            priority={false}
+                          />
+                        </AspectRatio>
+                      </CardHeader>
+                    )}
+                    <CardContent className="p-4 bg-secondary/60 border-t">
+                      <h3 className="text-lg font-semibold leading-tight">
+                        {entryDetails.title}
+                      </h3>
+                      {entryDetails.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {entryDetails.description}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-            </div>
+            ) : (
+              <a
+                href={entryDetails.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity"
+              >
+                <Card className="overflow-hidden shadow-none">
+                  {entryDetails.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={16/9}>
+                        <Image
+                          src={entryDetails.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-4 bg-secondary/60 border-t">
+                    <h3 className="text-lg font-semibold leading-tight">
+                      {entryDetails.title}
+                    </h3>
+                    {entryDetails.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {entryDetails.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </a>
+            )}
           </div>
+          </>
         ) : (
           // Original full-width layout for retweets/likes
           <>
@@ -887,6 +847,48 @@ const ActivityCard = React.memo(({
           </div>
         </div>
       )}
+      
+      {/* Move engagement buttons below comments for comment type */}
+      {activity.type === "comment" && (
+        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
+          <div>
+            <LikeButtonClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <CommentSectionClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              initialData={interactions?.comments || { count: 0 }}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <ShareButtonClient
+              url={entryDetails.link}
+              title={entryDetails.title}
+            />
+          </div>
+          <div className="flex justify-end">
+            <MoreOptionsDropdown entry={entryDetails} />
+          </div>
+        </div>
+      )}
     </article>
   );
 });
@@ -1121,24 +1123,23 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
     
     // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
     if (group.type !== 'comment' || group.comments.length <= 1) {
-  return (
-          <ActivityCard 
+      return (
+        <ActivityCard 
           key={`group-${group.entryGuid}-${group.type}-${index}`}
           activity={group.firstActivity}
-            username={username}
-            name={name}
-            profileImage={profileImage}
+          username={username}
+          name={name}
+          profileImage={profileImage}
           entryDetails={entryDetail}
-            getEntryMetrics={getEntryMetrics}
-          />
+          getEntryMetrics={getEntryMetrics}
+        />
       );
     }
     
     // For multiple comments, render a special daisy-chained version
     return (
       <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
-        {/* Main vertical line for the entry card to comments - stops at the last comment's top */}
-        <div className="absolute left-[44.5px] top-[60px] bottom-[80px] w-[1px] bg-border z-0"></div>
+        {/* Removed vertical line for comments */}
         
         <div className="p-4 border-l border-r">
           {/* Activity header with icon and description */}
@@ -1193,7 +1194,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             </div>
           )}
           
-          {/* Comment layout with connecting line - Entry card in second column */}
+          {/* Featured Image and Title in flex layout */}
           <div className="flex items-start gap-4 mb-4 relative">
             {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
@@ -1307,123 +1308,83 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                      (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
                   </span>
                 )}
-                
-                {/* Entry Content Card - In second column for comments */}
-                <div className="mt-4">
-                  {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
-                    <div>
-                      <div 
-                        onClick={handleCardClick}
-                        className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-                      >
-                        <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                          {entryDetail.image && (
-                            <CardHeader className="p-0">
-                              <AspectRatio ratio={16/9}>
-                                <Image
-                                  src={entryDetail.image}
-                                  alt=""
-                                  fill
-                                  className="object-cover"
-                                  sizes="(max-width: 768px) 100vw, 768px"
-                                  loading="lazy"
-                                  priority={false}
-                                />
-                              </AspectRatio>
-                            </CardHeader>
-                          )}
-                          <CardContent className="p-4 bg-secondary/60 border-t">
-                            <h3 className="text-lg font-semibold leading-tight">
-                              {entryDetail.title}
-                            </h3>
-                            {entryDetail.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                                {entryDetail.description}
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </div>
-                  ) : (
-                    <a
-                      href={entryDetail.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block hover:opacity-80 transition-opacity"
-                    >
-                      <Card className="overflow-hidden shadow-none">
-                        {entryDetail.image && (
-                          <CardHeader className="p-0">
-                            <AspectRatio ratio={16/9}>
-                              <Image
-                                src={entryDetail.image}
-                                alt=""
-                                fill
-                                className="object-cover"
-                                sizes="(max-width: 768px) 100vw, 768px"
-                                loading="lazy"
-                                priority={false}
-                              />
-                            </AspectRatio>
-                          </CardHeader>
-                        )}
-                        <CardContent className="p-4 bg-secondary/60 border-t">
-                          <h3 className="text-lg font-semibold leading-tight">
-                            {entryDetail.title}
-                          </h3>
-                          {entryDetail.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                              {entryDetail.description}
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </a>
-                  )}
-                </div>
-                
-                {/* Horizontal Interaction Buttons - In second column for comments */}
-                <div className="flex justify-between items-center mt-4 h-[16px] text-muted-foreground">
-                  <div>
-                    <LikeButtonClient
-                      entryGuid={entryDetail.guid}
-                      feedUrl={entryDetail.feed_url || ''}
-                      title={entryDetail.title}
-                      pubDate={entryDetail.pub_date}
-                      link={entryDetail.link}
-                      initialData={getEntryMetrics(entryDetail.guid)?.likes || { isLiked: false, count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <CommentSectionClient
-                      entryGuid={entryDetail.guid}
-                      feedUrl={entryDetail.feed_url || ''}
-                      initialData={getEntryMetrics(entryDetail.guid)?.comments || { count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <RetweetButtonClientWithErrorBoundary
-                      entryGuid={entryDetail.guid}
-                      feedUrl={entryDetail.feed_url || ''}
-                      title={entryDetail.title}
-                      pubDate={entryDetail.pub_date}
-                      link={entryDetail.link}
-                      initialData={getEntryMetrics(entryDetail.guid)?.retweets || { isRetweeted: false, count: 0 }}
-                    />
-                  </div>
-                  <div>
-                    <ShareButtonClient
-                      url={entryDetail.link}
-                      title={entryDetail.title}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <MoreOptionsDropdown entry={entryDetail} />
-                  </div>
-                </div>
               </div>
             </div>
+          </div>
+                
+          {/* Entry Content Card - Full width */}
+          <div className="mt-4">
+            {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+              <div>
+                <div 
+                  onClick={handleCardClick}
+                  className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                >
+                  <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                    {entryDetail.image && (
+                      <CardHeader className="p-0">
+                        <AspectRatio ratio={16/9}>
+                          <Image
+                            src={entryDetail.image}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 768px"
+                            loading="lazy"
+                            priority={false}
+                          />
+                        </AspectRatio>
+                      </CardHeader>
+                    )}
+                    <CardContent className="p-4 bg-secondary/60 border-t">
+                      <h3 className="text-lg font-semibold leading-tight">
+                        {entryDetail.title}
+                      </h3>
+                      {entryDetail.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {entryDetail.description}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              <a
+                href={entryDetail.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity"
+              >
+                <Card className="overflow-hidden shadow-none">
+                  {entryDetail.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={16/9}>
+                        <Image
+                          src={entryDetail.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-4 bg-secondary/60 border-t">
+                    <h3 className="text-lg font-semibold leading-tight">
+                      {entryDetail.title}
+                    </h3>
+                    {entryDetail.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {entryDetail.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </a>
+            )}
           </div>
         </div>
         
@@ -1437,7 +1398,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 key={`comment-${comment._id}`} 
                 className="px-4 pb-4 relative"
               >
-                {/* Remove individual connector lines */}
+                {/* Comment content */}
                 <div className="relative z-10">
                   <ActivityDescription 
                     item={comment} 
@@ -1481,6 +1442,46 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
               </div>
             );
           })}
+        </div>
+        
+        {/* Move engagement buttons below comments */}
+        <div className="flex justify-between items-center p-4 h-[16px] text-muted-foreground border-l border-r border-b">
+          <div>
+            <LikeButtonClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={getEntryMetrics(entryDetail.guid)?.likes || { isLiked: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <CommentSectionClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              initialData={getEntryMetrics(entryDetail.guid)?.comments || { count: 0 }}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={getEntryMetrics(entryDetail.guid)?.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <ShareButtonClient
+              url={entryDetail.link}
+              title={entryDetail.title}
+            />
+          </div>
+          <div className="flex justify-end">
+            <MoreOptionsDropdown entry={entryDetail} />
+          </div>
         </div>
       </article>
     );
