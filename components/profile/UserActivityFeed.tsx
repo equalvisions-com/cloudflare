@@ -133,11 +133,11 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
 function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
   switch (type) {
     case "like":
-      return <Heart className="h-4 w-4 text-red-500" />;
+      return <Heart className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
     case "comment":
-      return <MessageCircle className="h-4 w-4 text-blue-500" />;
+      return <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
     case "retweet":
-      return <Repeat className="h-3.5 w-3.5 text-muted-foreground stroke-[2.5px]" />;
+      return <Repeat className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
   }
 }
 
@@ -164,33 +164,29 @@ function ActivityDescription({ item, username, name, profileImage, timestamp }: 
           <ProfileImage 
             profileImage={profileImage}
             username={username}
-            size="sm"
+            size="md-lg"
             className="flex-shrink-0"
           />
           <div className="flex-1">
               <div className="flex items-center mb-0">
-                <div className="leading-none mt-[2px] mb-1">
+                <div className="leading-none mt-[-3px] mb-[5px]">
                   <span className="text-sm font-bold leading-none">{name}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 mb-2">
-                <Link href={`/@${username}`} className="leading-none text-muted-foreground text-xs">
-                  @{username}
-                </Link>
-                {timestamp && (
-                  <>
-                    <span className="text-muted-foreground text-xs">•</span>
-                    <span className="leading-none text-muted-foreground text-xs">
-                      {timestamp}
-                    </span>
-                  </>
-                )}
-              </div>
+              
             {item.content && (
-              <div className="text-sm">
+              <div className="text-sm mb-[7px]">
                 {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
               </div>
             )}
+            
+            <div className="flex items-center gap-1">
+              {timestamp && (
+                <span className="leading-none font-semibold text-muted-foreground text-xs">
+                  {timestamp}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -385,11 +381,9 @@ const ActivityCard = React.memo(({
       <div className="p-4 border-l border-r">
         {/* Activity header with icon and description */}
         <div className="flex items-start mb-0 relative">
-          {activity.type !== "comment" && (
-            <div className="mr-2">
-              <ActivityIcon type={activity.type} />
-            </div>
-          )}
+          <div className="mr-2">
+            <ActivityIcon type={activity.type} />
+          </div>
           <div className={`flex-1 ${activity.type === "retweet" ? "mt-[-6px]" : ""}`}>
             {activity.type !== "comment" && (
             <ActivityDescription 
@@ -399,6 +393,11 @@ const ActivityCard = React.memo(({
               profileImage={profileImage}
                 timestamp={undefined}
             />
+            )}
+            {activity.type === "comment" && (
+              <span className="text-muted-foreground text-sm">
+                <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+              </span>
             )}
             {activity.type !== "comment" && (
               <div className="text-xs text-gray-500 mt-2">
@@ -804,7 +803,7 @@ const ActivityCard = React.memo(({
       
       {/* User Comment Activity - moved below the entry card */}
       {activity.type === "comment" && (
-        <div className="p-4 border-l border-r border-b relative">
+        <div className="p-4 border-l border-r border-b border-t relative">
           <div className="relative z-10">
             <ActivityDescription 
               item={activity} 
@@ -1194,6 +1193,19 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             </div>
           )}
           
+          {group.firstActivity.type === "comment" && (
+            <div className="flex items-start mb-4 relative">
+              <div className="mr-2">
+                <ActivityIcon type="comment" />
+              </div>
+              <div className="flex-1">
+                <span className="text-muted-foreground text-sm">
+                  <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+                </span>
+              </div>
+            </div>
+          )}
+          
           {/* Featured Image and Title in flex layout */}
           <div className="flex items-start gap-4 mb-4 relative">
             {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
@@ -1396,7 +1408,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             return (
               <div 
                 key={`comment-${comment._id}`} 
-                className="px-4 pb-4 relative"
+                className="p-4 border-t relative"
               >
                 {/* Comment content */}
                 <div className="relative z-10">
@@ -1445,7 +1457,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
         </div>
         
         {/* Move engagement buttons below comments */}
-        <div className="flex justify-between items-center p-4 h-[16px] text-muted-foreground border-l border-r border-b">
+        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
           <div>
             <LikeButtonClient
               entryGuid={entryDetail.guid}
