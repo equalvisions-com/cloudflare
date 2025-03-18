@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, AtSign } from "lucide-react";
+import { MoreVertical, Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -15,21 +15,18 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
 // Types for activity items
 type ActivityItem = {
-  type: "like" | "comment" | "retweet";
   timestamp: number;
   entryGuid: string;
   feedUrl: string;
   title?: string;
   link?: string;
   pubDate?: string;
-  content?: string;
   _id: string;
 };
 
@@ -63,8 +60,6 @@ interface InteractionStates {
 
 interface UserLikesFeedProps {
   userId: Id<"users">;
-  username: string;
-  name: string;
   initialData: {
     activities: ActivityItem[];
     totalCount: number;
@@ -127,75 +122,6 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   };
 }
 
-function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
-  switch (type) {
-    case "like":
-      return <Heart className="h-4 w-4 text-red-500" />;
-    case "comment":
-      return <MessageCircle className="h-4 w-4 text-blue-500" />;
-    case "retweet":
-      return <Repeat className="h-4 w-4 text-green-500" />;
-  }
-}
-
-function ActivityDescription({ item, username, name }: { item: ActivityItem; username: string; name: string }) {
-  switch (item.type) {
-    case "like":
-      return (
-        <div>
-          <div>
-            <span className="font-medium">{name}</span> liked{" "}
-            <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-              {item.title || "a post"}
-            </Link>
-          </div>
-          <div className="mt-1">
-            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
-              <AtSign className="h-3 w-3" />
-              {username}
-            </Link>
-          </div>
-        </div>
-      );
-    case "comment":
-      return (
-        <div>
-          <div>
-            <span className="font-medium">{name}</span>
-          </div>
-          <div className="mt-1 mb-2">
-            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
-              <AtSign className="h-3 w-3" />
-              {username}
-            </Link>
-          </div>
-          {item.content && (
-            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-sm">
-              {item.content.length > 100 ? `${item.content.substring(0, 100)}...` : item.content}
-            </div>
-          )}
-        </div>
-      );
-    case "retweet":
-      return (
-        <div>
-          <div>
-            <span className="font-medium">{name}</span> shared{" "}
-            <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-              {item.title || "a post"}
-            </Link>
-          </div>
-          <div className="mt-1">
-            <Link href={`/@${username}`} className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md">
-              <AtSign className="h-3 w-3" />
-              {username}
-            </Link>
-          </div>
-        </div>
-      );
-  }
-}
-
 // Memoized MoreOptionsDropdown component
 const MoreOptionsDropdown = React.memo(({ entry }: { entry: RSSEntry }) => (
   <DropdownMenu>
@@ -220,55 +146,33 @@ const MoreOptionsDropdown = React.memo(({ entry }: { entry: RSSEntry }) => (
 ));
 MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
 
-// Activity card with entry details
-const ActivityCard = React.memo(({ 
-  activity, 
-  username, 
-  name,
-  entryDetails,
-  getEntryMetrics
-}: { 
-  activity: ActivityItem; 
-  username: string;
-  name: string;
-  entryDetails?: RSSEntry;
-  getEntryMetrics: (entryGuid: string) => InteractionStates;
-}) => {
-  const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
-  
-  // Get metrics for this entry - don't use activity type as fallback anymore
-  const interactions = useMemo(() => {
-    if (!entryDetails) return undefined;
-    return getEntryMetrics(entryDetails.guid);
-  }, [entryDetails, getEntryMetrics]);
-  
-  // Format timestamp using the same logic as RSSFeedClient
-  const timestamp = useMemo(() => {
-    if (!entryDetails?.pub_date) return '';
+// Memoized timestamp formatter
+const useFormattedTimestamp = (pubDate?: string) => {
+  return useMemo(() => {
+    if (!pubDate) return '';
 
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    let pubDate: Date;
+    let date: Date;
     
-    if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
+    if (typeof pubDate === 'string' && mysqlDateRegex.test(pubDate)) {
       // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = entryDetails.pub_date.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+      const [datePart, timePart] = pubDate.split(' ');
+      date = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
       // Handle other formats
-      pubDate = new Date(entryDetails.pub_date);
+      date = new Date(pubDate);
     }
     
     const now = new Date();
     
     // Ensure we're working with valid dates
-    if (isNaN(pubDate.getTime())) {
+    if (isNaN(date.getTime())) {
       return '';
     }
 
     // Calculate time difference
-    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMs = now.getTime() - date.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
@@ -289,9 +193,59 @@ const ActivityCard = React.memo(({
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entryDetails?.pub_date]);
+  }, [pubDate]);
+};
 
-  // Handle card click for podcasts
+// Memoized media type badge component
+const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
+  if (!mediaType) return null;
+  
+  const type = mediaType.toLowerCase();
+  return (
+    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+      {type === 'podcast' && <Podcast className="h-3 w-3" />}
+      {type === 'newsletter' && <Mail className="h-3 w-3" />}
+      {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
+    </span>
+  );
+});
+MediaTypeBadge.displayName = 'MediaTypeBadge';
+
+// Memoized entry card content component
+const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
+  <CardContent className="p-4 bg-secondary/60 border-t">
+    <h3 className="text-lg font-semibold leading-tight">
+      {entry.title}
+    </h3>
+    {entry.description && (
+      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+        {entry.description}
+      </p>
+    )}
+  </CardContent>
+));
+EntryCardContent.displayName = 'EntryCardContent';
+
+// Activity card with entry details
+const ActivityCard = React.memo(({ 
+  activity, 
+  entryDetails,
+  getEntryMetrics
+}: { 
+  activity: ActivityItem; 
+  entryDetails?: RSSEntry;
+  getEntryMetrics: (entryGuid: string) => InteractionStates;
+}) => {
+  const { playTrack, currentTrack } = useAudio();
+  const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
+  
+  const interactions = useMemo(() => {
+    if (!entryDetails) return undefined;
+    return getEntryMetrics(entryDetails.guid);
+  }, [entryDetails, getEntryMetrics]);
+  
+  const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
+
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
@@ -299,45 +253,17 @@ const ActivityCard = React.memo(({
     }
   }, [entryDetails, playTrack]);
   
-  // If we don't have entry details, show a simplified card
-  if (!entryDetails) {
-    return (
-      <div className="p-4 rounded-lg shadow-sm mb-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-1">
-            <ActivityIcon type={activity.type} />
-          </div>
-          <div className="flex-1">
-            <ActivityDescription item={activity} username={username} name={name} />
-            <div className="text-xs text-gray-500 mt-1">
-              {timestamp}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!entryDetails) return null;
   
-  // With entry details, show a rich card similar to EntriesDisplay
+  const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
+  const isPodcast = mediaType?.toLowerCase() === 'podcast';
+  
   return (
     <article className="">
       <div className="p-4 border-l border-r">
-        {/* Activity header with icon and description */}
-        <div className="flex items-start gap-3 mb-4">
-          <div className="mt-1">
-            <ActivityIcon type={activity.type} />
-          </div>
-          <div className="flex-1">
-            <ActivityDescription item={activity} username={username} name={name} />
-            <div className="text-xs text-gray-500 mt-1">
-              {timestamp}
-            </div>
-          </div>
-        </div>
-        
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
-          {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+          {/* Featured Image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
             <Link 
               href={entryDetails.category_slug && entryDetails.post_slug ? 
@@ -387,25 +313,13 @@ const ActivityCard = React.memo(({
                   {timestamp}
                 </span>
               </div>
-              {/* Use post_media_type if available, otherwise fallback to mediaType */}
-              {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
-                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
-                    <Podcast className="h-3 w-3" />
-                  }
-                  {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Mail className="h-3 w-3" />
-                  }
-                  {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                   (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
-                </span>
-              )}
+              <MediaTypeBadge mediaType={mediaType} />
             </div>
           </div>
         </div>
 
         {/* Entry Content Card */}
-        {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+        {isPodcast ? (
           <div>
             <div 
               onClick={handleCardClick}
@@ -427,16 +341,7 @@ const ActivityCard = React.memo(({
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="p-4 bg-secondary/60 border-t">
-                  <h3 className="text-lg font-semibold leading-tight">
-                    {entryDetails.title}
-                  </h3>
-                  {entryDetails.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                      {entryDetails.description}
-                    </p>
-                  )}
-                </CardContent>
+                <EntryCardContent entry={entryDetails} />
               </Card>
             </div>
           </div>
@@ -463,16 +368,7 @@ const ActivityCard = React.memo(({
                   </AspectRatio>
                 </CardHeader>
               )}
-              <CardContent className="p-4 bg-secondary/60 border-t">
-                <h3 className="text-lg font-semibold leading-tight">
-                  {entryDetails.title}
-                </h3>
-                {entryDetails.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                    {entryDetails.description}
-                  </p>
-                )}
-              </CardContent>
+              <EntryCardContent entry={entryDetails} />
             </Card>
           </a>
         )}
@@ -528,7 +424,7 @@ ActivityCard.displayName = 'ActivityCard';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed({ userId, username, name, initialData, pageSize = 30 }: UserLikesFeedProps) {
+export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
@@ -670,8 +566,6 @@ export function UserLikesFeed({ userId, username, name, initialData, pageSize = 
           <ActivityCard 
             key={activity._id} 
             activity={activity} 
-            username={username}
-            name={name}
             entryDetails={entryDetails[activity.entryGuid]}
             getEntryMetrics={getEntryMetrics}
           />

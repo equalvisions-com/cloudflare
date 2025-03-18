@@ -42,7 +42,9 @@ export default defineSchema({
     updatedAt: v.optional(v.number()), // Timestamp when the status was last updated
   })
   .index("by_requester", ["requesterId", "status"])  // Find all friends/requests by requester
+  .index("by_requester_time", ["requesterId", "createdAt"])  // For pagination by requester
   .index("by_requestee", ["requesteeId", "status"])  // Find all friends/requests received
+  .index("by_requestee_time", ["requesteeId", "createdAt"])  // For pagination by requestee
   .index("by_users", ["requesterId", "requesteeId"]), // Check if specific friendship exists
 
   following: defineTable({
@@ -51,6 +53,7 @@ export default defineSchema({
     feedUrl: v.string(),
   })
   .index("by_user_post", ["userId", "postId"])
+  .index("by_user", ["userId"])  // Dedicated index for user lookups
   .index("by_post", ["postId"])
   .index("by_feedUrl", ["feedUrl"]),
   
@@ -61,8 +64,10 @@ export default defineSchema({
     name: v.optional(v.string()),
     profileImage: v.optional(v.string()),
     bio: v.optional(v.string()),
+    profileImageKey: v.optional(v.string()),  // Store the R2 object key
   })
-  .index("by_userId", ["userId"]),
+  .index("by_userId", ["userId"])
+  .index("by_username", ["username"]),  // Dedicated index for username lookups
 
   likes: defineTable({
     userId: v.id("users"),

@@ -158,4 +158,99 @@ export const getFollowStates = query({
       .filter(f => postIds.some(id => id === f.postId))
       .map(f => f.postId);
   },
+});
+
+// Get count of posts that a user is following by username
+export const getFollowingCountByUsername = query({
+  args: { 
+    username: v.string() 
+  },
+  handler: async (ctx, args) => {
+    // Get user profile by username using the new index
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_username", q => q.eq("username", args.username))
+      .first();
+    
+    if (!profile) {
+      return 0;
+    }
+    
+    const userId = profile.userId;
+    
+    // Count posts this user is following using the by_user index
+    const count = await ctx.db
+      .query("following")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+      
+    return count.length;
+  },
+});
+
+// Get all posts that a user is following by username with pagination
+export const getFollowingByUsername = query({
+  args: { 
+    username: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.id("following")),
+  },
+  handler: async (ctx, args) => {
+    const { username, limit = 30, cursor } = args;
+    
+    // Get user profile by username using the by_username index
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_username", q => q.eq("username", username))
+      .first();
+    
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+    
+    const userId = profile.userId;
+    
+    // Get all posts this user is following using the by_user index
+    let query = ctx.db
+      .query("following")
+      .withIndex("by_user", q => q.eq("userId", userId));
+    
+    // Apply cursor if provided
+    if (cursor) {
+      query = query.filter(q => q.gt(q.field("_id"), cursor));
+    }
+    
+    // Fetch one more than requested to know if there are more
+    const followings = await query.take(limit + 1);
+    
+    // Check if there are more results
+    const hasMore = followings.length > limit;
+    if (hasMore) {
+      followings.pop(); // Remove the extra item
+    }
+    
+    // Get post details for each following
+    const followingWithDetails = await Promise.all(
+      followings.map(async (following) => {
+        const post = await ctx.db.get(following.postId);
+        if (!post) {
+          return null;
+        }
+        
+        return {
+          following,
+          post
+        };
+      })
+    );
+    
+    // Filter out null values
+    const results = followingWithDetails.filter(Boolean);
+    
+    return {
+      following: results,
+      hasMore,
+      cursor: hasMore ? followings[followings.length - 1]._id : null
+    };
+  },
 }); 

@@ -7,6 +7,8 @@ import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager"
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { FriendButton } from "@/components/profile/FriendButton";
+import { FriendsList } from "@/components/profile/FriendsList";
+import { FollowingList } from "@/components/profile/FollowingList";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -78,6 +80,46 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
   
+  // Fetch all data in parallel
+  const [friendCount, followingCount, initialFriendsData, initialFollowingData] = await Promise.all([
+    // Get friend count
+    fetchQuery(api.friends.getFriendCountByUsername, { 
+      username: normalizedUsername, 
+      status: "accepted" 
+    }),
+    
+    // Get following count
+    fetchQuery(api.following.getFollowingCountByUsername, { 
+      username: normalizedUsername 
+    }),
+    
+    // Get first page of friends
+    fetchQuery(api.friends.getFriendsByUsername, {
+      username: normalizedUsername,
+      status: "accepted",
+      limit: 30
+    }),
+    
+    // Get first page of following
+    fetchQuery(api.following.getFollowingByUsername, {
+      username: normalizedUsername,
+      limit: 30
+    })
+  ]);
+  
+  // Extract and prepare the data for the components to avoid type errors
+  const initialFriends = {
+    friends: initialFriendsData.friends,
+    hasMore: initialFriendsData.hasMore,
+    cursor: initialFriendsData.cursor || null
+  };
+  
+  const initialFollowing = {
+    following: initialFollowingData.following,
+    hasMore: initialFollowingData.hasMore,
+    cursor: initialFollowingData.cursor || null
+  };
+  
   return (
     <ProfileLayoutManager>
       <div>
@@ -94,14 +136,32 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 <FriendButton 
                   username={normalizedUsername}
                   userId={profile.userId}
+                  profileData={{
+                    name: profile.name,
+                    bio: profile.bio,
+                    profileImage: profile.profileImage,
+                    username: normalizedUsername
+                  }}
                 />
               </div>
               <div className="text-left">
                 <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
                 <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>
                 {profile.bio && (
-                  <p className="text-sm text-muted-foreground">{profile.bio}</p>
+                  <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>
                 )}
+                <div className="flex gap-4">
+                  <FriendsList 
+                    username={normalizedUsername} 
+                    initialCount={friendCount}
+                    initialFriends={initialFriends}
+                  />
+                  <FollowingList 
+                    username={normalizedUsername} 
+                    initialCount={followingCount}
+                    initialFollowing={initialFollowing}
+                  />
+                </div>
               </div>
             </div>
           </div>

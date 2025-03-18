@@ -103,15 +103,11 @@ ActivityTabContent.displayName = 'ActivityTabContent';
 // Memoized component for the "Likes" tab content
 const LikesTabContent = React.memo(({ 
   userId, 
-  username,
-  name,
   likesData, 
   pageSize,
   isLoading
 }: { 
   userId: Id<"users">, 
-  username: string,
-  name: string,
   likesData: UserProfileTabsProps['likesData'], 
   pageSize: number,
   isLoading: boolean
@@ -136,8 +132,6 @@ const LikesTabContent = React.memo(({
   return (
     <UserLikesFeed
       userId={userId}
-      username={username}
-      name={name}
       initialData={likesData}
       pageSize={pageSize}
     />
@@ -236,9 +230,7 @@ export function UserProfileTabs({
       id: 'likes',
       label: 'Likes',
       content: <LikesTabContent 
-                userId={userId} 
-                username={username} 
-                name={name}
+                userId={userId}
                 likesData={likesData} 
                 pageSize={pageSize}
                 isLoading={isLoadingLikes}

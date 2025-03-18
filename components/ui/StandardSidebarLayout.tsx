@@ -3,7 +3,7 @@
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { SidebarWithErrorBoundary } from "@/components/ui/Sidebar";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
-import { Suspense, ReactNode } from "react";
+import { ReactNode } from "react";
 
 interface StandardSidebarLayoutProps {
   children: ReactNode;
@@ -47,9 +47,7 @@ export function StandardSidebarLayout({
       {/* Main content area with error boundary */}
       <main className={finalMainContentClass}>
         <ErrorBoundary>
-          <Suspense fallback={<div className="p-4">Loading content...</div>}>
             {children}
-          </Suspense>
         </ErrorBoundary>
       </main>
       

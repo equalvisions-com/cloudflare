@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2, UserCheck, UserPlus, UserX } from "lucide-react";
+import { Loader2, UserCheck, UserPlus, UserX, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// Lazy load the EditProfileModal component
+const EditProfileModal = lazy(() => import("./EditProfileModal").then(mod => ({ default: mod.EditProfileModal })));
 
 type FriendshipStatus = {
   exists: boolean;
@@ -20,15 +23,24 @@ type FriendshipStatus = {
   friendshipId: Id<"friends"> | null;
 };
 
+interface ProfileData {
+  name?: string | null;
+  bio?: string | null;
+  profileImage?: string | null;
+  username: string;
+}
+
 interface FriendButtonProps {
   username: string;
   userId: Id<"users">;
+  profileData: ProfileData;
 }
 
-export function FriendButton({ username, userId }: FriendButtonProps) {
-  const { isAuthenticated } = useConvexAuth();
+export function FriendButton({ username, userId, profileData }: FriendButtonProps) {
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Get current user from Convex
   const user = useQuery(api.users.viewer);
@@ -38,6 +50,12 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
     api.friends.getFriendshipStatusByUsername, 
     isAuthenticated ? { username } : "skip"
   );
+  
+  // Track if query is loading
+  const isFriendshipLoading = friendshipStatus === undefined && isAuthenticated;
+
+  // Determine if component is in any loading state
+  const isLoading = isActionLoading || isFriendshipLoading || isAuthLoading;
 
   // Mutations for friend actions
   const sendRequest = useMutation(api.friends.sendFriendRequest);
@@ -55,7 +73,7 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
   const handleAddFriend = async () => {
     if (!user?._id || !isAuthenticated) return;
     
-    setIsLoading(true);
+    setIsActionLoading(true);
     try {
       await sendRequest({ requesteeId: userId });
       // Optimistically update UI
@@ -68,7 +86,7 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
     } catch (error) {
       console.error("Failed to send friend request:", error);
     } finally {
-      setIsLoading(false);
+      setIsActionLoading(false);
     }
   };
 
@@ -76,7 +94,7 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
   const handleAcceptFriend = async () => {
     if (!currentStatus?.friendshipId || !isAuthenticated) return;
     
-    setIsLoading(true);
+    setIsActionLoading(true);
     try {
       await acceptRequest({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
@@ -87,7 +105,7 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
     } catch (error) {
       console.error("Failed to accept friend request:", error);
     } finally {
-      setIsLoading(false);
+      setIsActionLoading(false);
     }
   };
 
@@ -95,7 +113,7 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
   const handleUnfriend = async () => {
     if (!currentStatus?.friendshipId || !isAuthenticated) return;
     
-    setIsLoading(true);
+    setIsActionLoading(true);
     try {
       await deleteFriendship({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
@@ -108,13 +126,35 @@ export function FriendButton({ username, userId }: FriendButtonProps) {
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
-      setIsLoading(false);
+      setIsActionLoading(false);
     }
   };
 
-  // Don't show button on own profile
-  if (currentStatus?.status === "self") {
-    return null;
+  // Show edit profile button on own profile
+  if (currentStatus?.status === "self" && isAuthenticated) {
+    return (
+      <>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setIsEditModalOpen(true)}
+        >
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit Profile
+        </Button>
+        
+        {isEditModalOpen && (
+          <Suspense fallback={null}>
+            <EditProfileModal 
+              isOpen={isEditModalOpen} 
+              onClose={() => setIsEditModalOpen(false)} 
+              userId={user!._id}
+              initialData={profileData}
+            />
+          </Suspense>
+        )}
+      </>
+    );
   }
 
   // Loading state

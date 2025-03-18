@@ -16,6 +16,7 @@
     "@ai-sdk/react": "^1.1.18",
     "@auth/core": "^0.37.0",
     "@convex-dev/auth": "^0.0.77",
+    "@convex-dev/r2": "^0.4.0",
     "@dicebear/collection": "^9.2.2",
     "@dicebear/core": "^9.2.2",
     "@planetscale/database": "^1.19.0",
