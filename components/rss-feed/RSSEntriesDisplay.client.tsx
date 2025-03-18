@@ -394,7 +394,7 @@ interface EntryMetrics {
 interface EntriesContentProps {
   paginatedEntries: RSSEntryWithData[];
   hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement | null>;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
   isPending: boolean;
   loadMore: () => void;
   entryMetrics: Record<string, EntryMetrics> | null;
@@ -499,7 +499,7 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
 
 export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Track errors for better error handling
   const [fetchError, setFetchError] = useState<Error | null>(null);
