@@ -20,6 +20,7 @@ import { Loader2, Upload } from "lucide-react";
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  userId: Id<"users">; // The user ID is passed from parent but used by Convex auth context internally
   initialData: {
     name?: string | null;
     bio?: string | null;
@@ -31,6 +32,7 @@ interface EditProfileModalProps {
 export function EditProfileModal({ 
   isOpen, 
   onClose, 
+  userId,
   initialData 
 }: EditProfileModalProps) {
   // Form state
