@@ -22,10 +22,25 @@ export const addComment = mutation({
     
     if (!profile) throw new Error("User profile not found");
 
-    // Validate content
+    // Validate content - updated to match client-side limits
     const content = args.content.trim();
     if (!content) throw new Error("Comment cannot be empty");
-    if (content.length > 1000) throw new Error("Comment too long");
+    if (content.length > 500) throw new Error("Comment too long (max 500 characters)");
+
+    // Basic content sanitization - remove control characters
+    const sanitizedContent = content.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+    
+    // Check for rate limiting (max 5 comments per minute)
+    const oneMinuteAgo = Date.now() - 60 * 1000;
+    const recentComments = await ctx.db
+      .query("comments")
+      .filter(q => q.eq(q.field("userId"), userId))
+      .filter(q => q.gt(q.field("createdAt"), oneMinuteAgo))
+      .collect();
+    
+    if (recentComments.length >= 5) {
+      throw new Error("Rate limit exceeded. Please try again in a minute.");
+    }
 
     // If this is a reply, verify parent exists
     if (args.parentId) {
@@ -41,7 +56,7 @@ export const addComment = mutation({
       username: profile.username,
       entryGuid: args.entryGuid,
       feedUrl: args.feedUrl,
-      content,
+      content: sanitizedContent,
       createdAt: Date.now(),
       parentId: args.parentId,
     });

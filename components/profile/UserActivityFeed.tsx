@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
@@ -187,28 +187,43 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   const [repliesLoaded, setRepliesLoaded] = useState(false);
   // Create a map of refs for reply like counts
   const replyLikeCountRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // State to track deleted replies
+  const [deletedReplies, setDeletedReplies] = useState<Set<string>>(new Set());
+  
+  // Use Convex query for replies
+  const commentRepliesQuery = useQuery(
+    api.comments.getCommentReplies,
+    item.type === 'comment' && item._id ? 
+      { commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id } : 
+      'skip'
+  );
   
   // Fetch replies when expanded
-  const fetchReplies = useCallback(async () => {
-    if (item.type !== 'comment' || !item._id || repliesLoaded) return;
-    
-    const commentId = typeof item._id === 'string' ? 
-      item._id as unknown as Id<"comments"> : 
-      item._id;
+  const fetchReplies = useCallback(() => {
+    if (item.type !== 'comment' || !item._id) return;
     
     setRepliesLoading(true);
     try {
-      // Use the Convex query to fetch replies
-      const repliesData = await fetch(`/api/comments/replies?commentId=${commentId}`);
-      const data = await repliesData.json();
-      setReplies(data.replies || []);
-      setRepliesLoaded(true);
+      // The query result is automatically updated by Convex
+      if (commentRepliesQuery) {
+        setReplies(commentRepliesQuery || []);
+        setRepliesLoaded(true);
+      }
     } catch (error) {
-      console.error('Error fetching replies:', error);
+      console.error('Error processing replies:', error);
     } finally {
       setRepliesLoading(false);
     }
-  }, [item, repliesLoaded]);
+  }, [item, commentRepliesQuery]);
+  
+  // Use effect to update replies whenever the query result changes
+  useEffect(() => {
+    if (repliesExpanded && commentRepliesQuery) {
+      setReplies(commentRepliesQuery || []);
+      setRepliesLoaded(true);
+      setRepliesLoading(false);
+    }
+  }, [repliesExpanded, commentRepliesQuery]);
   
   // Toggle replies visibility
   const toggleReplies = useCallback(() => {
@@ -219,6 +234,9 @@ export function ActivityDescription({ item, username, name, profileImage, timest
       fetchReplies();
     }
   }, [repliesExpanded, fetchReplies, repliesLoaded]);
+  
+  // Use the same addComment mutation for replies
+  const addComment = useMutation(api.comments.addComment);
   
   // Submit a reply
   const submitReply = useCallback(async () => {
@@ -231,36 +249,28 @@ export function ActivityDescription({ item, username, name, profileImage, timest
     setIsSubmittingReply(true);
     
     try {
-      // Call the API to submit the reply
-      const response = await fetch('/api/comments/reply', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          parentId: commentId,
-          content: replyText,
-          entryGuid: item.entryGuid,
-          feedUrl: item.feedUrl
-        }),
+      // Use Convex mutation to submit the reply
+      await addComment({
+        parentId: commentId,
+        content: replyText.trim(),
+        entryGuid: item.entryGuid,
+        feedUrl: item.feedUrl
       });
       
-      if (response.ok) {
-        // Clear the input
-        setReplyText('');
-        
-        // Force a refresh of the replies
-        setReplies([]);
-        fetchReplies();
-      } else {
-        console.error('Failed to submit reply');
-      }
+      // Clear the input
+      setReplyText('');
+      
+      // Make sure replies are expanded
+      setRepliesExpanded(true);
+      
+      // The replies will automatically update through the Convex subscription
+      // No need to manually fetch them again
     } catch (error) {
       console.error('Error submitting reply:', error);
     } finally {
       setIsSubmittingReply(false);
     }
-  }, [replyText, isSubmittingReply, item, fetchReplies]);
+  }, [replyText, isSubmittingReply, item, addComment]);
   
   // Function to update the like count text
   const updateLikeCount = (count: number) => {
@@ -295,17 +305,35 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   const [isCurrentUser, setIsCurrentUser] = useState(false);
   const viewer = useQuery(api.users.viewer);
   
-  // Check if the comment belongs to the current user
-  useEffect(() => {
-    // Set current user status based on username
-    if (isAuthenticated && viewer && item.type === 'comment') {
-      // If the viewer has a username and it matches this comment's username,
-      // then this comment belongs to the current user
-      setIsCurrentUser(viewer.name === username || viewer.username === username);
-    }
-  }, [isAuthenticated, viewer, username, item.type]);
+  // Add state to track if comment is deleted
+  const [isDeleted, setIsDeleted] = useState(false);
   
-  // Function to delete a comment
+  // Get comments to check ownership
+  const commentDetails = useQuery(
+    api.comments.getComments, 
+    item.type === 'comment' && item.entryGuid ? { entryGuid: item.entryGuid } : 'skip'
+  );
+  
+  // Check if the comment belongs to the current user using ID-based authorization
+  useEffect(() => {
+    if (isAuthenticated && viewer && item.type === 'comment' && item._id && commentDetails) {
+      const commentId = typeof item._id === 'string' ? 
+        item._id as unknown as Id<"comments"> : 
+        item._id;
+      
+      // Find the comment in the returned comments
+      const comment = commentDetails.find(c => c._id === commentId);
+      if (comment) {
+        // Use ID-based comparison instead of username
+        setIsCurrentUser(viewer._id === comment.userId);
+      }
+    }
+  }, [isAuthenticated, viewer, item, commentDetails]);
+  
+  // Use Convex mutation for comment deletion
+  const deleteCommentMutation = useMutation(api.comments.deleteComment);
+  
+  // Function to delete a comment - updated to use React state
   const deleteComment = useCallback(async () => {
     if (item.type !== 'comment' || !item._id) return;
     
@@ -314,20 +342,15 @@ export function ActivityDescription({ item, username, name, profileImage, timest
       item._id;
     
     try {
-      const response = await fetch(`/api/comments/delete?commentId=${commentId}`, {
-        method: 'DELETE',
-      });
+      // Use Convex mutation instead of fetch
+      await deleteCommentMutation({ commentId });
       
-      if (response.ok) {
-        // Handle successful deletion - could refresh the feed or add a state update
-        window.location.reload(); // Simple reload for now
-      } else {
-        console.error('Failed to delete comment');
-      }
+      // Update UI to show comment was deleted using React state
+      setIsDeleted(true);
     } catch (error) {
       console.error('Error deleting comment:', error);
     }
-  }, [item]);
+  }, [item, deleteCommentMutation]);
   
   // Function to update the like count text for replies
   const updateReplyLikeCount = useCallback((replyId: string, count: number) => {
@@ -346,31 +369,41 @@ export function ActivityDescription({ item, username, name, profileImage, timest
     }
   }, []);
   
-  // Render a single reply
+  // Render a single reply with ID-based authorization
   const renderReply = (reply: Comment) => {
-    // Check if this reply belongs to the current user
-    const isReplyFromCurrentUser = isAuthenticated && viewer && 
-      (viewer.name === reply.username || viewer.username === reply.username);
+    // Check if this reply is deleted using the component-level state
+    const isReplyDeleted = deletedReplies.has(reply._id.toString());
     
-    // Function to delete a reply
+    // Check if this reply belongs to the current user using ID-based authorization
+    const isReplyFromCurrentUser = isAuthenticated && viewer && viewer._id === reply.userId;
+    
+    // Function to delete a reply - updated to use component-level state
     const deleteReply = () => {
       if (!reply._id) return;
       
-      fetch(`/api/comments/delete?commentId=${reply._id}`, {
-        method: 'DELETE',
-      })
-        .then(response => {
-          if (response.ok) {
-            // Remove the deleted reply from the state
-            setReplies(prevReplies => prevReplies.filter(r => r._id !== reply._id));
-          } else {
-            console.error('Failed to delete reply');
-          }
+      // Use the same Convex mutation for deleting comments
+      deleteCommentMutation({ commentId: reply._id })
+        .then(() => {
+          // Mark this reply as deleted using component-level state
+          setDeletedReplies((prev: Set<string>) => {
+            const newSet = new Set(prev);
+            newSet.add(reply._id.toString());
+            return newSet;
+          });
         })
         .catch(error => {
           console.error('Error deleting reply:', error);
         });
     };
+    
+    // If reply is deleted, show a placeholder
+    if (isReplyDeleted) {
+      return (
+        <div key={reply._id} className="mt-0 border-t pl-4 py-4">
+          <div className="text-muted-foreground text-sm">This reply has been deleted.</div>
+        </div>
+      );
+    }
     
     // Function to set reference for the like count element
     const setReplyLikeCountRef = (el: HTMLDivElement | null) => {
@@ -499,6 +532,15 @@ export function ActivityDescription({ item, username, name, profileImage, timest
         </span>
       );
     case "comment":
+      // If comment is deleted, show a message
+      if (isDeleted) {
+        return (
+          <div className="p-4 text-muted-foreground text-sm">
+            This comment has been deleted.
+          </div>
+        );
+      }
+      
       return (
         <div className="flex flex-col">
           <div className="flex items-start gap-4 pl-4 pt-4">
@@ -593,25 +635,36 @@ export function ActivityDescription({ item, username, name, profileImage, timest
               ) : null}
               
               {/* Reply form */}
-              <div className="p-4 border-t flex gap-2">
-                <Textarea
-                  placeholder="Write a reply..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  className="resize-none text-sm min-h-[60px]"
-                />
-                <Button 
-                  onClick={submitReply} 
-                  disabled={!replyText.trim() || isSubmittingReply}
-                  size="sm"
-                >
-                  {isSubmittingReply ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      Posting...
-                    </span>
-                  ) : "Reply"}
-                </Button>
+              <div className="p-4 border-t">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Write a reply..."
+                    value={replyText}
+                    onChange={(e) => {
+                      // Limit to 500 characters
+                      const newValue = e.target.value.slice(0, 500);
+                      setReplyText(newValue);
+                    }}
+                    className="resize-none h-9 py-2 min-h-0 text-sm"
+                    maxLength={500}
+                    rows={1}
+                  />
+                  <Button 
+                    onClick={submitReply} 
+                    disabled={!replyText.trim() || isSubmittingReply}
+                    size="sm"
+                  >
+                    {isSubmittingReply ? (
+                      <span className="flex items-center">
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        Posting...
+                      </span>
+                    ) : "Reply"}
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground text-right mt-1">
+                  {replyText.length}/500 characters
+                </div>
               </div>
             </div>
           )}
@@ -1380,14 +1433,10 @@ ActivityCard.displayName = 'ActivityCard';
  */
 export function UserActivityFeed({ userId, username, name, profileImage, initialData, pageSize = 30, apiEndpoint = "/api/activity" }: UserActivityFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const [activities, setActivities] = useState<ActivityItem[]>(
-    initialData?.activities || []
-  );
-  const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(
-    initialData?.entryDetails || {}
-  );
-  const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
+  const [activities, setActivities] = useState<ActivityItem[]>(initialData?.activities || []);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
+  const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(initialData?.entryDetails || {});
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
   const totalCount = initialData?.totalCount || 0;
   

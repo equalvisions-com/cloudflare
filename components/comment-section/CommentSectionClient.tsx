@@ -3,13 +3,26 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { MessageCircle, CornerDownRight, X } from "lucide-react";
+import { MessageCircle, X, ChevronDown } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDistanceToNow } from "date-fns";
-import { createPortal } from 'react-dom';
 import { Id } from "@/convex/_generated/dataModel";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { ProfileImage } from "@/components/profile/ProfileImage";
+import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -78,8 +91,18 @@ export function CommentSectionClient({
   // State to track which comment is being replied to
   const [replyToComment, setReplyToComment] = useState<CommentFromAPI | null>(null);
   
+  // Track refs for like counts
+  const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
+  
+  // Authentication and current user
+  const { isAuthenticated } = useConvexAuth();
+  const viewer = useQuery(api.users.viewer);
+  
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
+  
+  // Track deleted comments/replies
+  const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
   useEffect(() => {
     // Set mounted flag to true
@@ -181,7 +204,6 @@ export function CommentSectionClient({
   // Function to handle initiating a reply to a comment
   const handleReply = (comment: CommentFromAPI) => {
     setReplyToComment(comment);
-    // Focus on comment input (we could add a ref to handle this)
   };
   
   // Function to cancel reply
@@ -221,36 +243,194 @@ export function CommentSectionClient({
     return topLevelComments;
   };
   
+  // Function to update the like count text
+  const updateCommentLikeCount = useCallback((commentId: string, count: number) => {
+    const commentLikeCountElement = commentLikeCountRefs.current.get(commentId);
+    if (commentLikeCountElement) {
+      if (count > 0) {
+        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+        const countElement = commentLikeCountElement.querySelector('span');
+        if (countElement) {
+          countElement.textContent = countText;
+        }
+        commentLikeCountElement.classList.remove('hidden');
+      } else {
+        commentLikeCountElement.classList.add('hidden');
+      }
+    }
+  }, []);
+  
+  // Function to handle comment deletion - updated to use Convex mutation
+  const deleteCommentMutation = useMutation(api.comments.deleteComment);
+  
+  const deleteComment = async (commentId: Id<"comments">) => {
+    try {
+      // Use Convex mutation instead of fetch
+      await deleteCommentMutation({ commentId });
+      // Mark this comment as deleted
+      setDeletedComments(prev => {
+        const newSet = new Set(prev);
+        newSet.add(commentId.toString());
+        return newSet;
+      });
+      console.log('Comment deleted successfully');
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  };
+  
+  // Function to set reference for the like count element
+  const setCommentLikeCountRef = (commentId: string, el: HTMLDivElement | null) => {
+    if (el && commentId) {
+      commentLikeCountRefs.current.set(commentId, el);
+    }
+  };
+  
+  // Helper to format time difference
+  const formatTimeDifference = (creationTime: number) => {
+    const now = new Date();
+    const commentDate = new Date(creationTime);
+    
+    // Ensure we're working with valid dates
+    if (isNaN(commentDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - commentDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h`;
+    } else if (diffInDays < 30) {
+      return `${diffInDays}d`;
+    } else {
+      return `${diffInMonths}mo`;
+    }
+  };
+  
   // Render a single comment with its replies
   const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
     const hasReplies = 'replies' in comment && comment.replies.length > 0;
+    const isDeleted = deletedComments.has(comment._id.toString());
+    
+    // Check if this comment belongs to the current user
+    const isCommentFromCurrentUser = isAuthenticated && viewer && 
+      (viewer._id === comment.userId);
+    
+    // Get profile image - check multiple possible locations based on data structure
+    const profileImageUrl = 
+      comment.user?.profileImage || // From profiles table
+      comment.user?.image ||        // From users table
+      null;                         // Fallback
+      
+    // Get display name from various possible locations
+    const displayName = 
+      comment.user?.name ||      // From profiles or users table
+      comment.username ||        // Fallback to username in comment
+      'Anonymous';               // Last resort fallback
+    
+    // Handle comment deletion
+    const handleDeleteComment = async () => {
+      await deleteComment(comment._id);
+    };
+    
+    // If comment is deleted, don't render anything
+    if (isDeleted) {
+      return null;
+    }
     
     return (
-      <div key={comment._id} className={`${isReply ? 'ml-6 mt-2' : 'border-b pb-3'}`}>
-        <div className="flex justify-between items-center">
-          <span className="font-medium">{comment.username || 'Anonymous'}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(comment._creationTime), { addSuffix: true })}
-          </span>
+      <div key={comment._id} className={`${isReply ? 'ml-6 mt-2' : ''} border-t border-border`}>
+        <div className="flex items-start gap-4 py-4 pl-4">
+          <ProfileImage 
+            profileImage={profileImageUrl}
+            username={comment.username}
+            size="md-lg"
+            className="flex-shrink-0"
+          />
+          <div className="flex-1 flex">
+            <div className="flex-1">
+              <div className="flex items-center mb-1">
+                <span className="text-sm font-bold leading-none">{displayName}</span>
+              </div>
+              <p className="text-sm">{comment.content}</p>
+              
+              {/* Actions row with timestamp and like count */}
+              <div className="flex items-center gap-4 mt-1">
+                {/* Timestamp */}
+                <div className="leading-none font-semibold text-muted-foreground text-xs">
+                  {formatTimeDifference(comment._creationTime)}
+                </div>
+                
+                {/* Like count for comment */}
+                <div 
+                  ref={(el) => setCommentLikeCountRef(comment._id.toString(), el)}
+                  className="leading-none font-semibold text-muted-foreground text-xs hidden"
+                >
+                  <span>0 Likes</span>
+                </div>
+                
+                {/* Reply button - only show on top-level comments, not replies */}
+                {!isReply && (
+                  <div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="px-0 h-5 text-xs hover:bg-transparent text-muted-foreground" 
+                      onClick={() => handleReply(comment)}
+                    >
+                      Reply
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex-shrink-0 flex items-center ml-2 pr-4">
+              <div className="flex flex-col items-end w-full">
+                {/* Add menu for comment owner at the top */}
+                {isCommentFromCurrentUser && (
+                  <div className="mb-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={handleDeleteComment}
+                          className="text-red-500 focus:text-red-500 cursor-pointer"
+                        >
+                          Delete Comment
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+                
+                {/* Like button */}
+                <CommentLikeButton 
+                  commentId={comment._id}
+                  size="sm"
+                  hideCount={true}
+                  onCountChange={(count) => updateCommentLikeCount(comment._id.toString(), count)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
-        <p className="mt-1">{comment.content}</p>
         
-        {/* Reply button */}
-        <div className="mt-1 flex">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="px-2 h-6 text-xs" 
-            onClick={() => handleReply(comment)}
-          >
-            <CornerDownRight className="h-3 w-3 mr-1" />
-            Reply
-          </Button>
-        </div>
-        
-        {/* Render replies */}
+        {/* Display replies if this is a top-level comment with replies */}
         {hasReplies && (
-          <div className="mt-2 border-l-2 pl-3 border-muted">
+          <div className="ml-8 border-l-2 pl-3 border-muted">
             {(comment as CommentWithReplies).replies.map(reply => 
               renderComment(reply, true)
             )}
@@ -260,61 +440,8 @@ export function CommentSectionClient({
     );
   };
   
-  // Render the comments section
-  const renderComments = () => {
-    if (!isOpen) return null;
-    
-    const commentsSection = document.getElementById(`comments-${entryGuid}`);
-    if (!commentsSection) return null;
-    
-    // Organize comments into a hierarchy
-    const commentHierarchy = organizeCommentsHierarchy();
-    
-    return createPortal(
-      <div className="p-4 space-y-4">
-        <h3 className="font-medium">Comments ({commentCount})</h3>
-        
-        {/* Comment input */}
-        <div className="flex flex-col gap-2">
-          {/* Show who we're replying to */}
-          {replyToComment && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 bg-muted/30 rounded">
-              <CornerDownRight className="h-3 w-3" />
-              <span>Replying to {replyToComment.username}&apos;s comment</span>
-              <Button variant="ghost" size="sm" className="h-5 w-5 p-0 ml-auto" onClick={cancelReply}>
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          
-          <div className="flex gap-2">
-            <Textarea
-              placeholder={replyToComment ? "Write a reply..." : "Add a comment..."}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="resize-none"
-            />
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!comment.trim() || isSubmitting}
-            >
-              {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
-            </Button>
-          </div>
-        </div>
-        
-        {/* Comments list */}
-        <div className="space-y-3 mt-4">
-          {commentHierarchy.length > 0 ? (
-            commentHierarchy.map(comment => renderComment(comment))
-          ) : (
-            <p className="text-muted-foreground">No comments yet. Be the first to comment!</p>
-          )}
-        </div>
-      </div>,
-      commentsSection
-    );
-  };
+  // Organize comments into a hierarchy
+  const commentHierarchy = organizeCommentsHierarchy();
   
   return (
     <>
@@ -327,7 +454,64 @@ export function CommentSectionClient({
         <MessageCircle className="h-4 w-4 transition-colors duration-200" />
         <span className="transition-all duration-200">{commentCount}</span>
       </Button>
-      {renderComments()}
+      
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-h-[65vh] sm:max-h-[50vh] w-[calc(100%-2rem)] sm:w-full rounded-2xl sm:rounded-lg">
+          <DialogHeader>
+            <DialogTitle>Comments ({commentCount})</DialogTitle>
+          </DialogHeader>
+          
+          {/* Comments list with ScrollArea */}
+          <ScrollArea className="h-[calc(65vh-180px)] sm:h-[calc(50vh-180px)] pr-4" scrollHideDelay={0} type="always">
+            <div className="mt-4">
+              {commentHierarchy.length > 0 ? (
+                commentHierarchy.map(comment => renderComment(comment))
+              ) : (
+                <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
+              )}
+            </div>
+          </ScrollArea>
+          
+          {/* Comment input - stays at bottom */}
+          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border">
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder={replyToComment 
+                    ? `Reply to ${replyToComment.username}...`
+                    : "Add a comment..."}
+                  value={comment}
+                  onChange={(e) => {
+                    // Limit to 500 characters
+                    const newValue = e.target.value.slice(0, 500);
+                    setComment(newValue);
+                  }}
+                  className="resize-none h-9 py-2 min-h-0"
+                  maxLength={500}
+                  rows={1}
+                />
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={!comment.trim() || isSubmitting}
+                >
+                  {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
+                </Button>
+              </div>
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                {replyToComment && (
+                  <Button variant="ghost" size="sm" className="h-5 p-0 text-xs" onClick={cancelReply}>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel reply
+                  </Button>
+                )}
+                <div className={`${replyToComment ? '' : 'w-full'} text-right`}>
+                  {comment.length}/500 characters
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 } 
