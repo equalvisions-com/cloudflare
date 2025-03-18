@@ -85,12 +85,6 @@ export function EditProfileModal({
           } else {
             throw new Error('Invalid URL format returned from server');
           }
-
-          // Calculate SHA-256 checksum of the file
-          const fileArrayBuffer = await selectedFile.arrayBuffer();
-          const hashBuffer = await crypto.subtle.digest('SHA-256', fileArrayBuffer);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
           
           // Upload the file directly to R2
           const uploadResponse = await fetch(uploadUrl, {
@@ -98,8 +92,7 @@ export function EditProfileModal({
             body: selectedFile,
             headers: {
               "Content-Type": selectedFile.type,
-              "Content-Length": String(selectedFile.size),
-              "x-amz-checksum-sha256": hashHex
+              "Content-Length": String(selectedFile.size)
             },
           });
           
