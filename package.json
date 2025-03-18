@@ -7,7 +7,7 @@
     "dev:frontend": "next dev --turbopack",
     "dev:backend": "convex dev",
     "predev": "convex dev --until-success && node setup.mjs --once && convex dashboard",
-    "build": "next build",
+    "build": "npm install --legacy-peer-deps && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -90,10 +90,6 @@
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "@convex-dev/r2": {
-      "react": "19.0.0",
-      "react-dom": "19.0.0"
-    }
+    "react-dom": "19.0.0"
   }
 }
