@@ -7,6 +7,7 @@ const nextConfig = {
         hostname: "**",
       },
     ],
+    minimumCacheTTL: 60 * 60 * 24 * 30, // Cache images for 30 days
   },
   webpack: (config, { isServer }) => {
     // Only add fallbacks for client-side bundles

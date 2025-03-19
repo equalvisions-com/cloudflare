@@ -722,7 +722,7 @@ const ActivityCard = React.memo(({
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
   
-  // Get metrics for this entry - don't use activity type as fallback anymore
+  // Get metrics for this entry
   const interactions = useMemo(() => {
     if (!entryDetails) return undefined;
     return getEntryMetrics(entryDetails.guid);
@@ -1288,7 +1288,49 @@ const ActivityCard = React.memo(({
         </div>
           </>
         )}
+
+         {/* Move engagement buttons below the card but within the article container */}
+         <div className="flex justify-between items-center h-[32px] pt-4 text-muted-foreground">
+          <div>
+            <LikeButtonClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <CommentSectionClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              initialData={interactions?.comments || { count: 0 }}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div>
+            <ShareButtonClient
+              url={entryDetails.link}
+              title={entryDetails.title}
+            />
+          </div>
+          <div className="flex justify-end">
+            <MoreOptionsDropdown entry={entryDetails} />
+          </div>
+        </div>
       </div>
+      
+     
       
       <div id={`comments-${entryDetails.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
       
@@ -1335,90 +1377,6 @@ const ActivityCard = React.memo(({
                 }
               })()}
             />
-          </div>
-        </div>
-      )}
-      
-      {/* Move engagement buttons below comments for comment type */}
-      {activity.type === "comment" && (
-        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
-          <div>
-            <LikeButtonClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <CommentSectionClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              initialData={interactions?.comments || { count: 0 }}
-            />
-          </div>
-          <div>
-            <RetweetButtonClientWithErrorBoundary
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <ShareButtonClient
-              url={entryDetails.link}
-              title={entryDetails.title}
-            />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entryDetails} />
-          </div>
-        </div>
-      )}
-      
-      {/* Move engagement buttons below for retweet/like types */}
-      {activity.type !== "comment" && (
-        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
-          <div>
-            <LikeButtonClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <CommentSectionClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              initialData={interactions?.comments || { count: 0 }}
-            />
-          </div>
-          <div>
-            <RetweetButtonClientWithErrorBoundary
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <ShareButtonClient
-              url={entryDetails.link}
-              title={entryDetails.title}
-            />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entryDetails} />
           </div>
         </div>
       )}
@@ -1668,8 +1626,6 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
     // For multiple comments, render a special daisy-chained version
     return (
       <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
-        {/* Removed vertical line for comments */}
-        
         <div className="p-4 border-l border-r">
           {/* Activity header with icon and description */}
           <div className="flex items-start mb-2 relative h-[16px]">
@@ -1677,85 +1633,15 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
               <ActivityIcon type={group.firstActivity.type} />
             </div>
             <div className="flex-1">
-              {group.firstActivity.type === "like" && (
-                <ActivityDescription 
-                  item={group.firstActivity} 
-                  username={username}
-                  name={name}
-                  profileImage={profileImage}
-                  timestamp={undefined}
-                />
-              )}
-              {group.firstActivity.type === "retweet" && (
-                <span className="text-muted-foreground text-sm">
-                  <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
-                </span>
-              )}
-              {group.firstActivity.type === "comment" && (
-                <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
-                  <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
-                </span>
-              )}
-              <div className="text-xs text-gray-500 mt-2">
-                {group.firstActivity.type === "retweet" ? (
-                  <span className="hidden"></span>
-                ) : group.firstActivity.type === "comment" ? (
-                  <span className="hidden"></span>
-                ) : (
-                  (() => {
-                    if (!entryDetail.pub_date) return '';
-
-                    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-                    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                    let pubDate: Date;
-                    
-                    if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
-                      // Convert MySQL datetime string to UTC time
-                      const [datePart, timePart] = entryDetail.pub_date.split(' ');
-                      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-                    } else {
-                      // Handle other formats
-                      pubDate = new Date(entryDetail.pub_date);
-                    }
-                    
-                    const now = new Date();
-                    
-                    // Ensure we're working with valid dates
-                    if (isNaN(pubDate.getTime())) {
-                      return '';
-                    }
-
-                    // Calculate time difference
-                    const diffInMs = now.getTime() - pubDate.getTime();
-                    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                    const diffInHours = Math.floor(diffInMinutes / 60);
-                    const diffInDays = Math.floor(diffInHours / 24);
-                    const diffInMonths = Math.floor(diffInDays / 30);
-                    
-                    // For future dates (more than 1 minute ahead), show 'in X'
-                    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                    const prefix = isFuture ? 'in ' : '';
-                    const suffix = isFuture ? '' : ' ago';
-                    
-                    // Format based on the time difference
-                    if (diffInMinutes < 60) {
-                      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                    } else if (diffInHours < 24) {
-                      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                    } else if (diffInDays < 30) {
-                      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                    } else {
-                      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                    }
-                  })()
-                )}
-              </div>
+              <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
+                <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+              </span>
             </div>
           </div>
           
-          {/* Featured Image and Title in flex layout */}
+          {/* Featured Image and Title */}
           <div className="flex items-start gap-4 mb-4 relative">
-            {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+            {/* Featured Image */}
             <div className="flex-shrink-0 relative">
               {(entryDetail.post_featured_img || entryDetail.image) && (
                 <div className="w-14 h-14 relative z-10">
@@ -1854,7 +1740,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                     })()}
                   </span>
                 </div>
-                {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
                   <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
@@ -1871,7 +1757,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             </div>
           </div>
                 
-          {/* Entry Content Card - Full width */}
+          {/* Entry Content Card */}
           <div className="mt-4">
             {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
               <div>
@@ -1945,7 +1831,48 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
               </a>
             )}
           </div>
+             {/* Add engagement buttons below the card */}
+             <div className="flex justify-between items-center h-[32px] pt-4 text-muted-foreground">
+             <div>
+              <LikeButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={getEntryMetrics(entryDetail.guid)?.likes || { isLiked: false, count: 0 }}
+              />
+            </div>
+            <div>
+              <CommentSectionClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                initialData={getEntryMetrics(entryDetail.guid)?.comments || { count: 0 }}
+              />
+            </div>
+            <div>
+              <RetweetButtonClientWithErrorBoundary
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={getEntryMetrics(entryDetail.guid)?.retweets || { isRetweeted: false, count: 0 }}
+              />
+            </div>
+            <div>
+              <ShareButtonClient
+                url={entryDetail.link}
+                title={entryDetail.title}
+              />
+            </div>
+            <div className="flex justify-end">
+              <MoreOptionsDropdown entry={entryDetail} />
+            </div>
+          </div>
         </div>
+
+     
         
         <div id={`comments-${entryDetail.guid}`} className="" />
         
@@ -2002,46 +1929,6 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
               </div>
             );
           })}
-        </div>
-        
-        {/* Move engagement buttons below comments */}
-        <div className="flex justify-between items-center px-4 py-2 text-muted-foreground border-l border-r border-b">
-          <div>
-            <LikeButtonClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={getEntryMetrics(entryDetail.guid)?.likes || { isLiked: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <CommentSectionClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              initialData={getEntryMetrics(entryDetail.guid)?.comments || { count: 0 }}
-            />
-          </div>
-          <div>
-            <RetweetButtonClientWithErrorBoundary
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={getEntryMetrics(entryDetail.guid)?.retweets || { isRetweeted: false, count: 0 }}
-            />
-          </div>
-          <div>
-            <ShareButtonClient
-              url={entryDetail.link}
-              title={entryDetail.title}
-            />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entryDetail} />
-          </div>
         </div>
       </article>
     );

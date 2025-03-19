@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Heart } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useState, useEffect } from 'react';
@@ -121,8 +121,8 @@ export function LikeButtonClient({
       className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
     >
-      <Heart 
-        className={`h-4 w-4 transition-colors duration-200 ${isLiked ? 'fill-current text-[#f91880]' : ''}`}
+      <Bookmark 
+        className={`h-4 w-4 transition-colors duration-200 ${isLiked ? 'fill-current text-[#ff7a00]' : ''}`}
       />
       <span className="transition-all duration-200">{likeCount}</span>
     </Button>

@@ -264,7 +264,4 @@ export function EditProfileModal({
       </DialogContent>
     </Dialog>
   );
-}
-
-// Default export for dynamic import
-export default EditProfileModal; 
+} 

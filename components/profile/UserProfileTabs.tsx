@@ -228,7 +228,7 @@ export function UserProfileTabs({
     // Likes tab
     {
       id: 'likes',
-      label: 'Likes',
+      label: 'Bookmarks',
       content: <LikesTabContent 
                 userId={userId}
                 likesData={likesData} 

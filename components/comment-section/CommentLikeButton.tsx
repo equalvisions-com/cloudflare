@@ -141,10 +141,10 @@ export function CommentLikeButton({
       disabled={isSubmitting}
     >
       <Heart 
-        className={`${size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} transition-colors duration-200 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} 
+        className={`${size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} transition-colors duration-200 ${isLiked ? 'fill-current text-[#f91880]' : ''}`} 
       />
       {!hideCount && (count ?? 0) > 0 && (
-        <span className={`transition-all duration-200 ${isLiked ? 'text-red-500' : ''} ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+        <span className={`transition-all duration-200 ${isLiked ? 'text-[#f91880]' : ''} ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
           {count}
         </span>
       )}

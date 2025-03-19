@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { r2 } from "./r2";
 
 /**
- * Action to delete an object from R2 storage
+ * Action to delete an object from R2 storage and clean up any related resources
  * We use an action because it has more permissions and can access AWS SDK
  */
 export const deleteR2Object = action({
@@ -19,7 +19,14 @@ export const deleteR2Object = action({
       // First attempt - try a direct import of the AWS SDK if available
       try {
         // @ts-ignore - Import the AWS SDK directly if available
-        const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+        const { 
+          S3Client, 
+          DeleteObjectCommand,
+          ListObjectVersionsCommand,
+          DeleteObjectsCommand,
+          ListMultipartUploadsCommand,
+          AbortMultipartUploadCommand
+        } = await import('@aws-sdk/client-s3');
         
         // Try to get config from the R2 client
         // @ts-ignore - Accessing internal config
@@ -39,15 +46,77 @@ export const deleteR2Object = action({
             endpoint,
             credentials
           });
-          
-          const command = new DeleteObjectCommand({
+
+          // 1. Delete the current object
+          const deleteCommand = new DeleteObjectCommand({
             Bucket: bucket,
             Key: key
           });
+          await s3Client.send(deleteCommand);
           
-          await s3Client.send(command);
-          console.log(`Successfully deleted object ${key} with direct AWS SDK`);
-          return { success: true, method: 'direct-aws-sdk', key, bucket };
+          // 2. List and delete all versions of the object
+          const versionsCommand = new ListObjectVersionsCommand({
+            Bucket: bucket,
+            Prefix: key
+          });
+          
+          try {
+            const versions = await s3Client.send(versionsCommand);
+            if (versions.Versions?.length || versions.DeleteMarkers?.length) {
+              const objectsToDelete = [
+                ...(versions.Versions || []),
+                ...(versions.DeleteMarkers || [])
+              ].map(version => ({
+                Key: version.Key,
+                VersionId: version.VersionId
+              }));
+
+              if (objectsToDelete.length > 0) {
+                const deleteVersionsCommand = new DeleteObjectsCommand({
+                  Bucket: bucket,
+                  Delete: { Objects: objectsToDelete }
+                });
+                await s3Client.send(deleteVersionsCommand);
+                console.log(`Deleted ${objectsToDelete.length} versions of ${key}`);
+              }
+            }
+          } catch (error) {
+            console.log('Versioning not enabled or error listing versions:', error);
+          }
+
+          // 3. Clean up any incomplete multipart uploads
+          try {
+            const multipartCommand = new ListMultipartUploadsCommand({
+              Bucket: bucket,
+              Prefix: key
+            });
+            
+            const multipartUploads = await s3Client.send(multipartCommand);
+            if (multipartUploads.Uploads?.length) {
+              await Promise.all(multipartUploads.Uploads.map(upload => {
+                if (upload.Key && upload.UploadId) {
+                  const abortCommand = new AbortMultipartUploadCommand({
+                    Bucket: bucket,
+                    Key: upload.Key,
+                    UploadId: upload.UploadId
+                  });
+                  return s3Client.send(abortCommand);
+                }
+              }));
+              console.log(`Aborted ${multipartUploads.Uploads.length} incomplete uploads for ${key}`);
+            }
+          } catch (error) {
+            console.log('Error cleaning up multipart uploads:', error);
+          }
+
+          console.log(`Successfully deleted object ${key} and cleaned up related resources`);
+          return { 
+            success: true, 
+            method: 'direct-aws-sdk', 
+            key, 
+            bucket,
+            message: 'Object and related resources cleaned up successfully'
+          };
         }
       } catch (error) {
         console.log('Direct AWS SDK approach failed:', error);

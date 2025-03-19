@@ -4,11 +4,14 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Suspense } from "react";
 import { UserMenuClient } from "./UserMenuClient";
 
-export async function UserMenuServer() {
+// Utility function to fetch the user profile
+export async function getUserProfile() {
   let displayName = "Guest";
+  let isAuthenticated = false;
 
   try {
     const token = await convexAuthNextjsToken();
+    isAuthenticated = !!token;
     if (token) {
       const profile = await fetchQuery(api.users.getProfile, {}, { token });
       if (profile) {
@@ -18,6 +21,12 @@ export async function UserMenuServer() {
   } catch (error) {
     console.error("Error fetching profile:", error);
   }
+
+  return { displayName, isAuthenticated };
+}
+
+export async function UserMenuServer() {
+  const { displayName } = await getUserProfile();
 
   return (
     <Suspense fallback={<UserMenuFallback />}>

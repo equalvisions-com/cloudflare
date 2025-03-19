@@ -56,6 +56,4 @@ export function About({ postTitle }: AboutProps) {
       </Card>
     </div>
   );
-}
-
-export default About; 
+} 

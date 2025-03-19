@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
   href: string;
@@ -48,19 +49,31 @@ NavItem.displayName = "NavItem";
 // The main component is also memoized to prevent unnecessary re-renders
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
+  const { username, isAuthenticated } = useSidebar();
   
   // Memoize the navItems array to prevent recreation on each render
-  const navItems = useMemo<NavItem[]>(() => [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/newsletters", icon: Mail, label: "Newsletters" },
-    { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-    { href: "/chat", icon: Sparkles, label: "Ask AI" },
-    { href: "/profile", icon: User, label: "Profile" },
-  ], []);
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = [
+      { href: "/", icon: Home, label: "Home" },
+      { href: "/newsletters", icon: Mail, label: "Newsletters" },
+      { href: "/podcasts", icon: Podcast, label: "Podcasts" },
+      { href: "/chat", icon: Sparkles, label: "Ask AI" },
+    ];
+    
+    // Add profile link based on authentication status
+    items.push(
+      isAuthenticated 
+        ? { href: `/@${username}`, icon: User, label: "Profile" }
+        : { href: "/signin", icon: User, label: "Sign In" }
+    );
+    
+    return items;
+  }, [username, isAuthenticated]);
 
   // Memoize the isActive check function
   const checkIsActive = useCallback((href: string) => {
-    return pathname === href || (href !== "/" && pathname.startsWith(href));
+    if (href === '/') return pathname === href;
+    return pathname === href || pathname.startsWith(href + '/');
   }, [pathname]);
 
   return (

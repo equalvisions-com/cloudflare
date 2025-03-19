@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
-import About from "@/components/postpage/about";
+import { About } from "@/components/postpage/about";
 import type { RSSItem } from "@/lib/rss";
 
 // Define interfaces based on those in RSSFeedClient

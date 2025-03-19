@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
+import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
-import { UserMenuServer } from "@/components/user-menu/UserMenuServer";
+import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
-import { SpeedInsights } from "@vercel/speed-insights/next"
-import { Analytics } from '@vercel/analytics/next';
+import { SidebarProvider } from "@/components/ui/sidebar-context";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -29,11 +28,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Get user profile information
+  const { displayName, isAuthenticated } = await getUserProfile();
+
   return (
     <ConvexAuthNextjsServerProvider>
       {/* `suppressHydrationWarning` only affects the html tag,
@@ -49,19 +51,19 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
-                <div className="">
-                  <div className="flex justify-end hidden">
-                    <UserMenuServer />
+                <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
+                  <div className="">
+                    <div className="flex justify-end hidden">
+                      <UserMenuServer />
+                    </div>
+                    {children}
                   </div>
-                  {children}
-                </div>
-                <PersistentPlayer />
-                <MobileDock />
+                  <PersistentPlayer />
+                  <MobileDock />
+                </SidebarProvider>
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
-          <SpeedInsights />
-          <Analytics />
         </body>
       </html>
     </ConvexAuthNextjsServerProvider>
