@@ -72,10 +72,39 @@ interface UserLikesFeedProps {
 
 // Custom hook for batch metrics - same as in UserActivityFeed
 function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
-  // Fetch batch metrics for all entries
+  // Track if we've already received initial metrics
+  const hasInitialMetrics = useMemo(() => 
+    Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
+    [initialMetrics]
+  );
+  
+  // Create a stable representation of entry guids
+  const memoizedGuids = useMemo(() => 
+    entryGuids.length > 0 ? entryGuids : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entryGuids.join(',')]
+  );
+  
+  // Only fetch from Convex if we don't have initial metrics or if we need to refresh
+  const shouldFetchMetrics = useMemo(() => {
+    // If we have no guids, no need to fetch
+    if (!memoizedGuids.length) return false;
+    
+    // If we have no initial metrics, we need to fetch
+    if (!hasInitialMetrics) return true;
+    
+    // If we have initial metrics, check if we have metrics for all guids
+    const missingMetrics = memoizedGuids.some(guid => 
+      !initialMetrics || !initialMetrics[guid]
+    );
+    
+    return missingMetrics;
+  }, [memoizedGuids, hasInitialMetrics, initialMetrics]);
+  
+  // Fetch batch metrics for all entries only when needed
   const batchMetricsQuery = useQuery(
     api.entries.batchGetEntriesMetrics,
-    entryGuids.length > 0 ? { entryGuids } : "skip"
+    shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
   );
   
   // Create a memoized metrics map that combines initial metrics with query results
@@ -90,9 +119,10 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
       });
     }
     
-    // If we have query results, they take precedence over initial metrics
-    if (batchMetricsQuery) {
-      entryGuids.forEach((guid, index) => {
+    // If we have query results AND we specifically queried for them,
+    // they take precedence over initial metrics
+    if (batchMetricsQuery && shouldFetchMetrics) {
+      memoizedGuids.forEach((guid, index) => {
         if (batchMetricsQuery[index]) {
           map.set(guid, batchMetricsQuery[index]);
         }
@@ -100,7 +130,7 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
     }
     
     return map;
-  }, [batchMetricsQuery, entryGuids, initialMetrics]);
+  }, [batchMetricsQuery, memoizedGuids, initialMetrics, shouldFetchMetrics]);
   
   // Memoize default values
   const defaultInteractions = useMemo(() => ({
@@ -117,7 +147,7 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   
   return {
     getEntryMetrics,
-    isLoading: entryGuids.length > 0 && !batchMetricsQuery && !initialMetrics,
+    isLoading: shouldFetchMetrics && !batchMetricsQuery,
     metricsMap
   };
 }

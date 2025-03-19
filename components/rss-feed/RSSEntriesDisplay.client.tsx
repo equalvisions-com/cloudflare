@@ -398,6 +398,7 @@ interface EntriesContentProps {
   isPending: boolean;
   loadMore: () => void;
   entryMetrics: Record<string, EntryMetrics> | null;
+  postMetadata?: Map<string, any>;
   initialData: {
     entries: RSSEntryWithData[];
     totalEntries?: number;
@@ -406,18 +407,50 @@ interface EntriesContentProps {
   };
 }
 
-const EntriesContent = ({ 
-  paginatedEntries, 
-  hasMore, 
-  loadMoreRef, 
-  isPending, 
-  loadMore, 
-  entryMetrics
-}: EntriesContentProps) => {
+// Define the component function first
+function EntriesContentComponent({
+  paginatedEntries,
+  hasMore,
+  loadMoreRef,
+  isPending,
+  loadMore,
+  entryMetrics,
+  postMetadata,
+  initialData
+}: EntriesContentProps) {
   // Debug logging for pagination
   useEffect(() => {
     logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
   }, [paginatedEntries.length, hasMore, isPending]);
+  
+  // Define the renderItem callback outside of any conditionals
+  const renderItem = useCallback((index: number) => {
+    if (!paginatedEntries || index >= paginatedEntries.length) {
+      return null;
+    }
+
+    const entryWithData = paginatedEntries[index];
+    
+    // Use metrics from Convex query if available
+    if (entryMetrics && entryWithData.entry.guid in entryMetrics) {
+      entryWithData.initialData = entryMetrics[entryWithData.entry.guid];
+    }
+    
+    // Use metadata from Convex query if available
+    if (postMetadata && postMetadata.has(entryWithData.entry.feedUrl)) {
+      const metadata = postMetadata.get(entryWithData.entry.feedUrl);
+      if (metadata) {
+        entryWithData.postMetadata = {
+          ...entryWithData.postMetadata,
+          ...metadata
+        };
+      }
+    }
+    
+    return (
+      <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} />
+    );
+  }, [paginatedEntries, entryMetrics, postMetadata]);
   
   if (paginatedEntries.length === 0) {
     return (
@@ -426,7 +459,7 @@ const EntriesContent = ({
       </div>
     );
   }
-  
+
   return (
     <div className="border-0">
       <Virtuoso
@@ -454,19 +487,7 @@ const EntriesContent = ({
             loadMore();
           }
         }}
-        itemContent={index => {
-          const entryWithData = paginatedEntries[index];
-          
-          // Apply metrics if available
-          if (entryMetrics && entryWithData.entry.guid && entryMetrics[entryWithData.entry.guid]) {
-            entryWithData.initialData = {
-              ...entryWithData.initialData,
-              ...entryMetrics[entryWithData.entry.guid]
-            };
-          }
-          
-          return <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} />;
-        }}
+        itemContent={renderItem}
         components={{
           Footer: () => (
             <div ref={loadMoreRef} className="py-4 text-center">
@@ -487,7 +508,13 @@ const EntriesContent = ({
       />
     </div>
   );
-};
+}
+
+// Then apply React.memo with correct typing
+const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
+
+// Add displayName to avoid React DevTools issues
+EntriesContent.displayName = 'EntriesContent';
 
 export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
   return (
@@ -653,10 +680,19 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       .map((entry: RSSEntryWithData) => entry.entry.guid);
   }, [allEntriesState]);
   
+  // Extract unique feed URLs for metadata query
+  const feedUrls = useMemo(() => {
+    return [...new Set(
+      allEntriesState
+        .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.feedUrl)
+        .map((entry: RSSEntryWithData) => entry.entry.feedUrl)
+    )];
+  }, [allEntriesState]);
+  
   // Use the combined query to fetch entry metrics
   const combinedData = useQuery(
     api.entries.getFeedDataWithMetrics,
-    entryGuids.length > 0 ? { entryGuids, feedUrls: [] } : "skip"
+    entryGuids.length > 0 ? { entryGuids, feedUrls } : "skip"
   );
   
   // Create a map for metrics lookups
@@ -665,6 +701,15 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     
     return new Map(
       combinedData.entryMetrics.map(item => [item.guid, item.metrics])
+    );
+  }, [combinedData]);
+  
+  // Create a map for post metadata lookups
+  const postMetadataMap = useMemo(() => {
+    if (!combinedData || !combinedData.postMetadata) return new Map();
+    
+    return new Map(
+      combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
     );
   }, [combinedData]);
   
@@ -714,6 +759,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
         isPending={isLoading}
         loadMore={loadMoreEntries}
         entryMetrics={entryMetricsMap}
+        postMetadata={postMetadataMap}
         initialData={initialData}
       />
     </div>

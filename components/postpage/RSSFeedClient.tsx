@@ -338,90 +338,89 @@ interface EntryMetrics {
   };
 }
 
-const FeedContent = React.memo(({ 
-  entries, 
-  hasMore, 
-  loadMoreRef, 
-  isPending, 
-  featuredImg, 
-  postTitle, 
-  mediaType,
-  loadMore,
-  entryMetrics
-}: { 
-  entries: RSSEntryWithData[],
-  hasMore: boolean,
-  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
-  isPending: boolean,
-  featuredImg?: string,
-  postTitle?: string,
-  mediaType?: string,
-  loadMore: () => void,
-  entryMetrics: Record<string, EntryMetrics> | null
-}) => {
-  // Debug logging for pagination
-  useEffect(() => {
-    console.log(`📊 FeedContent rendered with ${entries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
-  }, [entries.length, hasMore, isPending]);
+// Define the FeedContent component interface
+interface FeedContentProps {
+  entries: RSSEntryWithData[];
+  hasMore: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  isPending: boolean;
+  loadMore: () => Promise<void>;
+  featuredImg?: string;
+  postTitle?: string;
+  mediaType?: string;
+}
 
-  if (!entries.length) {
+// Memoize the FeedContent component to prevent unnecessary re-renders
+const FeedContent = React.memo(function FeedContent({
+  entries,
+  hasMore,
+  loadMoreRef,
+  isPending,
+  loadMore,
+  featuredImg,
+  postTitle,
+  mediaType
+}: FeedContentProps) {
+  // Render each entry
+  const renderItem = useCallback((index: number) => {
+    if (!entries || index >= entries.length) {
+      return null;
+    }
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in this feed.
-      </div>
+      <RSSEntry 
+        key={entries[index].entry.guid} 
+        entryWithData={entries[index]} 
+        featuredImg={featuredImg}
+        postTitle={postTitle}
+        mediaType={mediaType}
+      />
     );
-  }
+  }, [entries, featuredImg, postTitle, mediaType]);
 
   return (
-    <div className="border-0">
-      <Virtuoso
-        useWindowScroll
-        totalCount={entries.length}
-        endReached={() => {
-          console.log(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${entries.length}`);
-          if (hasMore && !isPending) {
-            console.log('📥 Virtuoso end reached, loading more entries');
-            loadMore();
-          } else {
-            console.log(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
-          }
-        }}
-        overscan={100}
-        initialTopMostItemIndex={0}
-        components={{ 
-          Footer: () => isPending ? (
-            <div ref={loadMoreRef} className="flex text-center py-4 items-center justify-center"><Loader2 className="h-6 w-6 mb-16 animate-spin" /></div>
-          ) : hasMore ? (
-            <div ref={loadMoreRef} className="h-8" />
-          ) : (
-            <div className="text-muted-foreground text-sm py-2 text-center">
-              
-            </div>
-          )
-        }}
-        itemContent={index => {
-          const entryWithData = entries[index];
-          const metrics = entryMetrics?.[entryWithData.entry.guid];
-          if (metrics) {
-            entryWithData.initialData = {
-              ...entryWithData.initialData,
-              ...metrics
-            };
-          }
-          return (
-            <RSSEntry
-              key={entryWithData.entry.guid}
-              entryWithData={entryWithData}
-              featuredImg={featuredImg}
-              postTitle={postTitle}
-              mediaType={mediaType}
-            />
-          );
-        }}
-      />
+    <div className="w-full">
+      {entries.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No entries found for this feed.
+        </div>
+      ) : (
+        <Virtuoso
+          useWindowScroll
+          totalCount={entries.length}
+          overscan={500}
+          endReached={() => {
+            console.log(`🏁 End reached, hasMore: ${hasMore}, isPending: ${isPending}`);
+            if (hasMore && !isPending) {
+              console.log('🔄 Loading more entries...');
+              loadMore();
+            }
+          }}
+          initialTopMostItemIndex={0}
+          itemContent={renderItem}
+          components={{
+            Footer: () => (
+              <div ref={loadMoreRef} className="py-4 text-center">
+                {isPending ? (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Loader2 className="h-6 w-6 mb-16 animate-spin" />
+                  </div>
+                ) : hasMore ? (
+                  <div className="h-8" />
+                ) : (
+                  <div className="text-muted-foreground text-sm py-2">
+                    No more entries to load
+                  </div>
+                )}
+              </div>
+            ),
+          }}
+        />
+      )}
     </div>
   );
 });
+
+// Add displayName for easier debugging
 FeedContent.displayName = 'FeedContent';
 
 interface RSSFeedClientProps {
@@ -541,12 +540,41 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       : "skip"
   );
   
+  // Extract metrics from combined data
   const entryMetricsMap = useMemo(() => {
     if (!combinedData?.entryMetrics) return null;
     return Object.fromEntries(
       combinedData.entryMetrics.map(item => [item.guid, item.metrics])
     );
   }, [combinedData]);
+  
+  // Extract post metadata from combined data
+  const postMetadata = useMemo(() => {
+    if (!combinedData?.postMetadata || combinedData.postMetadata.length === 0) return null;
+    
+    // The feedUrl is unique in this context, so we can safely use the first item
+    const metadataItem = combinedData.postMetadata.find(item => item.feedUrl === feedUrl);
+    return metadataItem?.metadata || null;
+  }, [combinedData, feedUrl]);
+  
+  // Apply metrics to entries
+  const enhancedEntries = useMemo(() => {
+    if (!allEntriesState.length) return allEntriesState;
+    
+    return allEntriesState.map(entryWithData => {
+      const enhanced = { ...entryWithData };
+      
+      // Apply metrics if available
+      if (entryMetricsMap && enhanced.entry.guid in entryMetricsMap) {
+        enhanced.initialData = {
+          ...enhanced.initialData,
+          ...entryMetricsMap[enhanced.entry.guid]
+        };
+      }
+      
+      return enhanced;
+    });
+  }, [allEntriesState, entryMetricsMap]);
   
   // Add a useEffect to check if we need to load more when the component is mounted
   useEffect(() => {
@@ -591,12 +619,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   return (
     <div className="w-full">
       <FeedContent
-        entries={allEntriesState}
+        entries={enhancedEntries}
         hasMore={hasMoreState}
         loadMoreRef={loadMoreRef}
         isPending={isLoading}
         loadMore={loadMoreEntries}
-        entryMetrics={entryMetricsMap}
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}

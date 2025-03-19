@@ -181,10 +181,10 @@ export function CommentSectionClient({
       });
       
       // Successful submission - no need to do anything as Convex will update the UI
-      console.log('Comment added successfully', result);
+      console.log('💬 Comment added successfully', result);
       
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('❌ Error adding comment:', error);
       // Revert optimistic update on error
       if (isMountedRef.current) {
         setOptimisticCount(null);
@@ -273,9 +273,9 @@ export function CommentSectionClient({
         newSet.add(commentId.toString());
         return newSet;
       });
-      console.log('Comment deleted successfully');
+      console.log('🗑️ Comment deleted successfully');
     } catch (error) {
-      console.error('Error deleting comment:', error);
+      console.error('❌ Error deleting comment:', error);
     }
   };
   

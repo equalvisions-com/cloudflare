@@ -62,6 +62,14 @@ interface UserProfileTabsProps {
   pageSize?: number;
 }
 
+// Data interface for better reuse
+interface FeedData {
+  activities: ActivityItem[];
+  totalCount: number;
+  hasMore: boolean;
+  entryDetails: Record<string, RSSEntry>;
+}
+
 // Memoized component for the "Activity" tab content
 const ActivityTabContent = React.memo(({ 
   userId, 
@@ -75,7 +83,7 @@ const ActivityTabContent = React.memo(({
   username: string,
   name: string,
   profileImage?: string | null,
-  activityData: UserProfileTabsProps['activityData'], 
+  activityData: FeedData | null, 
   pageSize: number 
 }) => {
   if (!activityData) {
@@ -108,7 +116,7 @@ const LikesTabContent = React.memo(({
   isLoading
 }: { 
   userId: Id<"users">, 
-  likesData: UserProfileTabsProps['likesData'], 
+  likesData: FeedData | null, 
   pageSize: number,
   isLoading: boolean
 }) => {
@@ -148,26 +156,25 @@ export function UserProfileTabs({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // State for lazy loading likes data
-  const [likesData, setLikesData] = useState<UserProfileTabsProps['likesData']>(initialLikesData);
-  const [isLoadingLikes, setIsLoadingLikes] = useState<boolean>(false);
-  const [hasAttemptedLoadingLikes, setHasAttemptedLoadingLikes] = useState<boolean>(!!initialLikesData);
+  // Simplified state management
+  const [likesState, setLikesState] = useState<{
+    data: FeedData | null;
+    status: 'idle' | 'loading' | 'loaded' | 'error';
+    error: Error | null;
+  }>({
+    data: initialLikesData || null,
+    status: initialLikesData ? 'loaded' : 'idle',
+    error: null
+  });
+  
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   
-  // Ref to track if a fetch is in progress to prevent duplicate requests
-  const isFetchingRef = useRef<boolean>(false);
-
-  // Function to fetch likes data
+  // Function to fetch likes data - stabilized with useCallback + fewer dependencies
   const fetchLikesData = useCallback(async () => {
-    // Check if we should fetch data and ensure we're not already fetching
-    if (likesData || isLoadingLikes || hasAttemptedLoadingLikes || isFetchingRef.current) return;
+    // Only fetch if in idle state
+    if (likesState.status !== 'idle') return;
     
-    // Set both state and ref to indicate fetching is in progress
-    setIsLoadingLikes(true);
-    isFetchingRef.current = true;
-    
-    console.log(`[Client] Fetching likes data for user: ${userId}`);
-    const startTime = Date.now();
+    setLikesState(prev => ({ ...prev, status: 'loading' }));
     
     try {
       // Fetch likes data from API
@@ -178,37 +185,26 @@ export function UserProfileTabs({
       }
       
       const data = await response.json();
-      console.log(`[Client] Fetched ${data.activities?.length || 0} likes in ${Date.now() - startTime}ms`);
-      setLikesData(data);
+      setLikesState({ data, status: 'loaded', error: null });
     } catch (error) {
       console.error('Error fetching likes data:', error);
-    } finally {
-      setIsLoadingLikes(false);
-      setHasAttemptedLoadingLikes(true);
-      isFetchingRef.current = false;
+      setLikesState({
+        data: null,
+        status: 'error',
+        error: error instanceof Error ? error : new Error('Unknown error occurred')
+      });
     }
-  }, [userId, pageSize, likesData, isLoadingLikes, hasAttemptedLoadingLikes]);
+  }, [userId, pageSize, likesState.status]); // Added likesState.status to the dependencies
 
   // Handle tab change
   const handleTabChange = useCallback((index: number) => {
-    // Only update if the tab is actually changing
-    if (index === selectedTabIndex) return;
-    
     setSelectedTabIndex(index);
     
-    // If switching to likes tab (index 1) and likes data hasn't been loaded yet
-    if (index === 1 && !likesData && !isLoadingLikes && !hasAttemptedLoadingLikes && !isFetchingRef.current) {
+    // If switching to likes tab (index 1) and likes haven't been loaded
+    if (index === 1 && likesState.status === 'idle') {
       fetchLikesData();
     }
-  }, [fetchLikesData, likesData, isLoadingLikes, hasAttemptedLoadingLikes, selectedTabIndex]);
-
-  // If initial likes data was provided, use it
-  useEffect(() => {
-    if (initialLikesData) {
-      setLikesData(initialLikesData);
-      setHasAttemptedLoadingLikes(true);
-    }
-  }, [initialLikesData]);
+  }, [fetchLikesData, likesState.status]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
@@ -231,12 +227,21 @@ export function UserProfileTabs({
       label: 'Bookmarks',
       content: <LikesTabContent 
                 userId={userId}
-                likesData={likesData} 
+                likesData={likesState.data} 
                 pageSize={pageSize}
-                isLoading={isLoadingLikes}
+                isLoading={likesState.status === 'loading'}
               />
     }
-  ], [userId, username, name, profileImage, activityData, likesData, pageSize, isLoadingLikes]);
+  ], [
+    userId, 
+    username, 
+    name, 
+    profileImage, 
+    activityData, 
+    likesState.data, 
+    likesState.status, 
+    pageSize
+  ]);
 
   return (
     <div className="w-full border-t z-50">
@@ -248,14 +253,6 @@ export function UserProfileTabs({
   );
 }
 
-// Use React.memo for the error boundary wrapper to prevent unnecessary re-renders
-export const UserProfileTabsWithErrorBoundary = React.memo(
-  (props: UserProfileTabsProps) => {
-    return (
-      <React.Fragment>
-        <UserProfileTabs {...props} />
-      </React.Fragment>
-    );
-  }
-);
+// Use React.memo for the entire component
+export const UserProfileTabsWithErrorBoundary = React.memo(UserProfileTabs);
 UserProfileTabsWithErrorBoundary.displayName = 'UserProfileTabsWithErrorBoundary'; 

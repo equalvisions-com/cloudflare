@@ -55,22 +55,28 @@ async function fetchEntryDetails(guids: string[], baseUrl: string) {
   if (!guids.length) return { entries: [] };
   
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || baseUrl}/api/entries/batch`, {
+    console.log(`📡 Fetching ${guids.length} entries from PlanetScale`);
+    const startTime = Date.now();
+    
+    const response = await fetch(`${baseUrl}/api/entries/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ guids }),
+      next: { revalidate: 60 }
     });
     
     if (!response.ok) {
-      console.error(`Failed to fetch entry details: ${response.status}`);
+      console.error(`❌ API response error: ${response.status}`);
       return { entries: [] };
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log(`✅ Fetched ${data.entries?.length || 0} entries in ${Date.now() - startTime}ms`);
+    return data;
   } catch (error) {
-    console.error("Error fetching entry details:", error);
+    console.error("❌ Error fetching entry details:", error);
     return { entries: [] };
   }
 }
@@ -80,7 +86,7 @@ async function fetchPostData(feedTitles: string[], token: string | null | undefi
   if (!feedTitles.length) return [];
   
   try {
-    console.log(`[Convex API] Fetching post data for ${feedTitles.length} feed titles`);
+    console.log(`📡 Fetching post data for ${feedTitles.length} feed titles`);
     const postsStartTime = Date.now();
     
     const posts = await fetchQuery(
@@ -89,10 +95,10 @@ async function fetchPostData(feedTitles: string[], token: string | null | undefi
       token ? { token } : undefined
     );
     
-    console.log(`[Convex API] Fetched ${posts.length} posts in ${Date.now() - postsStartTime}ms`);
+    console.log(`✅ Fetched ${posts.length} posts in ${Date.now() - postsStartTime}ms`);
     return posts;
   } catch (error) {
-    console.error("Error fetching post data from Convex:", error);
+    console.error("❌ Error fetching post data from Convex:", error);
     return [];
   }
 }
@@ -125,7 +131,7 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
       
       // Step 5: Create a map of feed title to post
       const feedTitleToPostMap = new Map(
-        posts.map(post => [post.title, post])
+        posts.map((post: any) => [post.title, post])
       );
       
       // Step 6: Enrich entry details with post data
@@ -133,12 +139,20 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
         const entry = entryDetails[guid];
         if (entry.feed_title) {
           const post = feedTitleToPostMap.get(entry.feed_title);
+          
           if (post) {
+            // Get the featured image from the correct field
+            const featuredImg = post.featuredImage || post.featuredImg;
+            
+            // Get the slug from the correct field
+            const slug = post.slug || post.postSlug;
+            
+            // Update entry with post metadata
             entry.post_title = post.title;
-            entry.post_featured_img = post.featuredImg;
+            entry.post_featured_img = featuredImg;
             entry.post_media_type = post.mediaType;
             entry.category_slug = post.categorySlug;
-            entry.post_slug = post.postSlug;
+            entry.post_slug = slug;
           }
         }
       }
@@ -146,7 +160,7 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
     
     return entryDetails;
   } catch (error) {
-    console.error("Error processing entry details:", error);
+    console.error("❌ Error processing entry details:", error);
     return {};
   }
 }
@@ -170,11 +184,11 @@ export async function GET(request: NextRequest) {
 
     // Get auth token for authenticated requests
     const token = await convexAuthNextjsToken().catch((error) => {
-      console.error("Failed to get auth token:", error);
+      console.error("❌ Failed to get auth token:", error);
       return null;
     });
 
-    console.log(`[Convex API] Fetching likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
+    console.log(`📡 Fetching likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
     const startTime = Date.now();
     
     // Fetch activity data from Convex with a larger limit since we'll filter
@@ -184,7 +198,7 @@ export async function GET(request: NextRequest) {
       token ? { token } : undefined
     ) as ActivityResponse;
     
-    console.log(`[Convex API] Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
+    console.log(`✅ Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
 
     // Extract GUIDs from activities to fetch entry details
     const guids = result.activities.map((activity: ActivityItem) => activity.entryGuid);
@@ -196,7 +210,7 @@ export async function GET(request: NextRequest) {
     let entryMetrics: Record<string, InteractionStates> = {};
     if (guids.length > 0) {
       try {
-        console.log(`[Convex API] Fetching metrics for ${guids.length} entries`);
+        console.log(`📡 Fetching metrics for ${guids.length} entries`);
         const metricsStartTime = Date.now();
         
         // Fetch metrics from Convex
@@ -211,9 +225,9 @@ export async function GET(request: NextRequest) {
           guids.map((guid, index) => [guid, metrics[index] as InteractionStates])
         );
         
-        console.log(`[Convex API] Fetched metrics in ${Date.now() - metricsStartTime}ms`);
+        console.log(`✅ Fetched metrics in ${Date.now() - metricsStartTime}ms`);
       } catch (error) {
-        console.error("Error fetching entry metrics:", error);
+        console.error("❌ Error fetching entry metrics:", error);
       }
     }
 
@@ -225,7 +239,7 @@ export async function GET(request: NextRequest) {
       entryMetrics
     });
   } catch (error) {
-    console.error("Error fetching likes data:", error);
+    console.error("❌ Error fetching likes data:", error);
     return NextResponse.json(
       { error: "Failed to fetch likes data" },
       { status: 500 }

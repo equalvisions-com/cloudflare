@@ -22,15 +22,45 @@ const normalizeUsername = (username: string) => {
   return decodeURIComponent(username).replace(/^@/, '').toLowerCase();
 };
 
-const getProfileByUsername = cache(async (username?: string) => {
+// Use the optimized batch query for profile data
+const getProfilePageData = cache(async (username?: string) => {
   try {
     if (!username) {
       console.error("Username is undefined or empty");
       return null;
     }
     const normalizedUsername = normalizeUsername(username);
+    
+    // Use the new optimized batch query
+    const profileData = await fetchQuery(api.profiles.getProfilePageData, { 
+      username: normalizedUsername,
+      limit: 30
+    });
+    
+    return profileData;
+  } catch (error) {
+    console.error("Failed to fetch profile data:", error);
+    return null;
+  }
+});
+
+// Legacy function for backward compatibility with metadata generation
+const getProfileByUsername = cache(async (username?: string) => {
+  try {
+    if (!username) {
+      console.error("Username is undefined or empty");
+      return null;
+    }
+    
+    // Use the new optimized function first 
+    const profileData = await getProfilePageData(username);
+    if (profileData) {
+      return profileData.profile;
+    }
+    
+    // Fall back to the old method if needed
+    const normalizedUsername = normalizeUsername(username);
     const profile = await fetchQuery(api.profiles.getProfileByUsername, { username: normalizedUsername });
-    if (!profile) return null;
     return profile;
   } catch (error) {
     console.error("Failed to fetch profile:", error);
@@ -74,51 +104,18 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
   const normalizedUsername = normalizeUsername(username);
-  const profile = await getProfileByUsername(username);
-
-  if (!profile) {
+  
+  // Fetch optimized profile data
+  const profileData = await getProfilePageData(username);
+  
+  if (!profileData || !profileData.profile) {
     notFound();
   }
   
-  // Fetch all data in parallel
-  const [friendCount, followingCount, initialFriendsData, initialFollowingData] = await Promise.all([
-    // Get friend count
-    fetchQuery(api.friends.getFriendCountByUsername, { 
-      username: normalizedUsername, 
-      status: "accepted" 
-    }),
-    
-    // Get following count
-    fetchQuery(api.following.getFollowingCountByUsername, { 
-      username: normalizedUsername 
-    }),
-    
-    // Get first page of friends
-    fetchQuery(api.friends.getFriendsByUsername, {
-      username: normalizedUsername,
-      status: "accepted",
-      limit: 30
-    }),
-    
-    // Get first page of following
-    fetchQuery(api.following.getFollowingByUsername, {
-      username: normalizedUsername,
-      limit: 30
-    })
-  ]);
-  
-  // Extract and prepare the data for the components to avoid type errors
-  const initialFriends = {
-    friends: initialFriendsData.friends,
-    hasMore: initialFriendsData.hasMore,
-    cursor: initialFriendsData.cursor || null
-  };
-  
-  const initialFollowing = {
-    following: initialFollowingData.following,
-    hasMore: initialFollowingData.hasMore,
-    cursor: initialFollowingData.cursor || null
-  };
+  const profile = profileData.profile;
+  const { friendCount, followingCount } = profileData.social;
+  const initialFriends = profileData.social.friends;
+  const initialFollowing = profileData.social.following;
   
   return (
     <ProfileLayoutManager>

@@ -14,7 +14,7 @@ export const deleteR2Object = action({
     const { key } = args;
     
     try {
-      console.log(`Attempting to delete R2 object with key: ${key}`);
+      console.log(`🗑️ Attempting to delete R2 object with key: ${key}`);
       
       // First attempt - try a direct import of the AWS SDK if available
       try {
@@ -40,7 +40,7 @@ export const deleteR2Object = action({
         };
         
         if (bucket && endpoint && credentials.accessKeyId) {
-          console.log(`Using direct AWS SDK with bucket: ${bucket}`);
+          console.log(`🔧 Using direct AWS SDK with bucket: ${bucket}`);
           const s3Client = new S3Client({
             region,
             endpoint,
@@ -77,11 +77,11 @@ export const deleteR2Object = action({
                   Delete: { Objects: objectsToDelete }
                 });
                 await s3Client.send(deleteVersionsCommand);
-                console.log(`Deleted ${objectsToDelete.length} versions of ${key}`);
+                console.log(`✅ Deleted ${objectsToDelete.length} versions of ${key}`);
               }
             }
           } catch (error) {
-            console.log('Versioning not enabled or error listing versions:', error);
+            console.log('⚠️ Versioning not enabled or error listing versions:', error);
           }
 
           // 3. Clean up any incomplete multipart uploads
@@ -103,13 +103,13 @@ export const deleteR2Object = action({
                   return s3Client.send(abortCommand);
                 }
               }));
-              console.log(`Aborted ${multipartUploads.Uploads.length} incomplete uploads for ${key}`);
+              console.log(`✅ Aborted ${multipartUploads.Uploads.length} incomplete uploads for ${key}`);
             }
           } catch (error) {
-            console.log('Error cleaning up multipart uploads:', error);
+            console.log('❌ Error cleaning up multipart uploads:', error);
           }
 
-          console.log(`Successfully deleted object ${key} and cleaned up related resources`);
+          console.log(`✅ Successfully deleted object ${key} and cleaned up related resources`);
           return { 
             success: true, 
             method: 'direct-aws-sdk', 
@@ -119,7 +119,7 @@ export const deleteR2Object = action({
           };
         }
       } catch (error) {
-        console.log('Direct AWS SDK approach failed:', error);
+        console.log('❌ Direct AWS SDK approach failed:', error);
       }
       
       // Second attempt - try to access the S3 client if available
@@ -129,19 +129,19 @@ export const deleteR2Object = action({
       if (s3Client) {
         // @ts-ignore - Accessing internal config
         const bucket = r2._config?.bucket || process.env.R2_BUCKET;
-        console.log(`Using internal S3 client with bucket: ${bucket}`);
+        console.log(`🔧 Using internal S3 client with bucket: ${bucket}`);
         
         await s3Client.deleteObject({
           Bucket: bucket,
           Key: key
         });
-        console.log(`Successfully deleted object ${key} using internal S3 client`);
+        console.log(`✅ Successfully deleted object ${key} using internal S3 client`);
         return { success: true, method: 's3-client', key };
       }
       
       // Third attempt - try any available method on the R2 client
       const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(r2));
-      console.log('Available R2 methods:', methods);
+      console.log('🔍 Available R2 methods:', methods);
       
       // @ts-ignore - Try various method names that might exist
       if (typeof r2.deleteObject === 'function') {
@@ -166,7 +166,7 @@ export const deleteR2Object = action({
       
       throw new Error(`No method available to delete R2 objects. Available methods: ${methods.join(', ')}`);
     } catch (error) {
-      console.error(`Failed to delete R2 object with key ${key}:`, error);
+      console.error(`❌ Failed to delete R2 object with key ${key}:`, error);
       return { 
         success: false, 
         message: `Failed to delete object: ${error instanceof Error ? error.message : String(error)}`,

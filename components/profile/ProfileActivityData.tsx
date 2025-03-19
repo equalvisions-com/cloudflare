@@ -13,7 +13,7 @@ interface ProfileActivityDataProps {
   profileImage?: string | null;
 }
 
-// Types for activity items
+// Types for activity items - must match UserProfileTabs.tsx exactly
 type ActivityItem = {
   type: "like" | "comment" | "retweet";
   timestamp: number;
@@ -57,180 +57,324 @@ type ConvexPost = {
   postSlug: string;
 };
 
-// Helper function to fetch entry details from PlanetScale
-async function fetchEntryDetails(guids: string[]) {
-  if (!guids.length) return {};
-  
+// Cache the initial data fetching using the new batch query
+export const getInitialActivityData = cache(async (userId: Id<"users">) => {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ guids }),
-      cache: 'no-store'
+    console.log(`📡 Fetching optimized activity data for user: ${userId}`);
+    const startTime = Date.now();
+    
+    // Use the new optimized batch query
+    const result = await fetchQuery(api.profiles.getProfileActivityData, { 
+      userId,
+      limit: 30
     });
     
-    if (!response.ok) {
-      console.warn(`Failed to fetch entry details: ${response.status}`);
-      return {};
-    }
+    console.log(`✅ Fetched optimized activity data in ${Date.now() - startTime}ms`);
     
-    const data = await response.json();
-    return data.entries;
-  } catch (error) {
-    console.error("Error fetching entry details:", error);
-    return {};
-  }
-}
-
-// Helper function to fetch post data from Convex
-async function fetchPostData(feedTitles: string[]) {
-  if (!feedTitles.length) return [];
-  
-  try {
-    console.log(`[Convex] Fetching post data for ${feedTitles.length} feed titles`);
-    const postsStartTime = Date.now();
+    // For now, we'll need to handle any external API calls for entry details
+    // since our batch query can't directly access external APIs
+    const activities = result.activities.activities;
+    const guids = activities.map(activity => activity.entryGuid);
     
-    const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
+    // Get Convex post metadata from the batch query
+    let postMetadata: Record<string, any> = result.entryDetails as Record<string, any> || {};
     
-    console.log(`[Convex] Fetched ${posts.length} posts in ${Date.now() - postsStartTime}ms`);
-    return posts;
-  } catch (error) {
-    console.error("Error fetching post data from Convex:", error);
-    return [];
-  }
-}
-
-// Enhanced function to fetch and process entry details with parallel post fetching
-async function fetchAndProcessEntryDetails(guids: string[]) {
-  if (!guids.length) return {};
-  
-  try {
-    // Step 1: Fetch entry details
-    const entries = await fetchEntryDetails(guids);
+    // Fetch ALL RSS entries from PlanetScale to get the full entry details
+    // We'll merge the Convex post metadata with this data
+    let entryDetails: Record<string, RSSEntry> = {};
     
-    if (!entries || !Array.isArray(entries) || entries.length === 0) {
-      return {};
-    }
-    
-    // Step 2: Create a map of guid to entry details
-    const entryDetails = Object.fromEntries(
-      entries.map((entry: RSSEntry) => [entry.guid, entry])
-    );
-    
-    // Step 3: Extract feed titles to fetch post data from Convex
-    const feedTitles = [...new Set(entries
-      .map((entry: RSSEntry) => entry.feed_title)
-      .filter(Boolean) as string[])];
-    
-    if (feedTitles.length > 0) {
-      // Step 4: Fetch posts from Convex
-      const posts = await fetchPostData(feedTitles);
-      
-      // Step 5: Create a map of feed title to post
-      const feedTitleToPostMap = new Map(
-        posts.map((post: ConvexPost) => [post.title, post])
-      );
-      
-      // Step 6: Enrich entry details with post data
-      for (const guid in entryDetails) {
-        const entry = entryDetails[guid];
-        if (entry.feed_title) {
-          const post = feedTitleToPostMap.get(entry.feed_title);
-          
-          if (post) {
-            entry.post_title = post.title;
-            entry.post_featured_img = post.featuredImg;
-            entry.post_media_type = post.mediaType;
-            entry.category_slug = post.categorySlug;
-            entry.post_slug = post.postSlug;
+    if (guids.length > 0) {
+      try {
+        console.log(`📡 Fetching entries from PlanetScale`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guids }),
+          cache: 'no-store'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.entries && Array.isArray(data.entries)) {
+            // First map entries to their guids
+            entryDetails = Object.fromEntries(
+              data.entries.map((entry: RSSEntry) => [entry.guid, entry])
+            );
+            
+            // Now enrich each entry with post metadata
+            for (const guid in entryDetails) {
+              if (postMetadata[guid]) {
+                // Extract post metadata
+                const metadata = {
+                  post_title: postMetadata[guid].post_title,
+                  post_featured_img: postMetadata[guid].post_featured_img,
+                  post_media_type: postMetadata[guid].post_media_type,
+                  category_slug: postMetadata[guid].category_slug,
+                  post_slug: postMetadata[guid].post_slug
+                };
+                
+                // Only keep metadata fields that actually have values
+                const cleanedMetadata = Object.fromEntries(
+                  Object.entries(metadata).filter(([_, value]) => !!value)
+                );
+                
+                if (Object.keys(cleanedMetadata).length > 0) {
+                  // Merge the RSS entry with the post metadata
+                  entryDetails[guid] = {
+                    ...entryDetails[guid],
+                    ...cleanedMetadata
+                  };
+                }
+              }
+            }
+          } else {
+            console.error('❌ Invalid data format from PlanetScale API:', data);
           }
+        } else {
+          console.error(`❌ API response error: ${response.status}`);
         }
+      } catch (error) {
+        console.error("❌ Error fetching entry details from PlanetScale:", error);
       }
     }
     
-    return entryDetails;
-  } catch (error) {
-    console.error("Error processing entry details:", error);
-    return {};
-  }
-}
-
-// Cache the initial data fetching
-export const getInitialActivityData = cache(async (userId: Id<"users">) => {
-  try {
-    console.log(`[Convex] Fetching activity data (comments and retweets) for user: ${userId}`);
-    const startTime = Date.now();
+    // As a backup, try to enrich entries with post data if we have feed_title available
+    // This is for cases where the Convex batch enrichment failed
+    const feedTitles = [...new Set(
+      Object.values(entryDetails)
+        .map((entry: any) => entry?.feed_title)
+        .filter(Boolean)
+    )];
     
-    // Fetch only the first 30 items, similar to RSS feed implementation
-    const result = await fetchQuery(api.userActivity.getUserActivityFeed, { 
-      userId,
-      skip: 0,
-      limit: 30
-    }) as { activities: ActivityItem[]; totalCount: number; hasMore: boolean };
+    if (feedTitles.length > 0) {
+      try {
+        console.log(`📡 Fetching post data for ${feedTitles.length} feed titles`);
+        const postsStartTime = Date.now();
+        
+        const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
+        
+        if (posts.length > 0) {
+          // Create a map of feed title to post
+          const feedTitleToPostMap = new Map(
+            posts.map((post: any) => [post.title, post])
+          );
+          
+          // Enrich entry details with post data
+          for (const guid in entryDetails) {
+            const entry = entryDetails[guid];
+            // Only enrich entries that don't already have post metadata
+            if (entry && entry.feed_title && !entry.post_slug) {
+              const post = feedTitleToPostMap.get(entry.feed_title);
+              
+              if (post) {
+                // Get the featured image from the correct field
+                const featuredImg = post.featuredImage || post.featuredImg;
+                
+                // Get the slug from the correct field
+                const slug = post.slug || post.postSlug;
+                
+                // Update entry with post metadata
+                entry.post_title = post.title;
+                entry.post_featured_img = featuredImg;
+                entry.post_media_type = post.mediaType;
+                entry.category_slug = post.categorySlug;
+                entry.post_slug = slug;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error fetching post data from Convex:", error);
+      }
+    }
     
-    console.log(`[Convex] Fetched ${result.activities.length} activities (comments and retweets) in ${Date.now() - startTime}ms`);
-    
-    // Extract GUIDs from activities to fetch entry details
-    const guids = result.activities.map(activity => activity.entryGuid);
-    
-    // Fetch and process entry details in a single step
-    const entryDetails = await fetchAndProcessEntryDetails(guids);
+    // Ensure the activities match the ActivityItem type
+    const typedActivities: ActivityItem[] = activities.map(activity => ({
+      ...activity,
+      type: activity.type as "like" | "comment" | "retweet"
+    }));
     
     return {
-      activities: result.activities,
-      totalCount: result.totalCount,
-      hasMore: result.hasMore,
-      entryDetails
+      activities: typedActivities,
+      totalCount: result.activities.totalCount,
+      hasMore: result.activities.hasMore,
+      entryDetails,
+      entryMetrics: result.entryMetrics
     };
   } catch (error) {
-    console.error("Error fetching initial activity data:", error);
+    console.error("❌ Error fetching initial activity data:", error);
     // Return empty data instead of null to avoid loading state
     return {
       activities: [],
       totalCount: 0,
       hasMore: false,
-      entryDetails: {}
+      entryDetails: {} as Record<string, RSSEntry>,
+      entryMetrics: {}
     };
   }
 });
 
-// Cache the initial likes data fetching
+// Cache the initial likes data fetching using the new batch query
 export const getInitialLikesData = cache(async (userId: Id<"users">) => {
   try {
-    console.log(`[Convex] Fetching likes data for user: ${userId}`);
+    console.log(`📡 Fetching optimized likes data for user: ${userId}`);
     const startTime = Date.now();
     
-    // Fetch only the first 30 likes directly using the dedicated query
-    const result = await fetchQuery(api.userActivity.getUserLikes, { 
+    // Use the new optimized batch query
+    const result = await fetchQuery(api.profiles.getProfileLikesData, { 
       userId,
-      skip: 0,
       limit: 30
-    }) as { activities: ActivityItem[]; totalCount: number; hasMore: boolean };
+    });
     
-    console.log(`[Convex] Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
+    console.log(`✅ Fetched optimized likes data in ${Date.now() - startTime}ms`);
     
-    // Extract GUIDs from activities to fetch entry details
-    const guids = result.activities.map(activity => activity.entryGuid);
+    // For now, we'll need to handle any external API calls for entry details
+    // since our batch query can't directly access external APIs
+    const likes = result.activities.activities;
+    const guids = likes.map((like: { entryGuid: string }) => like.entryGuid);
     
-    // Fetch and process entry details in a single step
-    const entryDetails = await fetchAndProcessEntryDetails(guids);
+    // Get Convex post metadata from the batch query
+    let postMetadata: Record<string, any> = result.entryDetails as Record<string, any> || {};
+    
+    // Fetch ALL RSS entries from PlanetScale to get the full entry details
+    // We'll merge the Convex post metadata with this data
+    let entryDetails: Record<string, RSSEntry> = {};
+    
+    if (guids.length > 0) {
+      try {
+        console.log(`📡 Fetching entries from PlanetScale`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guids }),
+          cache: 'no-store'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.entries && Array.isArray(data.entries)) {
+            // First map entries to their guids
+            entryDetails = Object.fromEntries(
+              data.entries.map((entry: RSSEntry) => [entry.guid, entry])
+            );
+            
+            // Now enrich each entry with post metadata
+            for (const guid in entryDetails) {
+              if (postMetadata[guid]) {
+                // Extract post metadata
+                const metadata = {
+                  post_title: postMetadata[guid].post_title,
+                  post_featured_img: postMetadata[guid].post_featured_img,
+                  post_media_type: postMetadata[guid].post_media_type,
+                  category_slug: postMetadata[guid].category_slug,
+                  post_slug: postMetadata[guid].post_slug
+                };
+                
+                // Only keep metadata fields that actually have values
+                const cleanedMetadata = Object.fromEntries(
+                  Object.entries(metadata).filter(([_, value]) => !!value)
+                );
+                
+                if (Object.keys(cleanedMetadata).length > 0) {
+                  // Merge the RSS entry with the post metadata
+                  entryDetails[guid] = {
+                    ...entryDetails[guid],
+                    ...cleanedMetadata
+                  };
+                }
+              }
+            }
+          } else {
+            console.error('❌ Invalid data format from PlanetScale API:', data);
+          }
+        } else {
+          console.error(`❌ API response error: ${response.status}`);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching entry details from PlanetScale:", error);
+      }
+    }
+    
+    // As a backup, try to enrich entries with post data if we have feed_title available
+    // This is for cases where the Convex batch enrichment failed
+    const feedTitles = [...new Set(
+      Object.values(entryDetails)
+        .map((entry: any) => entry?.feed_title)
+        .filter(Boolean)
+    )];
+    
+    if (feedTitles.length > 0) {
+      try {
+        console.log(`📡 Fetching post data for ${feedTitles.length} feed titles`);
+        const postsStartTime = Date.now();
+        
+        const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
+        
+        if (posts.length > 0) {
+          // Create a map of feed title to post
+          const feedTitleToPostMap = new Map(
+            posts.map((post: any) => [post.title, post])
+          );
+          
+          // Enrich entry details with post data
+          for (const guid in entryDetails) {
+            const entry = entryDetails[guid];
+            // Only enrich entries that don't already have post metadata
+            if (entry && entry.feed_title && !entry.post_slug) {
+              const post = feedTitleToPostMap.get(entry.feed_title);
+              
+              if (post) {
+                // Get the featured image from the correct field
+                const featuredImg = post.featuredImage || post.featuredImg;
+                
+                // Get the slug from the correct field
+                const slug = post.slug || post.postSlug;
+                
+                // Update entry with post metadata
+                entry.post_title = post.title;
+                entry.post_featured_img = featuredImg;
+                entry.post_media_type = post.mediaType;
+                entry.category_slug = post.categorySlug;
+                entry.post_slug = slug;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error fetching post data from Convex:", error);
+      }
+    }
+    
+    // Ensure the likes match the ActivityItem type
+    const typedLikes: ActivityItem[] = likes.map((like: { 
+      _id: string; 
+      timestamp: number; 
+      entryGuid: string; 
+      feedUrl: string; 
+      title?: string; 
+      link?: string; 
+      pubDate?: string; 
+    }) => ({
+      ...like,
+      type: "like" as "like" | "comment" | "retweet"
+    }));
     
     return {
-      activities: result.activities,
-      totalCount: result.totalCount,
-      hasMore: result.hasMore,
-      entryDetails
+      activities: typedLikes,
+      totalCount: result.activities.totalCount,
+      hasMore: result.activities.hasMore,
+      entryDetails,
+      entryMetrics: result.entryMetrics
     };
   } catch (error) {
-    console.error("Error fetching initial likes data:", error);
+    console.error("❌ Error fetching initial likes data:", error);
     // Return empty data instead of null to avoid loading state
     return {
       activities: [],
       totalCount: 0,
       hasMore: false,
-      entryDetails: {}
+      entryDetails: {} as Record<string, RSSEntry>,
+      entryMetrics: {}
     };
   }
 });
@@ -241,6 +385,9 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
 export async function ProfileActivityData({ userId, username, name, profileImage }: ProfileActivityDataProps) {
   // Fetch only activity data initially - likes will be loaded on demand
   const activityData = await getInitialActivityData(userId);
+  
+  // Optionally we could prefetch likes data here too if we wanted both tabs ready immediately
+  // const likesData = await getInitialLikesData(userId);
   
   return (
     <div className="mt-0">

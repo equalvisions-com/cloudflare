@@ -6,7 +6,7 @@ import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
 import { About } from "@/components/postpage/about";
 import type { RSSItem } from "@/lib/rss";
 
-// Define interfaces based on those in RSSFeedClient
+// Define RSSEntryWithData interface (consider moving to a shared types file)
 interface RSSEntryWithData {
   entry: RSSItem;
   initialData: {
@@ -29,7 +29,7 @@ interface PostTabsWrapperProps {
   mediaType?: string;
 }
 
-// Memoized component for the "Feed" tab content
+// Separated out as a standalone component
 const FeedTabContent = React.memo(({ 
   postTitle,
   feedUrl,
@@ -64,12 +64,8 @@ const FeedTabContent = React.memo(({
 });
 FeedTabContent.displayName = 'FeedTabContent';
 
-// Memoized component for the "About" tab content (renamed from Announcements)
-const AboutTabContent = React.memo(({ 
-  postTitle 
-}: { 
-  postTitle: string 
-}) => {
+// Separated out as a standalone component
+const AboutTabContent = React.memo(({ postTitle }: { postTitle: string }) => {
   return <About postTitle={postTitle} />;
 });
 AboutTabContent.displayName = 'AboutTabContent';
@@ -97,7 +93,7 @@ export function PostTabsWrapper({
         />
       )
     },
-    // About tab (renamed from Announcements)
+    // About tab
     {
       id: 'about',
       label: 'About',
@@ -112,14 +108,6 @@ export function PostTabsWrapper({
   );
 }
 
-// Use React.memo for the error boundary wrapper to prevent unnecessary re-renders
-export const PostTabsWrapperWithErrorBoundary = React.memo(
-  (props: PostTabsWrapperProps) => {
-    return (
-      <React.Fragment>
-        <PostTabsWrapper {...props} />
-      </React.Fragment>
-    );
-  }
-);
+// Use React.memo for the entire component to prevent unnecessary re-renders
+export const PostTabsWrapperWithErrorBoundary = React.memo(PostTabsWrapper);
 PostTabsWrapperWithErrorBoundary.displayName = 'PostTabsWrapperWithErrorBoundary'; 
