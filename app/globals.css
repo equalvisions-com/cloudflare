@@ -250,7 +250,13 @@
   opacity: 0;
 }
 
-/* Apply after transition is complete */
+/* Override default disabled opacity for all elements in the chat interface */
+.disabled-full-opacity button:disabled,
+.disabled-full-opacity input:disabled,
+.disabled-full-opacity textarea:disabled {
+  opacity: 1 !important;
+}
+
 .embla-slide:not(.opacity-0) {
   transition: opacity 50ms;
   opacity: 1;

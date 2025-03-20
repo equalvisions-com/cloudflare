@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { BookOpen } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -90,8 +89,10 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="link" className="p-0 h-auto text-sm text-muted-foreground flex items-center gap-1">
-          <BookOpen className="h-3.5 w-3.5" />
+        <Button 
+          variant="link" 
+          className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none"
+        >
           <span>{count} Following</span>
         </Button>
       </DialogTrigger>
@@ -114,16 +115,12 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                     onClick={() => setOpen(false)}
                   >
                     <div className="h-10 w-10 flex-shrink-0 rounded-md bg-muted overflow-hidden">
-                      {item.post.featuredImg ? (
+                      {item.post.featuredImg && (
                         <img 
                           src={item.post.featuredImg} 
                           alt={item.post.title}
                           className="h-full w-full object-cover"
                         />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-muted">
-                          <BookOpen className="h-5 w-5 text-muted-foreground" />
-                        </div>
                       )}
                     </div>
                     <div>

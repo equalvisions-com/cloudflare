@@ -36,32 +36,6 @@ interface CategoryData {
 // Add this constant at the top of the file
 const MOBILE_BREAKPOINT = 768;
 
-// Memoize the loading skeleton
-const LoadingSkeleton = memo(() => (
-  <div className="grid w-full">
-    <div className="w-full overflow-hidden bg-background/85 backdrop-blur-md sticky top-0 z-10 py-2">
-      <div className="flex gap-2 px-4">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div 
-            key={i} 
-            className="h-10 w-24 bg-muted/50 rounded-full animate-pulse"
-          />
-        ))}
-      </div>
-    </div>
-    <div className="mt-4 space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div 
-          key={i} 
-          className="h-64 bg-muted/30 rounded-lg animate-pulse"
-        />
-      ))}
-    </div>
-  </div>
-));
-
-LoadingSkeleton.displayName = 'LoadingSkeleton';
-
 // Memoize the search tabs
 const SearchTabs = memo(({ 
   searchTab, 
@@ -123,7 +97,6 @@ export function CategorySliderWrapper({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
   const [searchTab, setSearchTab] = useState<SearchTab>('posts');
-  const [isLoading, setIsLoading] = useState(true);
   
   // Add window width state
   const [isMobile, setIsMobile] = useState(false);
@@ -143,13 +116,6 @@ export function CategorySliderWrapper({
       limit: 10
     } : "skip"
   );
-  
-  // Set loading state based on data availability
-  useEffect(() => {
-    if (initialData) {
-      setIsLoading(false);
-    }
-  }, [initialData]);
   
   // Prepare categories array with "Featured" as the first option
   const allCategories: Category[] = React.useMemo(() => {
@@ -478,11 +444,6 @@ export function CategorySliderWrapper({
         return 'Entries';
     }
   }, [mediaType]);
-  
-  // Loading state
-  if (isLoading) {
-    return <LoadingSkeleton />;
-  }
   
   return (
     <div className={cn("w-full", className)}>

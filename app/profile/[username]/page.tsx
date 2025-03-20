@@ -122,15 +122,15 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       <div>
         <div>
           <div className="max-w-4xl mx-auto p-4 border-l border-r">
-            <div className="flex flex-col items-start mb-4">
-              <div className="flex w-full items-center justify-between">
+            <div className="flex flex-col items-start">
+              <div className="flex w-full items-start justify-between">
                 <ProfileImage 
                   profileImage={profile.profileImage} 
                   username={normalizedUsername}
                   size="lg"
                   className="mb-4"
                 />
-                <FriendButton 
+                <FriendButton
                   username={normalizedUsername}
                   userId={profile.userId}
                   profileData={{
@@ -148,15 +148,15 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                   <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>
                 )}
                 <div className="flex gap-4">
-                  <FriendsList 
-                    username={normalizedUsername} 
-                    initialCount={friendCount}
-                    initialFriends={initialFriends}
-                  />
                   <FollowingList 
                     username={normalizedUsername} 
                     initialCount={followingCount}
                     initialFollowing={initialFollowing}
+                  />
+                   <FriendsList 
+                    username={normalizedUsername} 
+                    initialCount={friendCount}
+                    initialFriends={initialFriends}
                   />
                 </div>
               </div>

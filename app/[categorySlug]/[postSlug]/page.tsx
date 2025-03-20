@@ -16,9 +16,6 @@ import { SearchButton } from "@/components/ui/search-button";
 import { MenuButton } from "@/components/ui/menu-button";
 
 
-// Add 5-minute ISR
-export const revalidate = 300; // 5 minutes in seconds
-
 interface PostPageProps {
   params: Promise<{
     categorySlug: string;

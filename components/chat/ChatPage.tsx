@@ -81,9 +81,14 @@ export function ChatPage() {
     onResponse: (response) => {
       // This callback is called when a response is received from the API
       if (response.status === 200) {
-        // Reset streaming state when a new response starts
-        setIsStreaming(false);
+        // We're starting to receive a response, but content might still be streaming
+        // Keep isStreaming true until content is fully received
+        // The actual streamed content and tool results will be handled automatically by useChat
       }
+    },
+    onFinish: () => {
+      // Called when the entire response is complete
+      setIsStreaming(false);
     },
     body: {
       // Include the active button type in the request
@@ -114,6 +119,10 @@ export function ChatPage() {
 
   // Add touch state handling
   const { activeTouchButton, handleTouchStart, handleTouchEnd } = useTouchActiveState();
+
+  // Add a new state for tracking liked and disliked messages
+  const [likedMessages, setLikedMessages] = useState<Record<string, boolean>>({});
+  const [dislikedMessages, setDislikedMessages] = useState<Record<string, boolean>>({});
 
   // Safely attempt to vibrate if supported
   const safeVibrate = (pattern: number | number[]) => {
@@ -261,6 +270,41 @@ export function ChatPage() {
     }
   };
 
+  // Handle like/dislike actions
+  const handleLike = (messageId: string) => {
+    safeVibrate(50);
+    setLikedMessages(prev => {
+      const newState = { ...prev };
+      newState[messageId] = !prev[messageId];
+      return newState;
+    });
+    // Remove from disliked if it was there
+    setDislikedMessages(prev => {
+      const newState = { ...prev };
+      if (newState[messageId]) {
+        newState[messageId] = false;
+      }
+      return newState;
+    });
+  };
+
+  const handleDislike = (messageId: string) => {
+    safeVibrate(50);
+    setDislikedMessages(prev => {
+      const newState = { ...prev };
+      newState[messageId] = !prev[messageId];
+      return newState;
+    });
+    // Remove from liked if it was there
+    setLikedMessages(prev => {
+      const newState = { ...prev };
+      if (newState[messageId]) {
+        newState[messageId] = false;
+      }
+      return newState;
+    });
+  };
+
   // Custom message rendering function
   const renderMessage = (message: UIMessage) => {
     const isUser = message.role === 'user';
@@ -269,9 +313,28 @@ export function ChatPage() {
     if (isUser) {
       content = message.content;
     } else {
-      // Only show the typing indicator if this is the last assistant message and it's still empty.
+      // Check if this is the most recent assistant message
       const isLatestAssistantMessage = message.id === lastMessageId;
-      if (isLatestAssistantMessage && isLoading && (!message.content || message.content.trim() === "")) {
+      
+      // Always show loading indicator for the latest assistant message if we're loading
+      // This prevents any flash of content before tool results come in
+      if (isLatestAssistantMessage && isLoading) {
+        return (
+          <div className="flex justify-start mb-4 w-full" key={message.id}>
+            <div className="max-w-[80%] p-3 rounded-lg bg-muted text-muted-foreground">
+              <TypingIndicator />
+            </div>
+          </div>
+        );
+      }
+      
+      // Check for tool invocations separately
+      const hasToolInProgress = message.toolInvocations?.some(tool => 
+        tool.state !== 'result'
+      );
+      
+      // Hide content if tools are still running
+      if (hasToolInProgress) {
         return (
           <div className="flex justify-start mb-4 w-full" key={message.id}>
             <div className="max-w-[80%] p-3 rounded-lg bg-muted text-muted-foreground">
@@ -369,27 +432,10 @@ export function ChatPage() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 rounded-full hover:bg-muted"
-          title="Copy"
-        >
-          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="sr-only">Copy</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-full hover:bg-muted"
-          title="Share"
-        >
-          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="sr-only">Share</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-full hover:bg-muted"
           title="Like"
+          onClick={() => handleLike(message.id)}
         >
-          <ThumbsUp className="h-3.5 w-3.5 text-muted-foreground" />
+          <ThumbsUp className={`h-3.5 w-3.5 ${likedMessages[message.id] ? 'fill-current text-primary' : 'text-muted-foreground'}`} />
           <span className="sr-only">Like</span>
         </Button>
         <Button
@@ -397,8 +443,9 @@ export function ChatPage() {
           size="icon"
           className="h-7 w-7 rounded-full hover:bg-muted"
           title="Dislike"
+          onClick={() => handleDislike(message.id)}
         >
-          <ThumbsDown className="h-3.5 w-3.5 text-muted-foreground" />
+          <ThumbsDown className={`h-3.5 w-3.5 ${dislikedMessages[message.id] ? 'fill-current text-primary' : 'text-muted-foreground'}`} />
           <span className="sr-only">Dislike</span>
         </Button>
       </div>
@@ -408,7 +455,7 @@ export function ChatPage() {
       <div className="flex flex-col w-full mb-2" key={message.id}>
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
           {typeof content === 'string' ? (
-            <div className={`max-w-[90%] p-2 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
+            <div className={`max-w-[90%] p-2 rounded-lg ${isUser ? 'bg-[#007AFF] text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
               <p className="break-words whitespace-normal">{content}</p>
               {!isUser && messageActions}
             </div>
@@ -440,22 +487,63 @@ export function ChatPage() {
                             }
                           }}
                         >
-                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none">
+                          <Card className="w-full bg-card hover:bg-muted/50 transition-colors shadow-none overflow-hidden">
                             <div className="flex">
                               {/* Image on the left in 1:1 aspect ratio */}
-                              {article.publisherIconUrl ? (
-                                <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20">
+                              {article.photo_url ? (
+                                <div className="flex-shrink-0 h-[88px] w-[88px] overflow-hidden rounded-l-lg">
+                                  <AspectRatio ratio={1} className="h-full">
+                                    <Image
+                                      src={article.photo_url}
+                                      alt={article.title || "Article image"}
+                                      fill
+                                      unoptimized
+                                      className="object-cover"
+                                      onError={(e) => {
+                                        // If the photo_url fails to load, set the src to the publisher icon
+                                        if (article.publisherIconUrl) {
+                                          (e.target as HTMLImageElement).src = article.publisherIconUrl;
+                                        } else {
+                                          // If there's no publisher icon either, hide the image element
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                          // Show a fallback icon
+                                          const container = (e.target as HTMLImageElement).parentElement;
+                                          if (container && container.parentElement) {
+                                            container.parentElement.classList.add('bg-muted');
+                                            container.parentElement.classList.add('flex');
+                                            container.parentElement.classList.add('items-center');
+                                            container.parentElement.classList.add('justify-center');
+                                            
+                                            // Create and append the appropriate icon based on activeButton
+                                            const iconElement = document.createElement('div');
+                                            if (activeButton === 'podcasts') {
+                                              iconElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 text-muted-foreground"><path d="M17.72 5.72a9.997 9.997 0 0 0-14.14 0"></path><path d="M14.14 9.3a4.998 4.998 0 0 0-7.07 0"></path><path d="M4.86 18.3a1 1 0 1 0 1.41-1.42c-.2-.2-.56-.2-.56-.2s0 .37.2.56"></path><path d="M7.14 16.56c-.23.23-.35.32-.35.44"></path><circle cx="12" cy="15" r="1"></circle><path d="M10.5 20.5a2.5 2.5 0 0 0 5 0v-2.2a2.5 2.5 0 0 1-5 0z"></path></svg>';
+                                            } else if (activeButton === 'newsletters') {
+                                              iconElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 text-muted-foreground"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>';
+                                            } else {
+                                              iconElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 text-muted-foreground"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>';
+                                            }
+                                            container.parentElement.appendChild(iconElement);
+                                          }
+                                        }
+                                      }}
+                                    />
+                                  </AspectRatio>
+                                </div>
+                              ) : article.publisherIconUrl ? (
+                                <div className="flex-shrink-0 h-[88px] w-[88px] overflow-hidden rounded-l-lg">
                                   <AspectRatio ratio={1} className="h-full">
                                     <Image
                                       src={article.publisherIconUrl}
                                       alt={article.source || "Publisher"}
                                       fill
+                                      unoptimized
                                       className="object-cover"
                                     />
                                   </AspectRatio>
                                 </div>
                               ) : (
-                                <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 bg-muted flex items-center justify-center">
+                                <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 bg-muted flex items-center justify-center rounded-l-xl">
                                   {activeButton === 'podcasts' ? (
                                     <Podcast className="h-8 w-8 text-muted-foreground" />
                                   ) : activeButton === 'newsletters' ? (
@@ -467,7 +555,7 @@ export function ChatPage() {
                               )}
                               
                               {/* Content on the right */}
-                              <div className="p-3 md:p-4 flex flex-col justify-center">
+                              <div className="p-3 md:p-2 flex flex-col justify-center">
                                 <div className="text-sm md:text-base font-medium line-clamp-2 text-card-foreground mb-1">
                                   {article.title}
                                 </div>
@@ -491,7 +579,7 @@ export function ChatPage() {
                   <CarouselNext className="-right-3 bg-card border-border hidden md:flex" />
                 </Carousel>
               </div>
-              {messageActions}
+              {!isUser && messageActions}
             </div>
           ) : (
             <div className={`max-w-[90%] p-2 rounded-lg ${isUser ? 'bg-primary/10 text-primary-foreground dark:text-primary' : 'bg-muted text-foreground'}`}>
@@ -683,7 +771,7 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef} 
-      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden"
+      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[528px] disabled-full-opacity"
     >
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
@@ -755,8 +843,8 @@ export function ChatPage() {
                     ref={inputContainerRef}
                     className={cn(
                       "relative w-full rounded-3xl border border-input p-3 cursor-text",
-                      "bg-secondary/60",
-                      isLoading && "opacity-80"
+                      "bg-secondary/0",
+                      isLoading && "opacity-100"
                     )}
                     onClick={handleInputContainerClick}
                   >
@@ -764,7 +852,7 @@ export function ChatPage() {
                       <Textarea
                         ref={textareaRef}
                         placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
-                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight disabled:opacity-100"
                         value={input}
                         onChange={customHandleInputChange}
                         onKeyDown={handleKeyDown}
@@ -780,7 +868,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "newsletters" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
                               )}
@@ -801,7 +889,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "podcasts" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
                               )}
@@ -822,7 +910,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "articles" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
                               )}
@@ -847,7 +935,8 @@ export function ChatPage() {
                           disabled={!input.trim() || isLoading || activeButton === "none"}
                           className={cn(
                             "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                            (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                            (!input.trim() || activeButton === "none") && "opacity-50 cursor-not-allowed",
+                            isLoading && "opacity-100 cursor-not-allowed"
                           )}
                         >
                           <ArrowUp className="h-4 w-4" />
@@ -864,7 +953,7 @@ export function ChatPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Sports card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
                     onClick={() => handleTopicClick('sports', 'NFL')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
@@ -876,7 +965,7 @@ export function ChatPage() {
                   
                   {/* Investing card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
                     onClick={() => handleTopicClick('investing', 'Bitcoin')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
@@ -888,7 +977,7 @@ export function ChatPage() {
                   
                   {/* Pop Culture card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
                     onClick={() => handleTopicClick('politics', 'Kendrick Lamar')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
@@ -900,7 +989,7 @@ export function ChatPage() {
                   
                   {/* Technology card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/60 hover:bg-secondary/80 cursor-pointer transition-colors"
+                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
                     onClick={() => handleTopicClick('technology', 'AI')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
@@ -929,8 +1018,8 @@ export function ChatPage() {
                     ref={inputContainerRef}
                     className={cn(
                       "relative w-full rounded-3xl border border-input p-3 cursor-text",
-                      "bg-secondary/60",
-                      isLoading && "opacity-80"
+                      "bg-secondary/0",
+                      isLoading && "opacity-100"
                     )}
                     onClick={handleInputContainerClick}
                   >
@@ -938,7 +1027,7 @@ export function ChatPage() {
                       <Textarea
                         ref={textareaRef}
                         placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
-                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
+                        className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight disabled:opacity-100"
                         value={input}
                         onChange={customHandleInputChange}
                         onKeyDown={handleKeyDown}
@@ -954,7 +1043,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "newsletters" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
                               )}
@@ -975,7 +1064,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "podcasts" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
                               )}
@@ -996,7 +1085,7 @@ export function ChatPage() {
                               type="button"
                               variant="outline"
                               className={cn(
-                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border",
+                                "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "articles" && "bg-primary text-primary-foreground",
                                 activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
                               )}
@@ -1021,7 +1110,8 @@ export function ChatPage() {
                           disabled={!input.trim() || isLoading || activeButton === "none"}
                           className={cn(
                             "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                            (!input.trim() || isLoading || activeButton === "none") && "opacity-50 cursor-not-allowed"
+                            (!input.trim() || activeButton === "none") && "opacity-50 cursor-not-allowed",
+                            isLoading && "opacity-100 cursor-not-allowed"
                           )}
                         >
                           <ArrowUp className="h-4 w-4" />

@@ -46,15 +46,6 @@ interface PostsDisplayProps {
   searchQuery?: string;
 }
 
-// Memoize loading state component
-const LoadingState = memo(({ className }: { className?: string }) => (
-  <div className={cn("flex justify-center items-center py-12", className)}>
-    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-  </div>
-));
-
-LoadingState.displayName = 'LoadingState';
-
 // Memoize no posts state component
 const NoPostsState = memo(({ 
   searchQuery, 
@@ -75,15 +66,6 @@ const NoPostsState = memo(({
 ));
 
 NoPostsState.displayName = 'NoPostsState';
-
-// Memoize loading indicator component
-const LoadingIndicator = memo(() => (
-  <div className="py-4 flex justify-center">
-    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-  </div>
-));
-
-LoadingIndicator.displayName = 'LoadingIndicator';
 
 export function PostsDisplay({
   categoryId,
@@ -177,11 +159,6 @@ export function PostsDisplay({
     }
   }, [inView, nextCursor, isInitialLoad, postsResult, isAuthenticated, followStates]);
 
-  // Loading state
-  if (isInitialLoad && !postsResult) {
-    return <LoadingState className={className} />;
-  }
-
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
     return <NoPostsState searchQuery={searchQuery} mediaType={mediaType} className={className} />;
@@ -194,11 +171,9 @@ export function PostsDisplay({
         <PostCard key={post._id} post={post} />
       ))}
 
-      {/* Loading indicator and intersection observer target */}
+      {/* Intersection observer target - without loading indicator */}
       {nextCursor && (
-        <div ref={ref}>
-          <LoadingIndicator />
-        </div>
+        <div ref={ref} />
       )}
     </div>
   );

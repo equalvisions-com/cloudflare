@@ -16,6 +16,7 @@ export interface RapidAPIArticle {
   publish_timestamp?: number | null;
   publisher?: string | null;
   publisher_icon_url?: string | null;
+  photo_url?: string | null;
 }
 
 // Schema for an article
@@ -25,6 +26,7 @@ export const ArticleSchema = z.object({
   date: z.string().default(''),
   source: z.string().default(''),
   publisherIconUrl: z.string().optional().default(''),
+  photo_url: z.string().optional(),
 });
 
 // Type for an article

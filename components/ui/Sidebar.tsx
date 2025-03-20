@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, Sparkles, Handshake, LogIn } from "lucide-react";
+import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
@@ -75,13 +75,13 @@ function Sidebar() {
       },
       {
         href: "/chat",
-        label: "Ask AI",
-        icon: <Sparkles className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 2.65 : 2} />,
+        label: "Chat",
+        icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2} />,
       },
       {
-        href: "/likes",
-        label: "Friends",
-        icon: <Handshake className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/likes") ? 3 : 2} />,
+        href: "/notifications",
+        label: "Alerts",
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/likes") ? 3 : 2} />,
       },
     ];
 

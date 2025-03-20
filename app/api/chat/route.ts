@@ -20,7 +20,7 @@ const connection = connect({
 async function fetchNewsletterEntries(query: string): Promise<Article[]> {
   try {
     // Prepare the search query
-    const searchTerms = query.split(' ').filter(term => term.length > 2);
+    const searchTerms = query.split(' ').filter(term => term.length > 1);
     
     if (searchTerms.length === 0) {
       return [];
@@ -52,33 +52,8 @@ async function fetchNewsletterEntries(query: string): Promise<Article[]> {
     );
     
     if (!result.rows || result.rows.length === 0) {
-      // Let's try a more lenient search as a fallback
-      const fallbackResult = await connection.execute(
-        `SELECT 
-          e.id, 
-          e.guid, 
-          e.title, 
-          e.link, 
-          e.description, 
-          e.pub_date, 
-          e.image,
-          e.media_type,
-          f.title as feed_title
-        FROM rss_entries e
-        JOIN rss_feeds f ON e.feed_id = f.id
-        WHERE 
-          e.media_type = 'newsletter'
-        ORDER BY e.pub_date DESC
-        LIMIT 5`,
-        []
-      );
-      
-      if (!fallbackResult.rows || fallbackResult.rows.length === 0) {
-        return [];
-      }
-      
-      // Use the fallback results
-      result.rows = fallbackResult.rows;
+      // Return empty array when no results are found
+      return [];
     }
     
     // Format the date for each entry
@@ -132,7 +107,7 @@ async function fetchNewsletterEntries(query: string): Promise<Article[]> {
 async function fetchPodcastEntries(query: string): Promise<Article[]> {
   try {
     // Prepare the search query
-    const searchTerms = query.split(' ').filter(term => term.length > 2);
+    const searchTerms = query.split(' ').filter(term => term.length > 1);
     
     if (searchTerms.length === 0) {
       return [];
@@ -164,33 +139,8 @@ async function fetchPodcastEntries(query: string): Promise<Article[]> {
     );
     
     if (!result.rows || result.rows.length === 0) {
-      // Let's try a more lenient search as a fallback
-      const fallbackResult = await connection.execute(
-        `SELECT 
-          e.id, 
-          e.guid, 
-          e.title, 
-          e.link, 
-          e.description, 
-          e.pub_date, 
-          e.image,
-          e.media_type,
-          f.title as feed_title
-        FROM rss_entries e
-        JOIN rss_feeds f ON e.feed_id = f.id
-        WHERE 
-          e.media_type = 'podcast'
-        ORDER BY e.pub_date DESC
-        LIMIT 5`,
-        []
-      );
-      
-      if (!fallbackResult.rows || fallbackResult.rows.length === 0) {
-        return [];
-      }
-      
-      // Use the fallback results
-      result.rows = fallbackResult.rows;
+      // Return empty array when no results are found
+      return [];
     }
     
     // Format the date for each entry
@@ -320,6 +270,7 @@ async function fetchArticles(topic: string): Promise<Article[]> {
           date: formattedDate,
           source: article.publisher || 'Unknown Source',
           publisherIconUrl: article.publisher_icon_url || '',
+          photo_url: article.photo_url || '',
         };
       });
   } catch {
@@ -375,7 +326,7 @@ export async function POST(req: Request) {
               const response = {
                 message: articles.length > 0 
                   ? `Here are some recent articles about ${topic}:` 
-                  : `I couldn't find any recent articles about ${topic} from the past week. Please try a different topic.`,
+                  : `I couldn't find any articles that match "${topic}". Please try a different search term.`,
                 articles: articles,
               };
               
@@ -418,7 +369,7 @@ export async function POST(req: Request) {
               const response = {
                 message: newsletters.length > 0 
                   ? `Here are some newsletter entries about ${topic}:` 
-                  : `I couldn't find any newsletter entries about ${topic}. Please try a different topic.`,
+                  : `I couldn't find any newsletter entries that match "${topic}". Please try a different search term.`,
                 articles: newsletters,
               };
               
@@ -461,7 +412,7 @@ export async function POST(req: Request) {
               const response = {
                 message: podcasts.length > 0 
                   ? `Here are some podcast episodes about ${topic}:` 
-                  : `I couldn't find any podcast episodes about ${topic}. Please try a different topic.`,
+                  : `I couldn't find any podcast episodes that match "${topic}". Please try a different search term.`,
                 articles: podcasts,
               };
               
@@ -491,7 +442,7 @@ export async function POST(req: Request) {
     if (isArticleSearch) {
       openAIMessages.unshift({
         role: 'system',
-        content: 'The user is specifically looking for news articles. You MUST use the getArticles tool to search for relevant articles on their topic. Do not respond without using this tool.'
+        content: 'The user is specifically looking for news articles. You MUST use the getArticles tool to search for relevant articles on their topic. IMPORTANT: Do not write any text or announce you are going to use the tool - immediately use the tool without any preamble. If no results are found, clearly tell the user that no articles match their search term and suggest they try a different search.'
       });
     }
     
@@ -499,7 +450,7 @@ export async function POST(req: Request) {
     if (isNewsletterSearch) {
       openAIMessages.unshift({
         role: 'system',
-        content: 'The user is specifically looking for newsletter entries. You MUST use the getNewsletters tool to search for relevant newsletters on their topic. Do not respond without using this tool.'
+        content: 'The user is specifically looking for newsletter entries. You MUST use the getNewsletters tool to search for relevant newsletters on their topic. IMPORTANT: Do not write any text or announce you are going to use the tool - immediately use the tool without any preamble. If no results are found, clearly tell the user that no newsletters match their search term and suggest they try a different search.'
       });
     }
     
@@ -507,7 +458,7 @@ export async function POST(req: Request) {
     if (isPodcastSearch) {
       openAIMessages.unshift({
         role: 'system',
-        content: 'The user is specifically looking for podcast episodes. You MUST use the getPodcasts tool to search for relevant podcasts on their topic. Do not respond without using this tool.'
+        content: 'The user is specifically looking for podcast episodes. You MUST use the getPodcasts tool to search for relevant podcasts on their topic. IMPORTANT: Do not write any text or announce you are going to use the tool - immediately use the tool without any preamble. If no results are found, clearly tell the user that no podcasts match their search term and suggest they try a different search.'
       });
     }
 
