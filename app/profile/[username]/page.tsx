@@ -116,6 +116,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const { friendCount, followingCount } = profileData.social;
   const initialFriends = profileData.social.friends;
   const initialFollowing = profileData.social.following;
+  const friendshipStatus = profileData.friendshipStatus;
   
   return (
     <ProfileLayoutManager>
@@ -139,6 +140,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                     profileImage: profile.profileImage,
                     username: normalizedUsername
                   }}
+                  initialFriendshipStatus={friendshipStatus}
                 />
               </div>
               <div className="text-left">

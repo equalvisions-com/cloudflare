@@ -29,25 +29,29 @@ interface FriendButtonProps {
   username: string;
   userId: Id<"users">;
   profileData: ProfileData;
+  initialFriendshipStatus?: FriendshipStatus | null; // Add prop for server-provided status
 }
 
-export function FriendButton({ username, userId, profileData }: FriendButtonProps) {
+export function FriendButton({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-  const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Get current user from Convex
-  const user = useQuery(api.users.viewer);
+  // Only fetch viewer if authenticated and we need it
+  const needsViewerQuery = isAuthenticated && 
+    (!currentStatus || (currentStatus.status === "self" && isEditModalOpen));
+  const user = useQuery(api.users.viewer, needsViewerQuery ? {} : "skip");
 
-  // Get friendship status - only execute if authenticated
+  // Only fetch friendship status if not provided from server and user is authenticated
+  const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;
   const friendshipStatus = useQuery(
     api.friends.getFriendshipStatusByUsername, 
-    isAuthenticated ? { username } : "skip"
+    shouldFetchStatus ? { username } : "skip"
   );
   
   // Track if query is loading
-  const isFriendshipLoading = friendshipStatus === undefined && isAuthenticated;
+  const isFriendshipLoading = friendshipStatus === undefined && shouldFetchStatus;
 
   // Determine if component is in any loading state
   const isLoading = isActionLoading || isFriendshipLoading || isAuthLoading;
@@ -57,7 +61,7 @@ export function FriendButton({ username, userId, profileData }: FriendButtonProp
   const acceptRequest = useMutation(api.friends.acceptFriendRequest);
   const deleteFriendship = useMutation(api.friends.deleteFriendship);
 
-  // Update local state when friendship status changes
+  // Update local state when friendship status changes from query
   useEffect(() => {
     if (friendshipStatus) {
       setCurrentStatus(friendshipStatus);
@@ -66,7 +70,7 @@ export function FriendButton({ username, userId, profileData }: FriendButtonProp
 
   // Handle add friend action
   const handleAddFriend = async () => {
-    if (!user?._id || !isAuthenticated) return;
+    if (!isAuthenticated) return;
     
     setIsActionLoading(true);
     try {
@@ -143,12 +147,12 @@ export function FriendButton({ username, userId, profileData }: FriendButtonProp
           Edit Profile
         </Button>
         
-        {isEditModalOpen && (
+        {isEditModalOpen && user && (
           <Suspense fallback={null}>
             <EditProfileModal 
               isOpen={isEditModalOpen} 
               onClose={() => setIsEditModalOpen(false)} 
-              userId={user!._id}
+              userId={user._id}
               initialData={profileData}
             />
           </Suspense>
@@ -254,13 +258,22 @@ export function FriendButton({ username, userId, profileData }: FriendButtonProp
           friendshipDirection={currentStatus.direction}
           onUnfriend={handleUnfriend}
         />
-        <Button variant="outline" className="rounded-full h-9 bg-muted font-medium text-sm px-4 py-2" size="sm">
+        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-medium text-sm px-4 py-2">
           Friends
         </Button>
       </div>
     );
   }
-
-  // Fallback
-  return null;
+  
+  // Fallback for any other unhandled state
+  return (
+    <div className="flex items-center gap-2">
+      <MenuButton 
+        userId={userId}
+      />
+      <Button variant="outline" size="sm" className="h-9 font-medium text-sm px-4 py-2 rounded-full">
+        Add Friend
+      </Button>
+    </div>
+  );
 } 

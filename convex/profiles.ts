@@ -493,6 +493,9 @@ export const getProfilePageData = query({
     const username = args.username;
     const limit = args.limit || 30;
     
+    // Get current viewer ID if authenticated
+    const viewerId = await getAuthUserId(ctx);
+    
     // Get profile data
     const profile = await ctx.db
       .query("profiles")
@@ -504,13 +507,17 @@ export const getProfilePageData = query({
     // Run all social queries in parallel
     const [
       friendsWithProfiles,
-      followingWithPosts
+      followingWithPosts,
+      friendshipStatus
     ] = await Promise.all([
       // Get friends with profiles
       getFriendsWithProfiles(ctx, profile.userId, limit),
       
       // Get following with posts
-      getFollowingWithPosts(ctx, profile.userId, limit)
+      getFollowingWithPosts(ctx, profile.userId, limit),
+      
+      // Get friendship status if viewer is authenticated
+      viewerId ? getFriendshipStatus(ctx, profile.userId, viewerId) : Promise.resolve(null)
     ]);
     
     // Get counts
@@ -519,6 +526,7 @@ export const getProfilePageData = query({
     
     return {
       profile,
+      friendshipStatus,
       social: {
         friendCount,
         followingCount,
@@ -536,6 +544,61 @@ export const getProfilePageData = query({
     };
   }
 });
+
+// Helper function to get friendship status
+async function getFriendshipStatus(ctx: any, profileUserId: Id<"users">, viewerId: Id<"users">) {
+  // Don't allow self-friending
+  if (profileUserId.toString() === viewerId.toString()) {
+    return {
+      exists: false,
+      status: "self",
+      direction: null,
+      friendshipId: null,
+    };
+  }
+
+  // Check if a friendship already exists in either direction
+  const sentRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q: any) => 
+      q.eq("requesterId", viewerId).eq("requesteeId", profileUserId)
+    )
+    .first();
+
+  if (sentRequest) {
+    return {
+      exists: true,
+      status: sentRequest.status,
+      direction: "sent",
+      friendshipId: sentRequest._id,
+    };
+  }
+
+  // Check if there's a request from the other user
+  const receivedRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q: any) => 
+      q.eq("requesterId", profileUserId).eq("requesteeId", viewerId)
+    )
+    .first();
+
+  if (receivedRequest) {
+    return {
+      exists: true,
+      status: receivedRequest.status,
+      direction: "received",
+      friendshipId: receivedRequest._id,
+    };
+  }
+
+  // No friendship exists
+  return {
+    exists: false,
+    status: null,
+    direction: null,
+    friendshipId: null,
+  };
+}
 
 // New combined query for profile activity data
 export const getProfileActivityData = query({
