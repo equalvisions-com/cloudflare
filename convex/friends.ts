@@ -608,4 +608,107 @@ export const getFriends = query({
       })),
     ];
   },
+});
+
+// Get notifications (incoming friend requests and accepted friends) with user info in one query
+export const getNotifications = query({
+  handler: async (ctx) => {
+    // Get the current user ID
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Unauthorized");
+    }
+
+    // Get the current user's info
+    const currentUser = await ctx.db.get(userId);
+    
+    // Get incoming friend requests (pending)
+    const incomingRequests = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
+      .filter(q => q.eq(q.field("status"), "pending"))
+      .collect();
+
+    // Get accepted friend requests (both directions)
+    const acceptedSent = await ctx.db
+      .query("friends")
+      .withIndex("by_requester_time", q => q.eq("requesterId", userId))
+      .filter(q => q.eq(q.field("status"), "accepted"))
+      .collect();
+      
+    const acceptedReceived = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
+      .filter(q => q.eq(q.field("status"), "accepted"))
+      .collect();
+
+    // Map the incoming requests to add direction
+    const incomingMapped = incomingRequests.map(friendship => ({
+      ...friendship,
+      direction: "received",
+      friendId: friendship.requesterId,
+    }));
+
+    // Map the accepted requests to add direction
+    const acceptedSentMapped = acceptedSent.map(friendship => ({
+      ...friendship,
+      direction: "sent",
+      friendId: friendship.requesteeId,
+    }));
+
+    const acceptedReceivedMapped = acceptedReceived.map(friendship => ({
+      ...friendship,
+      direction: "received",
+      friendId: friendship.requesterId,
+    }));
+
+    // Combine all notifications
+    const allNotifications = [
+      ...incomingMapped,
+      ...acceptedSentMapped,
+      ...acceptedReceivedMapped
+    ];
+
+    // Sort by createdAt in descending order (newest first)
+    allNotifications.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Fetch user and profile information for each friend in one go
+    const friendUserIds = allNotifications.map(n => n.friendId);
+    
+    // Fetch profiles individually but in parallel
+    const profilePromises = friendUserIds.map(friendId => 
+      ctx.db
+        .query("profiles")
+        .withIndex("by_userId", q => q.eq("userId", friendId))
+        .first()
+    );
+    
+    const profiles = await Promise.all(profilePromises);
+    
+    // Create a map for quick lookup
+    const profileMap = new Map();
+    profiles.forEach((profile, index) => {
+      if (profile) {
+        profileMap.set(friendUserIds[index].toString(), profile);
+      }
+    });
+    
+    // Map notifications with profiles
+    const notificationsWithDetails = allNotifications
+      .map(friendship => {
+        const friendProfile = profileMap.get(friendship.friendId.toString());
+        if (!friendProfile) return null;
+        
+        return {
+          friendship,
+          profile: friendProfile,
+        };
+      })
+      .filter(Boolean);
+    
+    return {
+      user: currentUser,
+      notifications: notificationsWithDetails
+    };
+  },
 }); 
