@@ -34,9 +34,20 @@ interface FriendButtonProps {
 
 export function FriendButton({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  // Initialize with initialFriendshipStatus if available
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Track if we had initial data for persist between renders
+  const [hadInitialData, setHadInitialData] = useState(!!initialFriendshipStatus);
+
+  // Set hadInitialData when initialFriendshipStatus changes
+  useEffect(() => {
+    if (initialFriendshipStatus) {
+      setHadInitialData(true);
+      setCurrentStatus(initialFriendshipStatus);
+    }
+  }, [initialFriendshipStatus]);
 
   // Only fetch viewer if authenticated and we need it
   const needsViewerQuery = isAuthenticated && 
@@ -44,7 +55,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
   const user = useQuery(api.users.viewer, needsViewerQuery ? {} : "skip");
 
   // Only fetch friendship status if not provided from server and user is authenticated
-  const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;
+  const shouldFetchStatus = isAuthenticated && !hadInitialData;
   const friendshipStatus = useQuery(
     api.friends.getFriendshipStatusByUsername, 
     shouldFetchStatus ? { username } : "skip"
@@ -122,6 +133,8 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         direction: null,
         friendshipId: null,
       });
+      // Reset hadInitialData to fetch fresh data on next navigation
+      setHadInitialData(false);
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
