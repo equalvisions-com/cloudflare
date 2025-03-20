@@ -34,20 +34,9 @@ interface FriendButtonProps {
 
 export function FriendButton({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-  // Initialize with initialFriendshipStatus if available
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  // Track if we had initial data for persist between renders
-  const [hadInitialData, setHadInitialData] = useState(!!initialFriendshipStatus);
-
-  // Set hadInitialData when initialFriendshipStatus changes
-  useEffect(() => {
-    if (initialFriendshipStatus) {
-      setHadInitialData(true);
-      setCurrentStatus(initialFriendshipStatus);
-    }
-  }, [initialFriendshipStatus]);
 
   // Only fetch viewer if authenticated and we need it
   const needsViewerQuery = isAuthenticated && 
@@ -55,7 +44,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
   const user = useQuery(api.users.viewer, needsViewerQuery ? {} : "skip");
 
   // Only fetch friendship status if not provided from server and user is authenticated
-  const shouldFetchStatus = isAuthenticated && !hadInitialData;
+  const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;
   const friendshipStatus = useQuery(
     api.friends.getFriendshipStatusByUsername, 
     shouldFetchStatus ? { username } : "skip"
@@ -133,8 +122,6 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         direction: null,
         friendshipId: null,
       });
-      // Reset hadInitialData to fetch fresh data on next navigation
-      setHadInitialData(false);
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
@@ -154,7 +141,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2"
+          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
           onClick={() => setIsEditModalOpen(true)}
         >
           Edit Profile
@@ -181,7 +168,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <MenuButton 
           userId={userId}
         />
-        <Button variant="outline" size="sm" disabled className="h-9 font-medium text-sm px-4 py-2 rounded-full">
+        <Button variant="outline" size="sm" disabled className="h-9 font-medium text-sm px-4 py-2 rounded-full shadow-none">
           Loading
         </Button>
       </div>
@@ -198,7 +185,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2"
+          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
           title="Sign in to add as friend"
         >
           Add Friend
@@ -221,7 +208,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2"
+          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
           onClick={handleAddFriend}
         >
           Add Friend
@@ -239,7 +226,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             friendshipDirection={currentStatus.direction}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2">
+          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2 shadow-none">
             Pending
           </Button>
         </div>
@@ -255,7 +242,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             onAcceptFriend={handleAcceptFriend}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2">
+          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2 shadow-none">
             Pending
           </Button>
         </div>
@@ -271,7 +258,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           friendshipDirection={currentStatus.direction}
           onUnfriend={handleUnfriend}
         />
-        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-medium text-sm px-4 py-2">
+        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-medium text-sm px-4 py-2 shadow-none">
           Friends
         </Button>
       </div>
@@ -284,7 +271,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       <MenuButton 
         userId={userId}
       />
-      <Button variant="outline" size="sm" className="h-9 font-medium text-sm px-4 py-2 rounded-full">
+      <Button variant="outline" size="sm" className="h-9 font-medium text-sm px-4 py-2 rounded-full shadow-none">
         Add Friend
       </Button>
     </div>
