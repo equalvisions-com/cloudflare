@@ -1,7 +1,7 @@
 // app/api/rss/route.tsx
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
-import { connect } from '@planetscale/database';
+import { getReadConnection } from '@/lib/database';
 
 // Define interfaces for our data types
 interface RSSEntryRow {
@@ -24,17 +24,8 @@ interface RSSResponseData {
   postTitles: string[];
 }
 
-// Create a connection to PlanetScale
-const connection = connect({
-  url: process.env.DATABASE_URL,
-  // Add connection timeout settings
-  fetch: (url, init) => {
-    return fetch(url, {
-      ...init,
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-  }
-});
+// Create a connection to PlanetScale using read replica
+const connection = getReadConnection();
 
 // Simple in-memory cache for recent requests
 // In a production app, you might use Redis or another caching solution

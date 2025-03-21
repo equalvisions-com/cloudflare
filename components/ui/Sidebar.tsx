@@ -64,6 +64,11 @@ function Sidebar() {
         icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2} />,
       },
       {
+        href: "/notifications",
+        label: "Alerts",
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/likes") ? 3 : 2} />,
+      }, 
+      {
         href: "/newsletters",
         label: "Newsletters",
         icon: <Mail className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/newsletters") ? 3 : 2} />,
@@ -77,11 +82,6 @@ function Sidebar() {
         href: "/chat",
         label: "Chat",
         icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2} />,
-      },
-      {
-        href: "/notifications",
-        label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/likes") ? 3 : 2} />,
       },
     ];
 

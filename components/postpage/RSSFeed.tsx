@@ -5,7 +5,7 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSFeedClient } from "./RSSFeedClient";
 import { checkAndRefreshFeeds } from '@/lib/rss.server';
-import { db } from '@/lib/planetscale';
+import { executeRead } from '@/lib/database';
 import 'server-only';
 
 // Add caching configuration with 5-minute revalidation
@@ -40,7 +40,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     }
 
     // Get feed ID from PlanetScale with type safety
-    const feedResult = await db.execute(
+    const feedResult = await executeRead(
       'SELECT id FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
@@ -57,7 +57,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     }
 
     // Get entries from PlanetScale with proper typing
-    const entriesResult = await db.execute(
+    const entriesResult = await executeRead(
       'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT 30',
       [feedId]
     );
@@ -83,7 +83,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     }));
 
     // Get total count with error handling
-    const countResult = await db.execute(
+    const countResult = await executeRead(
       'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
       [feedId]
     );

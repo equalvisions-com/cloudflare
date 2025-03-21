@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
-import { db } from '@/lib/planetscale';
+import { executeRead } from '@/lib/database';
 import { refreshExistingFeeds } from '@/lib/rss.server';
 import type { RSSEntryRow } from '@/lib/types';
 
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     // Execute both queries in parallel for efficiency
     const [countResult, entriesResult] = await Promise.all([
-      db.execute(countQuery, [...postTitles]),
-      db.execute(entriesQuery, [...postTitles, pageSize, offset])
+      executeRead(countQuery, [...postTitles]),
+      executeRead(entriesQuery, [...postTitles, pageSize, offset])
     ]);
     
     const totalEntries = Number((countResult.rows[0] as { total: number }).total);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/planetscale";
+import { executeRead } from "@/lib/database";
 
 /**
  * API route to fetch entry details from PlanetScale by GUIDs
@@ -43,11 +43,22 @@ export async function POST(request: NextRequest) {
         e.guid IN (${limitedGuids.map(() => '?').join(',')})
     `;
     
-    const entries = await db.execute(query, limitedGuids);
+    const entries = await executeRead(query, limitedGuids);
     
     // Create a map of guid to entry for easy lookup
     const entryMap = new Map();
-    for (const entry of entries.rows) {
+    
+    // Add type assertion to fix TypeScript error
+    interface EntryRow {
+      guid: string;
+      title: string;
+      link: string;
+      description?: string;
+      pub_date: string;
+      [key: string]: any;
+    }
+    
+    for (const entry of entries.rows as EntryRow[]) {
       entryMap.set(entry.guid, entry);
     }
     

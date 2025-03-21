@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
-import { db } from "@/lib/planetscale";
+import { executeRead } from "@/lib/database";
 import { checkAndRefreshFeeds } from "@/lib/rss.server";
 
 // Add caching configuration with 5-minute revalidation
@@ -134,10 +134,10 @@ export const getInitialEntries = cache(async () => {
     devLog(`🔍 SERVER: Executing direct PlanetScale queries for page ${page}`);
     
     try {
-      // Execute both queries in parallel for efficiency
+      // Execute both queries in parallel for efficiency using read replicas
       const [countResult, entriesResult] = await Promise.all([
-        db.execute(countQuery, [...postTitles]),
-        db.execute(entriesQuery, [...postTitles, pageSize, offset])
+        executeRead(countQuery, [...postTitles]),
+        executeRead(entriesQuery, [...postTitles, pageSize, offset])
       ]);
       
       const totalEntries = Number((countResult.rows[0] as { total: number }).total);

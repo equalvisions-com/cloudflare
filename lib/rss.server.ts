@@ -1,8 +1,9 @@
-import { connect, ExecutedQuery } from '@planetscale/database';
+import { ExecutedQuery } from '@planetscale/database';
 import { XMLParser } from 'fast-xml-parser';
 import 'server-only';
 import type { RSSItem } from './rss';
 import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
+import { executeRead, executeWrite, getWriteConnection } from './database';
 
 /**
  * NOTE on TypeScript linter errors:
@@ -76,11 +77,7 @@ const parser = new XMLParser({
   htmlEntities: true
 });
 
-// Initialize PlanetScale connection
-const connection = connect({
-  url: process.env.DATABASE_URL,
-  // PlanetScale handles connection pooling automatically
-});
+// Removed direct PlanetScale connection since we now use the connection manager
 
 // Handle process termination
 process.on('exit', () => {
@@ -99,12 +96,21 @@ process.on('SIGTERM', () => {
 });
 
 // Add error handling for database operations
+// Use the new read/write functions based on the operation type
 const executeQuery = async <T = Record<string, unknown>>(
   query: string, 
-  params: unknown[] = []
+  params: unknown[] = [],
+  isWrite: boolean = false
 ): Promise<PlanetScaleQueryResult<T>> => {
   try {
-    const result = await connection.execute(query, params);
+    // Determine if this is a write operation based on the query type or explicit flag
+    const isWriteOperation = isWrite || 
+      /^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)/i.test(query.trim());
+    
+    const result = isWriteOperation 
+      ? await executeWrite(query, params)
+      : await executeRead(query, params);
+      
     return result as unknown as PlanetScaleQueryResult<T>;
   } catch (error) {
     logger.error(`Database query error: ${error}`);
@@ -1061,8 +1067,11 @@ async function executeBatchTransaction<T = ExecutedQuery>(
     // PlanetScale's transaction API is different from mysql2
     const results: T[] = [];
     
+    // Use the write connection for transactions
+    const conn = getWriteConnection();
+    
     // Use the transaction method provided by PlanetScale
-    await connection.transaction(async (tx) => {
+    await conn.transaction(async (tx: any) => {
       for (const op of operations) {
         const result = await tx.execute(op.query, op.params);
         results.push(result as unknown as T);

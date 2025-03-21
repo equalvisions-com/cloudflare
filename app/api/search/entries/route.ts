@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/planetscale';
+import { executeRead } from '@/lib/database';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 
 const ENTRIES_PER_PAGE = 10;
+
+// Define the type for RSS entry rows
+interface RSSEntryRow {
+  feed_title: string;
+  feed_url: string;
+  title: string;
+  description?: string;
+  link: string;
+  guid: string;
+  pub_date: string;
+  image?: string;
+  media_type?: string;
+  [key: string]: any;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,8 +37,8 @@ export async function GET(request: NextRequest) {
     // Calculate offset for pagination
     const offset = (page - 1) * ENTRIES_PER_PAGE;
 
-    // Get the entries with feed data from PlanetScale
-    const entries = await db.execute(
+    // Get the entries with feed data from PlanetScale using read replica
+    const entries = await executeRead(
       `SELECT e.*, f.title as feed_title, f.feed_url
        FROM rss_entries e
        JOIN rss_feeds f ON e.feed_id = f.id
@@ -41,8 +55,11 @@ export async function GET(request: NextRequest) {
       ]
     );
 
+    // Cast the rows to the proper type
+    const entryRows = entries.rows as RSSEntryRow[];
+
     // Get unique feed titles
-    const feedTitles = [...new Set(entries.rows.map(entry => entry.feed_title))];
+    const feedTitles = [...new Set(entryRows.map(entry => entry.feed_title))];
 
     // Get post metadata from Convex
     const posts = feedTitles.length > 0 ? await fetchQuery(api.posts.getByTitles, { titles: feedTitles }) : [];
@@ -53,10 +70,10 @@ export async function GET(request: NextRequest) {
     );
 
     // Check if there are more entries
-    const hasMore = entries.rows.length > ENTRIES_PER_PAGE;
+    const hasMore = entryRows.length > ENTRIES_PER_PAGE;
 
     // Map post metadata to entries
-    const entriesWithMetadata = entries.rows.slice(0, ENTRIES_PER_PAGE).map(entry => {
+    const entriesWithMetadata = entryRows.slice(0, ENTRIES_PER_PAGE).map(entry => {
       const postMetadata = postMetadataMap.get(entry.feed_title) || {
         title: entry.feed_title,
         featuredImg: undefined,

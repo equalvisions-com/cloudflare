@@ -6,7 +6,7 @@ import {
 import { NextResponse } from 'next/server';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
-const isProtectedRoute = createRouteMatcher(["/product(.*)"]);
+const isProtectedRoute = createRouteMatcher(["/notifications"]);
 const isProfileRoute = createRouteMatcher(["/@:username"]);
 const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
 

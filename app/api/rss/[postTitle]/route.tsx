@@ -4,7 +4,7 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { checkAndRefreshFeeds } from "@/lib/rss.server";
 import type { RSSItem } from "@/lib/rss";
-import { db } from '@/lib/planetscale';
+import { executeRead } from '@/lib/database';
 import type { RSSEntryRow } from '@/lib/types';
 
 // Define interface for the joined query result
@@ -75,8 +75,8 @@ export async function GET(
     
     // Execute both queries in parallel for efficiency
     const [countResult, entriesResult] = await Promise.all([
-      db.execute(countQuery, [decodedTitle]),
-      db.execute(entriesQuery, [decodedTitle, pageSize, offset])
+      executeRead(countQuery, [decodedTitle]),
+      executeRead(entriesQuery, [decodedTitle, pageSize, offset])
     ]);
     
     const totalEntries = Number((countResult.rows[0] as { total: number }).total);

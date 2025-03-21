@@ -1,11 +1,8 @@
-import { connect } from '@planetscale/database';
+import { getReadConnection, getWriteConnection, executeRead, executeWrite } from './database';
 
-// Create a connection to PlanetScale
-export const db = connect({
-  host: process.env.PLANETSCALE_HOST,
-  username: process.env.PLANETSCALE_USERNAME,
-  password: process.env.PLANETSCALE_PASSWORD,
-});
+// Create a connection to PlanetScale for backward compatibility
+// This will continue to work with existing code but defaults to the write connection
+export const db = getWriteConnection();
 
 // Function to fetch RSS entries from PlanetScale with date filtering
 export async function fetchRssEntriesFromPlanetScale(feedIds: number[], maxAgeHours: number = 48) {
@@ -38,7 +35,8 @@ export async function fetchRssEntriesFromPlanetScale(feedIds: number[], maxAgeHo
     // Pass the maxAgeHours directly to the query
     const params = [...feedIds, maxAgeHours];
     
-    const result = await db.execute(query, params);
+    // Use read replica for this query
+    const result = await executeRead(query, params);
     return result.rows;
   } catch (error) {
     console.error('Error fetching RSS entries from PlanetScale:', error);
@@ -58,7 +56,8 @@ export async function getFeedIdsByUrls(feedUrls: string[]) {
       WHERE feed_url IN (${placeholders})
     `;
 
-    const result = await db.execute(query, feedUrls);
+    // Use read replica for this query
+    const result = await executeRead(query, feedUrls);
     return result.rows;
   } catch (error) {
     console.error('Error fetching feed IDs from PlanetScale:', error);

@@ -2,19 +2,21 @@ import { Message } from 'ai';
 import { streamText, jsonSchema } from 'ai';
 import { openai as openaiClient } from '@ai-sdk/openai';
 import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
-import { connect } from '@planetscale/database';
+import { executeRead } from '@/lib/database';
 
-// Create a connection to PlanetScale
-const connection = connect({
-  url: process.env.DATABASE_URL,
-  // Add connection timeout settings
-  fetch: (url, init) => {
-    return fetch(url, {
-      ...init,
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-  }
-});
+// Define a type for the entry rows to fix type errors
+interface EntryRow {
+  id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description: string | null;
+  pub_date: string;
+  image: string | null;
+  media_type: string;
+  feed_title: string;
+  [key: string]: unknown;
+}
 
 // Function to fetch newsletter entries from PlanetScale
 async function fetchNewsletterEntries(query: string): Promise<Article[]> {
@@ -29,8 +31,8 @@ async function fetchNewsletterEntries(query: string): Promise<Article[]> {
     // Create a simple LIKE query since we don't know if full-text search is available
     const searchPattern = `%${searchTerms.join('%')}%`;
     
-    // Query the database for matching newsletter entries
-    const result = await connection.execute(
+    // Query the database for matching newsletter entries using read replica
+    const result = await executeRead(
       `SELECT 
         e.id, 
         e.guid, 
@@ -59,8 +61,8 @@ async function fetchNewsletterEntries(query: string): Promise<Article[]> {
     // Format the date for each entry
     const now = new Date();
     
-    // Map the database results to the Article format
-    return result.rows.map((entry: Record<string, unknown>) => {
+    // Map the database results to the Article format with type assertion
+    return (result.rows as EntryRow[]).map((entry) => {
       // Format the date
       let formattedDate = '';
       if (entry.pub_date) {
@@ -116,8 +118,8 @@ async function fetchPodcastEntries(query: string): Promise<Article[]> {
     // Create a simple LIKE query since we don't know if full-text search is available
     const searchPattern = `%${searchTerms.join('%')}%`;
     
-    // Query the database for matching podcast entries
-    const result = await connection.execute(
+    // Query the database for matching podcast entries using read replica
+    const result = await executeRead(
       `SELECT 
         e.id, 
         e.guid, 
@@ -146,8 +148,8 @@ async function fetchPodcastEntries(query: string): Promise<Article[]> {
     // Format the date for each entry
     const now = new Date();
     
-    // Map the database results to the Article format
-    return result.rows.map((entry: Record<string, unknown>) => {
+    // Map the database results to the Article format with type assertion
+    return (result.rows as EntryRow[]).map((entry) => {
       // Format the date
       let formattedDate = '';
       if (entry.pub_date) {
