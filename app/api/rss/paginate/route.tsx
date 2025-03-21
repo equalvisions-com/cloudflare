@@ -8,6 +8,7 @@ import type { RSSEntryRow } from '@/lib/types';
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;
   feed_url: string;
+  total_count: number;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -49,9 +50,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ entries: [], hasMore: false, totalEntries: 0, postTitles: [] });
     }
 
-    // Check if any feeds need refreshing (4-hour revalidation)
-    console.log(`🔄 API: Checking if any feeds need refreshing (4-hour revalidation)`);
-    await refreshExistingFeeds(postTitles);
+    // Only check if feeds need refreshing on the first page
+    // Skip refresh checks during pagination to improve performance
+    if (page === 1) {
+      console.log(`🔄 API: Checking if any feeds need refreshing (first page only)`);
+      await refreshExistingFeeds(postTitles);
+    } else {
+      console.log(`⏩ API: Skipping feed refresh check for page ${page}`);
+    }
 
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
@@ -59,9 +65,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build the SQL query to fetch entries from multiple feeds in one query
-    const entriesQuery = `
-      SELECT e.*, f.title as feed_title, f.feed_url
+    // Build a combined SQL query to fetch both entries and count in a single call
+    const combinedQuery = `
+      SELECT 
+        e.*, 
+        f.title as feed_title, 
+        f.feed_url,
+        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title IN (${placeholders})) as total_count
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title IN (${placeholders})
@@ -69,25 +79,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       LIMIT ? OFFSET ?
     `;
     
-    // Build the SQL query to count total entries
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title IN (${placeholders})
-    `;
+    // Measure query execution time
+    const queryStartTime = performance.now();
     
-    // Execute both queries in parallel for efficiency
-    const [countResult, entriesResult] = await Promise.all([
-      executeRead(countQuery, [...postTitles]),
-      executeRead(entriesQuery, [...postTitles, pageSize, offset])
-    ]);
+    // Execute the single optimized query
+    const result = await executeRead(
+      combinedQuery, 
+      [
+        ...postTitles,  // For the COUNT subquery
+        ...postTitles,  // For the main query
+        pageSize, 
+        offset
+      ]
+    );
     
-    const totalEntries = Number((countResult.rows[0] as { total: number }).total);
-    const entries = entriesResult.rows as JoinedRSSEntry[];
+    // Log query execution time
+    const queryEndTime = performance.now();
+    const queryDuration = queryEndTime - queryStartTime;
+    console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
+    
+    const entries = result.rows as JoinedRSSEntry[];
+    
+    // Get total count from the first row
+    const totalEntries = entries.length > 0 ? Number(entries[0].total_count) : 0;
     
     console.log(`🔢 API: Found ${totalEntries} total entries across all requested feeds`);
-    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page}`);
+    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
+    console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
     // Map the entries to the expected format
     const mappedEntries: RSSItem[] = entries.map(entry => ({

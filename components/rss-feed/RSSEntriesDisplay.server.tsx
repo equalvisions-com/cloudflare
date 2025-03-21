@@ -37,6 +37,7 @@ interface RSSEntryRow {
   media_type: string | null;
   feed_title: string;
   feed_url: string;
+  total_count?: number;
 }
 
 // Helper function to log only in development
@@ -85,7 +86,12 @@ export const getInitialEntries = cache(async () => {
     devLog(`🎯 SERVER: Associated media types:`, mediaTypes);
     
     // 3. Check if any feeds need refreshing (4-hour revalidation) and create new feeds if needed
-    devLog(`🔄 SERVER: Checking if feeds need refreshing for titles:`, postTitles);
+    // Only check feeds that would appear on the first page to avoid unnecessary refreshes
+    devLog(`🔄 SERVER: Checking if feeds need refreshing only for first page titles`);
+    
+    const pageSize = 30; // Match the default pageSize in client
+    const page = 1; // First page only
+    
     try {
       await checkAndRefreshFeeds(postTitles, feedUrls, mediaTypes);
       devLog('✅ SERVER: Feed refresh check completed');
@@ -105,17 +111,19 @@ export const getInitialEntries = cache(async () => {
       }])
     );
     
-    // 5. Directly query PlanetScale for the first page of entries
-    const pageSize = 30; // Match the default pageSize in client
-    const page = 1; // First page only
+    // 5. Directly query PlanetScale for the first page of entries with combined count query
     const offset = (page - 1) * pageSize;
     
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build the SQL query to fetch entries from multiple feeds in one query
-    const entriesQuery = `
-      SELECT e.*, f.title as feed_title, f.feed_url
+    // Build the combined SQL query to fetch entries and count in a single query
+    const combinedQuery = `
+      SELECT 
+        e.*, 
+        f.title as feed_title, 
+        f.feed_url,
+        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title IN (${placeholders})) as total_count
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title IN (${placeholders})
@@ -123,25 +131,24 @@ export const getInitialEntries = cache(async () => {
       LIMIT ? OFFSET ?
     `;
     
-    // Build the SQL query to count total entries
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title IN (${placeholders})
-    `;
-    
-    devLog(`🔍 SERVER: Executing direct PlanetScale queries for page ${page}`);
+    devLog(`🔍 SERVER: Executing optimized PlanetScale query with combined count for page ${page}`);
     
     try {
-      // Execute both queries in parallel for efficiency using read replicas
-      const [countResult, entriesResult] = await Promise.all([
-        executeRead(countQuery, [...postTitles]),
-        executeRead(entriesQuery, [...postTitles, pageSize, offset])
-      ]);
+      // Execute single query with combined count using read replicas
+      const entriesResult = await executeRead(
+        combinedQuery, 
+        [
+          ...postTitles,  // For the COUNT subquery
+          ...postTitles,  // For the main query
+          pageSize, 
+          offset
+        ]
+      );
       
-      const totalEntries = Number((countResult.rows[0] as { total: number }).total);
       const entries = entriesResult.rows as RSSEntryRow[];
+      
+      // Get total count from the first row
+      const totalEntries = entries.length > 0 ? Number(entries[0].total_count) : 0;
       
       devLog(`🔢 SERVER: Found ${totalEntries} total entries across all requested feeds`);
       devLog(`✅ SERVER: Retrieved ${entries.length} entries for page ${page}`);
