@@ -11,6 +11,7 @@ import type { RSSEntryRow } from '@/lib/types';
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;
   feed_url: string;
+  total_count: number;
 }
 
 // Define the route context type with async params
@@ -46,16 +47,25 @@ export async function GET(
       );
     }
 
-    // Check if the feed needs refreshing (4-hour revalidation)
-    console.log(`🔄 API: Checking if feed needs refreshing (4-hour revalidation): ${decodedTitle}`);
-    await checkAndRefreshFeeds([decodedTitle], [feedUrl]);
+    // Only check if the feed needs refreshing on the first page
+    // This prevents unnecessary refresh checks during pagination
+    if (page === 1) {
+      console.log(`🔄 API: Checking if feed needs refreshing (first page only): ${decodedTitle}`);
+      await checkAndRefreshFeeds([decodedTitle], [feedUrl]);
+    } else {
+      console.log(`⏩ API: Skipping refresh check for page ${page} of ${decodedTitle}`);
+    }
     
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
     
-    // Build the SQL query to fetch entries for this specific feed
-    const entriesQuery = `
-      SELECT e.*, f.title as feed_title, f.feed_url
+    // Build a combined SQL query to fetch both entries and total count in a single call
+    const combinedQuery = `
+      SELECT 
+        e.*, 
+        f.title as feed_title, 
+        f.feed_url,
+        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title = ?) as total_count
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title = ?
@@ -63,27 +73,35 @@ export async function GET(
       LIMIT ? OFFSET ?
     `;
     
-    // Build the SQL query to count total entries
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title = ?
-    `;
+    console.log(`🔍 API: Executing optimized single query for ${decodedTitle}, page ${page} (combined entries + count)`);
     
-    console.log(`🔍 API: Executing direct PlanetScale queries for ${decodedTitle}, page ${page}`);
+    // Measure query execution time
+    const queryStartTime = performance.now();
     
-    // Execute both queries in parallel for efficiency
-    const [countResult, entriesResult] = await Promise.all([
-      executeRead(countQuery, [decodedTitle]),
-      executeRead(entriesQuery, [decodedTitle, pageSize, offset])
-    ]);
+    // Execute the single optimized query instead of two separate queries
+    const result = await executeRead(
+      combinedQuery, 
+      [
+        decodedTitle, // For the COUNT subquery
+        decodedTitle, // For the main query
+        pageSize,
+        offset
+      ]
+    );
     
-    const totalEntries = Number((countResult.rows[0] as { total: number }).total);
-    const entries = entriesResult.rows as JoinedRSSEntry[];
+    // Log query execution time
+    const queryEndTime = performance.now();
+    const queryDuration = queryEndTime - queryStartTime;
+    console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
+    
+    const entries = result.rows as JoinedRSSEntry[];
+    
+    // Get total count from the first row (if available)
+    const totalEntries = entries.length > 0 ? Number(entries[0].total_count) : 0;
     
     console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle}`);
-    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page}`);
+    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
+    console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
     if (!entries || entries.length === 0) {
       console.log(`⚠️ API: No entries found for ${decodedTitle}`);
