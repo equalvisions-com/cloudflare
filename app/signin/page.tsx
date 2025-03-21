@@ -55,6 +55,17 @@ export default function SignInPage() {
               <h2 className="font-semibold text-2xl tracking-tight">
                 Create an account
               </h2>
+              <div className="text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Button 
+                  variant="link" 
+                  type="button" 
+                  className="p-0 h-auto" 
+                  onClick={() => setStep("signIn")}
+                >
+                  Sign in
+                </Button>
+              </div>
             </div>
             <SignUpWithPassword onSignIn={() => setStep("signIn")} />
           </>
@@ -243,6 +254,8 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
 
   const validatePassword = (password: string) => {
     const hasMinLength = password.length >= 8;
@@ -252,6 +265,8 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
     
     return hasMinLength && hasUppercase && hasLowercase && hasNumber;
   };
+
+  const showPasswordRequirements = passwordFocused || passwordValue.length > 0;
 
   return (
     <form
@@ -307,10 +322,16 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
           type="password" 
           autoComplete="new-password" 
           required 
+          onFocus={() => setPasswordFocused(true)}
+          onBlur={() => setPasswordFocused(false)}
+          onChange={(e) => setPasswordValue(e.target.value)}
+          value={passwordValue}
         />
-        <p className="text-xs text-muted-foreground">
-          Password must be at least 8 characters with uppercase, lowercase, and numbers
-        </p>
+        {showPasswordRequirements && (
+          <p className="text-xs text-muted-foreground">
+            Password must be at least 8 characters with uppercase, lowercase, and numbers
+          </p>
+        )}
       </div>
       
       <Button type="submit" className="w-full" disabled={submitting}>
@@ -318,15 +339,6 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
       </Button>
       
       <OAuthOption />
-      
-      <Button 
-        variant="outline" 
-        type="button" 
-        className="w-full"
-        onClick={onSignIn}
-      >
-        Sign in with existing account
-      </Button>
     </form>
   );
 }
@@ -411,6 +423,8 @@ function ResetPasswordVerification({
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [code, setCode] = useState("");
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
 
   const validatePassword = (password: string) => {
     const hasMinLength = password.length >= 8;
@@ -420,6 +434,8 @@ function ResetPasswordVerification({
     
     return hasMinLength && hasUppercase && hasLowercase && hasNumber;
   };
+
+  const showPasswordRequirements = passwordFocused || passwordValue.length > 0;
 
   return (
     <form
@@ -490,11 +506,17 @@ function ResetPasswordVerification({
           name="newPassword" 
           type="password" 
           autoComplete="new-password" 
-          required 
+          required
+          onFocus={() => setPasswordFocused(true)}
+          onBlur={() => setPasswordFocused(false)}
+          onChange={(e) => setPasswordValue(e.target.value)}
+          value={passwordValue}
         />
-        <p className="text-xs text-muted-foreground">
-          Password must be at least 8 characters with uppercase, lowercase, and numbers
-        </p>
+        {showPasswordRequirements && (
+          <p className="text-xs text-muted-foreground">
+            Password must be at least 8 characters with uppercase, lowercase, and numbers
+          </p>
+        )}
       </div>
       
       <Button type="submit" className="w-full" disabled={submitting || code.length < 8}>
