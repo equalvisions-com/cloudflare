@@ -60,6 +60,57 @@ const errorLog = (message: string, error?: unknown) => {
   }
 };
 
+// Server-side in-memory cache for COUNT queries
+// This is a module-level variable that persists between requests
+// but is isolated to each server instance
+interface CountCacheEntry {
+  count: number;
+  timestamp: number;
+}
+
+const COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const countCache = new Map<string, CountCacheEntry>();
+
+// Function to get cached count
+function getCachedCount(postTitles: string[]): number | null {
+  // Sort the titles to ensure consistent cache keys regardless of order
+  const cacheKey = [...postTitles].sort().join(',');
+  const cached = countCache.get(cacheKey);
+  
+  if (!cached) {
+    devLog(`🔍 Count cache MISS for key: ${cacheKey}`);
+    return null;
+  }
+  
+  const now = Date.now();
+  if (now - cached.timestamp > COUNT_CACHE_TTL) {
+    // Cache expired
+    devLog(`⏰ Count cache EXPIRED for key: ${cacheKey}`);
+    countCache.delete(cacheKey);
+    return null;
+  }
+  
+  devLog(`✅ Count cache HIT for key: ${cacheKey}, count: ${cached.count}`);
+  return cached.count;
+}
+
+// Function to set cached count
+function setCachedCount(postTitles: string[], count: number): void {
+  const cacheKey = [...postTitles].sort().join(',');
+  countCache.set(cacheKey, {
+    count,
+    timestamp: Date.now()
+  });
+  devLog(`💾 Set count cache for key: ${cacheKey}, count: ${count}`);
+}
+
+// Function to invalidate cached count (useful after feed refresh)
+function invalidateCountCache(postTitles: string[]): void {
+  const cacheKey = [...postTitles].sort().join(',');
+  countCache.delete(cacheKey);
+  devLog(`🗑️ Invalidated count cache for key: ${cacheKey}`);
+}
+
 export const getInitialEntries = cache(async () => {
   try {
     const token = await convexAuthNextjsToken();
@@ -94,7 +145,10 @@ export const getInitialEntries = cache(async () => {
     
     try {
       await checkAndRefreshFeeds(postTitles, feedUrls, mediaTypes);
-      devLog('✅ SERVER: Feed refresh check completed');
+      devLog(`✅ SERVER: Feed refresh check completed`);
+      
+      // Invalidate count cache after feed refresh to ensure fresh data
+      invalidateCountCache(postTitles);
     } catch (refreshError) {
       errorLog('⚠️ SERVER: Feed refresh check failed:', refreshError);
       // Continue execution even if refresh fails
@@ -111,19 +165,15 @@ export const getInitialEntries = cache(async () => {
       }])
     );
     
-    // 5. Directly query PlanetScale for the first page of entries with combined count query
+    // 5. Directly query PlanetScale for the first page of entries
     const offset = (page - 1) * pageSize;
     
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build the combined SQL query to fetch entries and count in a single query
-    const combinedQuery = `
-      SELECT 
-        e.*, 
-        f.title as feed_title, 
-        f.feed_url,
-        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title IN (${placeholders})) as total_count
+    // Build the SQL query to fetch entries from multiple feeds in one query
+    const entriesQuery = `
+      SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title IN (${placeholders})
@@ -131,26 +181,42 @@ export const getInitialEntries = cache(async () => {
       LIMIT ? OFFSET ?
     `;
     
-    devLog(`🔍 SERVER: Executing optimized PlanetScale query with combined count for page ${page}`);
+    // Use cached count if available
+    let totalEntries = getCachedCount(postTitles);
+    let countResult;
+    let entriesResult;
+    
+    devLog(`🔍 SERVER: Executing PlanetScale queries for page ${page}`);
     
     try {
-      // Execute single query with combined count using read replicas
-      const entriesResult = await executeRead(
-        combinedQuery, 
-        [
-          ...postTitles,  // For the COUNT subquery
-          ...postTitles,  // For the main query
-          pageSize, 
-          offset
-        ]
-      );
-      
+      // If we don't have a cached count, execute the count query
+      if (totalEntries === null) {
+        // Optimized COUNT query using COUNT(e.id) instead of COUNT(*)
+        const countQuery = `
+          SELECT COUNT(e.id) as total
+          FROM rss_entries e
+          JOIN rss_feeds f ON e.feed_id = f.id
+          WHERE f.title IN (${placeholders})
+        `;
+        
+        // Execute both queries in parallel for efficiency using read replicas
+        [countResult, entriesResult] = await Promise.all([
+          executeRead(countQuery, [...postTitles]),
+          executeRead(entriesQuery, [...postTitles, pageSize, offset])
+        ]);
+        
+        totalEntries = Number((countResult.rows[0] as { total: number }).total);
+        
+        // Cache the count result
+        setCachedCount(postTitles, totalEntries);
+      } else {
+        // Just execute the entries query if we have a cached count
+        devLog(`📊 SERVER: Using cached count: ${totalEntries}`);
+        entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize, offset]);
+      }
+
       const entries = entriesResult.rows as RSSEntryRow[];
       
-      // Get total count from the first row
-      const totalEntries = entries.length > 0 ? Number(entries[0].total_count) : 0;
-      
-      devLog(`🔢 SERVER: Found ${totalEntries} total entries across all requested feeds`);
       devLog(`✅ SERVER: Retrieved ${entries.length} entries for page ${page}`);
       
       // Map the entries to the expected format

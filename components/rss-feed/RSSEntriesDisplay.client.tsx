@@ -590,6 +590,12 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
       baseUrl.searchParams.set('postTitles', postTitlesParam);
       
+      // Pass the total entries to avoid unnecessary COUNT queries on the server
+      if (initialData.totalEntries) {
+        baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
+        logger.debug(`📊 Passing cached totalEntries: ${initialData.totalEntries}`);
+      }
+      
       logger.debug(`📡 Fetching page ${nextPage} from API: ${baseUrl.toString()}`);
       
       const response = await fetch(baseUrl.toString());

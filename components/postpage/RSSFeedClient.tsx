@@ -477,6 +477,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       baseUrl.searchParams.set('page', nextPage.toString());
       baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
       
+      // Pass the cached total entries to avoid unnecessary COUNT queries
+      if (initialData.totalEntries) {
+        baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
+        console.log(`📊 Passing cached totalEntries: ${initialData.totalEntries}`);
+      }
+      
       if (mediaType) {
         baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
       }
@@ -525,7 +531,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length]);
+  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length, initialData]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 

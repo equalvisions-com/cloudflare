@@ -11,7 +11,6 @@ import type { RSSEntryRow } from '@/lib/types';
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;
   feed_url: string;
-  total_count: number;
 }
 
 // Define the route context type with async params
@@ -36,6 +35,10 @@ export async function GET(
     const mediaType = searchParams.get('mediaType');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
+    // Get cached total entries from query params if available
+    const cachedTotalEntries = searchParams.get('totalEntries')
+      ? parseInt(searchParams.get('totalEntries') || '0', 10)
+      : null;
 
     console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}`);
 
@@ -59,13 +62,9 @@ export async function GET(
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
     
-    // Build a combined SQL query to fetch both entries and total count in a single call
-    const combinedQuery = `
-      SELECT 
-        e.*, 
-        f.title as feed_title, 
-        f.feed_url,
-        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title = ?) as total_count
+    // Build the SQL query to fetch entries for this specific feed
+    const entriesQuery = `
+      SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title = ?
@@ -73,20 +72,35 @@ export async function GET(
       LIMIT ? OFFSET ?
     `;
     
-    console.log(`🔍 API: Executing optimized single query for ${decodedTitle}, page ${page} (combined entries + count)`);
-    
     // Measure query execution time
     const queryStartTime = performance.now();
     
-    // Execute the single optimized query instead of two separate queries
-    const result = await executeRead(
-      combinedQuery, 
-      [
-        decodedTitle, // For the COUNT subquery
-        decodedTitle, // For the main query
-        pageSize,
-        offset
-      ]
+    // Get total entries count if needed
+    let totalEntries: number;
+    
+    if (cachedTotalEntries === null) {
+      // Only perform the count query if we don't have a cached value
+      console.log(`🔢 API: Fetching total entries count for ${decodedTitle}`);
+      const countQuery = `
+        SELECT COUNT(e.id) as total
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title = ?
+      `;
+      
+      const countResult = await executeRead(countQuery, [decodedTitle]);
+      totalEntries = Number((countResult.rows[0] as { total: number }).total);
+      console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle} (from database)`);
+    } else {
+      // Use the cached value
+      totalEntries = cachedTotalEntries;
+      console.log(`🔢 API: Using cached total count: ${totalEntries} entries for ${decodedTitle}`);
+    }
+    
+    // Execute entries query
+    const entriesResult = await executeRead(
+      entriesQuery, 
+      [decodedTitle, pageSize, offset]
     );
     
     // Log query execution time
@@ -94,12 +108,8 @@ export async function GET(
     const queryDuration = queryEndTime - queryStartTime;
     console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
     
-    const entries = result.rows as JoinedRSSEntry[];
+    const entries = entriesResult.rows as JoinedRSSEntry[];
     
-    // Get total count from the first row (if available)
-    const totalEntries = entries.length > 0 ? Number(entries[0].total_count) : 0;
-    
-    console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle}`);
     console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
     console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
@@ -126,7 +136,10 @@ export async function GET(
     }));
     
     // Determine if there are more entries
-    const hasMore = totalEntries > offset + entries.length;
+    // Add a small buffer (2) to account for potential inconsistencies in cached counts
+    const hasMore = cachedTotalEntries !== null 
+      ? totalEntries > (offset + entries.length + 2) 
+      : totalEntries > (offset + entries.length);
     
     console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle} (total: ${totalEntries}, hasMore: ${hasMore})`);
 

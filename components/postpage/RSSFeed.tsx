@@ -22,11 +22,58 @@ interface RSSEntryRow {
   feed_id: number;
 }
 
+// Server-side in-memory cache for COUNT queries
+// This is a module-level variable that persists between requests
+interface CountCacheEntry {
+  count: number;
+  timestamp: number;
+}
+
+const COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const countCache = new Map<string, CountCacheEntry>();
+
+// Function to get cached count
+function getCachedCount(feedUrl: string): number | null {
+  const cached = countCache.get(feedUrl);
+  
+  if (!cached) {
+    console.log(`🔍 Count cache MISS for feed: ${feedUrl}`);
+    return null;
+  }
+  
+  const now = Date.now();
+  if (now - cached.timestamp > COUNT_CACHE_TTL) {
+    // Cache expired
+    console.log(`⏰ Count cache EXPIRED for feed: ${feedUrl}`);
+    countCache.delete(feedUrl);
+    return null;
+  }
+  
+  console.log(`✅ Count cache HIT for feed: ${feedUrl}, count: ${cached.count}`);
+  return cached.count;
+}
+
+// Function to set cached count
+function setCachedCount(feedUrl: string, count: number): void {
+  countCache.set(feedUrl, {
+    count,
+    timestamp: Date.now()
+  });
+  console.log(`💾 Set count cache for feed: ${feedUrl}, count: ${count}`);
+}
+
+// Function to invalidate cached count (useful after feed refresh)
+function invalidateCountCache(feedUrl: string): void {
+  countCache.delete(feedUrl);
+  console.log(`🗑️ Invalidated count cache for feed: ${feedUrl}`);
+}
+
 export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
   try {
     console.log(`🔍 SERVER: Fetching entries for feed: ${feedUrl}`);
     
     // First, check if feeds need refreshing and create if doesn't exist
+    let feedRefreshed = false;
     try {
       await checkAndRefreshFeeds(
         [postTitle], 
@@ -34,6 +81,9 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
         mediaType ? [mediaType] : undefined
       );
       console.log('✅ Feed refresh/creation check completed');
+      
+      // Invalidate cache after refresh
+      invalidateCountCache(feedUrl);
     } catch (refreshError) {
       // Log but don't fail if refresh check fails
       console.error('Warning: Feed refresh check failed:', refreshError);
@@ -82,21 +132,33 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       feedUrl
     }));
 
-    // Get total count with error handling
-    const countResult = await executeRead(
-      'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
-      [feedId]
-    );
-
-    const countRows = countResult.rows as Array<{ total: string | number }>;
-    // Convert string to number if needed and provide fallback
-    const rawTotal = countRows[0]?.total;
-    let totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
-
-    // Only check if it's NaN, since we've already handled the conversion
-    if (isNaN(totalCount)) {
-      console.error('Invalid count value:', rawTotal);
-      totalCount = 0;
+    // Check for cached count first
+    let totalCount: number;
+    const cachedCount = getCachedCount(feedUrl);
+    
+    if (cachedCount === null) {
+      // Get total count with error handling - use optimized COUNT(e.id) query
+      const countResult = await executeRead(
+        'SELECT COUNT(e.id) as total FROM rss_entries e WHERE e.feed_id = ?',
+        [feedId]
+      );
+  
+      const countRows = countResult.rows as Array<{ total: string | number }>;
+      // Convert string to number if needed and provide fallback
+      const rawTotal = countRows[0]?.total;
+      totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
+  
+      // Only check if it's NaN, since we've already handled the conversion
+      if (isNaN(totalCount)) {
+        console.error('Invalid count value:', rawTotal);
+        totalCount = 0;
+      }
+      
+      // Cache the count
+      setCachedCount(feedUrl, totalCount);
+    } else {
+      totalCount = cachedCount;
+      console.log(`📊 Using cached count: ${totalCount} for feed: ${feedUrl}`);
     }
 
     // Get metrics data with proper error handling
