@@ -20,6 +20,7 @@ interface RSSEntryRow {
   image: string | null;
   media_type: string | null;
   feed_id: number;
+  total_count?: number;
 }
 
 export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
@@ -39,39 +40,65 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       console.error('Warning: Feed refresh check failed:', refreshError);
     }
 
-    // Get feed ID from PlanetScale with type safety
-    const feedResult = await executeRead(
-      'SELECT id FROM rss_feeds WHERE feed_url = ?',
-      [feedUrl]
-    );
-
-    const feedRows = feedResult.rows as Array<{ id: number }>;
-    if (!feedRows.length) {
-      console.log('⚠️ Feed not found after refresh attempt, something went wrong');
+    // Query feed ID and entries in an optimized way with CTE and window function
+    console.log(`📊 SERVER: Executing optimized query for ${postTitle} with CTE and window function`);
+    
+    // Measure query execution time
+    const queryStartTime = performance.now();
+    
+    // Build the optimized query using CTE and window function
+    const combinedQuery = `
+      WITH feed_cte AS (
+        SELECT id FROM rss_feeds WHERE feed_url = ?
+      ),
+      filtered_entries AS (
+        SELECT 
+          e.guid,
+          e.title,
+          e.link,
+          e.description,
+          e.pub_date,
+          e.image,
+          e.media_type,
+          e.feed_id
+        FROM rss_entries e
+        JOIN feed_cte f ON e.feed_id = f.id
+      )
+      SELECT 
+        fe.*,
+        COUNT(*) OVER () AS total_count
+      FROM filtered_entries fe
+      ORDER BY fe.pub_date DESC
+      LIMIT 30
+    `;
+    
+    // Execute the optimized query
+    const result = await executeRead(combinedQuery, [feedUrl]);
+    
+    // Log query execution time
+    const queryEndTime = performance.now();
+    const queryDuration = queryEndTime - queryStartTime;
+    console.log(`⏱️ SERVER: Query execution completed in ${queryDuration.toFixed(2)}ms`);
+    
+    // Process the query results
+    const entries = result.rows as RSSEntryRow[];
+    
+    if (!entries.length) {
+      console.log('⚠️ Feed not found or no entries after refresh attempt');
       return null;
     }
-
-    const feedId = feedRows[0].id;
-    if (typeof feedId !== 'number' || isNaN(feedId)) {
-      throw new Error('Invalid feed ID returned from database');
-    }
-
-    // Get entries from PlanetScale with proper typing
-    const entriesResult = await executeRead(
-      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT 30',
-      [feedId]
-    );
-
-    const entryRows = entriesResult.rows as RSSEntryRow[];
+    
+    // Get total count from the first row
+    const totalCount = entries.length > 0 ? Number(entries[0].total_count) : 0;
     
     // If no entries found after refresh, something is wrong with the feed
-    if (!entryRows.length) {
+    if (!entries.length) {
       console.log('⚠️ No entries found for feed after refresh attempt');
       return null;
     }
 
     // Type assertion for database rows
-    const entries = entryRows.map(row => ({
+    const mappedEntries = entries.map(row => ({
       guid: row.guid,
       title: row.title,
       link: row.link,
@@ -82,23 +109,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       feedUrl
     }));
 
-    // Get total count with error handling
-    const countResult = await executeRead(
-      'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
-      [feedId]
-    );
-
-    const countRows = countResult.rows as Array<{ total: string | number }>;
-    // Convert string to number if needed and provide fallback
-    const rawTotal = countRows[0]?.total;
-    let totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
-
-    // Only check if it's NaN, since we've already handled the conversion
-    if (isNaN(totalCount)) {
-      console.error('Invalid count value:', rawTotal);
-      totalCount = 0;
-    }
-
     // Get metrics data with proper error handling
     const token = await convexAuthNextjsToken().catch((error) => {
       console.error('Failed to get auth token:', error);
@@ -107,11 +117,11 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
     const entryData = await fetchQuery(
       api.entries.batchGetEntryData,
-      { entryGuids: entries.map(e => e.guid) },
+      { entryGuids: mappedEntries.map(e => e.guid) },
       token ? { token } : undefined
     ).catch(error => {
       console.error('⚠️ Failed to fetch metrics, using default values:', error);
-      return entries.map(() => ({
+      return mappedEntries.map(() => ({
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
         retweets: { isRetweeted: false, count: 0 }
@@ -119,7 +129,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     });
 
     // Combine entries with metrics and metadata
-    const entriesWithPublicData = entries.map((entry, index) => ({
+    const entriesWithPublicData = mappedEntries.map((entry, index) => ({
       entry,
       initialData: entryData[index] || {
         likes: { isLiked: false, count: 0 },
@@ -133,7 +143,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       }
     }));
 
-    console.log(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries`);
+    console.log(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries (total: ${totalCount})`);
 
     return {
       entries: entriesWithPublicData,

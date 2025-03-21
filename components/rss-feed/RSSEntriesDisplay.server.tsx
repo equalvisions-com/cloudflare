@@ -117,29 +117,40 @@ export const getInitialEntries = cache(async () => {
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build the combined SQL query to fetch entries and count in a single query
+    // Build the combined SQL query using CTE and window functions for better performance
     const combinedQuery = `
+      WITH filtered_entries AS (
+        SELECT 
+          e.guid,
+          e.title,
+          e.link,
+          e.pub_date,
+          e.description,
+          e.content,
+          e.image,
+          e.media_type,
+          f.title AS feed_title,
+          f.feed_url
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title IN (${placeholders})
+      )
       SELECT 
-        e.*, 
-        f.title as feed_title, 
-        f.feed_url,
-        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title IN (${placeholders})) as total_count
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title IN (${placeholders})
-      ORDER BY e.pub_date DESC
+        fe.*,
+        COUNT(*) OVER () AS total_count
+      FROM filtered_entries fe
+      ORDER BY fe.pub_date DESC
       LIMIT ? OFFSET ?
     `;
     
-    devLog(`🔍 SERVER: Executing optimized PlanetScale query with combined count for page ${page}`);
+    devLog(`🔍 SERVER: Executing optimized PlanetScale query with CTE and window function for page ${page}`);
     
     try {
-      // Execute single query with combined count using read replicas
+      // Execute single query with improved performance
       const entriesResult = await executeRead(
         combinedQuery, 
         [
-          ...postTitles,  // For the COUNT subquery
-          ...postTitles,  // For the main query
+          ...postTitles,  // For the filtered_entries CTE
           pageSize, 
           offset
         ]

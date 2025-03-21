@@ -59,21 +59,32 @@ export async function GET(
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
     
-    // Build a combined SQL query to fetch both entries and total count in a single call
+    // Build a combined SQL query using CTE and window functions for better performance
     const combinedQuery = `
+      WITH filtered_entries AS (
+        SELECT 
+          e.guid,
+          e.title,
+          e.link,
+          e.pub_date,
+          e.description,
+          e.image,
+          e.media_type,
+          f.title AS feed_title,
+          f.feed_url
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title = ?
+      )
       SELECT 
-        e.*, 
-        f.title as feed_title, 
-        f.feed_url,
-        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title = ?) as total_count
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title = ?
-      ORDER BY e.pub_date DESC
+        fe.*,
+        COUNT(*) OVER () AS total_count
+      FROM filtered_entries fe
+      ORDER BY fe.pub_date DESC
       LIMIT ? OFFSET ?
     `;
     
-    console.log(`🔍 API: Executing optimized single query for ${decodedTitle}, page ${page} (combined entries + count)`);
+    console.log(`🔍 API: Executing optimized single query for ${decodedTitle}, page ${page} (CTE with window function)`);
     
     // Measure query execution time
     const queryStartTime = performance.now();
@@ -82,8 +93,7 @@ export async function GET(
     const result = await executeRead(
       combinedQuery, 
       [
-        decodedTitle, // For the COUNT subquery
-        decodedTitle, // For the main query
+        decodedTitle, // For the filtered_entries CTE
         pageSize,
         offset
       ]
