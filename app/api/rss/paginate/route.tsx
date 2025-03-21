@@ -65,29 +65,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build a combined SQL query using CTE and window functions for better performance
+    // Build a combined SQL query to fetch both entries and count in a single call
     const combinedQuery = `
-      WITH filtered_entries AS (
-        SELECT 
-          e.guid,
-          e.title,
-          e.link,
-          e.pub_date,
-          e.description,
-          e.content,
-          e.image,
-          e.media_type,
-          f.title AS feed_title,
-          f.feed_url
-        FROM rss_entries e
-        JOIN rss_feeds f ON e.feed_id = f.id
-        WHERE f.title IN (${placeholders})
-      )
       SELECT 
-        fe.*,
-        COUNT(*) OVER () AS total_count
-      FROM filtered_entries fe
-      ORDER BY fe.pub_date DESC
+        e.*, 
+        f.title as feed_title, 
+        f.feed_url,
+        (SELECT COUNT(*) FROM rss_entries e2 JOIN rss_feeds f2 ON e2.feed_id = f2.id WHERE f2.title IN (${placeholders})) as total_count
+      FROM rss_entries e
+      JOIN rss_feeds f ON e.feed_id = f.id
+      WHERE f.title IN (${placeholders})
+      ORDER BY e.pub_date DESC
       LIMIT ? OFFSET ?
     `;
     
