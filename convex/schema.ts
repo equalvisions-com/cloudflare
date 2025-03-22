@@ -31,8 +31,14 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     name: v.optional(v.string()),
     username: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    profileImage: v.optional(v.string()),
+    profileImageKey: v.optional(v.string()),
+    rssKeys: v.optional(v.array(v.string())),
+    isBoarded: v.optional(v.boolean()),
   })
-    .index("email", ["email"]),
+    .index("email", ["email"])
+    .index("by_username", ["username"]),
 
   friends: defineTable({
     requesterId: v.id("users"),    // User who sent the friend request
@@ -57,18 +63,6 @@ export default defineSchema({
   .index("by_post", ["postId"])
   .index("by_feedUrl", ["feedUrl"]),
   
-  profiles: defineTable({
-    userId: v.id("users"),
-    username: v.string(),
-    rssKeys: v.optional(v.array(v.string())),
-    name: v.optional(v.string()),
-    profileImage: v.optional(v.string()),
-    bio: v.optional(v.string()),
-    profileImageKey: v.optional(v.string()),  // Store the R2 object key
-  })
-  .index("by_userId", ["userId"])
-  .index("by_username", ["username"]),  // Dedicated index for username lookups
-
   likes: defineTable({
     userId: v.id("users"),
     entryGuid: v.string(),

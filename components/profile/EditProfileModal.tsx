@@ -50,10 +50,10 @@ export function EditProfileModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get the update profile mutation
-  const updateProfile = useMutation(api.profiles.updateProfile);
+  const updateProfile = useMutation(api.users.updateProfile);
   
   // Get R2 upload action
-  const getProfileImageUploadUrl = useAction(api.profiles.getProfileImageUploadUrl);
+  const getProfileImageUploadUrl = useAction(api.users.getProfileImageUploadUrl);
   
   // Reset preview image when initialData changes
   useEffect(() => {

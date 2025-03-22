@@ -14,13 +14,12 @@ export const addComment = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the user's profile to get their username
-    const profile = await ctx.db
-      .query("profiles")
-      .filter(q => q.eq(q.field("userId"), userId))
-      .first();
-    
-    if (!profile) throw new Error("User profile not found");
+    // Get the user to get their username
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+
+    // Use username or name or default to "Guest"
+    const username = user.username || user.name || "Guest";
 
     // Validate content - updated to match client-side limits
     const content = args.content.trim();
@@ -51,15 +50,18 @@ export const addComment = mutation({
       }
     }
 
-    return await ctx.db.insert("comments", {
+    // Create the comment
+    const commentId = await ctx.db.insert("comments", {
       userId,
-      username: profile.username,
+      username, // Use the username from the user table
       entryGuid: args.entryGuid,
       feedUrl: args.feedUrl,
       content: sanitizedContent,
       createdAt: Date.now(),
       parentId: args.parentId,
     });
+
+    return commentId;
   },
 });
 
@@ -70,26 +72,37 @@ export const deleteComment = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
-
+    
     const comment = await ctx.db.get(args.commentId);
     if (!comment) throw new Error("Comment not found");
-    if (comment.userId !== userId) throw new Error("Not authorized");
-
-    // Delete the comment and all its replies
+    
+    // Only the comment author can delete it
+    if (comment.userId.toString() !== userId.toString()) {
+      throw new Error("Unauthorized: You can only delete your own comments");
+    }
+    
+    // Define a recursive function to delete all replies
     const deleteReplies = async (commentId: Id<"comments">) => {
       const replies = await ctx.db
         .query("comments")
-        .withIndex("by_parent", (q) => q.eq("parentId", commentId))
+        .withIndex("by_parent")
+        .filter(q => q.eq(q.field("parentId"), commentId))
         .collect();
-
+      
+      // Recursively delete all replies
       for (const reply of replies) {
         await deleteReplies(reply._id);
         await ctx.db.delete(reply._id);
       }
     };
-
+    
+    // Delete all replies first
     await deleteReplies(args.commentId);
+    
+    // Finally delete the comment itself
     await ctx.db.delete(args.commentId);
+    
+    return { success: true };
   },
 });
 
@@ -100,22 +113,36 @@ export const getComments = query({
   handler: async (ctx, args) => {
     const comments = await ctx.db
       .query("comments")
-      .withIndex("by_entry_time", (q) => 
-        q.eq("entryGuid", args.entryGuid)
-      )
+      .withIndex("by_entry_time")
+      .filter(q => q.eq(q.field("entryGuid"), args.entryGuid))
       .order("desc")
       .collect();
-
-    // Get user info for each comment
-    const userIds = new Set(comments.map(c => c.userId));
-    const users = await Promise.all(
-      Array.from(userIds).map(id => ctx.db.get(id))
-    );
-    const userMap = new Map(users.map(u => [u!._id, u]));
-
+    
+    if (comments.length === 0) return [];
+    
+    // Get all unique user IDs
+    const userIds = [...new Set(comments.map(c => c.userId))];
+    
+    // Get user data for all comments
+    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    
+    // Create a map of userId to formatted user data
+    const userMap = new Map();
+    users.forEach(user => {
+      if (user) {
+        userMap.set(user._id.toString(), {
+          userId: user._id,
+          username: user.username || user.name || "Guest",
+          name: user.name,
+          profileImage: user.profileImage || user.image
+        });
+      }
+    });
+    
+    // Add user data to each comment
     return comments.map(comment => ({
       ...comment,
-      user: userMap.get(comment.userId),
+      user: userMap.get(comment.userId.toString()),
     }));
   },
 });
@@ -134,6 +161,8 @@ type CommentWithUser = {
   user?: {
     userId: Id<"users">;
     username: string;
+    name?: string;
+    profileImage?: string;
     [key: string]: unknown;
   };
 };
@@ -162,22 +191,23 @@ export const batchGetComments = query({
     }
 
     // Get all unique user IDs
-    const userIds = new Set(comments.map(c => c.userId));
+    const userIds = [...new Set(comments.map(c => c.userId))];
     
-    // Fetch all user data in one query
-    const users = await ctx.db
-      .query("profiles")
-      .filter((q) => 
-        q.or(
-          ...Array.from(userIds).map(id => 
-            q.eq(q.field("userId"), id)
-          )
-        )
-      )
-      .collect();
-
-    // Create a map for quick user lookup
-    const userMap = new Map(users.map(u => [u.userId, u]));
+    // Fetch all users data directly
+    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    
+    // Create a map for quick user lookup with properly formatted user data
+    const userMap = new Map();
+    users.forEach(user => {
+      if (user) {
+        userMap.set(user._id.toString(), {
+          userId: user._id,
+          username: user.username || user.name || "Guest",
+          name: user.name,
+          profileImage: user.profileImage || user.image
+        });
+      }
+    });
 
     // Group comments by entryGuid
     const commentsByEntry = new Map<string, CommentWithUser[]>();
@@ -185,14 +215,16 @@ export const batchGetComments = query({
       const entryComments = commentsByEntry.get(comment.entryGuid) || [];
       const commentWithUser: CommentWithUser = {
         ...comment,
-        user: userMap.get(comment.userId),
+        user: userMap.get(comment.userId.toString()),
       };
       entryComments.push(commentWithUser);
       commentsByEntry.set(comment.entryGuid, entryComments);
     }
 
-    // Return comments in the same order as input guids
-    return args.entryGuids.map(guid => commentsByEntry.get(guid) || []);
+    // Return comments for each requested entryGuid in order
+    return args.entryGuids.map(guid => 
+      commentsByEntry.get(guid) || []
+    );
   },
 });
 
@@ -201,23 +233,56 @@ export const getCommentReplies = query({
     commentId: v.id("comments"),
   },
   handler: async (ctx, args) => {
-    // Get all replies to this comment
     const replies = await ctx.db
       .query("comments")
-      .withIndex("by_parent", (q) => q.eq("parentId", args.commentId))
-      .order("asc")
+      .withIndex("by_parent")
+      .filter(q => q.eq(q.field("parentId"), args.commentId))
+      .order("asc") // Oldest first for replies
       .collect();
-
-    // Get user info for each reply
-    const userIds = new Set(replies.map(c => c.userId));
-    const users = await Promise.all(
-      Array.from(userIds).map(id => ctx.db.get(id))
-    );
-    const userMap = new Map(users.map(u => [u!._id, u]));
-
+    
+    if (replies.length === 0) return [];
+    
+    // Get all unique user IDs
+    const userIds = [...new Set(replies.map(c => c.userId))];
+    
+    // Get user data for all replies
+    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    
+    // Create a map of userId to formatted user data
+    const userMap = new Map();
+    users.forEach(user => {
+      if (user) {
+        userMap.set(user._id.toString(), {
+          userId: user._id,
+          username: user.username || user.name || "Guest",
+          name: user.name,
+          profileImage: user.profileImage || user.image
+        });
+      }
+    });
+    
+    // Add user data to each reply
     return replies.map(reply => ({
       ...reply,
-      user: userMap.get(reply.userId),
+      user: userMap.get(reply.userId.toString()),
     }));
   },
-}); 
+});
+
+// Helper function to get user data for comments
+async function getUserDataForComment(ctx: any, commentId: Id<"comments">) {
+  const comment = await ctx.db.get(commentId);
+  if (!comment) return null;
+  
+  const user = await ctx.db.get(comment.userId);
+  
+  return {
+    ...comment,
+    user: user ? {
+      userId: user._id,
+      username: user.username || user.name || "Guest",
+      name: user.name,
+      profileImage: user.profileImage || user.image
+    } : undefined
+  };
+} 

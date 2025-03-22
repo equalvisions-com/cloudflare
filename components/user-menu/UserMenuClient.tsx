@@ -16,6 +16,7 @@ import { useUserMenuState } from "./useUserMenuState";
 
 interface UserMenuClientProps {
   initialDisplayName: string;
+  isBoarded?: boolean;
 }
 
 export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {

@@ -122,7 +122,7 @@ export function PostsDisplay({
         ...post,
         isAuthenticated,
         isFollowing: followStates && Array.isArray(followStates) 
-          ? followStates.includes(post._id)
+          ? followStates.some(id => id.toString() === post._id.toString())
           : false
       }));
       setPosts(postsWithAuth);
@@ -138,7 +138,7 @@ export function PostsDisplay({
         currentPosts.map(post => ({
           ...post,
           isAuthenticated,
-          isFollowing: followStates.includes(post._id)
+          isFollowing: followStates.some(id => id.toString() === post._id.toString())
         }))
       );
     }
@@ -151,7 +151,7 @@ export function PostsDisplay({
         ...post,
         isAuthenticated,
         isFollowing: followStates && Array.isArray(followStates) 
-          ? followStates.includes(post._id)
+          ? followStates.some(id => id.toString() === post._id.toString())
           : false
       }));
       setPosts(prev => [...prev, ...newPosts]);

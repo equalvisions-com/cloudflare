@@ -25,11 +25,12 @@ interface FriendshipData {
   createdAt: number;
   updatedAt?: number;
   direction: string;
-  friendId: Id<"users">;
+  type: string;
+  friendId?: Id<"users">;
 }
 
 interface ProfileData {
-  _id: Id<"profiles">;
+  _id: Id<"users">;
   userId: Id<"users">;
   username: string;
   name?: string | null;
@@ -225,12 +226,12 @@ export default function NotificationsClient() {
                       </p>
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      {notification.friendship.direction === "received" && notification.friendship.status === "pending" && 
+                      {notification.friendship.type === "friend_request" && 
                         "Sent you a friend request"}
-                      {notification.friendship.direction === "sent" && notification.friendship.status === "accepted" && 
+                      {notification.friendship.type === "friend_accepted" && 
                         "Accepted your friend request"}
-                      {notification.friendship.status === "accepted" && notification.friendship.direction === "received" && 
-                        "You are now friends"}
+                      {notification.friendship.type === "friend_you_accepted" && 
+                        "You accepted their friend request"}
                     </p>
                   </div>
                 </div>
@@ -241,7 +242,7 @@ export default function NotificationsClient() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {notification.friendship.direction === "received" && notification.friendship.status === "pending" ? (
+                    {notification.friendship.type === "friend_request" ? (
                       <>
                         <Button 
                           variant="ghost" 

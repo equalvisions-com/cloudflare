@@ -27,7 +27,7 @@ export default function SignInPage() {
       <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8">
         {step === "signIn" && (
           <>
-            <div className="space-y-1 mb-2">
+            <div className="space-y-1 mb-2 !mt-[-5px]">
               <h2 className="font-semibold text-2xl tracking-tight">
                 Sign in to your account
               </h2>

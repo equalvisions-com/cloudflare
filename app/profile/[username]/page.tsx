@@ -9,6 +9,15 @@ import { ProfileImage } from "@/components/profile/ProfileImage";
 import { FriendButton } from "@/components/profile/FriendButton";
 import { FriendsList } from "@/components/profile/FriendsList";
 import { FollowingList } from "@/components/profile/FollowingList";
+import { Id } from "@/convex/_generated/dataModel";
+
+// Define FriendshipStatus type to match what FriendButton expects
+type FriendshipStatus = {
+  exists: boolean;
+  status: string | null;
+  direction: string | null;
+  friendshipId: Id<"friends"> | null;
+};
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -32,7 +41,7 @@ const getProfilePageData = cache(async (username?: string) => {
     const normalizedUsername = normalizeUsername(username);
     
     // Use the new optimized batch query
-    const profileData = await fetchQuery(api.profiles.getProfilePageData, { 
+    const profileData = await fetchQuery(api.users.getProfilePageData, { 
       username: normalizedUsername,
       limit: 30
     });
@@ -60,7 +69,7 @@ const getProfileByUsername = cache(async (username?: string) => {
     
     // Fall back to the old method if needed
     const normalizedUsername = normalizeUsername(username);
-    const profile = await fetchQuery(api.profiles.getProfileByUsername, { username: normalizedUsername });
+    const profile = await fetchQuery(api.users.getProfileByUsername, { username: normalizedUsername });
     return profile;
   } catch (error) {
     console.error("Failed to fetch profile:", error);
@@ -114,9 +123,49 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   
   const profile = profileData.profile;
   const { friendCount, followingCount } = profileData.social;
-  const initialFriends = profileData.social.friends;
-  const initialFollowing = profileData.social.following;
-  const friendshipStatus = profileData.friendshipStatus;
+  
+  // Convert server response to expected component props format
+  const initialFriends = {
+    friends: profileData.social.friends || [],
+    hasMore: profileData.social.friends?.length >= 30 || false,
+    cursor: null
+  };
+  
+  // Transform following data to match expected FollowingWithPost structure
+  const initialFollowing = {
+    following: (profileData.social.following || []).map(item => {
+      if (!item) return null;
+      return {
+        following: {
+          _id: item._id,
+          userId: profile.userId,
+          postId: item.post ? item._id : null as any, // Using any here as we don't have all field info
+          feedUrl: item.feedUrl
+        },
+        post: {
+          _id: item.post ? item._id : null as any, // Using any as a placeholder
+          title: item.post.title,
+          postSlug: item.post.postSlug,
+          category: "", // This field doesn't appear to be in the response
+          categorySlug: item.post.categorySlug,
+          featuredImg: item.post.featuredImg,
+          mediaType: item.post.mediaType
+        }
+      };
+    }),
+    hasMore: profileData.social.following?.length >= 30 || false,
+    cursor: null
+  };
+  
+  // Convert friendship status to expected format
+  const friendshipStatus: FriendshipStatus | null = profileData.friendshipStatus 
+    ? {
+        exists: true,
+        status: profileData.friendshipStatus.status,
+        direction: profileData.friendshipStatus.direction || null,
+        friendshipId: profileData.friendshipStatus.id || null
+      }
+    : null;
   
   return (
     <ProfileLayoutManager>

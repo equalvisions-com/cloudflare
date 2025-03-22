@@ -56,14 +56,14 @@ export const getFriendshipStatus = query({
   },
 });
 
-// Get friendship status by profile ID (for UI display)
-export const getFriendshipStatusByProfileId = query({
+// Get friendship status by user ID (for UI display)
+export const getFriendshipStatusByUserId = query({
   args: {
-    profileId: v.id("profiles"),
+    userId2: v.id("users"),
     currentUserId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const { profileId, currentUserId } = args;
+    const { userId2, currentUserId } = args;
 
     // If no currentUserId is provided, try to get it from auth
     let userId = currentUserId;
@@ -73,7 +73,7 @@ export const getFriendshipStatusByProfileId = query({
       if (authUserId === null) {
         return {
           exists: false,
-          status: null,
+          status: "not_logged_in",
           direction: null,
           friendshipId: null,
         };
@@ -81,17 +81,8 @@ export const getFriendshipStatusByProfileId = query({
       userId = authUserId;
     }
 
-    // Get profile to get the userId
-    const profile = await ctx.db.get(profileId);
-    
-    if (!profile) {
-      throw new Error("Profile not found");
-    }
-
-    const profileUserId = profile.userId;
-
     // Don't allow self-friending
-    if (profileUserId === userId) {
+    if (userId2 === userId) {
       return {
         exists: false,
         status: "self",
@@ -102,7 +93,7 @@ export const getFriendshipStatusByProfileId = query({
 
     return getFriendshipStatus(ctx, {
       requesterId: userId,
-      requesteeId: profileUserId,
+      requesteeId: userId2,
     });
   },
 });
@@ -132,17 +123,17 @@ export const getFriendshipStatusByUsername = query({
       userId = authUserId;
     }
 
-    // First get the profile by username using the by_username index
-    const profile = await ctx.db
-      .query("profiles")
+    // First get the user by username using the by_username index
+    const user = await ctx.db
+      .query("users")
       .withIndex("by_username", q => q.eq("username", username))
       .first();
 
-    if (!profile) {
-      throw new Error("Profile not found");
+    if (!user) {
+      throw new Error("User not found");
     }
 
-    const profileUserId = profile.userId;
+    const profileUserId = user._id;
 
     // Don't allow self-friending
     if (profileUserId === userId) {
@@ -170,17 +161,17 @@ export const getFriendCountByUsername = query({
   handler: async (ctx, args) => {
     const { username, status } = args;
     
-    // Get the profile by username using the new index
-    const profile = await ctx.db
-      .query("profiles")
+    // Get the user by username using the by_username index
+    const user = await ctx.db
+      .query("users")
       .withIndex("by_username", q => q.eq("username", username))
       .first();
     
-    if (!profile) {
-      return 0;
+    if (!user) {
+      throw new Error("User not found");
     }
     
-    const userId = profile.userId;
+    const userId = user._id;
     
     // Count friendships where the user is the requester
     const sentFriendships = await ctx.db
@@ -213,17 +204,17 @@ export const getFriendsByUsername = query({
   handler: async (ctx, args) => {
     const { username, status, limit = 30, cursor } = args;
     
-    // Get the profile by username using the new index
-    const profile = await ctx.db
-      .query("profiles")
+    // Get the user by username using the by_username index
+    const user = await ctx.db
+      .query("users")
       .withIndex("by_username", q => q.eq("username", username))
       .first();
     
-    if (!profile) {
-      throw new Error("Profile not found");
+    if (!user) {
+      throw new Error("User not found");
     }
     
-    const userId = profile.userId;
+    const userId = user._id;
     
     // Parse cursor if provided
     const cursorObj = cursor 
@@ -403,18 +394,18 @@ export const getFriendsByUsername = query({
     const friendsWithDetails = await Promise.all(
       friendships.map(async (friendship) => {
         const friendUserId = friendship.friendId;
-        const friendProfile = await ctx.db
-          .query("profiles")
-          .withIndex("by_userId", q => q.eq("userId", friendUserId))
+        const friendUser = await ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), friendUserId))
           .first();
           
-        if (!friendProfile) {
+        if (!friendUser) {
           return null;
         }
         
         return {
           friendship,
-          profile: friendProfile,
+          profile: friendUser,
         };
       })
     );
@@ -487,6 +478,7 @@ export const sendFriendRequest = mutation({
       requesteeId,
       status: "pending",
       createdAt: Date.now(),
+      updatedAt: Date.now(),
     });
   },
 });
@@ -612,103 +604,193 @@ export const getFriends = query({
 
 // Get notifications (incoming friend requests and accepted friends) with user info in one query
 export const getNotifications = query({
+  args: {},
   handler: async (ctx) => {
-    // Get the current user ID
     const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new Error("Unauthorized");
-    }
-
-    // Get the current user's info
-    const currentUser = await ctx.db.get(userId);
     
-    // Get incoming friend requests (pending)
-    const incomingRequests = await ctx.db
+    if (!userId) {
+      return { user: null, notifications: [] };
+    }
+    
+    // Get user information
+    const user = await ctx.db.get(userId);
+    
+    if (!user) {
+      return { user: null, notifications: [] };
+    }
+    
+    // Get all friend requests/acceptances involving this user within the last 30 days
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    
+    // Get friend requests received
+    const receivedRequests = await ctx.db
       .query("friends")
-      .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
-      .filter(q => q.eq(q.field("status"), "pending"))
-      .collect();
-
-    // Get accepted friend requests (both directions)
-    const acceptedSent = await ctx.db
-      .query("friends")
-      .withIndex("by_requester_time", q => q.eq("requesterId", userId))
-      .filter(q => q.eq(q.field("status"), "accepted"))
+      .withIndex("by_requestee", q => q.eq("requesteeId", userId).eq("status", "pending"))
+      .filter(q => {
+        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
+        const timestamp = q.field("updatedAt");
+        return q.or(
+          q.gte(timestamp, thirtyDaysAgo),
+          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
+        );
+      })
       .collect();
       
-    const acceptedReceived = await ctx.db
+    // Get friend requests accepted where user is the requester
+    const acceptedSentRequests = await ctx.db
       .query("friends")
-      .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
-      .filter(q => q.eq(q.field("status"), "accepted"))
+      .withIndex("by_requester", q => q.eq("requesterId", userId).eq("status", "accepted"))
+      .filter(q => {
+        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
+        const timestamp = q.field("updatedAt");
+        return q.or(
+          q.gte(timestamp, thirtyDaysAgo),
+          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
+        );
+      })
       .collect();
-
-    // Map the incoming requests to add direction
-    const incomingMapped = incomingRequests.map(friendship => ({
-      ...friendship,
-      direction: "received",
-      friendId: friendship.requesterId,
-    }));
-
-    // Map the accepted requests to add direction
-    const acceptedSentMapped = acceptedSent.map(friendship => ({
-      ...friendship,
-      direction: "sent",
-      friendId: friendship.requesteeId,
-    }));
-
-    const acceptedReceivedMapped = acceptedReceived.map(friendship => ({
-      ...friendship,
-      direction: "received",
-      friendId: friendship.requesterId,
-    }));
-
+      
+    // Get friend requests accepted where user is the requestee
+    const acceptedReceivedRequests = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", q => q.eq("requesteeId", userId).eq("status", "accepted"))
+      .filter(q => {
+        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
+        const timestamp = q.field("updatedAt");
+        return q.or(
+          q.gte(timestamp, thirtyDaysAgo),
+          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
+        );
+      })
+      .collect();
+      
     // Combine all notifications
     const allNotifications = [
-      ...incomingMapped,
-      ...acceptedSentMapped,
-      ...acceptedReceivedMapped
+      ...receivedRequests.map(req => ({
+        type: "friend_request",
+        friendshipId: req._id,
+        friendId: req.requesterId,
+        status: req.status,
+        createdAt: req.updatedAt || req._creationTime,
+      })),
+      ...acceptedSentRequests.map(req => ({
+        type: "friend_accepted",
+        friendshipId: req._id,
+        friendId: req.requesteeId,
+        status: req.status,
+        createdAt: req.updatedAt || req._creationTime,
+      })),
+      ...acceptedReceivedRequests.map(req => ({
+        type: "friend_you_accepted",
+        friendshipId: req._id,
+        friendId: req.requesterId,
+        status: req.status,
+        createdAt: req.updatedAt || req._creationTime,
+      })),
     ];
-
-    // Sort by createdAt in descending order (newest first)
+    
+    // Sort by creation time, newest first
     allNotifications.sort((a, b) => b.createdAt - a.createdAt);
-
-    // Fetch user and profile information for each friend in one go
+    
+    // Fetch user information for each friend in one go
     const friendUserIds = allNotifications.map(n => n.friendId);
     
-    // Fetch profiles individually but in parallel
-    const profilePromises = friendUserIds.map(friendId => 
+    // Fetch users individually but in parallel
+    const userPromises = friendUserIds.map(friendId => 
       ctx.db
-        .query("profiles")
-        .withIndex("by_userId", q => q.eq("userId", friendId))
+        .query("users")
+        .filter(q => q.eq(q.field("_id"), friendId))
         .first()
     );
     
-    const profiles = await Promise.all(profilePromises);
+    const users = await Promise.all(userPromises);
     
     // Create a map for quick lookup
-    const profileMap = new Map();
-    profiles.forEach((profile, index) => {
-      if (profile) {
-        profileMap.set(friendUserIds[index].toString(), profile);
+    const userMap = new Map();
+    users.forEach((user, index) => {
+      if (user) {
+        userMap.set(friendUserIds[index].toString(), user);
       }
     });
     
-    // Map notifications with profiles
+    // Add user details to notifications
     const notificationsWithDetails = allNotifications
       .map(friendship => {
-        const friendProfile = profileMap.get(friendship.friendId.toString());
-        if (!friendProfile) return null;
+        const friendUser = userMap.get(friendship.friendId.toString());
+        if (!friendUser) return null;
         
         return {
-          friendship,
-          profile: friendProfile,
+          friendship: {
+            ...friendship,
+            direction: friendship.type === "friend_request" ? "received" : "sent",
+            _id: friendship.friendshipId,
+            requesterId: friendship.type === "friend_request" ? friendship.friendId : userId,
+            requesteeId: friendship.type === "friend_request" ? userId : friendship.friendId
+          },
+          profile: {
+            _id: friendUser._id,
+            userId: friendUser._id,
+            name: friendUser.name,
+            username: friendUser.username,
+            profileImage: friendUser.profileImage,
+          },
         };
       })
       .filter(Boolean);
-    
+      
     return {
-      user: currentUser,
+      user,
       notifications: notificationsWithDetails
+    };
+  },
+});
+
+export const friendRequests = query({
+  args: {
+    cursor: v.optional(v.string()),
+    numItems: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { cursor, numItems = 10 } = args;
+
+    // Get logged in user ID
+    const requesteeId = await getAuthUserId(ctx);
+
+    if (requesteeId === null) {
+      return { friendRequests: [], cursor: null };
+    }
+
+    // Get friendship requests where status is "requested"
+    const friendships = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", q => q.eq("requesteeId", requesteeId).eq("status", "requested"))
+      .order("desc")
+      .paginate({ cursor: cursor || null, numItems });
+
+    // Fetch user information for each requesterId
+    const friendsWithDetails = await Promise.all(
+      friendships.page.map(async (friendship) => {
+        const friendUserId = friendship.requesterId;
+        const friendUser = await ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), friendUserId))
+          .first();
+          
+        if (!friendUser) {
+          return null;
+        }
+        
+        return {
+          friendship,
+          user: friendUser,
+        };
+      })
+    );
+
+    // Filter out null values and return
+    return {
+      friendRequests: friendsWithDetails.filter(Boolean),
+      cursor: friendships.continueCursor,
     };
   },
 }); 

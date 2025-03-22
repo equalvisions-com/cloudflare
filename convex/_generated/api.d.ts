@@ -21,7 +21,6 @@ import type * as likes from "../likes.js";
 import type * as passwordReset_PasswordResetEmail from "../passwordReset/PasswordResetEmail.js";
 import type * as passwordReset_ResendOTPPasswordReset from "../passwordReset/ResendOTPPasswordReset.js";
 import type * as posts from "../posts.js";
-import type * as profiles from "../profiles.js";
 import type * as r2 from "../r2.js";
 import type * as r2Cleanup from "../r2Cleanup.js";
 import type * as retweets from "../retweets.js";
@@ -56,7 +55,6 @@ declare const fullApi: ApiFromModules<{
   "passwordReset/PasswordResetEmail": typeof passwordReset_PasswordResetEmail;
   "passwordReset/ResendOTPPasswordReset": typeof passwordReset_ResendOTPPasswordReset;
   posts: typeof posts;
-  profiles: typeof profiles;
   r2: typeof r2;
   r2Cleanup: typeof r2Cleanup;
   retweets: typeof retweets;

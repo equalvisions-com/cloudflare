@@ -38,7 +38,7 @@ interface FriendshipData {
 }
 
 interface ProfileData {
-  _id: Id<"profiles">;
+  _id: Id<"users">;
   userId: Id<"users">;
   username: string;
   name?: string;

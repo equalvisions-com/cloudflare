@@ -342,18 +342,18 @@ export const getEntryWithComments = query({
     
     // Fetch all user data in one query
     const users = await ctx.db
-      .query("profiles")
+      .query("users")
       .filter((q) => 
         q.or(
           ...Array.from(userIds).map(id => 
-            q.eq(q.field("userId"), id)
+            q.eq(q.field("_id"), id)
           )
         )
       )
       .collect();
 
     // Create a map for quick user lookup
-    const userMap = new Map(users.map(u => [u.userId, u]));
+    const userMap = new Map(users.map(u => [u._id, u]));
 
     return {
       likes: {

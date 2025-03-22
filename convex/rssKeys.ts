@@ -8,12 +8,8 @@ export const getUserRSSKeys = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    const profile = await ctx.db
-      .query("profiles")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .first();
-
-    return profile?.rssKeys || [];
+    const user = await ctx.db.get(userId);
+    return user?.rssKeys || [];
   },
 });
 
@@ -23,18 +19,15 @@ export const getUserRSSKeysWithPosts = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the user's profile with RSS keys
-    const profile = await ctx.db
-      .query("profiles")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .first();
+    // Get the user with RSS keys
+    const user = await ctx.db.get(userId);
     
-    if (!profile || !profile.rssKeys || profile.rssKeys.length === 0) {
+    if (!user || !user.rssKeys || user.rssKeys.length === 0) {
       return { rssKeys: [], posts: [] };
     }
     
     // Extract post titles from RSS keys (remove 'rss.' prefix)
-    const postTitles = profile.rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
+    const postTitles = user.rssKeys.map(key => key.replace(/^rss\./, '').replace(/_/g, ' '));
     
     // Get all posts that match these titles
     const posts = await ctx.db
@@ -49,7 +42,7 @@ export const getUserRSSKeysWithPosts = query({
       .collect();
     
     return {
-      rssKeys: profile.rssKeys,
+      rssKeys: user.rssKeys,
       posts: posts.map(post => ({
         title: post.title,
         featuredImg: post.featuredImg,

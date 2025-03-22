@@ -4,8 +4,10 @@ import {
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
 import { NextResponse } from 'next/server';
+import { getUserProfile } from '@/components/user-menu/UserMenuServer';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
+const isOnboardingPage = createRouteMatcher(["/onboarding"]);
 const isProtectedRoute = createRouteMatcher(["/notifications"]);
 const isProfileRoute = createRouteMatcher(["/@:username"]);
 const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
@@ -36,12 +38,22 @@ export default convexAuthNextjsMiddleware(
       return NextResponse.rewrite(url);
     }
 
+    // Get user profile with authentication and onboarding status
+    const { isAuthenticated, isBoarded } = await getUserProfile();
+
     // Handle existing auth logic
-    if (isSignInPage(request) && (await convexAuth.isAuthenticated())) {
+    if (isSignInPage(request) && isAuthenticated) {
       return nextjsMiddlewareRedirect(request, "/");
     }
-    if (isProtectedRoute(request) && !(await convexAuth.isAuthenticated())) {
+    
+    if (isProtectedRoute(request) && !isAuthenticated) {
       return nextjsMiddlewareRedirect(request, "/signin");
+    }
+
+    // Handle onboarding redirect
+    // Don't redirect if already on onboarding page
+    if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
+      return nextjsMiddlewareRedirect(request, "/onboarding");
     }
   },
   { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } }, // 30 days

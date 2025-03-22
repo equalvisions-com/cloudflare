@@ -8,6 +8,7 @@ import { UserMenuClient } from "./UserMenuClient";
 export async function getUserProfile() {
   let displayName = "Guest";
   let isAuthenticated = false;
+  let isBoarded = false;
 
   try {
     const token = await convexAuthNextjsToken();
@@ -16,21 +17,22 @@ export async function getUserProfile() {
       const profile = await fetchQuery(api.users.getProfile, {}, { token });
       if (profile) {
         displayName = profile.username;
+        isBoarded = profile.isBoarded ?? false;
       }
     }
   } catch (error) {
     console.error("Error fetching profile:", error);
   }
 
-  return { displayName, isAuthenticated };
+  return { displayName, isAuthenticated, isBoarded };
 }
 
 export async function UserMenuServer() {
-  const { displayName } = await getUserProfile();
+  const { displayName, isBoarded } = await getUserProfile();
 
   return (
     <Suspense fallback={<UserMenuFallback />}>
-      <UserMenuClientWrapper displayName={displayName} />
+      <UserMenuClientWrapper displayName={displayName} isBoarded={isBoarded} />
     </Suspense>
   );
 }
@@ -45,6 +47,6 @@ function UserMenuFallback() {
 }
 
 // Wrapper to pass the initial display name to the client component
-function UserMenuClientWrapper({ displayName }: { displayName: string }) {
-  return <UserMenuClient initialDisplayName={displayName} />;
+function UserMenuClientWrapper({ displayName, isBoarded }: { displayName: string; isBoarded: boolean }) {
+  return <UserMenuClient initialDisplayName={displayName} isBoarded={isBoarded} />;
 }

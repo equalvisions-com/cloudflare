@@ -64,7 +64,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     const startTime = Date.now();
     
     // Use the new optimized batch query
-    const result = await fetchQuery(api.profiles.getProfileActivityData, { 
+    const result = await fetchQuery(api.users.getProfileActivityData, { 
       userId,
       limit: 30
     });
@@ -73,8 +73,8 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     
     // For now, we'll need to handle any external API calls for entry details
     // since our batch query can't directly access external APIs
-    const activities = result.activities.activities;
-    const guids = activities.map(activity => activity.entryGuid);
+    const activities: any[] = result.activities.activities;
+    const guids = activities.map((activity: any) => activity.entryGuid);
     
     // Get Convex post metadata from the batch query
     let postMetadata: Record<string, any> = result.entryDetails as Record<string, any> || {};
@@ -189,7 +189,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     }
     
     // Ensure the activities match the ActivityItem type
-    const typedActivities: ActivityItem[] = activities.map(activity => ({
+    const typedActivities: ActivityItem[] = activities.map((activity: any) => ({
       ...activity,
       type: activity.type as "like" | "comment" | "retweet"
     }));
@@ -221,7 +221,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
     const startTime = Date.now();
     
     // Use the new optimized batch query
-    const result = await fetchQuery(api.profiles.getProfileLikesData, { 
+    const result = await fetchQuery(api.users.getProfileLikesData, { 
       userId,
       limit: 30
     });
