@@ -1,7 +1,57 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { DatabaseReader } from "./_generated/server";
+
+// Helper function to check friendship status
+async function checkFriendshipStatus(
+  ctx: QueryCtx,
+  requesterId: Id<"users">,
+  requesteeId: Id<"users">
+) {
+  // Check if a friendship already exists in either direction
+  const sentRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q) => 
+      q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
+    )
+    .first();
+
+  if (sentRequest) {
+    return {
+      exists: true,
+      status: sentRequest.status,
+      direction: "sent",
+      friendshipId: sentRequest._id,
+    };
+  }
+
+  // Check if there's a request from the other user
+  const receivedRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q) => 
+      q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
+    )
+    .first();
+
+  if (receivedRequest) {
+    return {
+      exists: true,
+      status: receivedRequest.status,
+      direction: "received",
+      friendshipId: receivedRequest._id,
+    };
+  }
+
+  // No friendship exists
+  return {
+    exists: false,
+    status: null,
+    direction: null,
+    friendshipId: null,
+  };
+}
 
 // Check the friendship status between two users
 export const getFriendshipStatus = query({
@@ -11,48 +61,7 @@ export const getFriendshipStatus = query({
   },
   handler: async (ctx, args) => {
     const { requesterId, requesteeId } = args;
-
-    // Check if a friendship already exists in either direction
-    const sentRequest = await ctx.db
-      .query("friends")
-      .withIndex("by_users", (q) => 
-        q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
-      )
-      .first();
-
-    if (sentRequest) {
-      return {
-        exists: true,
-        status: sentRequest.status,
-        direction: "sent",
-        friendshipId: sentRequest._id,
-      };
-    }
-
-    // Check if there's a request from the other user
-    const receivedRequest = await ctx.db
-      .query("friends")
-      .withIndex("by_users", (q) => 
-        q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
-      )
-      .first();
-
-    if (receivedRequest) {
-      return {
-        exists: true,
-        status: receivedRequest.status,
-        direction: "received",
-        friendshipId: receivedRequest._id,
-      };
-    }
-
-    // No friendship exists
-    return {
-      exists: false,
-      status: null,
-      direction: null,
-      friendshipId: null,
-    };
+    return checkFriendshipStatus(ctx, requesterId, requesteeId);
   },
 });
 
@@ -91,10 +100,7 @@ export const getFriendshipStatusByUserId = query({
       };
     }
 
-    return getFriendshipStatus(ctx, {
-      requesterId: userId,
-      requesteeId: userId2,
-    });
+    return checkFriendshipStatus(ctx, userId, userId2);
   },
 });
 
