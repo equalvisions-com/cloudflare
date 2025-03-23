@@ -338,7 +338,7 @@ export default function OnboardingPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your display name (optional)"
+                placeholder="Display name"
               />
             </div>
             
@@ -391,46 +391,51 @@ export default function OnboardingPage() {
             
             {featuredPosts ? (
               <ScrollArea className="h-[50vh] pr-4 rounded-md border">
-                <div className="space-y-4 p-4">
+                <div className="space-y-0">
                   {featuredPosts.map((post) => (
-                    <Card key={post._id} className="overflow-hidden flex flex-row hover:bg-accent/50 transition-colors">
-                      <div className="relative w-1/3 min-w-[120px]">
-                        <AspectRatio ratio={1}>
-                          {post.featuredImg ? (
-                            <Image
-                              src={post.featuredImg}
-                              alt={post.title}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-muted flex items-center justify-center">
-                              <p className="text-muted-foreground text-sm">No image</p>
+                    <Card key={post._id} className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-1 border-r-1 border-t-0 border-b-1 rounded-none">
+                      <CardContent className="p-4 h-[116px]">
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 w-[82px] h-[82px]">
+                            <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+                              {post.featuredImg ? (
+                                <Image
+                                  src={post.featuredImg}
+                                  alt={post.title}
+                                  fill
+                                  sizes="82px"
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-muted flex items-center justify-center">
+                                  <p className="text-muted-foreground text-xs">No image</p>
+                                </div>
+                              )}
+                            </AspectRatio>
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-2 pt-0">
+                            <div className="flex justify-between items-start gap-4 mt-[-4px]">
+                              <h3 className="text-lg font-semibold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
                             </div>
-                          )}
-                        </AspectRatio>
-                      </div>
-                      <CardContent className="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                          <h3 className="font-medium text-base line-clamp-2 mb-2">{post.title}</h3>
-                          <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                            {post.body.replace(/<[^>]*>|&[^;]+;/g, '').trim()}
-                          </p>
+                            <p className="text-sm text-muted-foreground line-clamp-2 !mt-[3px]">
+                              {post.body.replace(/<[^>]*>|&[^;]+;/g, '').trim()}
+                            </p>
+                            <Button
+                              variant={followedPosts.includes(post._id) ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleFollowToggle(post._id, post.feedUrl, post.title)}
+                              className="px-2 h-[23px] text-xs"
+                            >
+                              {followedPosts.includes(post._id) ? (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" /> Following
+                                </>
+                              ) : (
+                                'Follow'
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          variant={followedPosts.includes(post._id) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleFollowToggle(post._id, post.feedUrl, post.title)}
-                          className="w-full flex gap-2 items-center"
-                        >
-                          {followedPosts.includes(post._id) ? (
-                            <>
-                              <Check className="h-4 w-4" /> Following
-                            </>
-                          ) : (
-                            'Follow'
-                          )}
-                        </Button>
                       </CardContent>
                     </Card>
                   ))}
