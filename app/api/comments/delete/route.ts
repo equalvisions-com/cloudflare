@@ -1,8 +1,12 @@
+export const runtime = 'edge';
+
 import { type NextRequest, NextResponse } from 'next/server';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 import { fetchMutation } from "convex/nextjs";
+
+export const dynamic = 'force-dynamic';
 
 export async function DELETE(req: NextRequest) {
   try {

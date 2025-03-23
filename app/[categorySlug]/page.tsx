@@ -7,9 +7,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { cache } from "react";
 import { Id } from "@/convex/_generated/dataModel";
+import { LayoutManager } from "@/components/ui/LayoutManager";
+
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
 interface CategoryPageProps {
-  params: Promise<{ categorySlug: string }>;
+  params: { categorySlug: string };
 }
 
 interface Post {
@@ -30,20 +34,13 @@ const getCategoryPosts = cache(async (categorySlug: string) => {
   return posts;
 });
 
-export async function generateStaticParams() {
-  const categories = await fetchQuery(api.posts.getAllCategories, {});
-  return categories.map((category) => ({
-    categorySlug: category.categorySlug,
-  }));
-}
-
 export async function generateMetadata(props: CategoryPageProps): Promise<Metadata> {
-  const { categorySlug } = await props.params;
+  const { categorySlug } = props.params;
   const posts = await getCategoryPosts(categorySlug);
 
   if (!posts) {
     return {
-      title: 'Category Not Found',
+      title: "Category Not Found",
     };
   }
 
@@ -121,9 +118,7 @@ async function PostsList({ categorySlug }: { categorySlug: string }) {
   );
 }
 
-export default async function CategoryPage(props: CategoryPageProps) {
-  const { categorySlug } = await props.params;
-
+export default async function CategoryPage({ params }: { params: { categorySlug: string } }) {
   return (
     <main className="container mx-auto px-4 py-8">
       <Suspense 
@@ -144,7 +139,7 @@ export default async function CategoryPage(props: CategoryPageProps) {
           </div>
         }
       >
-        <PostsList categorySlug={categorySlug} />
+        <PostsList categorySlug={params.categorySlug} />
       </Suspense>
     </main>
   );

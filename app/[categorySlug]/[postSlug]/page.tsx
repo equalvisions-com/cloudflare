@@ -15,12 +15,14 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { SearchButton } from "@/components/ui/search-button";
 import { MenuButton } from "@/components/ui/menu-button";
 
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
 interface PostPageProps {
-  params: Promise<{
+  params: {
     categorySlug: string;
     postSlug: string;
-  }>;
+  };
 }
 
 // Extend the Convex Post type with our additional fields
@@ -128,7 +130,7 @@ const getPostData = cache(async (categorySlug: string, postSlug: string): Promis
 // Generate metadata using cached post data
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
-    const { categorySlug, postSlug } = await params;
+    const { categorySlug, postSlug } = params;
     const post = await getPostData(categorySlug, postSlug);
     if (!post) return { title: "Post Not Found" };
 
@@ -203,7 +205,7 @@ function PostHeader({ post, followState, rssData }: {
 
 // Main page component with optimized data fetching
 export default async function PostPage({ params }: PostPageProps) {
-  const { categorySlug, postSlug } = await params;
+  const { categorySlug, postSlug } = params;
   const pageData = await getPageData(categorySlug, postSlug);
   
   if (!pageData) notFound();

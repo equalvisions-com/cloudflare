@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { getReadConnection } from '@/lib/database';
 
+export const runtime = 'edge';
+
+export const dynamic = 'force-dynamic';
+
 // Define interfaces for our data types
 interface RSSEntryRow {
   guid: string;

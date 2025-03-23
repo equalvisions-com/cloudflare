@@ -1,9 +1,12 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead } from '@/lib/database';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 
+export const dynamic = 'force-dynamic';
 const ENTRIES_PER_PAGE = 10;
 
 // Define the type for RSS entry rows

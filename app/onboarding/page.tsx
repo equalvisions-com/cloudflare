@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');

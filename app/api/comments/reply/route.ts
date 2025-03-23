@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';

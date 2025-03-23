@@ -4,6 +4,7 @@ import { openai as openaiClient } from '@ai-sdk/openai';
 import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
 import { executeRead } from '@/lib/database';
 
+export const dynamic = 'force-dynamic';
 // Define a type for the entry rows to fix type errors
 interface EntryRow {
   id: number;

@@ -1,6 +1,9 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 import { Metadata } from "next";
 
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 // Add preload hints for critical resources and proper metadata
 export const metadata: Metadata = {
   title: "RSS Feed Reader",

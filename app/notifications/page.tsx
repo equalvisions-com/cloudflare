@@ -1,9 +1,12 @@
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
 import { Metadata } from "next";
-import dynamic from "next/dynamic";
+import { default as dynamicImport } from "next/dynamic";
+
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 // Dynamically import the client component
-const NotificationsClient = dynamic(() => import("@/app/notifications/NotificationsClient"), {
+const NotificationsClient = dynamicImport(() => import("@/app/notifications/NotificationsClient"), {
   ssr: false,
   loading: () => <div className="p-8">Loading notifications...</div>
 });

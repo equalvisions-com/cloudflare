@@ -1,9 +1,12 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { executeRead } from '@/lib/database';
 import { refreshExistingFeeds } from '@/lib/rss.server';
 import type { RSSEntryRow } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
 // Define interface for the joined query result
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;

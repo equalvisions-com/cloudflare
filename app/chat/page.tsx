@@ -3,6 +3,9 @@ import { ChatPage } from '../../components/chat/ChatPage';
 import { StandardSidebarLayout } from '@/components/ui/StandardSidebarLayout';
 import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Chat',
   description: 'Chat with our AI assistant',

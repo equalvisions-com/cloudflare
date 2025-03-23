@@ -3,6 +3,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { fetchQuery } from "convex/nextjs";
 import { cache } from "react";
 
+export const dynamic = 'force-dynamic';
+
 // Import the client component
 import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";
 

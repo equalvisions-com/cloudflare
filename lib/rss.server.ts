@@ -5,6 +5,8 @@ import type { RSSItem } from './rss';
 import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
 import { executeRead, executeWrite, getWriteConnection } from './database';
 
+
+
 /**
  * NOTE on TypeScript linter errors:
  * 
@@ -23,77 +25,17 @@ import { executeRead, executeWrite, getWriteConnection } from './database';
  * these issues without compromising type safety where it matters.
  */
 
-// Define types for logging
-type LogParams = string | number | boolean | object | null | undefined;
-
-// Add a production-ready logging utility
-const logger = {
-  debug: (message: string, ...args: LogParams[]) => {
-    // Only log debug messages in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`🔍 DEBUG: ${message}`, ...args);
-    }
-  },
-  info: (message: string, ...args: LogParams[]) => {
-    console.log(`ℹ️ INFO: ${message}`, ...args);
-  },
-  warn: (message: string, ...args: LogParams[]) => {
-    console.warn(`⚠️ WARN: ${message}`, ...args);
-  },
-  error: (message: string, ...args: LogParams[]) => {
-    console.error(`❌ ERROR: ${message}`, ...args);
-  },
-  cache: (message: string, ...args: LogParams[]) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`💾 CACHE: ${message}`, ...args);
-    } else {
-      // In production, only log cache misses or errors, not hits
-      if (message.includes('error') || message.includes('miss') || message.includes('stale')) {
-        console.log(`💾 CACHE: ${message}`, ...args);
-      }
-    }
-  },
-  external: (message: string, ...args: LogParams[]) => {
-    // Always log external API calls in both environments
-    console.log(`🌐 EXTERNAL: ${message}`, ...args);
-  }
-};
-
 // Initialize parser once, not on every request
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   parseAttributeValue: true,
+  parseTagValue: true,
   trimValues: true,
-  parseTagValue: false,
-  isArray: (tagName) => {
-    // Common array elements in RSS/Atom feeds
-    return ['item', 'entry', 'link', 'category', 'enclosure'].includes(tagName);
-  },
-  // Add stopNodes for CDATA sections that shouldn't be parsed
-  stopNodes: ['description', 'content:encoded', 'summary'],
-  // Add processing instruction handling for XML declaration
-  processEntities: true,
-  htmlEntities: true
+  isArray: (tagName: string) => ["item", "entry"].indexOf(tagName) !== -1,
 });
 
 // Removed direct PlanetScale connection since we now use the connection manager
-
-// Handle process termination
-process.on('exit', () => {
-  logger.info('Process exit: Application shutting down');
-});
-
-// Handle graceful shutdown for SIGINT and SIGTERM
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: Application shutting down');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: Application shutting down');
-  process.exit(0);
-});
 
 // Add error handling for database operations
 // Use the new read/write functions based on the operation type
@@ -113,7 +55,7 @@ const executeQuery = async <T = Record<string, unknown>>(
       
     return result as unknown as PlanetScaleQueryResult<T>;
   } catch (error) {
-    logger.error(`Database query error: ${error}`);
+    console.error(`Database query error: ${error}`);
     throw error;
   }
 };
@@ -206,12 +148,12 @@ function parseXMLWithCache(xml: string, url: string): ParsedXML {
   // Check if we have a valid cached result
   const cachedEntry = parsedXMLCache.get(cacheKey);
   if (cachedEntry && (currentTime - cachedEntry.timestamp) < CACHE_TTL) {
-    logger.cache(`Using cached parsed XML for ${url}`);
+    console.log(`Using cached parsed XML for ${url}`);
     return cachedEntry.result as ParsedXML;
   }
   
   // Parse the XML
-  logger.debug(`Parsing XML for ${url}`);
+  console.log(`Parsing XML for ${url}`);
   const result = parser.parse(xml);
   
   // Cache the result
@@ -241,14 +183,14 @@ function cleanupCache(): void {
   }
   
   if (deletedCount > 0) {
-    logger.debug(`Cleaned up ${deletedCount} expired cache entries`);
+    console.log(`Cleaned up ${deletedCount} expired cache entries`);
   }
 }
 
 // Function to create a fallback feed when there's an error
 function createFallbackFeed(url: string, error: unknown, mediaType?: string): RSSFeed {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  logger.warn(`Creating fallback feed for ${url} due to error: ${errorMessage}`);
+  console.warn(`Creating fallback feed for ${url} due to error: ${errorMessage}`);
   
   return {
     title: `Error fetching feed from ${url}`,
@@ -275,7 +217,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
-    logger.external(`Fetching feed from ${url}`);
+    console.log(`Fetching feed from ${url}`);
     const response = await fetch(url, { 
       signal: controller.signal,
       headers: {
@@ -293,23 +235,23 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
     }
 
     const xml = await response.text();
-    logger.debug(`Received ${xml.length} bytes from ${url}`);
+    console.log(`Received ${xml.length} bytes from ${url}`);
     
     if (xml.length < 100) {
-      logger.warn(`Suspiciously small XML response from ${url}: ${xml.substring(0, 100)}`);
+      console.warn(`Suspiciously small XML response from ${url}: ${xml.substring(0, 100)}`);
     }
     
     // Special handling for Libsyn feeds which have a specific format for iTunes images
     const isLibsynFeed = url.includes('libsyn.com');
     if (isLibsynFeed) {
-      logger.debug('Detected Libsyn feed, using special handling for iTunes images');
+      console.log('Detected Libsyn feed, using special handling for iTunes images');
     }
     
     try {
       // Use our cached parser function
       const result = parseXMLWithCache(xml, url);
       
-      logger.debug(`Parsed XML structure: ${Object.keys(result).join(', ')}`);
+      console.log(`Parsed XML structure: ${Object.keys(result).join(', ')}`);
       
       // Handle both RSS and Atom formats
       let channel: ParsedChannel;
@@ -319,14 +261,14 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
         // RSS format
         channel = result.rss.channel as ParsedChannel;
         items = Array.isArray(channel.item) ? channel.item : (channel.item ? [channel.item] : []);
-        logger.debug(`Detected RSS format with ${items.length} items`);
+        console.log(`Detected RSS format with ${items.length} items`);
       } else if (result.feed) {
         // Atom format
         channel = result.feed as ParsedChannel;
         items = Array.isArray(channel.entry) ? channel.entry : (channel.entry ? [channel.entry] : []);
-        logger.debug(`Detected Atom format with ${items.length} items`);
+        console.log(`Detected Atom format with ${items.length} items`);
       } else {
-        logger.warn(`Unrecognized feed format. Available keys: ${Object.keys(result).join(', ')}`);
+        console.warn(`Unrecognized feed format. Available keys: ${Object.keys(result).join(', ')}`);
         throw new Error('Unsupported feed format');
       }
       
@@ -341,12 +283,12 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
           // Direct @_href attribute (common in libsyn feeds)
           if (itunesImage['@_href']) {
             channelImage = String(itunesImage['@_href']);
-            logger.debug(`Found channel iTunes image with direct @_href: ${channelImage}`);
+            console.log(`Found channel iTunes image with direct @_href: ${channelImage}`);
           } else if (itunesImage.attr && typeof itunesImage.attr === 'object') {
             const attr = itunesImage.attr as Record<string, unknown>;
             if (attr['@_href']) {
               channelImage = String(attr['@_href']);
-              logger.debug(`Found channel iTunes image with attr/@_href: ${channelImage}`);
+              console.log(`Found channel iTunes image with attr/@_href: ${channelImage}`);
             }
           }
         }
@@ -358,7 +300,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
           const image = channel.image as Record<string, unknown>;
           if (image.url) {
             channelImage = String(image.url);
-            logger.debug(`Found standard channel image: ${channelImage}`);
+            console.log(`Found standard channel image: ${channelImage}`);
           }
         }
       }
@@ -372,7 +314,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
         items: []
       };
       
-      logger.debug(`Feed title: "${feed.title}", description length: ${feed.description.length}, link: ${feed.link}`);
+      console.log(`Feed title: "${feed.title}", description length: ${feed.description.length}, link: ${feed.link}`);
       
       // For Libsyn feeds, try to extract item-level iTunes images from the raw XML
       const itemItunesImages: Record<string, string> = {};
@@ -384,7 +326,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
             const imageUrl = match[1];
             const guid = match[2];
             itemItunesImages[guid] = imageUrl;
-            logger.debug(`Found item-level iTunes image for guid ${guid}: ${imageUrl}`);
+            console.log(`Found item-level iTunes image for guid ${guid}: ${imageUrl}`);
           }
         }
       }
@@ -403,7 +345,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
             // Add the image URL directly to the item
             if (!item['itunes:image']) {
               item['itunes:image'] = { '@_href': itemItunesImages[itemGuid] };
-              logger.debug(`Added item-level iTunes image for guid ${itemGuid}: ${itemItunesImages[itemGuid]}`);
+              console.log(`Added item-level iTunes image for guid ${itemGuid}: ${itemItunesImages[itemGuid]}`);
             }
           }
           
@@ -422,12 +364,12 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
           };
           
           if (index < 2) {
-            logger.debug(`Sample item ${index}: title="${processedItem.title}", guid=${processedItem.guid}, link=${processedItem.link}, image=${processedItem.image}`);
+            console.log(`Sample item ${index}: title="${processedItem.title}", guid=${processedItem.guid}, link=${processedItem.link}, image=${processedItem.image}`);
           }
           
           return processedItem;
         } catch (itemError) {
-          logger.warn(`Error processing feed item ${index}: ${itemError}`);
+          console.warn(`Error processing feed item ${index}: ${itemError}`);
           // Return a minimal valid item to prevent the entire feed from failing
           return {
             title: 'Error processing item',
@@ -443,20 +385,20 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
       }).filter((item: RSSItem) => {
         const isValid = Boolean(item.guid && item.title);
         if (!isValid) {
-          logger.warn(`Filtered out invalid item: guid=${item.guid}, title=${item.title}`);
+          console.warn(`Filtered out invalid item: guid=${item.guid}, title=${item.title}`);
         }
         return isValid;
       }); // Filter out invalid items
       
-      logger.info(`Successfully parsed feed from ${url} with ${feed.items.length} valid items`);
+      console.log(`Successfully parsed feed from ${url} with ${feed.items.length} valid items`);
       return feed;
     } catch (parseError) {
-      logger.error(`XML parsing error for ${url}: ${parseError}`);
-      logger.debug(`First 500 characters of XML: ${xml.substring(0, 500).replace(/\n/g, ' ')}`);
+      console.error(`XML parsing error for ${url}: ${parseError}`);
+      console.log(`First 500 characters of XML: ${xml.substring(0, 500).replace(/\n/g, ' ')}`);
       throw parseError;
     }
   } catch (error) {
-    logger.error(`Error fetching feed from ${url}: ${error}`);
+    console.error(`Error fetching feed from ${url}: ${error}`);
     // Return a fallback feed instead of throwing
     return createFallbackFeed(url, error, mediaType);
   }
@@ -690,13 +632,13 @@ function extractImage(item: Record<string, unknown>): string | null {
         
         // If we found an image enclosure with a URL, return it immediately
         if (isImageEnclosure && enclosureUrl) {
-          logger.debug(`Found image enclosure with URL: ${enclosureUrl}`);
+          console.log(`Found image enclosure with URL: ${enclosureUrl}`);
           return enclosureUrl;
         }
         
         // Check for image URL by extension even if type is not specified
         if (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
-          logger.debug(`Found enclosure with image extension: ${enclosureUrl}`);
+          console.log(`Found enclosure with image extension: ${enclosureUrl}`);
           return enclosureUrl;
         }
       }
@@ -704,7 +646,7 @@ function extractImage(item: Record<string, unknown>): string | null {
     
     // Debug logging for podcast feeds
     if (item['itunes:image']) {
-      logger.debug(`Found itunes:image in item: ${JSON.stringify(item['itunes:image']).substring(0, 200)}`);
+      console.log(`Found itunes:image in item: ${JSON.stringify(item['itunes:image']).substring(0, 200)}`);
     }
     
     // Check for itunes:image (for podcasts)
@@ -715,7 +657,7 @@ function extractImage(item: Record<string, unknown>): string | null {
         
         // Direct @_href attribute (common in libsyn feeds)
         if (itunesImage['@_href']) {
-          logger.debug(`Using direct @_href attribute: ${itunesImage['@_href']}`);
+          console.log(`Using direct @_href attribute: ${itunesImage['@_href']}`);
           return String(itunesImage['@_href']);
         }
         
@@ -723,38 +665,38 @@ function extractImage(item: Record<string, unknown>): string | null {
         if (itunesImage.attr && typeof itunesImage.attr === 'object') {
           const attr = itunesImage.attr as Record<string, unknown>;
           if (attr['@_href']) {
-            logger.debug(`Using nested attr/@_href format: ${attr['@_href']}`);
+            console.log(`Using nested attr/@_href format: ${attr['@_href']}`);
             return String(attr['@_href']);
           }
         }
         
         // Alternative format: url attribute directly on the object
         if (itunesImage.url) {
-          logger.debug(`Using url attribute: ${itunesImage.url}`);
+          console.log(`Using url attribute: ${itunesImage.url}`);
           return String(itunesImage.url);
         }
         
         // Alternative format: href directly on the object
         if (itunesImage.href) {
-          logger.debug(`Using href attribute: ${itunesImage.href}`);
+          console.log(`Using href attribute: ${itunesImage.href}`);
           return String(itunesImage.href);
         }
         
         // Log all keys for debugging
-        logger.debug(`iTunes image keys: ${Object.keys(itunesImage).join(', ')}`);
+        console.log(`iTunes image keys: ${Object.keys(itunesImage).join(', ')}`);
       }
       
       // Alternative format: direct string URL
       if (typeof item['itunes:image'] === 'string' && 
           item['itunes:image'].match(/^https?:\/\//)) {
-        logger.debug(`Using direct string URL: ${item['itunes:image']}`);
+        console.log(`Using direct string URL: ${item['itunes:image']}`);
         return item['itunes:image'];
       }
     }
     
     // Also check for iTunes image at the channel level which may be stored with the item
     if (item['itunes:image:href'] && typeof item['itunes:image:href'] === 'string') {
-      logger.debug(`Using itunes:image:href: ${item['itunes:image:href']}`);
+      console.log(`Using itunes:image:href: ${item['itunes:image:href']}`);
       return item['itunes:image:href'];
     }
 
@@ -861,7 +803,7 @@ function extractImage(item: Record<string, unknown>): string | null {
             // Check for CDN image providers
             /cdn(-cgi)?\/image/i.test(enclosureUrl)
           ) {
-            logger.debug(`Found image URL in enclosure: ${enclosureUrl}`);
+            console.log(`Found image URL in enclosure: ${enclosureUrl}`);
             return enclosureUrl;
           }
         }
@@ -885,7 +827,7 @@ function extractImage(item: Record<string, unknown>): string | null {
           if (match && match[1]) {
             // Ignore data URLs
             if (!match[1].startsWith('data:')) {
-              logger.debug(`Extracted image from content field ${field}: ${match[1].substring(0, 100)}`);
+              console.log(`Extracted image from content field ${field}: ${match[1].substring(0, 100)}`);
               return match[1];
             }
           }
@@ -920,7 +862,7 @@ function extractImage(item: Record<string, unknown>): string | null {
     
     return null;
   } catch (error) {
-    logger.warn(`Error extracting image: ${error}`);
+    console.warn(`Error extracting image: ${error}`);
     return null;
   }
 }
@@ -930,13 +872,13 @@ function formatDate(dateStr: unknown): string {
   try {
     // If dateStr is empty or undefined, return current date
     if (!dateStr) {
-      logger.warn(`Empty date value encountered, falling back to current date`);
+      console.warn(`Empty date value encountered, falling back to current date`);
       return new Date().toISOString();
     }
     
     // Add detailed debugging for the date value
     if (process.env.NODE_ENV !== 'production') {
-      logger.debug(`Formatting date: ${dateStr}, type: ${typeof dateStr}, constructor: ${dateStr.constructor?.name}`);
+      console.log(`Formatting date: ${dateStr}, type: ${typeof dateStr}, constructor: ${dateStr.constructor?.name}`);
     }
     
     // Special handling for PlanetScale date format
@@ -948,7 +890,7 @@ function formatDate(dateStr: unknown): string {
         // Convert MySQL datetime format to ISO format
         const [datePart, timePart] = dateStr.split(' ');
         const isoString = `${datePart}T${timePart}.000Z`;
-        logger.debug(`Converted MySQL datetime to ISO: ${isoString}`);
+        console.log(`Converted MySQL datetime to ISO: ${isoString}`);
         return isoString;
       }
     }
@@ -986,19 +928,19 @@ function formatDate(dateStr: unknown): string {
     const rfc822Regex = /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+)(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+([+-]\d{4}|[A-Z]{3,4})$/;
     if (rfc822Regex.test(dateString)) {
       // JavaScript's Date constructor should handle this format, but let's log for debugging
-      logger.debug(`Parsing RFC 822 date format: ${dateString}`);
+      console.log(`Parsing RFC 822 date format: ${dateString}`);
     }
     
     // Handle pubDate without timezone (add Z for UTC)
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateString)) {
       normalizedDateString = `${dateString}Z`;
-      logger.debug(`Added Z suffix to ISO date without timezone: ${normalizedDateString}`);
+      console.log(`Added Z suffix to ISO date without timezone: ${normalizedDateString}`);
     }
     
     // Handle pubDate with only date part
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
       normalizedDateString = `${dateString}T00:00:00Z`;
-      logger.debug(`Added time component to date-only string: ${normalizedDateString}`);
+      console.log(`Added time component to date-only string: ${normalizedDateString}`);
     }
     
     // Create Date object from normalized string
@@ -1006,7 +948,7 @@ function formatDate(dateStr: unknown): string {
     
     // Check if date is valid
     if (isNaN(date.getTime())) {
-      logger.warn(`Invalid date format encountered: ${dateString}, falling back to current date`);
+      console.warn(`Invalid date format encountered: ${dateString}, falling back to current date`);
       return new Date().toISOString();
     }
     
@@ -1014,7 +956,7 @@ function formatDate(dateStr: unknown): string {
     return date.toISOString();
   } catch {
     // Log the specific error for debugging
-    logger.warn(`Error parsing date "${dateStr}": falling back to current date`);
+    console.warn(`Error parsing date "${dateStr}": falling back to current date`);
     // We don't use the error, just return a default date
     return new Date().toISOString();
   }
@@ -1045,7 +987,7 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now(); // Use milliseconds for last_fetched (bigint column)
     
-    logger.debug(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}`);
+    console.log(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}`);
     
     const insertResult = await executeQuery(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1054,7 +996,7 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
     
     return Number(insertResult.insertId);
   } catch (error) {
-    logger.error(`Error getting or creating feed for ${feedUrl}: ${error}`);
+    console.error(`Error getting or creating feed for ${feedUrl}: ${error}`);
     throw error;
   }
 }
@@ -1080,7 +1022,7 @@ async function executeBatchTransaction<T = ExecutedQuery>(
     
     return results;
   } catch (error) {
-    logger.error(`Transaction error: ${error}`);
+    console.error(`Transaction error: ${error}`);
     throw error;
   }
 }
@@ -1103,7 +1045,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
     
     if (newEntries.length === 0) {
-      logger.debug(`No new entries to insert for feed ${feedId}`);
+      console.log(`No new entries to insert for feed ${feedId}`);
       
       // Just update the last_fetched timestamp
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -1172,9 +1114,9 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     
     // Execute all operations in a transaction
     await executeBatchTransaction(operations);
-    logger.info(`Batch inserted ${newEntries.length} entries for feed ${feedId} in ${chunks.length} chunks`);
+    console.log(`Batch inserted ${newEntries.length} entries for feed ${feedId} in ${chunks.length} chunks`);
   } catch (error) {
-    logger.error(`Error storing RSS entries with transaction for feed ${feedId}: ${error}`);
+    console.error(`Error storing RSS entries with transaction for feed ${feedId}: ${error}`);
     throw error;
   }
 }
@@ -1189,7 +1131,7 @@ async function acquireFeedRefreshLock(feedUrl: string): Promise<boolean> {
     
     // Format date in MySQL format (YYYY-MM-DD HH:MM:SS)
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    logger.debug(`Acquiring lock with key: ${lockKey}, expiry: ${expiryTime}, created_at: ${now}`);
+    console.log(`Acquiring lock with key: ${lockKey}, expiry: ${expiryTime}, created_at: ${now}`);
     
     const result = await executeQuery(
       'INSERT INTO rss_locks (lock_key, expires_at, created_at) VALUES (?, ?, ?) ' +
@@ -1202,7 +1144,7 @@ async function acquireFeedRefreshLock(feedUrl: string): Promise<boolean> {
     // If rows affected is 0, someone else has the lock
     return result.rowsAffected > 0;
   } catch (error) {
-    logger.error(`Error acquiring lock for ${feedUrl}: ${error}`);
+    console.error(`Error acquiring lock for ${feedUrl}: ${error}`);
     // In case of error, assume we don't have the lock
     return false;
   }
@@ -1214,7 +1156,7 @@ async function releaseFeedRefreshLock(feedUrl: string): Promise<void> {
     const lockKey = `refresh_lock:${feedUrl}`;
     await executeQuery('DELETE FROM rss_locks WHERE lock_key = ?', [lockKey]);
   } catch {
-    logger.error(`Error releasing lock for ${feedUrl}`);
+    console.error(`Error releasing lock for ${feedUrl}`);
   }
 }
 
@@ -1227,7 +1169,7 @@ export async function getRSSEntries(
   pageSize: number = 10
 ): Promise<{ entries: RSSItem[], totalCount: number, hasMore: boolean }> {
   try {
-    logger.info(`Checking for RSS feed: ${postTitle} (${feedUrl})`);
+    console.log(`Checking for RSS feed: ${postTitle} (${feedUrl})`);
     
     // Check if we have recent entries in the database
     const feedsResult = await executeQuery<RSSFeedRow>(
@@ -1250,13 +1192,13 @@ export async function getRSSEntries(
       
       if (timeSinceLastFetch < fourHoursInMs) {
         shouldFetchFresh = false;
-        logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       } else {
-        logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       }
     } else {
       // Create new feed
-      logger.cache(`No existing data for ${postTitle}, creating new feed entry`);
+      console.log(`No existing data for ${postTitle}, creating new feed entry`);
       feedId = await getOrCreateFeed(feedUrl, postTitle, mediaType);
     }
     
@@ -1267,7 +1209,7 @@ export async function getRSSEntries(
       
       if (lockAcquired) {
         try {
-          logger.debug(`Acquired refresh lock for ${postTitle}`);
+          console.log(`Acquired refresh lock for ${postTitle}`);
           
           // Double-check if someone else refreshed while we were acquiring the lock
           const refreshCheckResult = await executeQuery<RSSFeedRow>(
@@ -1284,7 +1226,7 @@ export async function getRSSEntries(
             
             if (timeSinceLastFetch < fourHoursInMs) {
               // Someone else refreshed the data while we were acquiring the lock
-              logger.debug(`Another process refreshed the data for ${postTitle} while we were acquiring the lock`);
+              console.log(`Another process refreshed the data for ${postTitle} while we were acquiring the lock`);
               shouldFetchFresh = false;
             }
           }
@@ -1294,23 +1236,23 @@ export async function getRSSEntries(
               const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
               
               if (freshFeed.items.length > 0) {
-                logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
+                console.log(`Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
                 await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
               } else {
-                logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
+                console.log(`Feed ${postTitle} returned 0 items, not updating database`);
               }
             } catch (fetchError) {
-              logger.error(`Error fetching feed ${postTitle}: ${fetchError}`);
+              console.error(`Error fetching feed ${postTitle}: ${fetchError}`);
               // Continue execution to return whatever data we have in the database
             }
           }
         } finally {
           // Always release the lock when done
           await releaseFeedRefreshLock(feedUrl);
-          logger.debug(`Released refresh lock for ${postTitle}`);
+          console.log(`Released refresh lock for ${postTitle}`);
         }
       } else {
-        logger.info(`Another process is currently refreshing data for ${postTitle}, using existing data`);
+        console.log(`Another process is currently refreshing data for ${postTitle}, using existing data`);
         // Another process is refreshing, we'll use whatever data is available
       }
     }
@@ -1327,7 +1269,7 @@ export async function getRSSEntries(
     const totalCount = Number((countResult.rows[0] as { total: number }).total);
     
     // Get paginated entries for this feed from the database
-    logger.debug(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
+    console.log(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
     const entriesResult = await executeQuery<RSSEntryRow>(
       'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ? OFFSET ?',
       [feedId, pageSize, offset]
@@ -1336,19 +1278,19 @@ export async function getRSSEntries(
     // Log the raw query result for debugging
     if (process.env.NODE_ENV !== 'production' && entriesResult.rows.length > 0) {
       const sampleEntry = entriesResult.rows[0];
-      logger.debug(`Sample entry from DB: ${JSON.stringify(sampleEntry)}`);
-      logger.debug(`Sample entry pub_date: ${sampleEntry.pub_date}, type: ${typeof sampleEntry.pub_date}`);
+      console.log(`Sample entry from DB: ${JSON.stringify(sampleEntry)}`);
+      console.log(`Sample entry pub_date: ${sampleEntry.pub_date}, type: ${typeof sampleEntry.pub_date}`);
     }
     
     if (entriesResult.rows.length === 0 && page === 1) {
-      logger.warn(`No entries found in database for ${postTitle}, fetching fresh data as fallback`);
+      console.warn(`No entries found in database for ${postTitle}, fetching fresh data as fallback`);
       
       // If we have no entries in the database, try to fetch fresh data as a fallback
       try {
         const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
         
         if (freshFeed.items.length > 0) {
-          logger.info(`Fallback: Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
+          console.log(`Fallback: Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
           await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
           
           // Return the fresh items directly with mediaType
@@ -1363,14 +1305,14 @@ export async function getRSSEntries(
       }
     }
     
-    logger.info(`Retrieved ${entriesResult.rows.length} entries for ${postTitle} (page ${page} of ${Math.ceil(totalCount / pageSize)})`);
+    console.log(`Retrieved ${entriesResult.rows.length} entries for ${postTitle} (page ${page} of ${Math.ceil(totalCount / pageSize)})`);
     
     // Use type assertion to ensure TypeScript knows rows is an array of RSSEntryRow
     const entries = entriesResult.rows as RSSEntryRow[];
     const mappedEntries = entries.map((entry) => {
       // Debug log to see what's coming from the database
       if (process.env.NODE_ENV !== 'production') {
-        logger.debug(`Entry date from DB: ${entry.pub_date}, type: ${typeof entry.pub_date}`);
+        console.log(`Entry date from DB: ${entry.pub_date}, type: ${typeof entry.pub_date}`);
       }
       
       // Pass through the date directly from the database
@@ -1397,11 +1339,11 @@ export async function getRSSEntries(
       hasMore
     };
   } catch (error) {
-    logger.error(`Error in getRSSEntries for ${postTitle}: ${error}`);
+    console.error(`Error in getRSSEntries for ${postTitle}: ${error}`);
     
     // Try a direct fetch as a last resort
     try {
-      logger.info(`Attempting direct fetch for ${postTitle} as last resort`);
+      console.log(`Attempting direct fetch for ${postTitle} as last resort`);
       const directFeed = await fetchAndParseFeed(feedUrl, mediaType);
       return {
         entries: directFeed.items,
@@ -1409,7 +1351,7 @@ export async function getRSSEntries(
         hasMore: false
       };
     } catch {
-      logger.error(`Direct fetch failed for ${postTitle}`);
+      console.error(`Direct fetch failed for ${postTitle}`);
       return {
         entries: [],
         totalCount: 0,
@@ -1425,7 +1367,7 @@ export async function fetchAndStoreRSSFeed(feedUrl: string, postTitle: string, m
     // Use the same getRSSEntries function to maintain consistency
     await getRSSEntries(postTitle, feedUrl, mediaType);
   } catch (error) {
-    logger.error(`Error in fetchAndStoreRSSFeed for ${postTitle}: ${error}`);
+    console.error(`Error in fetchAndStoreRSSFeed for ${postTitle}: ${error}`);
   }
 }
 
@@ -1444,7 +1386,7 @@ async function ensureRSSLocksTableExists(): Promise<void> {
     );
     
     if (result.rows.length === 0) {
-      logger.info('Creating rss_locks table...');
+      console.log('Creating rss_locks table...');
       
       // Create the table
       await executeQuery(
@@ -1455,12 +1397,12 @@ async function ensureRSSLocksTableExists(): Promise<void> {
         ) ENGINE=InnoDB;`
       );
       
-      logger.info('rss_locks table created successfully');
+      console.log('rss_locks table created successfully');
     } else {
-      logger.debug('rss_locks table already exists');
+      console.log('rss_locks table already exists');
     }
   } catch {
-    logger.error(`Error ensuring rss_locks table exists`);
+    console.error(`Error ensuring rss_locks table exists`);
     // Don't throw the error, just log it
     // The application can still function without the locks table
   }
@@ -1468,7 +1410,7 @@ async function ensureRSSLocksTableExists(): Promise<void> {
 
 // Call the function to ensure the table exists
 ensureRSSLocksTableExists().catch(err => {
-  logger.error(`Failed to check/create rss_locks table: ${err}`);
+  console.error(`Failed to check/create rss_locks table: ${err}`);
 });
 
 /**
@@ -1482,7 +1424,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
   }
 
   if (postTitles.length !== feedUrls.length || (mediaTypes && mediaTypes.length !== feedUrls.length)) {
-    logger.error('Mismatch between postTitles, feedUrls, and mediaTypes arrays');
+    console.error('Mismatch between postTitles, feedUrls, and mediaTypes arrays');
     return;
   }
   
@@ -1514,18 +1456,18 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
     // Create new feeds
     for (const feed of newFeeds) {
       try {
-        logger.info(`Creating new feed: ${feed.title} (${feed.feedUrl})`);
+        console.log(`Creating new feed: ${feed.title} (${feed.feedUrl})`);
         const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
         const feedId = await getOrCreateFeed(feed.feedUrl, feed.title, feed.mediaType);
         
         if (freshFeed.items.length > 0) {
           await storeRSSEntriesWithTransaction(feedId, freshFeed.items, feed.mediaType);
-          logger.info(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items`);
+          console.log(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items`);
         } else {
-          logger.warn(`Created new feed ${feed.title} but no items were found`);
+          console.warn(`Created new feed ${feed.title} but no items were found`);
         }
       } catch (error) {
-        logger.error(`Error creating new feed ${feed.title}: ${error}`);
+        console.error(`Error creating new feed ${feed.title}: ${error}`);
       }
     }
     
@@ -1540,7 +1482,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
       const timeSinceLastFetch = currentTime - lastFetchedMs;
       
       if (timeSinceLastFetch >= fourHoursInMs) {
-        logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
         feedsToRefresh.push({ 
           feedId, 
           feedUrl, 
@@ -1548,7 +1490,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
           mediaType: feed.media_type || undefined 
         });
       } else {
-        logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       }
     }
     
@@ -1559,7 +1501,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
       
       if (lockAcquired) {
         try {
-          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
+          console.log(`Acquired refresh lock for ${feed.postTitle}`);
           
           // Double-check if someone else refreshed while we were acquiring the lock
           const refreshCheckResult = await executeQuery<RSSFeedRow>(
@@ -1574,7 +1516,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
             
             if (timeSinceLastFetch < fourHoursInMs) {
               // Someone else refreshed the data while we were acquiring the lock
-              logger.debug(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
+              console.log(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
               continue; // Skip to the next feed
             }
           }
@@ -1583,26 +1525,26 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
             const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
             
             if (freshFeed.items.length > 0) {
-              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle}`);
+              console.log(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle}`);
               await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
             } else {
-              logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
+              console.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
             }
           } catch (fetchError) {
-            logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
+            console.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
             // Continue to the next feed
           }
         } finally {
           // Always release the lock when done
           await releaseFeedRefreshLock(feed.feedUrl);
-          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+          console.log(`Released refresh lock for ${feed.postTitle}`);
         }
       } else {
-        logger.info(`Another process is currently refreshing data for ${feed.postTitle}, using existing data`);
+        console.log(`Another process is currently refreshing data for ${feed.postTitle}, using existing data`);
       }
     }
   } catch (error) {
-    logger.error(`Error checking and refreshing feeds: ${error}`);
+    console.error(`Error checking and refreshing feeds: ${error}`);
   }
 }
 
@@ -1639,7 +1581,7 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       const timeSinceLastFetch = currentTime - lastFetchedMs;
       
       if (timeSinceLastFetch >= fourHoursInMs) {
-        logger.cache(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Data is stale for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
         feedsToRefresh.push({ 
           feedId, 
           feedUrl, 
@@ -1647,7 +1589,7 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
           mediaType: feed.media_type || undefined 
         });
       } else {
-        logger.cache(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
+        console.log(`Using cached data for ${postTitle} (last fetched ${Math.round(timeSinceLastFetch / 60000)} minutes ago)`);
       }
     }
     
@@ -1658,14 +1600,14 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       
       if (lockAcquired) {
         try {
-          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
+          console.log(`Acquired refresh lock for ${feed.postTitle}`);
           const freshFeed = await fetchAndParseFeed(feed.feedUrl);
           
           if (freshFeed.items.length > 0) {
             await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items);
-            logger.info(`Successfully refreshed feed: ${feed.postTitle} with ${freshFeed.items.length} items`);
+            console.log(`Successfully refreshed feed: ${feed.postTitle} with ${freshFeed.items.length} items`);
           } else {
-            logger.warn(`No new items found for feed: ${feed.postTitle}`);
+            console.warn(`No new items found for feed: ${feed.postTitle}`);
           }
           
           // Update the last_fetched timestamp
@@ -1674,17 +1616,17 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
             [Date.now(), feed.feedId]
           );
         } catch (error) {
-          logger.error(`Error refreshing feed ${feed.postTitle}: ${error}`);
+          console.error(`Error refreshing feed ${feed.postTitle}: ${error}`);
         } finally {
           // Release the lock
           await releaseFeedRefreshLock(feed.feedUrl);
-          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+          console.log(`Released refresh lock for ${feed.postTitle}`);
         }
       } else {
-        logger.warn(`Could not acquire refresh lock for ${feed.postTitle}, skipping refresh`);
+        console.warn(`Could not acquire refresh lock for ${feed.postTitle}, skipping refresh`);
       }
     }
   } catch (error) {
-    logger.error(`Error in refreshExistingFeeds: ${error}`);
+    console.error(`Error in refreshExistingFeeds: ${error}`);
   }
 }

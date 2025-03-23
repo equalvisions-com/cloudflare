@@ -1,7 +1,11 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+
+export const dynamic = 'force-dynamic';
 
 // Define the route context type with async params
 interface RouteContext {

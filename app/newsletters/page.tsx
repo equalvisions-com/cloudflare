@@ -2,6 +2,9 @@ import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { CategorySliderWrapper } from "@/components/ui/CategorySliderWrapper";
 import { memo } from "react";
 
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 // Memoize the static sidebar content
 const RightSidebar = memo(() => (
   <div className="sticky top-6">

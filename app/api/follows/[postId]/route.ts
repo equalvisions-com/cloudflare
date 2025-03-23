@@ -1,8 +1,12 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+
+export const dynamic = 'force-dynamic';
 
 interface RouteContext {
   params: Promise<{ postId: string }>;

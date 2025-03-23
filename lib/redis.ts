@@ -4,6 +4,7 @@ import { XMLParser } from 'fast-xml-parser';
 import orderBy from 'lodash/orderBy';
 import { cache } from 'react';
 
+
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
