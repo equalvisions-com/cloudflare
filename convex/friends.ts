@@ -151,10 +151,7 @@ export const getFriendshipStatusByUsername = query({
       };
     }
 
-    return getFriendshipStatus(ctx, {
-      requesterId: userId,
-      requesteeId: profileUserId,
-    });
+    return checkFriendshipStatus(ctx, userId, profileUserId);
   },
 });
 
