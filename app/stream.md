@@ -1,3 +1,5 @@
+R2: TO DO-The image upload uses pre-signed URLs from R2 storage, which are secure and time-limited.
+
 AI SDK 4.1 is now available!
 
 Read Announcement
