@@ -63,7 +63,7 @@ export const getProfileByUsername = query({
   handler: async (ctx, args) => {
     const user = await ctx.db
       .query("users")
-      .withIndex("by_username", q => q.eq("username", args.username))
+      .withIndex("by_username", q => q.eq("username", args.username.toLowerCase()))
       .first();
     
     if (!user) return null;
@@ -664,10 +664,12 @@ export const getProfileLikesData = query({
 export const completeOnboarding = mutation({
   args: {
     username: v.string(),
-    bio: v.optional(v.string()),
+    name: v.optional(v.union(v.string(), v.null())),
+    bio: v.optional(v.union(v.string(), v.null())),
+    profileImageKey: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const { username, bio } = args;
+    const { username, name, bio, profileImageKey } = args;
     
     // Get the authenticated user ID
     const userId = await getAuthUserId(ctx);
@@ -681,11 +683,11 @@ export const completeOnboarding = mutation({
       throw new Error("User not found");
     }
     
-    // Check if the username is already taken (if it's different from current user's)
-    if (user.username !== username) {
+    // Check if the username is already taken (case-insensitive)
+    if (user.username?.toLowerCase() !== username.toLowerCase()) {
       const existingUser = await ctx.db
         .query("users")
-        .withIndex("by_username", q => q.eq("username", username))
+        .withIndex("by_username", q => q.eq("username", username.toLowerCase()))
         .first();
       
       if (existingUser) {
@@ -693,18 +695,41 @@ export const completeOnboarding = mutation({
       }
     }
     
+    // Default SVG profile image
+    const defaultProfileImage = "data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E";
+    
     // Prepare updates
     const updates: {
       username: string;
+      name?: string;
       bio?: string;
+      profileImageKey?: string;
+      profileImage: string;
       isBoarded: boolean;
     } = {
-      username,
+      username: username.toLowerCase(), // Store lowercase in database
+      profileImage: defaultProfileImage, // Set default profile image
       isBoarded: true
     };
     
+    if (name) {
+      updates.name = name;
+    }
+    
     if (bio) {
       updates.bio = bio;
+    }
+
+    if (profileImageKey) {
+      updates.profileImageKey = profileImageKey;
+      // Get the public URL for the image
+      try {
+        const publicUrl = await r2.getUrl(profileImageKey);
+        updates.profileImage = publicUrl;
+      } catch (error) {
+        console.error("Failed to get image URL:", error);
+        // Still save the key even if we can't get the URL right now
+      }
     }
     
     // Update the user

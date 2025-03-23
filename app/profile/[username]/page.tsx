@@ -28,6 +28,7 @@ interface ProfilePageProps {
 
 // Helper to normalize username consistently
 const normalizeUsername = (username: string) => {
+  // Remove @ and convert to lowercase for lookups
   return decodeURIComponent(username).replace(/^@/, '').toLowerCase();
 };
 

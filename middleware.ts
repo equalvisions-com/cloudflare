@@ -15,30 +15,13 @@ const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
 // Helper to normalize username for internal routing
 const normalizeUsername = (username: string) => {
   // Remove @ if it exists, then add it back for consistency
-  return '@' + username.replace(/^@/, '');
+  // Store and look up usernames in lowercase
+  return '@' + username.replace(/^@/, '').toLowerCase();
 };
 
 export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
-    // Redirect legacy /user/@username to /@username
-    if (isLegacyProfileRoute(request)) {
-      const url = request.nextUrl.clone();
-      // Extract username part and normalize it
-      const username = url.pathname.replace('/profile/', '');
-      url.pathname = normalizeUsername(username);
-      return NextResponse.redirect(new URL(url.pathname, request.url), 301);
-    }
-
-    // Handle /@username routes
-    if (isProfileRoute(request)) {
-      const url = request.nextUrl.clone();
-      // For internal routing, we keep the normalized version
-      const username = url.pathname.substring(1); // remove leading slash
-      url.pathname = `/profile/${normalizeUsername(username)}`;
-      return NextResponse.rewrite(url);
-    }
-
-    // Get user profile with authentication and onboarding status
+    // Get user profile with authentication and onboarding status first
     const { isAuthenticated, isBoarded } = await getUserProfile();
 
     // Handle existing auth logic
@@ -50,10 +33,37 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/signin");
     }
 
-    // Handle onboarding redirect
+    // Handle onboarding redirect - check this before profile routes
     // Don't redirect if already on onboarding page
     if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
       return nextjsMiddlewareRedirect(request, "/onboarding");
+    }
+
+    // Handle profile routes after onboarding check
+    if (isProfileRoute(request)) {
+      // First check if user needs onboarding
+      if (isAuthenticated && !isBoarded) {
+        return nextjsMiddlewareRedirect(request, "/onboarding");
+      }
+
+      // If onboarded, proceed with profile routing
+      const url = request.nextUrl.clone();
+      const username = url.pathname.substring(1); // remove leading slash
+      url.pathname = `/profile/${normalizeUsername(username)}`;
+      return NextResponse.rewrite(url);
+    }
+
+    // Handle legacy profile routes
+    if (isLegacyProfileRoute(request)) {
+      // First check if user needs onboarding
+      if (isAuthenticated && !isBoarded) {
+        return nextjsMiddlewareRedirect(request, "/onboarding");
+      }
+
+      const url = request.nextUrl.clone();
+      const username = url.pathname.replace('/profile/', '');
+      url.pathname = normalizeUsername(username);
+      return NextResponse.redirect(new URL(url.pathname, request.url), 301);
     }
   },
   { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } }, // 30 days
