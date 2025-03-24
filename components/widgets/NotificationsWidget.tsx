@@ -4,15 +4,16 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface NotificationsWidgetProps {
   isAuthenticated?: boolean;
 }
 
 export function NotificationsWidget({ isAuthenticated = false }: NotificationsWidgetProps) {
-  // Get the count with fallback to 0
-  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount) ?? 0;
-  
+  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount);
+  const isLoading = pendingRequestsCount === undefined;
+
   if (!isAuthenticated) {
     return (
       <div className="p-4 rounded-xl border">
@@ -29,40 +30,33 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
 
   return (
     <div className="p-4 rounded-xl border">
-      <h3 className="text-base font-extrabold flex items-center leading-none tracking-tight mb-3">
+      <h3 className="text-base font-extrabold leading-none tracking-tight mb-3">
         Notifications
       </h3>
       
-      {pendingRequestsCount > 0 ? (
-        <div className="space-y-4">
+      <div className="space-y-4">
+        {isLoading ? (
+          <Skeleton className="h-5 w-36" />
+        ) : pendingRequestsCount > 0 ? (
           <Link 
             href="/notifications" 
             className="flex items-center text-sm text-primary hover:underline tracking-tight"
           >
-            You have {pendingRequestsCount} pending friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
+            You have {pendingRequestsCount} friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
           </Link>
-          
-          <Link
-            href="/notifications"
-            className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
-          >
-            View all
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-4">
+        ) : (
           <p className="text-sm text-muted-foreground tracking-tight">
             No new notifications
           </p>
-          
-          <Link
-            href="/notifications"
-            className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
-          >
-            View all
-          </Link>
-        </div>
-      )}
+        )}
+        
+        <Link 
+          href="/notifications" 
+          className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
+        >
+          View All
+        </Link>
+      </div>
     </div>
   );
 } 
