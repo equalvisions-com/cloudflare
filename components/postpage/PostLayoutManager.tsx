@@ -1,5 +1,4 @@
 import { Id } from "@/convex/_generated/dataModel";
-import { ProfileSidebarContent } from "@/components/postpage/ProfileSidebarContent";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { TrendingWidget } from "@/components/trending/TrendingWidget";
 import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkeleton";
@@ -7,6 +6,8 @@ import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
+import { NotificationsWidget } from "@/components/widgets/NotificationsWidget";
+import { NotificationsWidgetSkeleton } from "@/components/widgets/NotificationsWidgetSkeleton";
 import { Suspense } from "react";
 
 type Post = {
@@ -57,25 +58,20 @@ export const PostLayoutManager = ({
   // Prepare sidebar content on the server
   const rightSidebar = (
     <div className="sticky top-6">
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <SidebarSearch />
+        
+        {/* Notifications Widget */}
+        <Suspense fallback={<NotificationsWidgetSkeleton />}>
+          <NotificationsWidget />
+        </Suspense>
+        
         <Suspense fallback={<TrendingWidgetSkeleton />}>
           <TrendingWidget />
         </Suspense>
         <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
           <FeaturedPostsWidget />
         </Suspense>
-        <ProfileSidebarContent
-          category={post.category}
-          author={post.author}
-          authorUrl={post.authorUrl}
-          twitterUrl={post.twitterUrl}
-          websiteUrl={post.websiteUrl}
-          platform={post.platform}
-          categorySlug={post.categorySlug}
-          relatedPosts={post.relatedPosts}
-          relatedFollowStates={relatedFollowStates}
-        />
         
         {/* Legal Widget */}
         <LegalWidget />

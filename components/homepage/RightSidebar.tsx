@@ -14,8 +14,8 @@ interface RightSidebarProps {
 
 export function RightSidebar({ className = "" }: RightSidebarProps) {
   return (
-    <div className="sticky top-6">
-      <div className="flex flex-col gap-6">
+    <div className="sticky top-4">
+      <div className="flex flex-col gap-4">
         {/* Search Component */}
         <SidebarSearch />
         
