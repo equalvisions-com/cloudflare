@@ -30,7 +30,7 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
 
   return (
     <div className="p-4 rounded-xl border">
-      <h3 className="text-base font-extrabold leading-none tracking-tight mb-4">
+      <h3 className="text-base font-extrabold leading-none tracking-tight mb-[9px]">
         Notifications
       </h3>
       
@@ -40,22 +40,18 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
         ) : pendingRequestsCount > 0 ? (
           <Link 
             href="/notifications" 
-            className="flex items-center text-sm text-primary hover:underline tracking-tight"
+            className="text-sm text-muted-foreground tracking-tight hover:no-underline"
           >
             You have {pendingRequestsCount} friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
           </Link>
         ) : (
-          <p className="text-sm text-muted-foreground tracking-tight">
-            No new notifications
-          </p>
+          <Link 
+          href="/notifications" 
+          className="text-sm text-muted-foreground tracking-tight hover:no-underline"
+        >            No new notifications
+</Link>
         )}
         
-        <Link 
-          href="/notifications" 
-          className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-4 tracking-tight leading-none"
-        >
-          View All
-        </Link>
       </div>
     </div>
   );
