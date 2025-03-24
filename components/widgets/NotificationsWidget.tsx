@@ -3,7 +3,6 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
-import { BellIcon, UserPlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface NotificationsWidgetProps {
@@ -30,7 +29,6 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
   return (
     <div className="p-4 rounded-xl border">
       <h3 className="text-base font-extrabold flex items-center leading-none tracking-tight mb-3">
-        <BellIcon className="h-5 w-5 mr-2" />
         Notifications
       </h3>
       
@@ -39,7 +37,6 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
           href="/notifications" 
           className="flex items-center text-sm text-primary hover:underline"
         >
-          <UserPlusIcon className="h-4 w-4 mr-1" />
           You have {pendingRequestsCount} pending friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
         </Link>
       ) : (
