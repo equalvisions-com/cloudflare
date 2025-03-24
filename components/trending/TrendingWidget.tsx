@@ -151,7 +151,7 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0"
+                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 leading-none tracking-tight"
                 >
                   {isOpen ? "Show less" : "Show more"}
                 </Button>

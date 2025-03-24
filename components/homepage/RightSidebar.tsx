@@ -4,6 +4,8 @@ import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
+import { NotificationsWidget } from "@/components/widgets/NotificationsWidget";
+import { NotificationsWidgetSkeleton } from "@/components/widgets/NotificationsWidgetSkeleton";
 import { Suspense } from "react";
 
 interface RightSidebarProps {
@@ -16,6 +18,11 @@ export function RightSidebar({ className = "" }: RightSidebarProps) {
       <div className="flex flex-col gap-6">
         {/* Search Component */}
         <SidebarSearch />
+        
+        {/* Notifications Widget */}
+        <Suspense fallback={<NotificationsWidgetSkeleton />}>
+          <NotificationsWidget />
+        </Suspense>
         
         {/* Trending Widget */}
         <Suspense fallback={<TrendingWidgetSkeleton />}>
