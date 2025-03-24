@@ -2,8 +2,12 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ProfileSidebarContent } from "@/components/postpage/ProfileSidebarContent";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { TrendingWidget } from "@/components/trending/TrendingWidget";
+import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkeleton";
 import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
+import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
+import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
+import { Suspense } from "react";
 
 type Post = {
   _id: Id<"posts">;
@@ -55,7 +59,12 @@ export const PostLayoutManager = ({
     <div className="sticky top-6">
       <div className="flex flex-col gap-6">
         <SidebarSearch />
-        <TrendingWidget />
+        <Suspense fallback={<TrendingWidgetSkeleton />}>
+          <TrendingWidget />
+        </Suspense>
+        <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+          <FeaturedPostsWidget />
+        </Suspense>
         <ProfileSidebarContent
           category={post.category}
           author={post.author}
@@ -75,7 +84,6 @@ export const PostLayoutManager = ({
   );
 
   // Use the standardized layout with card styling for post content
-  // Make sure to include flex layout in the container class
   return (
     <StandardSidebarLayout
       rightSidebar={rightSidebar}

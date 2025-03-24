@@ -40,7 +40,7 @@ export function SidebarSearch({
           <Input
             type="text"
             placeholder="Search..."
-            className="pl-9 pr-9 rounded-full"
+            className="pl-9 pr-9 rounded-full shadow-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setIsFocused(true)}

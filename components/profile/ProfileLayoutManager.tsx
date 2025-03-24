@@ -2,8 +2,12 @@ import { ReactNode } from "react";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
 import { TrendingWidget } from "@/components/trending/TrendingWidget";
+import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkeleton";
 import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
+import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
+import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
+import { Suspense } from "react";
 
 interface ProfileLayoutManagerProps {
   children: ReactNode;
@@ -18,7 +22,12 @@ export async function ProfileLayoutManager({ children }: ProfileLayoutManagerPro
   const rightSidebar = (
     <div className="flex flex-col gap-6">
       <SidebarSearch />
-      <TrendingWidget />
+      <Suspense fallback={<TrendingWidgetSkeleton />}>
+        <TrendingWidget />
+      </Suspense>
+      <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+        <FeaturedPostsWidget />
+      </Suspense>
       
       {/* Legal Widget */}
       <LegalWidget />
