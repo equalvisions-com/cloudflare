@@ -10,7 +10,12 @@ interface NotificationsWidgetProps {
 }
 
 export function NotificationsWidget({ isAuthenticated = false }: NotificationsWidgetProps) {
-  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount) ?? 0;
+  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount);
+  
+  if (pendingRequestsCount === undefined) {
+    throw new Promise((resolve) => {
+    });
+  }
 
   if (!isAuthenticated) {
     return (
@@ -33,16 +38,34 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
       </h3>
       
       {pendingRequestsCount > 0 ? (
-        <Link 
-          href="/notifications" 
-          className="flex items-center text-sm text-primary hover:underline"
-        >
-          You have {pendingRequestsCount} pending friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
-        </Link>
+        <div className="space-y-4">
+          <Link 
+            href="/notifications" 
+            className="flex items-center text-sm text-primary hover:underline tracking-tight"
+          >
+            You have {pendingRequestsCount} pending friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
+          </Link>
+          
+          <Link
+            href="/notifications"
+            className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
+          >
+            View all
+          </Link>
+        </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          No new notifications
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground tracking-tight">
+            No new notifications
+          </p>
+          
+          <Link
+            href="/notifications"
+            className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
+          >
+            View all
+          </Link>
+        </div>
       )}
     </div>
   );
