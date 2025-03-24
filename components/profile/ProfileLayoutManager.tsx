@@ -1,6 +1,9 @@
 import { ReactNode } from "react";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
+import { TrendingWidget } from "@/components/trending/TrendingWidget";
+import { SidebarSearch } from "@/components/search/SidebarSearch";
+import { LegalWidget } from "@/components/widgets/LegalWidget";
 
 interface ProfileLayoutManagerProps {
   children: ReactNode;
@@ -11,19 +14,20 @@ interface ProfileLayoutManagerProps {
  * Uses StandardSidebarLayout for consistent layout across the application
  */
 export async function ProfileLayoutManager({ children }: ProfileLayoutManagerProps) {
-  // Prepare the right sidebar with placeholder content
+  // Prepare the right sidebar with widgets
   const rightSidebar = (
-    <div className="p-4 rounded-lg">
-      <div className="h-8 w-full bg-gray-100 dark:bg-gray-800 rounded mb-4"></div>
-      <div className="h-24 w-full bg-gray-100 dark:bg-gray-800 rounded mb-4"></div>
-      <div className="h-40 w-full bg-gray-100 dark:bg-gray-800 rounded"></div>
+    <div className="flex flex-col gap-6">
+      <SidebarSearch />
+      <TrendingWidget />
+      
+      {/* Legal Widget */}
+      <LegalWidget />
     </div>
   );
   
   // Use the standardized layout with mobile header
   return (
     <>
-
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={true}

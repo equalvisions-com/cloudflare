@@ -1,6 +1,9 @@
 import { Id } from "@/convex/_generated/dataModel";
 import { ProfileSidebarContent } from "@/components/postpage/ProfileSidebarContent";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
+import { TrendingWidget } from "@/components/trending/TrendingWidget";
+import { SidebarSearch } from "@/components/search/SidebarSearch";
+import { LegalWidget } from "@/components/widgets/LegalWidget";
 
 type Post = {
   _id: Id<"posts">;
@@ -50,18 +53,25 @@ export const PostLayoutManager = ({
   // Prepare sidebar content on the server
   const rightSidebar = (
     <div className="sticky top-6">
-    <ProfileSidebarContent
-      category={post.category}
-      author={post.author}
-      authorUrl={post.authorUrl}
-      twitterUrl={post.twitterUrl}
-      websiteUrl={post.websiteUrl}
-      platform={post.platform}
-      categorySlug={post.categorySlug}
-      relatedPosts={post.relatedPosts}
-      relatedFollowStates={relatedFollowStates}
-    />
-  </div>
+      <div className="flex flex-col gap-6">
+        <SidebarSearch />
+        <TrendingWidget />
+        <ProfileSidebarContent
+          category={post.category}
+          author={post.author}
+          authorUrl={post.authorUrl}
+          twitterUrl={post.twitterUrl}
+          websiteUrl={post.websiteUrl}
+          platform={post.platform}
+          categorySlug={post.categorySlug}
+          relatedPosts={post.relatedPosts}
+          relatedFollowStates={relatedFollowStates}
+        />
+        
+        {/* Legal Widget */}
+        <LegalWidget />
+      </div>
+    </div>
   );
 
   // Use the standardized layout with card styling for post content
