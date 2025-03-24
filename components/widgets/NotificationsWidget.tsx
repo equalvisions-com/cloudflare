@@ -40,14 +40,14 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
         ) : pendingRequestsCount > 0 ? (
           <Link 
             href="/notifications" 
-            className="text-sm text-muted-foreground tracking-tight hover:no-underline"
+            className="text-sm hover:text-primary hover:no-underline font-semibold block line-clamp-2 overflow-hidden"
           >
             You have {pendingRequestsCount} friend {pendingRequestsCount === 1 ? 'request' : 'requests'}
           </Link>
         ) : (
           <Link 
           href="/notifications" 
-          className="text-sm text-muted-foreground tracking-tight hover:no-underline"
+          className="text-sm hover:text-primary hover:no-underline font-semibold block line-clamp-2 overflow-hidden"
         >            No new notifications
 </Link>
         )}
