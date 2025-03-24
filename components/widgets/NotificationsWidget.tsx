@@ -15,12 +15,12 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
 
   if (!isAuthenticated) {
     return (
-      <div className="p-4 rounded-lg border">
-        <h3 className="text-lg font-semibold mb-2">Welcome!</h3>
-        <p className="text-sm text-muted-foreground mb-3">
-          Join our community to connect with other readers and writers.
+      <div className="p-4 rounded-xl border">
+        <h3 className="text-base font-extrabold flex items-center leading-none tracking-tight mb-3">Welcome to Graspr</h3>
+        <p className="text-sm text-muted-foreground mb-4 tracking-tight">
+          Sign up to get your own personalized feed
         </p>
-        <Button asChild className="w-full">
+        <Button asChild className="w-full rounded-full font-semibold">
           <Link href="/signin">Sign up</Link>
         </Button>
       </div>
@@ -28,8 +28,8 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
   }
 
   return (
-    <div className="p-4 rounded-lg border">
-      <h3 className="text-lg font-semibold mb-2 flex items-center">
+    <div className="p-4 rounded-xl border">
+      <h3 className="text-base font-extrabold flex items-center leading-none tracking-tight mb-3">
         <BellIcon className="h-5 w-5 mr-2" />
         Notifications
       </h3>

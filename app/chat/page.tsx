@@ -3,6 +3,13 @@ import { ChatPage } from '../../components/chat/ChatPage';
 import { StandardSidebarLayout } from '@/components/ui/StandardSidebarLayout';
 import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 import { NotificationsWidgetServer } from '@/components/widgets/NotificationsWidgetServer';
+import { SidebarSearch } from '@/components/search/SidebarSearch';
+import { TrendingWidget } from '@/components/trending/TrendingWidget';
+import { TrendingWidgetSkeleton } from '@/components/trending/TrendingWidgetSkeleton';
+import { FeaturedPostsWidget } from '@/components/widgets/FeaturedPostsWidget';
+import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsWidgetSkeleton';
+import { LegalWidget } from '@/components/widgets/LegalWidget';
+import { Suspense } from 'react';
 
 export const metadata: Metadata = {
   title: 'Chat',
@@ -14,14 +21,26 @@ export default function Page() {
     <div className="fixed inset-0 md:static md:inset-auto w-full">
       <StandardSidebarLayout
         rightSidebar={
-          <div className="flex flex-col gap-4">
-            <NotificationsWidgetServer />
-            
-            <div className="p-4 rounded-lg border">
-              <h2 className="text-lg font-semibold mb-4">Chat Information</h2>
-              <p className="text-sm text-muted-foreground">
-                Ask our AI assistant any questions about articles, products, or get general information.
-              </p>
+          <div className="sticky top-4">
+            <div className="flex flex-col gap-4">
+              {/* Search Component */}
+              <SidebarSearch />
+              
+              {/* Notifications Widget */}
+              <NotificationsWidgetServer />
+              
+              {/* Trending Widget */}
+              <Suspense fallback={<TrendingWidgetSkeleton />}>
+                <TrendingWidget />
+              </Suspense>
+              
+              {/* Featured Posts Widget */}
+              <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+                <FeaturedPostsWidget />
+              </Suspense>
+              
+              {/* Legal Widget */}
+              <LegalWidget />
             </div>
           </div>
         }
