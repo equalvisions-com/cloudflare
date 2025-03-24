@@ -30,7 +30,7 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
 
   return (
     <div className="p-4 rounded-xl border">
-      <h3 className="text-base font-extrabold leading-none tracking-tight mb-3">
+      <h3 className="text-base font-extrabold leading-none tracking-tight mb-4">
         Notifications
       </h3>
       
@@ -52,7 +52,7 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
         
         <Link 
           href="/notifications" 
-          className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
+          className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-4 tracking-tight leading-none"
         >
           View All
         </Link>
