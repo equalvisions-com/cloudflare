@@ -15,7 +15,7 @@ export function FeaturedPostsWidgetSkeleton({ className = "" }: FeaturedPostsWid
           <span>You might like</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-4">
+      <CardContent className="px-4 pb-4">
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="flex gap-3">

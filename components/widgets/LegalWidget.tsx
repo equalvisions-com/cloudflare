@@ -10,9 +10,17 @@ interface LegalWidgetProps {
 export function LegalWidget({ className = "" }: LegalWidgetProps) {
   return (
     <Card className={`shadow-none rounded-xl ${className}`}>
-      <CardContent className="px-6 py-4 rounded">
+      <CardContent className="px-4 py-4 rounded">
         <div className="text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
+          <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
+              Submit
+            </Link>
+            <span>•</span>
+            <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
+              Advertise
+            </Link>
+            <span>•</span>
             <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
               Privacy
             </Link>
@@ -20,10 +28,7 @@ export function LegalWidget({ className = "" }: LegalWidgetProps) {
             <Link href="/terms" className="hover:underline hover:text-foreground transition-colors">
               Terms
             </Link>
-            <span>•</span>
-            <Link href="/help" className="hover:underline hover:text-foreground transition-colors">
-              Help
-            </Link>
+        
           </div>
         </div>
       </CardContent>

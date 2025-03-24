@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -11,13 +10,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-
-export interface TrendingTopic {
-  id: string;
-  title: string;
-  count: number;
-  slug: string;
-}
+import React from "react";
 
 interface RSSEntry {
   guid: string;
@@ -31,18 +24,8 @@ interface RSSEntry {
 }
 
 interface TrendingWidgetProps {
-  topics?: TrendingTopic[];
   className?: string;
 }
-
-// Placeholder trending data for fallback
-const placeholderTrendingTopics: TrendingTopic[] = [
-  { id: '1', title: 'Artificial Intelligence', count: 1250, slug: 'artificial-intelligence' },
-  { id: '2', title: 'Web Development', count: 890, slug: 'web-development' },
-  { id: '3', title: 'Blockchain', count: 745, slug: 'blockchain' },
-  { id: '4', title: 'Productivity', count: 612, slug: 'productivity' },
-  { id: '5', title: 'Machine Learning', count: 578, slug: 'machine-learning' },
-];
 
 export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
   const [rssEntries, setRssEntries] = useState<{[feedUrl: string]: RSSEntry}>({});
@@ -55,8 +38,8 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
     trendingLimit: 6
   });
   
-  // Extract trending posts data
-  const trendingPosts = widgetData?.trendingPosts || [];
+  // Extract trending posts data and memoize to prevent dependency changes
+  const trendingPosts = React.useMemo(() => widgetData?.trendingPosts || [], [widgetData?.trendingPosts]);
   
   // Extract feed URLs for fetching RSS entries
   useEffect(() => {
@@ -107,42 +90,21 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
   const additionalPosts = mergedItems.slice(3, 6);
   const hasMorePosts = additionalPosts.length > 0;
   
-  // If no data, show placeholder
+  // If no data, show empty state with skeleton loader
   if (!widgetData || mergedItems.length === 0) {
     return (
       <Card className={`shadow-none rounded-xl ${className}`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <span>Trending Topics</span>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+            <span>What&apos;s trending</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-6 pb-4">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <TrendingItemSkeleton key={i} />
-              ))}
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {placeholderTrendingTopics.map((topic) => (
-                <li key={topic.id}>
-                  <Link 
-                    href={`/topic/${topic.slug}`} 
-                    className="flex items-center justify-between group"
-                  >
-                    <span className="text-sm hover:text-primary group-hover:underline">
-                      {topic.title}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">{topic.count}</span>
-                      <ArrowUpRight className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+        <CardContent className="px-4 pb-4">
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <TrendingItemSkeleton key={i} />
+            ))}
+          </div>
         </CardContent>
       </Card>
     );
@@ -150,12 +112,12 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
   
   return (
     <Card className={`shadow-none rounded-xl ${className}`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium flex items-center gap-2">
-          <span>Trending Now</span>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+          <span>What&apos;s trending</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-4">
+      <CardContent className="px-4 pb-4">
         <Collapsible
           open={isOpen}
           onOpenChange={setIsOpen}
@@ -189,7 +151,7 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="text-sm font-medium p-0 h-auto hover:no-underline text-left justify-start mt-2"
+                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0"
                 >
                   {isOpen ? "Show less" : "Show more"}
                 </Button>
@@ -214,13 +176,15 @@ function TrendingItem({
       <div className="flex items-center gap-1">
         {post.featuredImg && (
           <div className="flex-shrink-0 w-4 h-4 overflow-hidden rounded">
-            <Image 
-              src={post.featuredImg} 
-              alt={post.title}
-              width={16}
-              height={16}
-              className="object-cover"
-            />
+            <AspectRatio ratio={1/1} className="bg-muted">
+              <Image 
+                src={post.featuredImg} 
+                alt={post.title}
+                fill
+                className="object-cover"
+                sizes="16px"
+              />
+            </AspectRatio>
           </div>
         )}
         <Link 
@@ -259,7 +223,7 @@ function TrendingItem({
           href={rssEntry.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm hover:text-primary flex items-center flex-grow"
+          className="text-sm hover:text-primary flex items-start font-semibold flex-grow"
         >
           <span className="line-clamp-2">{rssEntry.title}</span>
         </a>

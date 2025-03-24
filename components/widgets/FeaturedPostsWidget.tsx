@@ -63,13 +63,12 @@ export function FeaturedPostsWidget({ className = "" }: FeaturedPostsWidgetProps
   
   return (
     <Card className={`shadow-none rounded-xl ${className}`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-yellow-500" />
-          <span>You might like</span>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+          <span>Who to follow</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-4">
+      <CardContent className="4 pb-4">
         {!featuredPosts.length && (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
@@ -109,7 +108,7 @@ export function FeaturedPostsWidget({ className = "" }: FeaturedPostsWidgetProps
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="text-sm font-medium p-0 h-auto hover:no-underline text-left justify-start mt-2"
+                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
                 >
                   {isOpen ? "Show less" : "Show more"}
                 </Button>
@@ -186,17 +185,19 @@ function FeaturedPostItem({ post }: { post: any }) {
           </div>
         )}
         <div className="flex flex-grow min-h-[40px] items-center">
-          <div className="flex justify-between items-start gap-2 w-full">
-            <Link 
-              href={`/${post.categorySlug}/${post.postSlug}`} 
-              className="text-sm font-medium line-clamp-2 hover:underline flex-grow"
-            >
-              {post.title}
-            </Link>
+          <div className="flex justify-between items-center gap-2 w-full">
+            <div className="flex-grow">
+              <Link 
+                href={`/${post.categorySlug}/${post.postSlug}`} 
+                className="text-sm hover:text-primary hover:no-underline font-semibold block line-clamp-2 max-h-[2.5rem] overflow-hidden"
+              >
+                {post.title}
+              </Link>
+            </div>
             <Button
               variant={isFollowing ? "secondary" : "default"}
               onClick={handleFollowClick}
-              className={cn("rounded-full h-7 text-xs px-3 flex-shrink-0 mt-0")}
+              className={cn("rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0")}
               style={{ opacity: 1 }}
             >
               {isFollowing ? "Following" : "Follow"}

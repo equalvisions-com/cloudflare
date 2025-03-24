@@ -13,7 +13,7 @@ export function TrendingWidgetSkeleton({ className = "" }: TrendingWidgetSkeleto
           <span>Trending Now</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-4">
+      <CardContent className="px-4 pb-4">
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <TrendingItemSkeleton key={i} />
