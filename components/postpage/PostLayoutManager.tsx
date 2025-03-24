@@ -6,8 +6,7 @@ import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
-import { NotificationsWidget } from "@/components/widgets/NotificationsWidget";
-import { NotificationsWidgetSkeleton } from "@/components/widgets/NotificationsWidgetSkeleton";
+import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
 
 type Post = {
@@ -62,9 +61,7 @@ export const PostLayoutManager = ({
         <SidebarSearch />
         
         {/* Notifications Widget */}
-        <Suspense fallback={<NotificationsWidgetSkeleton />}>
-          <NotificationsWidget />
-        </Suspense>
+        <NotificationsWidgetServer />
         
         <Suspense fallback={<TrendingWidgetSkeleton />}>
           <TrendingWidget />

@@ -4,8 +4,7 @@ import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
-import { NotificationsWidget } from "@/components/widgets/NotificationsWidget";
-import { NotificationsWidgetSkeleton } from "@/components/widgets/NotificationsWidgetSkeleton";
+import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
 
 interface RightSidebarProps {
@@ -20,9 +19,7 @@ export function RightSidebar({ className = "" }: RightSidebarProps) {
         <SidebarSearch />
         
         {/* Notifications Widget */}
-        <Suspense fallback={<NotificationsWidgetSkeleton />}>
-          <NotificationsWidget />
-        </Suspense>
+        <NotificationsWidgetServer />
         
         {/* Trending Widget */}
         <Suspense fallback={<TrendingWidgetSkeleton />}>

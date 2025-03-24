@@ -7,6 +7,7 @@ import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
+import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
 
 interface ProfileLayoutManagerProps {
@@ -22,6 +23,10 @@ export async function ProfileLayoutManager({ children }: ProfileLayoutManagerPro
   const rightSidebar = (
     <div className="flex flex-col gap-4">
       <SidebarSearch />
+      
+      {/* Notifications Widget */}
+      <NotificationsWidgetServer />
+      
       <Suspense fallback={<TrendingWidgetSkeleton />}>
         <TrendingWidget />
       </Suspense>
