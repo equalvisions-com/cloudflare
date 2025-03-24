@@ -10,13 +10,9 @@ interface NotificationsWidgetProps {
 }
 
 export function NotificationsWidget({ isAuthenticated = false }: NotificationsWidgetProps) {
-  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount);
+  // Get the count with fallback to 0
+  const pendingRequestsCount = useQuery(api.friends.getPendingRequestsCount) ?? 0;
   
-  if (pendingRequestsCount === undefined) {
-    throw new Promise((resolve) => {
-    });
-  }
-
   if (!isAuthenticated) {
     return (
       <div className="p-4 rounded-xl border">
