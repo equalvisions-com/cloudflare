@@ -29,7 +29,7 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link 
     href={item.href} 
     className={cn(
-      "flex flex-col items-center justify-center px-2 pb-2 relative",
+      "flex flex-col items-center justify-center px-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
       isActive 
         ? "text-primary" 
@@ -83,12 +83,12 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col mobile-dock",
+        "mobile-dock",
         className
       )}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-[64px]">
+      <div className="flex items-center justify-around w-full h-full">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 

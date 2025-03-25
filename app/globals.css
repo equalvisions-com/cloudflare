@@ -301,30 +301,50 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  /* Base height without safe area */
+  /* Fixed base height */
   height: 64px;
+  /* Use padding for safe area to keep nav items in a stable position */
+  padding-bottom: 0;
+  /* Center nav items within the fixed height area */
   display: flex;
   flex-direction: column;
 }
 
-/* Apply safe area padding only when available */
+/* Apply safe area padding using a pseudo-element instead of changing the container size */
 @supports (padding: env(safe-area-inset-bottom)) {
   .mobile-dock {
-    padding-bottom: env(safe-area-inset-bottom);
-    height: calc(64px + env(safe-area-inset-bottom));
+    position: relative;
   }
   
-  /* The inner nav content should always be 64px to maintain layout */
+  .mobile-dock::after {
+    content: "";
+    display: block;
+    position: absolute;
+    left: 0;
+    bottom: -100vh; /* Extend below the visible area */
+    width: 100%;
+    height: calc(100vh + env(safe-area-inset-bottom));
+    background: inherit;
+    z-index: -1;
+    border-top: inherit;
+  }
+  
+  /* Apply backdrop blur separately since it can't be inherited */
+  .mobile-dock.backdrop-blur-md::after {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  /* The inner nav content stays fixed at 64px */
   .mobile-dock > div {
     height: 64px;
     flex-shrink: 0;
   }
 }
 
-/* For iOS devices - ensure home indicator doesn't overlap content */
+/* For iOS devices - use the same approach */
 @supports (-webkit-touch-callout: none) {
-  .mobile-dock {
-    padding-bottom: env(safe-area-inset-bottom);
-    height: calc(64px + env(safe-area-inset-bottom));
+  .mobile-dock::after {
+    height: calc(100vh + env(safe-area-inset-bottom));
   }
 }
