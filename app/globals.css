@@ -8,6 +8,10 @@
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
   
+  .no-overscroll {
+    overscroll-behavior: none;
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
@@ -118,25 +122,6 @@
         transform: translateZ(0) !important;
       }
     }
-
-    /* New touch-specific styles for mobile dock */
-    .nav-item-link:not(.active) {
-      color: var(--muted-foreground);
-      &:hover,
-      &:active,
-      &:focus {
-        color: var(--muted-foreground);
-      }
-    }
-
-    .nav-item-link.active {
-      color: var(--primary);
-      &:hover,
-      &:active,
-      &:focus {
-        color: var(--primary);
-      }
-    }
   }
 }
 
@@ -240,10 +225,6 @@
   main {
     border-width: 0px;
   }
-  /* Mobile dock performance enhancement */
-  .mobile-dock {
-    transform: translateZ(0);
-  }
 }
 
 @layer base {
@@ -273,7 +254,13 @@
   opacity: 0;
 }
 
-/* Apply after transition is complete */
+/* Override default disabled opacity for all elements in the chat interface */
+.disabled-full-opacity button:disabled,
+.disabled-full-opacity input:disabled,
+.disabled-full-opacity textarea:disabled {
+  opacity: 1 !important;
+}
+
 .embla-slide:not(.opacity-0) {
   transition: opacity 50ms;
   opacity: 1;

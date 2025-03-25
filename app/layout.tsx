@@ -43,10 +43,10 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=contain"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">

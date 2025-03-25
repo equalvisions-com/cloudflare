@@ -6,11 +6,13 @@ import {
   Podcast,
   Mail,
   User,
-  Sparkles
+  MessageCircle,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
   href: string;
@@ -27,10 +29,11 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link 
     href={item.href} 
     className={cn(
-      "nav-item-link",
       "flex flex-col items-center justify-center px-2 pb-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
-      isActive ? "active text-primary" : "text-muted-foreground hover:text-foreground"
+      isActive 
+        ? "text-primary" 
+        : "text-muted-foreground hover:text-foreground"
     )}
     aria-current={isActive ? "page" : undefined}
   >
@@ -47,32 +50,44 @@ NavItem.displayName = "NavItem";
 // The main component is also memoized to prevent unnecessary re-renders
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
+  const { username, isAuthenticated } = useSidebar();
   
   // Memoize the navItems array to prevent recreation on each render
-  const navItems = useMemo<NavItem[]>(() => [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/newsletters", icon: Mail, label: "Newsletters" },
-    { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-    { href: "/chat", icon: Sparkles, label: "Ask AI" },
-    { href: "/profile", icon: User, label: "Profile" },
-  ], []);
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = [
+      { href: "/", icon: Home, label: "Home" },
+      { href: "/newsletters", icon: Mail, label: "Newsletters" },
+      { href: "/podcasts", icon: Podcast, label: "Podcasts" },
+      { href: "/people", icon: Users, label: "People" },
+      { href: "/chat", icon: MessageCircle, label: "Chat" },
+    ];
+    
+    // Add profile link based on authentication status
+    items.push(
+      isAuthenticated 
+        ? { href: `/@${username}`, icon: User, label: "Profile" }
+        : { href: "/signin", icon: User, label: "Sign In" }
+    );
+    
+    return items;
+  }, [username, isAuthenticated]);
 
   // Memoize the isActive check function
   const checkIsActive = useCallback((href: string) => {
-    return pathname === href || (href !== "/" && pathname.startsWith(href));
+    if (href === '/') return pathname === href;
+    return pathname === href || pathname.startsWith(href + '/');
   }, [pathname]);
 
   return (
     <nav 
       className={cn(
-        "mobile-dock",
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col",
+        "flex flex-col pb-[env(safe-area-inset-bottom)]", /* Modern iOS support */
         className
       )}
       style={{ 
-        height: "64px"
+        height: "calc(64px + env(safe-area-inset-bottom, 0px))"
       }}
       aria-label="Mobile navigation"
     >
@@ -89,4 +104,3 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   );
 });
 
-MobileDock.displayName = "MobileDock";
