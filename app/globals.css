@@ -269,5 +269,7 @@
 
 /* iOS Safe Area Support */
 .mobile-dock {
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-top: 12px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  height: auto;
 }
