@@ -62,6 +62,26 @@
     display: none;  /* Chrome, Safari and Opera */
   }
 
+  /* Safe area insets for mobile devices */
+  .safe-area-dock {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .safe-area-dock {
+      padding-bottom: env(safe-area-inset-bottom);
+      height: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    
+    .safe-area-content {
+      padding-bottom: 0;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+    }
+  }
+
   /* Prevent hover effects on touch devices for chat filter buttons */
   @media (hover: none) {
     /* Inactive buttons */
