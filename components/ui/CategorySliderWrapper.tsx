@@ -480,7 +480,7 @@ export function CategorySliderWrapper({
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
       <div className="sticky-header">
-        {/* Search input */}
+        {/* Search input - add top padding to account for notch */}
         <form 
           role="search"
           onSubmit={handleSearchSubmit} 

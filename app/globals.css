@@ -246,6 +246,11 @@
   body {
     margin: 0;
     padding: 0;
+    /* Remove top padding from body to avoid double padding with sticky headers */
+    padding-top: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
   }
@@ -321,12 +326,11 @@
   }
 }
 
-/* Sticky header safe area handling */
+/* Sticky header safe area handling - simpler now with status bar space */
 .sticky-header {
   position: sticky;
   top: 0;
   z-index: 50;
-  padding-top: env(safe-area-inset-top, 0px);
   background-color: hsl(var(--background) / 0.85);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid hsl(var(--border));
@@ -338,9 +342,21 @@
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
     height: calc(64px + max(env(safe-area-inset-bottom, 0px), 20px));
   }
-  
-  /* Handle notches on iPhones */
-  .sticky-header {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
+}
+
+/* Add separate utility for top status bar space */
+.status-bar-space {
+  height: env(safe-area-inset-top, 0px);
+  background-color: hsl(var(--background));
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+/* Dark mode specific styles */
+.dark .status-bar-space {
+  background-color: hsl(var(--background));
 }

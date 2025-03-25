@@ -48,6 +48,9 @@ export default async function RootLayout({
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
         >
+          {/* Status bar space for notches */}
+          <div className="status-bar-space" />
+          
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
