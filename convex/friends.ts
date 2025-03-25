@@ -793,24 +793,4 @@ export const friendRequests = query({
       cursor: friendships.continueCursor,
     };
   },
-});
-
-// Get the count of pending friend requests for the authenticated user
-export const getPendingRequestsCount = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    
-    if (!userId) {
-      return 0;
-    }
-    
-    // Get all pending friend requests where the user is the requestee
-    const pendingRequests = await ctx.db
-      .query("friends")
-      .withIndex("by_requestee", q => q.eq("requesteeId", userId).eq("status", "pending"))
-      .collect();
-      
-    return pendingRequests.length;
-  },
 }); 
