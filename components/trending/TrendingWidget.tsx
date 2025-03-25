@@ -173,7 +173,7 @@ function TrendingItem({
 }) {
   return (
     <li className="flex flex-col space-y-2">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         {post.featuredImg && (
           <div className="flex-shrink-0 w-4 h-4 overflow-hidden rounded">
             <AspectRatio ratio={1/1} className="bg-muted">
@@ -195,7 +195,7 @@ function TrendingItem({
         </Link>
       </div>
       
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         {rssEntry.image ? (
           <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
             <a 
