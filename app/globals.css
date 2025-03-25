@@ -307,35 +307,34 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  /* Fixed height that never changes */
+  /* Fixed height for the navigation part */
   height: 64px;
-  padding-bottom: 0;
+  /* Fixed positioning at the bottom of the screen */
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 50;
+  /* Make this a container for the safe area element */
+  display: flex;
+  flex-direction: column;
 }
 
-/* Create a pseudo-element that extends below the dock to handle the safe area */
+/* The actual visible dock that holds the navigation items */
+.mobile-dock-content {
+  height: 64px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Safe area spacer - this actually shows below the dock and extends into the safe area */
 .mobile-dock::after {
   content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Start at the bottom of the dock */
-  top: 100%;
-  /* Extend down by the safe area amount */
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
   height: env(safe-area-inset-bottom, 0px);
-  /* Match the background and blur of the dock */
   background: inherit;
   backdrop-filter: inherit;
   -webkit-backdrop-filter: inherit;
-  /* Ensure border is visible */
-  border-top: none;
-  border-left: inherit;
-  border-right: inherit;
-  border-bottom: inherit;
-  z-index: -1;
 }

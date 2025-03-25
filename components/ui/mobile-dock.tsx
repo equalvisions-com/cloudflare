@@ -88,7 +88,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       )}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-full">
+      <div className="mobile-dock-content flex items-center justify-around w-full">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 
@@ -97,6 +97,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
           />
         ))}
       </div>
+      {/* This is an explicit element for the safe area instead of relying solely on the pseudo-element */}
+      <div className="h-[env(safe-area-inset-bottom,0px)] w-full bg-inherit" />
     </nav>
   );
 });
