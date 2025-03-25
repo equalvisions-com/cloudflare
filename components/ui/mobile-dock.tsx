@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useEffect, useState } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -51,6 +51,36 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  const [safeAreaBottom, setSafeAreaBottom] = useState(0);
+  
+  // Detect safe area and update on resize
+  useEffect(() => {
+    function updateSafeArea() {
+      // This approach works on both Safari and Chrome on iOS
+      const root = document.documentElement;
+      const computedStyle = getComputedStyle(root);
+      const safeAreaBottom = parseInt(computedStyle.getPropertyValue('--sat'), 10) || 0;
+      
+      // Handle case where CSS variables aren't supported/set
+      if (safeAreaBottom === 0) {
+        // Default safe area for modern iOS devices with home indicator
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        setSafeAreaBottom(isIOS ? 34 : 0);
+      } else {
+        setSafeAreaBottom(safeAreaBottom);
+      }
+    }
+    
+    // Set CSS variable from env() at the document level
+    document.documentElement.style.setProperty(
+      '--sat', 
+      'env(safe-area-inset-bottom, 0px)'
+    );
+    
+    updateSafeArea();
+    window.addEventListener('resize', updateSafeArea);
+    return () => window.removeEventListener('resize', updateSafeArea);
+  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -83,11 +113,13 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col pb-[env(safe-area-inset-bottom)]", /* Modern iOS support */
+        "flex flex-col",
         className
       )}
       style={{ 
-        height: "calc(64px + env(safe-area-inset-bottom, 0px))"
+        // Base height plus dynamic safe area padding
+        height: `calc(64px + ${safeAreaBottom}px)`,
+        paddingBottom: `${safeAreaBottom}px`
       }}
       aria-label="Mobile navigation"
     >
