@@ -108,7 +108,7 @@ export function FeaturedPostsWidget({ className = "" }: FeaturedPostsWidgetProps
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
+                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-center mt-0 tracking-tight leading-none"
                 >
                   {isOpen ? "Show less" : "Show more"}
                 </Button>
