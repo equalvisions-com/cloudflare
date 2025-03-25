@@ -108,9 +108,9 @@ function Sidebar() {
   return (
     <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">
       <CardContent className="p-0">
-        <nav className="flex flex-col gap-4">
+        <nav className="flex flex-col gap-6">
           {/* Navigation items */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             {navItems.map((item) => (
               <NavLink 
                 key={item.href} 

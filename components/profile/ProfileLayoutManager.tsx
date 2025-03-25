@@ -21,7 +21,7 @@ interface ProfileLayoutManagerProps {
 export async function ProfileLayoutManager({ children }: ProfileLayoutManagerProps) {
   // Prepare the right sidebar with widgets
   const rightSidebar = (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <SidebarSearch />
       
       {/* Notifications Widget */}

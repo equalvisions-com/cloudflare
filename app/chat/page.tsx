@@ -22,7 +22,7 @@ export default function Page() {
       <StandardSidebarLayout
         rightSidebar={
           <div className="sticky top-4">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
               {/* Search Component */}
               <SidebarSearch />
               

@@ -57,7 +57,7 @@ export const PostLayoutManager = ({
   // Prepare sidebar content on the server
   const rightSidebar = (
     <div className="sticky top-6">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <SidebarSearch />
         
         {/* Notifications Widget */}
