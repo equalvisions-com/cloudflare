@@ -2,37 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* iOS safe area support - based on proven fixes */
-:root {
-  --safe-area-inset-top: env(safe-area-inset-top, 0px);
-  --safe-area-inset-right: env(safe-area-inset-right, 0px);
-  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-area-inset-left: env(safe-area-inset-left, 0px);
-}
-
-/* Fix for Safari on iOS */
-@supports (-webkit-touch-callout: none) {
-  html, body {
-    height: 100%;
-  }
-  
-  body {
-    /* Critical fix: use -webkit-fill-available instead of 100vh for better iOS support */
-    min-height: -webkit-fill-available;
-    /* Hack to prevent white space at bottom of iOS Safari */
-    min-height: calc(100% + env(safe-area-inset-top));
-  }
-  
-  .has-safe-area-bottom {
-    padding-bottom: var(--safe-area-inset-bottom);
-  }
-  
-  /* Force iOS to respect the safe area insets */
-  .ios-dock-fix {
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-  }
-}
-
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
@@ -149,27 +118,6 @@
         transform: translateZ(0) !important;
       }
     }
-  }
-
-  /* Safe area padding utilities */
-  .pt-safe {
-    padding-top: var(--safe-area-inset-top);
-  }
-  
-  .pr-safe {
-    padding-right: var(--safe-area-inset-right);
-  }
-  
-  .pb-safe {
-    padding-bottom: var(--safe-area-inset-bottom);
-  }
-  
-  .pl-safe {
-    padding-left: var(--safe-area-inset-left);
-  }
-  
-  .p-safe {
-    padding: var(--safe-area-inset-top) var(--safe-area-inset-right) var(--safe-area-inset-bottom) var(--safe-area-inset-left);
   }
 }
 
