@@ -7,15 +7,15 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
-  
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
-  
+
   .scrollbar-visible::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   .scrollbar-visible::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.3);
     border-radius: 4px;
@@ -40,7 +40,7 @@
     border-radius: 4px;
     margin-top: 24px;
   }
-  
+
   /* Prevent browser back/forward gestures */
   .prevent-overscroll-navigation {
     overscroll-behavior-x: none;
@@ -50,12 +50,12 @@
 
   /* Hide scrollbars but keep functionality */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+    display: none;
   }
 
   /* Prevent hover effects on touch devices for chat filter buttons */
@@ -71,17 +71,17 @@
       -webkit-touch-callout: none !important;
       -webkit-user-select: none !important;
     }
-    
+
     .chat-filter-button:not([data-state='active']) span {
       color: hsl(var(--foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-    
+
     .chat-filter-button:not([data-state='active']) svg {
       color: hsl(var(--foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-    
+
     /* Active buttons */
     .chat-filter-button[data-state='active']:hover,
     .chat-filter-button[data-state='active']:active,
@@ -92,13 +92,13 @@
       -webkit-touch-callout: none !important;
       -webkit-user-select: none !important;
     }
-    
+
     .chat-filter-button[data-state='active'] span {
       color: hsl(var(--primary-foreground)) !important;
       font-weight: 500 !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-    
+
     .chat-filter-button[data-state='active'] svg {
       color: hsl(var(--primary-foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
@@ -122,7 +122,7 @@
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
-.chat-filter-button, 
+.chat-filter-button,
 .chat-filter-button * {
   -webkit-tap-highlight-color: transparent !important;
   tap-highlight-color: transparent !important;
@@ -132,7 +132,7 @@
 
 /* Touch-specific behaviors - only apply to touch devices */
 @media (hover: none) {
-  .chat-filter-button, 
+  .chat-filter-button,
   .chat-filter-button * {
     touch-action: manipulation !important;
     user-select: none !important;
@@ -174,6 +174,7 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
     --background: 20 14.3% 4.1%;
     --foreground: 60 9.1% 97.8%;
@@ -207,16 +208,19 @@
     @apply border-border;
     box-sizing: border-box;
   }
+
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
   }
+
   body {
     margin: 0;
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
   }
+
   /* Remove all main styling related to height */
   main {
     border-width: 0px;
@@ -234,6 +238,7 @@
   .w-full.md\:w-\[56\%\].overflow-y-auto.border.bg-card.rounded-lg.mt-6 {
     border: 0;
   }
+
   main {
     border-width: 0px;
   }
@@ -250,13 +255,7 @@
   opacity: 0;
 }
 
-/* Override default disabled opacity for all elements in the chat interface */
-.disabled-full-opacity button:disabled,
-.disabled-full-opacity input:disabled,
-.disabled-full-opacity textarea:disabled {
-  opacity: 1 !important;
-}
-
+/* Apply after transition is complete */
 .embla-slide:not(.opacity-0) {
   transition: opacity 50ms;
   opacity: 1;
@@ -267,27 +266,7 @@
   border-radius: 0.5rem;
 }
 
-/* iOS Safe Area Support */
+/* Add this to your globals.css */
 .mobile-dock {
-  padding-top: 12px;
-  /* Fixed padding for all browsers */
-  padding-bottom: 16px;
-  height: auto;
-}
-
-/* Apply safe area padding only in Safari/supported browsers */
-@supports (padding: max(0px)) {
-  .mobile-dock {
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-  }
-}
-
-/* Specific fix for Chrome on iOS */
-.ios-chrome {
-  padding-bottom: 16px !important;
-  position: fixed;
-  bottom: 0;
   will-change: transform;
-  transform: translateZ(0);
-  z-index: 50;
 }
