@@ -223,7 +223,7 @@ function TrendingItem({
           href={rssEntry.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm hover:text-primary flex items-start font-semibold flex-grow"
+          className="text-sm hover:text-primary flex items-center font-semibold flex-grow"
         >
           <span className="line-clamp-2">{rssEntry.title}</span>
         </a>
