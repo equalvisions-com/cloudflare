@@ -12,6 +12,17 @@
     overscroll-behavior: none;
   }
 
+  /* Safe area utilities */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: constant(safe-area-inset-bottom, 0px); /* iOS 11.0 */
+  }
+
+  .safe-area-bottom-fix {
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: calc(64px + constant(safe-area-inset-bottom, 0px)); /* iOS 11.0 */
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
