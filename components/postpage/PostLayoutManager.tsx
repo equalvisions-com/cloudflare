@@ -82,7 +82,7 @@ export const PostLayoutManager = ({
       rightSidebar={rightSidebar}
       useCardStyle={true}
       // Ensure we have the flex layout classes
-      containerClass={`container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-4 ${className}`}
+      containerClass={`container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0 ${className}`}
     >
       {children}
     </StandardSidebarLayout>

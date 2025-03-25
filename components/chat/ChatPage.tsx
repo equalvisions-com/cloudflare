@@ -771,7 +771,7 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef} 
-      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[528px] disabled-full-opacity"
+      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[552px] disabled-full-opacity"
     >
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
