@@ -268,12 +268,6 @@
   }
   main {
     border-width: 0px;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-  
-  /* For elements that need the padding but aren't the main element */
-  .pb-mobile-dock {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -307,34 +301,31 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  /* Fixed height for the navigation part */
+  /* Fixed height that never changes */
   height: 64px;
-  /* Fixed positioning at the bottom of the screen */
-  position: fixed;
-  bottom: 0;
+  position: relative;
+  z-index: 50;
+}
+
+/* Pseudo-element that extends below the nav to fill safe area */
+.mobile-dock::after {
+  content: '';
+  display: block;
+  position: absolute;
   left: 0;
   right: 0;
-  z-index: 50;
-  /* Make this a container for the safe area element */
-  display: flex;
-  flex-direction: column;
-}
-
-/* The actual visible dock that holds the navigation items */
-.mobile-dock-content {
-  height: 64px;
-  flex-shrink: 0;
-  width: 100%;
-}
-
-/* Safe area spacer - this actually shows below the dock and extends into the safe area */
-.mobile-dock::after {
-  content: "";
-  display: block;
-  flex-shrink: 0;
-  width: 100%;
+  bottom: 0;
   height: env(safe-area-inset-bottom, 0px);
-  background: inherit;
-  backdrop-filter: inherit;
-  -webkit-backdrop-filter: inherit;
+  transform: translateY(100%);
+  background-color: inherit;
+  border-top: none;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Enhance pseudo-element for devices with backdrop-blur */
+.mobile-dock.backdrop-blur-md::after {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: hsl(var(--background) / 0.85);
 }
