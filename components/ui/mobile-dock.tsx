@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useEffect, useRef } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -51,6 +51,34 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  const navRef = useRef<HTMLElement>(null);
+  
+  // Detect iOS and apply consistent safe area padding
+  useEffect(() => {
+    // Only run on client-side
+    if (typeof window === 'undefined') return;
+    
+    // Check if device is iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    
+    if (isIOS && navRef.current) {
+      // Add a specific class for iOS Chrome if needed
+      if (/CriOS/.test(navigator.userAgent)) {
+        navRef.current.classList.add('ios-chrome');
+      }
+      
+      // Force layout recalculation to avoid jittering on scroll
+      const handleScroll = () => {
+        if (navRef.current) {
+          // Force a reflow to stabilize the position
+          navRef.current.style.transform = 'translateZ(0)';
+        }
+      };
+      
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => window.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -80,12 +108,17 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
 
   return (
     <nav 
+      ref={navRef}
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
         "flex flex-col mobile-dock",
         className
       )}
+      style={{
+        willChange: "transform",
+        transform: "translateZ(0)"
+      }}
       aria-label="Mobile navigation"
     >
       <div className="flex items-center justify-around w-full py-3">

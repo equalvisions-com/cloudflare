@@ -270,6 +270,24 @@
 /* iOS Safe Area Support */
 .mobile-dock {
   padding-top: 12px;
-  padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  /* Fixed padding for all browsers */
+  padding-bottom: 16px;
   height: auto;
+}
+
+/* Apply safe area padding only in Safari/supported browsers */
+@supports (padding: max(0px)) {
+  .mobile-dock {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Specific fix for Chrome on iOS */
+.ios-chrome {
+  padding-bottom: 16px !important;
+  position: fixed;
+  bottom: 0;
+  will-change: transform;
+  transform: translateZ(0);
+  z-index: 50;
 }
