@@ -88,7 +88,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       )}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-[64px] pt-2">
+      <div className="mobile-dock-content">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 
