@@ -52,32 +52,6 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
   
-  // Add effect to apply iOS-specific styles
-  useEffect(() => {
-    const addIOSStyles = () => {
-      // For iOS devices
-      const style = document.createElement('style');
-      style.innerHTML = `
-        @supports (-webkit-touch-callout: none) {
-          body {
-            min-height: -webkit-fill-available;
-          }
-          .ios-dock-fix {
-            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-      
-      // Force reflow to apply the styles
-      document.body.style.display = 'none';
-      document.body.offsetHeight; // This triggers reflow
-      document.body.style.display = '';
-    };
-    
-    addIOSStyles();
-  }, []);
-  
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
@@ -105,28 +79,33 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   }, [pathname]);
 
   return (
-    <nav 
-      className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
-        "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col ios-dock-fix",
-        className
-      )}
-      style={{ 
-        height: "64px"
-      }}
-      aria-label="Mobile navigation"
-    >
-      <div className="flex items-center justify-around w-full h-full pt-2">
-        {navItems.map((item) => (
-          <NavItem 
-            key={item.href} 
-            item={item} 
-            isActive={checkIsActive(item.href)} 
-          />
-        ))}
-      </div>
-    </nav>
+    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+      {/* Dock content - fixed height of 64px */}
+      <nav 
+        className={cn(
+          "bg-background/85 backdrop-blur-md border-t border-border",
+          "flex flex-col",
+          className
+        )}
+        style={{ 
+          height: "64px" 
+        }}
+        aria-label="Mobile navigation"
+      >
+        <div className="flex items-center justify-around w-full h-full pt-2">
+          {navItems.map((item) => (
+            <NavItem 
+              key={item.href} 
+              item={item} 
+              isActive={checkIsActive(item.href)} 
+            />
+          ))}
+        </div>
+      </nav>
+      
+      {/* Safe area spacer - only appears on iOS devices with notches */}
+      <div className="bg-background/85 backdrop-blur-md w-full h-[env(safe-area-inset-bottom,0px)]" />
+    </div>
   );
 });
 
