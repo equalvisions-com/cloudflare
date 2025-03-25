@@ -12,15 +12,37 @@
     overscroll-behavior: none;
   }
 
-  /* Safe area utilities */
+  /* Safe area utilities with iOS Chrome support */
   .safe-area-bottom {
+    /* Fallback for non-safe-area devices */
+    padding-bottom: 0px;
+    /* iOS 11.0 */
+    padding-bottom: constant(safe-area-inset-bottom, 0px);
+    /* iOS 11.2+ */
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-bottom: constant(safe-area-inset-bottom, 0px); /* iOS 11.0 */
   }
 
-  .safe-area-bottom-fix {
+  /* Mobile dock specific safe area handling */
+  .mobile-dock-safe-area {
+    /* Base height */
+    height: 64px;
+    /* iOS 11.0 */
+    height: calc(64px + constant(safe-area-inset-bottom, 0px));
+    /* iOS 11.2+ */
     height: calc(64px + env(safe-area-inset-bottom, 0px));
-    height: calc(64px + constant(safe-area-inset-bottom, 0px)); /* iOS 11.0 */
+    /* Fallback for Chrome iOS */
+    @supports (-webkit-touch-callout: none) and (not (backdrop-filter: none)) {
+      height: calc(64px + 34px);
+    }
+    padding-bottom: 0px;
+    /* iOS 11.0 */
+    padding-bottom: constant(safe-area-inset-bottom, 0px);
+    /* iOS 11.2+ */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Fallback for Chrome iOS */
+    @supports (-webkit-touch-callout: none) and (not (backdrop-filter: none)) {
+      padding-bottom: 34px;
+    }
   }
 
   .scrollbar-visible::-webkit-scrollbar {
