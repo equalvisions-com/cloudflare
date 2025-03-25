@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeArea } from "@/components/ui/safe-area";
 
 interface NavItem {
   href: string;
@@ -52,7 +52,6 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
-  const insets = useSafeAreaInsets();
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -81,17 +80,17 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   }, [pathname]);
 
   return (
-    <nav 
+    <SafeArea 
+      top={false}
+      left={true}
+      right={true}
+      bottom={true}
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col",
+        "flex flex-col h-[64px]",
         className
       )}
-      style={{ 
-        height: `${64 + (insets.bottom || 0)}px`,
-        paddingBottom: insets.bottom || 0
-      }}
       aria-label="Mobile navigation"
     >
       <div className="flex items-center justify-around w-full h-[64px] pt-2">
@@ -103,7 +102,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
           />
         ))}
       </div>
-    </nav>
+    </SafeArea>
   );
 });
 

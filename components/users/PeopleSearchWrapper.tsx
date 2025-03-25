@@ -4,11 +4,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { PeopleDisplay } from '@/components/ui/PeopleDisplay';
 import { SearchInput } from '@/components/ui/search-input';
 import { Users, Loader2 } from 'lucide-react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function PeopleSearchWrapper() {
-  const insets = useSafeAreaInsets();
-  
   // State for search query
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
@@ -141,12 +138,7 @@ export function PeopleSearchWrapper() {
   return (
     <div className="space-y-0">
       {/* Search input */}
-      <div 
-        className="sticky top-0 z-10 bg-background border-b p-4"
-        style={{
-          paddingTop: Math.max(16, insets.top || 0), // Minimum padding of 16px (4 in tailwind)
-        }}
-      >
+      <div className="sticky top-0 z-10 bg-background border-b p-4">
         <form onSubmit={handleSearchSubmit} className="relative">
           <SearchInput
             value={pendingSearchQuery}
