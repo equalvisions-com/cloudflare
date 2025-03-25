@@ -9,6 +9,7 @@ import {
   Pause,
   X,
 } from "lucide-react";
+import { useEffect, useState } from 'react';
 
 export function PersistentPlayer() {
   const {
@@ -20,6 +21,22 @@ export function PersistentPlayer() {
     handleSeek,
     stopTrack,
   } = useAudio();
+  
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    // Check if we're on a mobile device
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   if (!currentTrack) return null;
 
@@ -30,7 +47,9 @@ export function PersistentPlayer() {
   };
 
   return (
-    <div className="fixed left-0 right-0 bg-background border-t shadow-lg z-50 bottom-0">
+    <div 
+      className={`fixed left-0 right-0 bg-background border-t shadow-lg z-50 px-safe hw-accelerated ${isMobile ? 'bottom-[64px] md:bottom-0' : 'bottom-0'}`}
+    >
       <div className="container mx-0 px-0 md:mx-auto">
         <div className="flex items-start gap-3">
           {/* Image */}
