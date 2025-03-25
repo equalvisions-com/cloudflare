@@ -123,6 +123,24 @@
       }
     }
   }
+
+  /* iOS Safe Area Support */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Fixed position elements with safe area (for mobile dock) */
+  .fixed-safe-bottom {
+    bottom: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Viewport height with safe area (avoid Safari bottom bar issues) */
+  .h-screen-safe {
+    height: 100vh;
+    height: calc(100vh - env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
