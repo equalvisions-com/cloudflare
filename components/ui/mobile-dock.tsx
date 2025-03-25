@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { SafeArea } from "@/components/ui/safe-area";
 
 interface NavItem {
   href: string;
@@ -80,15 +79,11 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   }, [pathname]);
 
   return (
-    <SafeArea 
-      top={false}
-      left={true}
-      right={true}
-      bottom={true}
+    <nav 
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col h-[64px]",
+        "flex flex-col mobile-dock",
         className
       )}
       aria-label="Mobile navigation"
@@ -102,7 +97,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
           />
         ))}
       </div>
-    </SafeArea>
+    </nav>
   );
 });
 

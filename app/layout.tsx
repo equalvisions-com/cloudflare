@@ -26,11 +26,6 @@ export const metadata: Metadata = {
   icons: {
     icon: "/convex.svg",
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    viewportFit: 'cover',
-  },
 };
 
 export default async function RootLayout({

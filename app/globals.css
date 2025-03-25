@@ -2,7 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area insets for iOS/Android devices with notches */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
 @layer utilities {
+  /* Safe area utilities */
+  .safe-area-pt {
+    padding-top: var(--sat);
+  }
+  
+  .safe-area-pr {
+    padding-right: var(--sar);
+  }
+  
+  .safe-area-pb {
+    padding-bottom: var(--sab);
+  }
+  
+  .safe-area-pl {
+    padding-left: var(--sal);
+  }
+  
+  .safe-area-p {
+    padding-top: var(--sat);
+    padding-right: var(--sar);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+  }
+  
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
@@ -265,4 +297,18 @@
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;
+}
+
+/* Mobile dock safe area handling */
+.mobile-dock {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* For iOS devices - prevent content from getting hidden behind the home indicator */
+@supports (-webkit-touch-callout: none) {
+  .mobile-dock {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+    height: calc(64px + max(env(safe-area-inset-bottom, 0px), 20px));
+  }
 }
