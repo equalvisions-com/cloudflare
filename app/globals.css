@@ -266,3 +266,8 @@
 .sidebar-card {
   border-radius: 0.5rem;
 }
+
+/* iOS Safe Area Support */
+.mobile-dock {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}

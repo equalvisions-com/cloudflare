@@ -83,11 +83,12 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col",
+        "flex flex-col mobile-dock",
         className
       )}
       style={{ 
-        height: "64px"
+        height: "auto",
+        minHeight: "64px"
       }}
       aria-label="Mobile navigation"
     >
@@ -103,4 +104,9 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
     </nav>
   );
 });
+
+// Add this to your global CSS file or create a style tag in your layout:
+// .mobile-dock {
+//   padding-bottom: max(16px, env(safe-area-inset-bottom));
+// }
 
