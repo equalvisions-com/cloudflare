@@ -16,6 +16,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
 import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatRSSKey } from '@/lib/rss';
 
 // Define step types for onboarding
 type OnboardingStep = 'profile' | 'follow';
@@ -185,7 +186,7 @@ export default function OnboardingPage() {
         // Unfollow the post
         await unfollowPost({
           postId,
-          rssKey: postTitle.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          rssKey: formatRSSKey(postTitle),
         });
         setFollowedPosts(followedPosts.filter(id => id !== postId));
       } else {
@@ -193,7 +194,7 @@ export default function OnboardingPage() {
         await followPost({
           postId,
           feedUrl,
-          rssKey: postTitle.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          rssKey: formatRSSKey(postTitle),
         });
         setFollowedPosts([...followedPosts, postId]);
       }

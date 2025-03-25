@@ -110,11 +110,27 @@ export function SidebarSearch({
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setActiveIndex((prev) => (prev < searchCategories.length - 1 ? prev + 1 : 0));
+        setActiveIndex((prev) => {
+          // If no item is currently active or we're at the last item, select first item
+          if (prev === -1 || prev >= searchCategories.length - 1) {
+            return 0;
+          }
+          return prev + 1;
+        });
         break;
       case "ArrowUp":
         e.preventDefault();
-        setActiveIndex((prev) => (prev > 0 ? prev - 1 : searchCategories.length - 1));
+        setActiveIndex((prev) => {
+          // If no item is currently active, select last item
+          if (prev === -1) {
+            return searchCategories.length - 1;
+          }
+          // If at first item, go to last item
+          if (prev === 0) {
+            return searchCategories.length - 1;
+          }
+          return prev - 1;
+        });
         break;
       case "Enter":
         e.preventDefault();
@@ -132,7 +148,7 @@ export function SidebarSearch({
   // Reset active index when opening/closing dropdown
   useEffect(() => {
     if (isOpen) {
-      setActiveIndex(0);
+      setActiveIndex(-1);
     }
   }, [isOpen]);
 
@@ -201,7 +217,9 @@ export function SidebarSearch({
                       <div 
                         key={category.id}
                         onClick={() => handleSearch(category.id)}
-                        className={`relative flex cursor-default select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none gap-2 ${
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseLeave={() => setActiveIndex(-1)}
+                        className={`relative flex cursor-pointer select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none gap-2 transition-colors ${
                           activeIndex === index ? "bg-accent text-accent-foreground" : ""
                         }`}
                       >
