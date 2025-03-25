@@ -52,7 +52,7 @@ export default async function RootLayout({
             <ThemeProvider attribute="class">
               <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
-                  <div className="">
+                  <div className="pb-safe">
                     <div className="flex justify-end hidden">
                       <UserMenuServer />
                     </div>

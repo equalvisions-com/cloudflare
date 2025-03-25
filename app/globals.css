@@ -64,22 +64,32 @@
 
   /* Safe area insets for mobile devices */
   .safe-area-dock {
+    /* Base height */
+    height: 64px;
+    /* Add safe area inset to the height */
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    /* iOS-specific legacy constant() function fallback */
+    height: calc(64px + constant(safe-area-inset-bottom, 0px));
+    /* Ensure the padding accounts for the safe area */
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: constant(safe-area-inset-bottom, 0px);
+  }
+
+  /* Style for the content within the safe area dock */
+  .safe-area-content {
+    height: 64px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
   }
   
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .safe-area-dock {
-      padding-bottom: env(safe-area-inset-bottom);
-      height: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    
-    .safe-area-content {
-      padding-bottom: 0;
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-    }
+  /* Safe area bottom padding for content */
+  .pb-safe {
+    padding-bottom: 64px; /* Base dock height */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(64px + constant(safe-area-inset-bottom, 0px));
   }
 
   /* Prevent hover effects on touch devices for chat filter buttons */
