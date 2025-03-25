@@ -38,6 +38,29 @@
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
+  
+  /* iOS-specific safe area classes with fallbacks */
+  .ios-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  
+  .ios-safe-insets {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  
+  /* Ensure consistent minimum safe area for iPhone notches */
+  @supports (-webkit-touch-callout: none) {
+    .ios-safe-bottom {
+      padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    }
+    
+    .ios-safe-insets {
+      padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    }
+  }
 
   /* Hardware acceleration classes for better performance */
   .hw-accelerated {
