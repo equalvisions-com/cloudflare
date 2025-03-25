@@ -248,6 +248,12 @@
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 768px) {
+    body {
+      padding-bottom: 0;
+    }
   }
   /* Remove all main styling related to height */
   main {
@@ -302,9 +308,13 @@
 /* Mobile dock safe area handling */
 .mobile-dock {
   /* Fixed height that never changes */
-  height: 64px;
-  position: relative;
-  z-index: 50;
+  height: 64px; 
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;
 }
 
 /* Pseudo-element that extends below the nav to fill safe area */

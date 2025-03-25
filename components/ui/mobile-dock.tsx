@@ -81,7 +81,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   return (
     <nav 
       className={cn(
-        "fixed bottom-0 left-0 right-0 md:hidden",
+        "md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
         "mobile-dock",
         className
