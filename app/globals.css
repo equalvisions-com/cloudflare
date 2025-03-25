@@ -301,50 +301,23 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  /* Fixed base height */
+  /* Standard height */
   height: 64px;
-  /* Use padding for safe area to keep nav items in a stable position */
-  padding-bottom: 0;
-  /* Center nav items within the fixed height area */
   display: flex;
   flex-direction: column;
 }
 
-/* Apply safe area padding using a pseudo-element instead of changing the container size */
-@supports (padding: env(safe-area-inset-bottom)) {
-  .mobile-dock {
-    position: relative;
-  }
-  
-  .mobile-dock::after {
-    content: "";
-    display: block;
-    position: absolute;
-    left: 0;
-    bottom: -100vh; /* Extend below the visible area */
-    width: 100%;
-    height: calc(100vh + env(safe-area-inset-bottom));
-    background: inherit;
-    z-index: -1;
-    border-top: inherit;
-  }
-  
-  /* Apply backdrop blur separately since it can't be inherited */
-  .mobile-dock.backdrop-blur-md::after {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-  
-  /* The inner nav content stays fixed at 64px */
-  .mobile-dock > div {
-    height: 64px;
-    flex-shrink: 0;
-  }
+/* Make sure internal content stays at fixed height */
+.mobile-dock > div {
+  height: 64px;
+  flex-shrink: 0;
 }
 
-/* For iOS devices - use the same approach */
-@supports (-webkit-touch-callout: none) {
-  .mobile-dock::after {
-    height: calc(100vh + env(safe-area-inset-bottom));
+/* Adding padding at the bottom for devices with notches */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .mobile-dock {
+    padding-bottom: env(safe-area-inset-bottom);
+    height: auto; /* Let the height be determined by content + padding */
+    min-height: 64px; /* Ensure minimum height even without safe area */
   }
 }
