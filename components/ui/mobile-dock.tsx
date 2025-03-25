@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useEffect } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -29,7 +29,7 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link 
     href={item.href} 
     className={cn(
-      "flex flex-col items-center justify-center px-2 relative",
+      "flex flex-col items-center justify-center px-2 pb-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
       isActive 
         ? "text-primary" 
@@ -51,6 +51,15 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  
+  // Add effect to set CSS variable for safe area inset
+  useEffect(() => {
+    // Set CSS variable for safe area inset bottom
+    document.documentElement.style.setProperty(
+      "--safe-area-inset-bottom", 
+      "env(safe-area-inset-bottom, 0px)"
+    );
+  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -81,14 +90,20 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   return (
     <nav 
       className={cn(
-        "md:hidden",
+        "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "mobile-dock",
+        "flex flex-col",
+        "after:block after:content-[''] after:w-full after:h-[var(--safe-area-inset-bottom)]",
+        "after:bg-background/85 after:backdrop-blur-md",
         className
       )}
+      style={{ 
+        height: "64px",
+        paddingBottom: "0"
+      }}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-full">
+      <div className="flex items-center justify-around w-full h-[64px] pt-2">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 

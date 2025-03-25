@@ -2,39 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Safe area insets for iOS/Android devices with notches */
-:root {
-  --sat: env(safe-area-inset-top, 0px);
-  --sar: env(safe-area-inset-right, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
-}
-
 @layer utilities {
-  /* Safe area utilities */
-  .safe-area-pt {
-    padding-top: var(--sat);
-  }
-  
-  .safe-area-pr {
-    padding-right: var(--sar);
-  }
-  
-  .safe-area-pb {
-    padding-bottom: var(--sab);
-  }
-  
-  .safe-area-pl {
-    padding-left: var(--sal);
-  }
-  
-  .safe-area-p {
-    padding-top: var(--sat);
-    padding-right: var(--sar);
-    padding-bottom: var(--sab);
-    padding-left: var(--sal);
-  }
-  
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
@@ -248,12 +216,6 @@
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-  @media (min-width: 768px) {
-    body {
-      padding-bottom: 0;
-    }
   }
   /* Remove all main styling related to height */
   main {
@@ -303,39 +265,4 @@
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;
-}
-
-/* Mobile dock safe area handling */
-.mobile-dock {
-  /* Fixed height that never changes */
-  height: 64px; 
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  z-index: 100;
-}
-
-/* Pseudo-element that extends below the nav to fill safe area */
-.mobile-dock::after {
-  content: '';
-  display: block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: env(safe-area-inset-bottom, 0px);
-  transform: translateY(100%);
-  background-color: inherit;
-  border-top: none;
-  z-index: -1;
-  pointer-events: none;
-}
-
-/* Enhance pseudo-element for devices with backdrop-blur */
-.mobile-dock.backdrop-blur-md::after {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background-color: hsl(var(--background) / 0.85);
 }
