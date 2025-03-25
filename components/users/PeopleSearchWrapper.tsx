@@ -138,7 +138,7 @@ export function PeopleSearchWrapper() {
   return (
     <div className="space-y-0">
       {/* Search input */}
-      <div className="sticky-header p-4">
+      <div className="sticky top-0 z-10 bg-background border-b p-4">
         <form onSubmit={handleSearchSubmit} className="relative">
           <SearchInput
             value={pendingSearchQuery}

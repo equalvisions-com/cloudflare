@@ -246,11 +246,6 @@
   body {
     margin: 0;
     padding: 0;
-    /* Remove top padding from body to avoid double padding with sticky headers */
-    padding-top: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
   }
@@ -306,57 +301,30 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  height: calc(64px + env(safe-area-inset-bottom, 0px));
-  background-color: hsl(var(--background) / 0.85);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid hsl(var(--border));
+  /* Base height without safe area */
+  height: 64px;
   display: flex;
   flex-direction: column;
 }
 
-@media (min-width: 768px) {
+/* Apply safe area padding only when available */
+@supports (padding: env(safe-area-inset-bottom)) {
   .mobile-dock {
-    display: none;
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(64px + env(safe-area-inset-bottom));
+  }
+  
+  /* The inner nav content should always be 64px to maintain layout */
+  .mobile-dock > div {
+    height: 64px;
+    flex-shrink: 0;
   }
 }
 
-/* Sticky header safe area handling - simpler now with status bar space */
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background-color: hsl(var(--background) / 0.85);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid hsl(var(--border));
-}
-
-/* For iOS devices - prevent content from getting hidden behind the home indicator */
+/* For iOS devices - ensure home indicator doesn't overlap content */
 @supports (-webkit-touch-callout: none) {
   .mobile-dock {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
-    height: calc(64px + max(env(safe-area-inset-bottom, 0px), 20px));
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(64px + env(safe-area-inset-bottom));
   }
-}
-
-/* Add separate utility for top status bar space */
-.status-bar-space {
-  height: env(safe-area-inset-top, 0px);
-  background-color: hsl(var(--background));
-  width: 100%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-}
-
-/* Dark mode specific styles */
-.dark .status-bar-space {
-  background-color: hsl(var(--background));
 }

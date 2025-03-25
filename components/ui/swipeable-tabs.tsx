@@ -37,7 +37,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="sticky-header flex w-full">
+    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
       
       {tabs.map((tab, index) => (
         <button
