@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Podcast, Mail, User, Sparkles } from "lucide-react";
+import { 
+  Home, 
+  Podcast,
+  Mail,
+  User,
+  Sparkles
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
@@ -17,69 +23,70 @@ interface MobileDockProps {
 }
 
 // Memoized NavItem component to prevent unnecessary re-renders
-const NavItem = memo(
-  ({ item, isActive }: { item: NavItem; isActive: boolean }) => (
-    <Link
-      href={item.href}
-      className={cn(
-        "flex flex-col items-center justify-center px-2 pb-2 relative",
-        "transition-colors duration-200 ease-in-out h-12 w-12",
-        isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-      )}
-      aria-current={isActive ? "page" : undefined}
-    >
-      <item.icon size={22} strokeWidth={2} />
-      <span className="sr-only">{item.label}</span>
-    </Link>
-  )
-);
+const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) => (
+  <Link 
+    href={item.href} 
+    className={cn(
+      "nav-item-link",
+      "flex flex-col items-center justify-center px-2 pb-2 relative",
+      "transition-colors duration-200 ease-in-out h-12 w-12",
+      isActive ? "active text-primary" : "text-muted-foreground hover:text-foreground"
+    )}
+    aria-current={isActive ? "page" : undefined}
+  >
+    <item.icon 
+      size={22} 
+      strokeWidth={2}
+    />
+    <span className="sr-only">{item.label}</span>
+  </Link>
+));
 
 NavItem.displayName = "NavItem";
 
 // The main component is also memoized to prevent unnecessary re-renders
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
-
+  
   // Memoize the navItems array to prevent recreation on each render
-  const navItems = useMemo<NavItem[]>(
-    () => [
-      { href: "/", icon: Home, label: "Home" },
-      { href: "/newsletters", icon: Mail, label: "Newsletters" },
-      { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-      { href: "/chat", icon: Sparkles, label: "Ask AI" },
-      { href: "/profile", icon: User, label: "Profile" },
-    ],
-    []
-  );
+  const navItems = useMemo<NavItem[]>(() => [
+    { href: "/", icon: Home, label: "Home" },
+    { href: "/newsletters", icon: Mail, label: "Newsletters" },
+    { href: "/podcasts", icon: Podcast, label: "Podcasts" },
+    { href: "/chat", icon: Sparkles, label: "Ask AI" },
+    { href: "/profile", icon: User, label: "Profile" },
+  ], []);
 
   // Memoize the isActive check function
-  const checkIsActive = useCallback(
-    (href: string) => {
-      return pathname === href || (href !== "/" && pathname.startsWith(href));
-    },
-    [pathname]
-  );
+  const checkIsActive = useCallback((href: string) => {
+    return pathname === href || (href !== "/" && pathname.startsWith(href));
+  }, [pathname]);
 
   return (
-    <nav
+    <nav 
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden mobile-dock", // Added mobile-dock class
+        "mobile-dock",
+        "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
         "flex flex-col",
         className
       )}
-      style={{
-        height: "64px",
-        paddingBottom: "env(safe-area-inset-bottom)", // Add safe area for iOS
-        WebkitTransform: "translateZ(0)", // Force hardware acceleration
+      style={{ 
+        height: "64px"
       }}
       aria-label="Mobile navigation"
     >
       <div className="flex items-center justify-around w-full h-[64px] pt-2">
         {navItems.map((item) => (
-          <NavItem key={item.href} item={item} isActive={checkIsActive(item.href)} />
+          <NavItem 
+            key={item.href} 
+            item={item} 
+            isActive={checkIsActive(item.href)} 
+          />
         ))}
       </div>
     </nav>
   );
 });
+
+MobileDock.displayName = "MobileDock";

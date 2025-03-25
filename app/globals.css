@@ -7,15 +7,15 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
-
+  
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
-
+  
   .scrollbar-visible::-webkit-scrollbar-track {
     background: transparent;
   }
-
+  
   .scrollbar-visible::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.3);
     border-radius: 4px;
@@ -40,7 +40,7 @@
     border-radius: 4px;
     margin-top: 24px;
   }
-
+  
   /* Prevent browser back/forward gestures */
   .prevent-overscroll-navigation {
     overscroll-behavior-x: none;
@@ -50,12 +50,12 @@
 
   /* Hide scrollbars but keep functionality */
   .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+    display: none;  /* Chrome, Safari and Opera */
   }
 
   /* Prevent hover effects on touch devices for chat filter buttons */
@@ -71,17 +71,17 @@
       -webkit-touch-callout: none !important;
       -webkit-user-select: none !important;
     }
-
+    
     .chat-filter-button:not([data-state='active']) span {
       color: hsl(var(--foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-
+    
     .chat-filter-button:not([data-state='active']) svg {
       color: hsl(var(--foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-
+    
     /* Active buttons */
     .chat-filter-button[data-state='active']:hover,
     .chat-filter-button[data-state='active']:active,
@@ -92,13 +92,13 @@
       -webkit-touch-callout: none !important;
       -webkit-user-select: none !important;
     }
-
+    
     .chat-filter-button[data-state='active'] span {
       color: hsl(var(--primary-foreground)) !important;
       font-weight: 500 !important;
       -webkit-tap-highlight-color: transparent !important;
     }
-
+    
     .chat-filter-button[data-state='active'] svg {
       color: hsl(var(--primary-foreground)) !important;
       -webkit-tap-highlight-color: transparent !important;
@@ -118,11 +118,30 @@
         transform: translateZ(0) !important;
       }
     }
+
+    /* New touch-specific styles for mobile dock */
+    .nav-item-link:not(.active) {
+      color: var(--muted-foreground);
+      &:hover,
+      &:active,
+      &:focus {
+        color: var(--muted-foreground);
+      }
+    }
+
+    .nav-item-link.active {
+      color: var(--primary);
+      &:hover,
+      &:active,
+      &:focus {
+        color: var(--primary);
+      }
+    }
   }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
-.chat-filter-button,
+.chat-filter-button, 
 .chat-filter-button * {
   -webkit-tap-highlight-color: transparent !important;
   tap-highlight-color: transparent !important;
@@ -132,7 +151,7 @@
 
 /* Touch-specific behaviors - only apply to touch devices */
 @media (hover: none) {
-  .chat-filter-button,
+  .chat-filter-button, 
   .chat-filter-button * {
     touch-action: manipulation !important;
     user-select: none !important;
@@ -174,7 +193,6 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
-
   .dark {
     --background: 20 14.3% 4.1%;
     --foreground: 60 9.1% 97.8%;
@@ -208,22 +226,23 @@
     @apply border-border;
     box-sizing: border-box;
   }
-
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
   }
-
   body {
     margin: 0;
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
   }
-
   /* Remove all main styling related to height */
   main {
     border-width: 0px;
+  }
+  /* Mobile dock performance enhancement */
+  .mobile-dock {
+    transform: translateZ(0);
   }
 }
 
@@ -238,7 +257,6 @@
   .w-full.md\:w-\[56\%\].overflow-y-auto.border.bg-card.rounded-lg.mt-6 {
     border: 0;
   }
-
   main {
     border-width: 0px;
   }
@@ -264,9 +282,4 @@
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;
-}
-
-/* Add this to your globals.css */
-.mobile-dock {
-  will-change: transform;
 }
