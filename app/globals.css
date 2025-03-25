@@ -301,8 +301,35 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   height: calc(64px + env(safe-area-inset-bottom, 0px));
+  background-color: hsl(var(--background) / 0.85);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .mobile-dock {
+    display: none;
+  }
+}
+
+/* Sticky header safe area handling */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding-top: env(safe-area-inset-top, 0px);
+  background-color: hsl(var(--background) / 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 /* For iOS devices - prevent content from getting hidden behind the home indicator */
@@ -310,5 +337,10 @@
   .mobile-dock {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
     height: calc(64px + max(env(safe-area-inset-bottom, 0px), 20px));
+  }
+  
+  /* Handle notches on iPhones */
+  .sticky-header {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
