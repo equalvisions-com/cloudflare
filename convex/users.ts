@@ -739,3 +739,152 @@ export const completeOnboarding = mutation({
   },
 });
 
+export const searchUsers = query({
+  args: { 
+    query: v.string(),
+    cursor: v.optional(v.id("users")),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const { query, cursor, limit = 10 } = args;
+    
+    // Get current authenticated user (optional)
+    let currentUserId = null;
+    try {
+      currentUserId = await getAuthUserId(ctx);
+    } catch (e) {
+      // Not authenticated, continue as guest
+    }
+    
+    // Create a case-insensitive regex pattern
+    const searchPattern = new RegExp(query.trim() || '.', 'i');
+    
+    // Get all users
+    const allUsers = await ctx.db
+      .query("users")
+      .collect();
+
+    // Skip if we don't have users
+    if (allUsers.length === 0) {
+      return { users: [], hasMore: false, nextCursor: null };
+    }
+    
+    // Filter users by username, name, and bio using regex
+    // Sort by priority: username match, then name match, then bio match
+    const matchingUsers = allUsers
+      .filter(user => {
+        // Skip users without usernames
+        if (!user.username) return false;
+        
+        // Skip anonymous users
+        if (user.isAnonymous) return false;
+        
+        // Match against username, name, or bio
+        return (
+          searchPattern.test(user.username) || 
+          (user.name && searchPattern.test(user.name)) || 
+          (user.bio && searchPattern.test(user.bio))
+        );
+      })
+      .sort((a, b) => {
+        // Sort by match priority (username > name > bio)
+        const aUsernameMatch = a.username && searchPattern.test(a.username) ? 3 : 0;
+        const aNameMatch = a.name && searchPattern.test(a.name) ? 2 : 0;
+        const aBioMatch = a.bio && searchPattern.test(a.bio) ? 1 : 0;
+        const aScore = aUsernameMatch + aNameMatch + aBioMatch;
+        
+        const bUsernameMatch = b.username && searchPattern.test(b.username) ? 3 : 0;
+        const bNameMatch = b.name && searchPattern.test(b.name) ? 2 : 0;
+        const bBioMatch = b.bio && searchPattern.test(b.bio) ? 1 : 0;
+        const bScore = bUsernameMatch + bNameMatch + bBioMatch;
+        
+        return bScore - aScore;
+      });
+    
+    // Handle pagination
+    let startIndex = 0;
+    if (cursor) {
+      const cursorIndex = matchingUsers.findIndex(user => user._id === cursor);
+      if (cursorIndex !== -1) {
+        startIndex = cursorIndex + 1;
+      }
+    }
+    
+    // Get the paginated users
+    const paginatedUsers = matchingUsers.slice(startIndex, startIndex + limit + 1);
+    
+    // Check if there are more users
+    const hasMore = paginatedUsers.length > limit;
+    const resultUsers = paginatedUsers.slice(0, limit);
+    const nextCursor = hasMore && resultUsers.length > 0 ? resultUsers[resultUsers.length - 1]._id : null;
+    
+    // Process users to get friendship status and format result
+    const formattedUsers = await Promise.all(
+      resultUsers.map(async (user) => {
+        // Get friendship status if authenticated
+        let friendshipStatus = null;
+        if (currentUserId && currentUserId.toString() !== user._id.toString()) {
+          const friendship = await ctx.db
+            .query("friends")
+            .withIndex("by_users")
+            .filter(q =>
+              q.or(
+                q.and(
+                  q.eq(q.field("requesterId"), currentUserId),
+                  q.eq(q.field("requesteeId"), user._id)
+                ),
+                q.and(
+                  q.eq(q.field("requesterId"), user._id),
+                  q.eq(q.field("requesteeId"), currentUserId)
+                )
+              )
+            )
+            .first();
+
+          if (friendship) {
+            const isSender = friendship.requesterId.toString() === currentUserId.toString();
+            friendshipStatus = {
+              exists: true,
+              status: friendship.status,
+              direction: isSender ? "sent" : "received",
+              friendshipId: friendship._id
+            };
+          } else {
+            friendshipStatus = {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            };
+          }
+        } else if (currentUserId && currentUserId.toString() === user._id.toString()) {
+          friendshipStatus = {
+            exists: true, 
+            status: "self",
+            direction: null,
+            friendshipId: null
+          };
+        }
+        
+        return {
+          userId: user._id,
+          username: user.username || "Guest",
+          name: user.name,
+          bio: user.bio || "",
+          profileImage: user.profileImage || user.image,
+          isAuthenticated: !!currentUserId,
+          friendshipStatus
+        };
+      })
+    );
+    
+    console.log(`Search for "${query}" found ${formattedUsers.length} results`);
+    
+    return {
+      users: formattedUsers,
+      hasMore,
+      nextCursor
+    };
+  },
+});
+

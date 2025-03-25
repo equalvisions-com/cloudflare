@@ -21,7 +21,7 @@ export default function Page() {
     <div className="fixed inset-0 md:static md:inset-auto w-full">
       <StandardSidebarLayout
         rightSidebar={
-          <div className="sticky top-4">
+          <div className="sticky top-6">
             <div className="flex flex-col gap-6">
               {/* Search Component */}
               <SidebarSearch />

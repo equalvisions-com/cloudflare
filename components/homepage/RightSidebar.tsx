@@ -9,14 +9,15 @@ import { Suspense } from "react";
 
 interface RightSidebarProps {
   className?: string;
+  showSearch?: boolean;
 }
 
-export function RightSidebar({ className = "" }: RightSidebarProps) {
+export function RightSidebar({ className = "", showSearch = true }: RightSidebarProps) {
   return (
-    <div className="sticky top-4">
+    <div className="sticky top-6">
       <div className="flex flex-col gap-6">
         {/* Search Component */}
-        <SidebarSearch />
+        {showSearch && <SidebarSearch />}
         
         {/* Notifications Widget */}
         <NotificationsWidgetServer />

@@ -196,7 +196,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   return (
     <article>
-      <div className="p-4 border-l border-r">
+      <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
           {/* Featured Image */}

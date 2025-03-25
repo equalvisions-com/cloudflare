@@ -896,7 +896,7 @@ const ActivityCard = React.memo(({
     <article className={activity.type === "comment" ? "relative" : ""}>
       {/* Removed vertical line for comments */}
       
-      <div className="p-4 border-l border-r">
+      <div className="p-4">
         {/* Activity header with icon and description */}
         <div className="flex items-start mb-2 relative h-[16px]">
           <div className="mr-2">
@@ -1673,7 +1673,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
     // For multiple comments, render a special daisy-chained version
     return (
       <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
-        <div className="p-4 border-l border-r">
+        <div className="p-4">
           {/* Activity header with icon and description */}
           <div className="flex items-start mb-2 relative h-[16px]">
             <div className="mr-2">

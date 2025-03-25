@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn } from "lucide-react";
+import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
@@ -66,7 +66,7 @@ function Sidebar() {
       {
         href: "/notifications",
         label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/likes") ? 3 : 2} />,
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2} />,
       }, 
       {
         href: "/newsletters",
@@ -108,9 +108,9 @@ function Sidebar() {
   return (
     <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">
       <CardContent className="p-0">
-        <nav className="flex flex-col gap-6">
+        <nav className="flex flex-col gap-4">
           {/* Navigation items */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {navItems.map((item) => (
               <NavLink 
                 key={item.href} 

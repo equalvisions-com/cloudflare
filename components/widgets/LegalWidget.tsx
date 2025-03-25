@@ -12,7 +12,7 @@ export function LegalWidget({ className = "" }: LegalWidgetProps) {
     <Card className={`shadow-none rounded-xl ${className}`}>
       <CardContent className="px-4 py-4 rounded">
         <div className="text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 leading-none">
           <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
               Submit
             </Link>

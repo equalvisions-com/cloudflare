@@ -6,7 +6,8 @@ import {
   Podcast,
   Mail,
   User,
-  MessageCircle
+  MessageCircle,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -57,6 +58,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       { href: "/", icon: Home, label: "Home" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
+      { href: "/people", icon: Users, label: "People" },
       { href: "/chat", icon: MessageCircle, label: "Chat" },
     ];
     

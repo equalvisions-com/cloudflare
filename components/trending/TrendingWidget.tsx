@@ -12,6 +12,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import React from "react";
 
+// Add a cache duration constant - 5 minutes
+const RSS_CACHE_DURATION = 5 * 60 * 1000;
+
 interface RSSEntry {
   guid: string;
   title: string;
@@ -27,10 +30,25 @@ interface TrendingWidgetProps {
   className?: string;
 }
 
+// Function to check if we have a valid cache
+const hasValidCache = () => {
+  const cachedData = localStorage.getItem('trending_rss_cache');
+  const cachedTimestamp = localStorage.getItem('trending_rss_timestamp');
+  
+  if (!cachedData || !cachedTimestamp) return false;
+  
+  const timestamp = parseInt(cachedTimestamp, 10);
+  const now = Date.now();
+  
+  // Cache is valid if less than RSS_CACHE_DURATION old
+  return (now - timestamp) < RSS_CACHE_DURATION;
+};
+
 export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
   const [rssEntries, setRssEntries] = useState<{[feedUrl: string]: RSSEntry}>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked');
   
   // Fetch batched widget data from Convex without timestamp cache busting
   const widgetData = useQuery(api.featured.getBatchedWidgetData, { 
@@ -41,11 +59,43 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
   // Extract trending posts data and memoize to prevent dependency changes
   const trendingPosts = React.useMemo(() => widgetData?.trendingPosts || [], [widgetData?.trendingPosts]);
   
+  // Check cache on component mount (only once)
+  useEffect(() => {
+    // Only run this once on mount
+    if (cacheStatus !== 'unchecked') return;
+    
+    try {
+      // Check if we're navigating between pages
+      const isNavigation = sessionStorage.getItem('app_is_navigation') === 'true';
+      
+      // If we're navigating, clear the flag and rely on cache
+      if (isNavigation) {
+        sessionStorage.removeItem('app_is_navigation');
+      }
+      
+      // Check if we have a valid cache
+      if (hasValidCache()) {
+        const cachedData = localStorage.getItem('trending_rss_cache');
+        setRssEntries(JSON.parse(cachedData!));
+        setIsLoading(false);
+        setCacheStatus('valid');
+      } else {
+        setCacheStatus('invalid');
+      }
+    } catch (error) {
+      console.error('Error checking RSS cache:', error);
+      setCacheStatus('invalid');
+    }
+  }, [cacheStatus]);
+  
   // Extract feed URLs for fetching RSS entries
   useEffect(() => {
+    // Don't fetch if we have a valid cache or no posts
+    if (cacheStatus === 'valid' || cacheStatus === 'unchecked' || !trendingPosts || trendingPosts.length === 0) {
+      return;
+    }
+    
     const fetchRssEntries = async () => {
-      if (!trendingPosts || trendingPosts.length === 0) return;
-      
       setIsLoading(true);
       try {
         const feedUrls = trendingPosts.map(post => post.feedUrl);
@@ -64,6 +114,14 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
         
         const data = await response.json();
         setRssEntries(data.entries);
+        
+        // Store in cache
+        try {
+          localStorage.setItem('trending_rss_cache', JSON.stringify(data.entries));
+          localStorage.setItem('trending_rss_timestamp', Date.now().toString());
+        } catch (error) {
+          console.error('Error caching RSS entries:', error);
+        }
       } catch (error) {
         console.error('Error fetching RSS entries:', error);
       } finally {
@@ -71,10 +129,8 @@ export function TrendingWidget({ className = "" }: TrendingWidgetProps) {
       }
     };
     
-    if (trendingPosts.length > 0) {
-      fetchRssEntries();
-    }
-  }, [trendingPosts]);
+    fetchRssEntries();
+  }, [trendingPosts, cacheStatus]);
   
   // Combine post data with RSS entries
   const mergedItems = trendingPosts.map(post => {

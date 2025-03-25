@@ -444,16 +444,47 @@ export function CategorySliderWrapper({
         return 'Entries';
     }
   }, [mediaType]);
-  
+
+  // Check for search query in sessionStorage when component mounts
+  useEffect(() => {
+    // Only process if this matches our media type or no media type is specified
+    const storedMediaType = sessionStorage.getItem('app_search_mediaType');
+    if (storedMediaType && storedMediaType !== mediaType) {
+      return; // Not for this media type
+    }
+    
+    const storedQuery = sessionStorage.getItem('app_search_query');
+    const timestamp = sessionStorage.getItem('app_search_timestamp');
+    
+    if (storedQuery && timestamp) {
+      // Check if the stored search is recent (within the last 5 seconds)
+      // This prevents the search from triggering on subsequent page loads
+      const now = Date.now();
+      const searchTime = parseInt(timestamp, 10);
+      const isRecentSearch = (now - searchTime) < 5000; // 5 seconds
+      
+      if (isRecentSearch) {
+        // Apply the search query
+        setPendingSearchQuery(storedQuery);
+        setSearchQuery(storedQuery);
+        setSelectedCategoryId('');
+        
+        // Clear the timestamp to prevent re-triggering on page refresh
+        // but keep the query in case we need it elsewhere
+        sessionStorage.removeItem('app_search_timestamp');
+      }
+    }
+  }, [mediaType]);
+
   return (
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
-      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b border-l border-r">
+      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
         {/* Search input */}
         <form 
           role="search"
           onSubmit={handleSearchSubmit} 
-          className="px-4 py-2 mb-1"
+          className="px-4 pt-4 pb-2 mb-1"
         >
           <SearchInput
             name="search"

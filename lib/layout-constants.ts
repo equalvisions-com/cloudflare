@@ -6,8 +6,8 @@ export const LAYOUT_CONSTANTS = {
   CONTAINER_CLASS: "container mx-auto min-h-screen flex flex-col md:flex-row gap-6 p-0 md:px-6",
   
   // Content area classes
-  MAIN_CONTENT_CLASS: "flex-1 md:basis-[50%] md:max-w-[50%]",
-  MAIN_CONTENT_WITH_CARD_STYLE: "flex-1 md:basis-[50%] md:max-w-[50%]",
+  MAIN_CONTENT_CLASS: "flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
+  MAIN_CONTENT_WITH_CARD_STYLE: "flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
   
   // Sidebar classes
   RIGHT_SIDEBAR_CLASS: "hidden md:block md:basis-[25%] md:max-w-[25%] shrink-0",

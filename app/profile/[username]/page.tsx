@@ -172,7 +172,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     <ProfileLayoutManager>
       <div>
         <div>
-          <div className="max-w-4xl mx-auto p-4 border-l border-r">
+          <div className="max-w-4xl mx-auto p-4">
             <div className="flex flex-col items-start">
               <div className="flex w-full items-start justify-between">
                 <ProfileImage 

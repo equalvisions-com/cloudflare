@@ -21,6 +21,7 @@ interface ProfileLayoutManagerProps {
 export async function ProfileLayoutManager({ children }: ProfileLayoutManagerProps) {
   // Prepare the right sidebar with widgets
   const rightSidebar = (
+    <div className="sticky top-6">
     <div className="flex flex-col gap-6">
       <SidebarSearch />
       
@@ -36,6 +37,7 @@ export async function ProfileLayoutManager({ children }: ProfileLayoutManagerPro
       
       {/* Legal Widget */}
       <LegalWidget />
+    </div>
     </div>
   );
   

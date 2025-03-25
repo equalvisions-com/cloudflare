@@ -37,7 +37,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b border-l border-r">
+    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
       
       {tabs.map((tab, index) => (
         <button

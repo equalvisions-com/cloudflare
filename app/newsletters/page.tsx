@@ -5,7 +5,7 @@ import { RightSidebar } from "@/components/homepage/RightSidebar";
 export default function NewslettersPage() {
   return (
     <StandardSidebarLayout
-      rightSidebar={<RightSidebar />}
+      rightSidebar={<RightSidebar showSearch={false} />}
     >
       <div className="space-y-6">
         <CategorySliderWrapper mediaType="newsletter" />

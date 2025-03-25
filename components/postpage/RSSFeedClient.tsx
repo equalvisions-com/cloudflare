@@ -162,7 +162,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
 
   return (
     <article>
-      <div className="p-4 border-l border-r">
+      <div className="p-4">
         <div className="flex items-start gap-4 mb-4">
           {featuredImg && (
             <div className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">

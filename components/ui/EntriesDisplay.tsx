@@ -275,7 +275,7 @@ const EntryCard = React.memo(({ entry, interactions }: {
   // Moved MoreOptionsDropdown outside of EntryCard render to prevent recreation
   return (
     <article>
-      <div className="p-4 border-l border-r">
+      <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
           {/* Featured Image */}
