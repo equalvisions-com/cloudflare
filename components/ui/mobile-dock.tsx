@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback, useEffect, useState } from "react";
+import { memo, useMemo, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -51,30 +51,6 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
-  const [safeAreaValue, setSafeAreaValue] = useState("env(safe-area-inset-bottom)");
-  const [isIOS, setIsIOS] = useState(false);
-  
-  useEffect(() => {
-    // Check for iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    setIsIOS(isIOSDevice);
-    
-    // Test if env() is working as expected
-    if (isIOSDevice) {
-      const testEl = document.createElement('div');
-      testEl.style.paddingBottom = 'env(safe-area-inset-bottom)';
-      document.body.appendChild(testEl);
-      
-      // If computed padding is 0px on iOS, we might need a fallback
-      const computedPadding = window.getComputedStyle(testEl).paddingBottom;
-      if (computedPadding === '0px') {
-        setSafeAreaValue("max(env(safe-area-inset-bottom), 20px)");
-      }
-      
-      document.body.removeChild(testEl);
-    }
-  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -107,13 +83,11 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col pb-safe hw-accelerated",
-        isIOS ? "ios-safe-bottom" : "",
+        "flex flex-col",
         className
       )}
       style={{ 
-        height: `calc(64px + ${safeAreaValue})`,
-        paddingBottom: isIOS ? safeAreaValue : 'env(safe-area-inset-bottom)'
+        height: "64px"
       }}
       aria-label="Mobile navigation"
     >

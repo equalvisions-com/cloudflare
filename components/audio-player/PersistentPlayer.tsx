@@ -9,7 +9,6 @@ import {
   Pause,
   X,
 } from "lucide-react";
-import { useEffect, useState } from 'react';
 
 export function PersistentPlayer() {
   const {
@@ -21,44 +20,6 @@ export function PersistentPlayer() {
     handleSeek,
     stopTrack,
   } = useAudio();
-  
-  const [isMobile, setIsMobile] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [safeAreaValue, setSafeAreaValue] = useState("env(safe-area-inset-bottom)");
-  
-  useEffect(() => {
-    // Check if we're on a mobile device
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    // Check for iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    setIsIOS(isIOSDevice);
-    
-    // Test if env() is working as expected
-    if (isIOSDevice) {
-      const testEl = document.createElement('div');
-      testEl.style.paddingBottom = 'env(safe-area-inset-bottom)';
-      document.body.appendChild(testEl);
-      
-      // If computed padding is 0px on iOS, we might need a fallback
-      const computedPadding = window.getComputedStyle(testEl).paddingBottom;
-      if (computedPadding === '0px') {
-        setSafeAreaValue("max(env(safe-area-inset-bottom), 20px)");
-      }
-      
-      document.body.removeChild(testEl);
-    }
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
 
   if (!currentTrack) return null;
 
@@ -68,19 +29,8 @@ export function PersistentPlayer() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const bottomPosition = isMobile 
-    ? `calc(64px + ${safeAreaValue})` 
-    : isIOS ? safeAreaValue : '0';
-
   return (
-    <div 
-      className={`fixed left-0 right-0 bg-background border-t shadow-lg z-50 hw-accelerated ${isIOS ? 'ios-safe-insets' : 'px-safe'}`}
-      style={{ 
-        bottom: bottomPosition,
-        paddingLeft: isIOS ? 'env(safe-area-inset-left)' : undefined,
-        paddingRight: isIOS ? 'env(safe-area-inset-right)' : undefined
-      }}
-    >
+    <div className="fixed left-0 right-0 bg-background border-t shadow-lg z-50 bottom-0">
       <div className="container mx-0 px-0 md:mx-auto">
         <div className="flex items-start gap-3">
           {/* Image */}
