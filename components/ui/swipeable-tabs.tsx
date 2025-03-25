@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import './swipeable-tabs.css';
 
 interface SwipeableTabsProps {
@@ -30,6 +31,7 @@ const TabHeaders = React.memo(({
 }) => {
   const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [, forceUpdate] = useState({});
+  const insets = useSafeAreaInsets();
 
   // Force re-render when selected tab changes to ensure indicator width updates
   useEffect(() => {
@@ -37,7 +39,12 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
+    <div 
+      className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b"
+      style={{ 
+        paddingTop: insets.top || 0,
+      }}
+    >
       
       {tabs.map((tab, index) => (
         <button

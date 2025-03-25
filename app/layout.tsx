@@ -9,6 +9,7 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
+import { Providers } from "./providers";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -43,7 +44,7 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
@@ -52,14 +53,16 @@ export default async function RootLayout({
             <ThemeProvider attribute="class">
               <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
-                  <div className="">
-                    <div className="flex justify-end hidden">
-                      <UserMenuServer />
+                  <Providers>
+                    <div className="">
+                      <div className="flex justify-end hidden">
+                        <UserMenuServer />
+                      </div>
+                      {children}
                     </div>
-                    {children}
-                  </div>
-                  <PersistentPlayer />
-                  <MobileDock />
+                    <PersistentPlayer />
+                    <MobileDock />
+                  </Providers>
                 </SidebarProvider>
               </AudioProvider>
             </ThemeProvider>

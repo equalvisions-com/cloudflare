@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type SearchTab = 'posts' | 'entries';
 
@@ -92,6 +93,8 @@ export function CategorySliderWrapper({
   mediaType,
   className,
 }: CategorySliderWrapperProps) {
+  const insets = useSafeAreaInsets();
+  
   // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -479,7 +482,12 @@ export function CategorySliderWrapper({
   return (
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
-      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
+      <div 
+        className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b"
+        style={{
+          paddingTop: insets.top || 0,
+        }}
+      >
         {/* Search input */}
         <form 
           role="search"

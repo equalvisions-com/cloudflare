@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { memo, useMemo, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface NavItem {
   href: string;
@@ -51,6 +52,7 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  const insets = useSafeAreaInsets();
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -87,7 +89,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
         className
       )}
       style={{ 
-        height: "64px"
+        height: `${64 + (insets.bottom || 0)}px`,
+        paddingBottom: insets.bottom || 0
       }}
       aria-label="Mobile navigation"
     >
