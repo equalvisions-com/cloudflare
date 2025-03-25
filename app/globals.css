@@ -301,23 +301,31 @@
 
 /* Mobile dock safe area handling */
 .mobile-dock {
-  /* Standard height */
+  /* Fixed height that never changes */
   height: 64px;
-  display: flex;
-  flex-direction: column;
+  padding-bottom: 0;
+  position: relative;
 }
 
-/* Make sure internal content stays at fixed height */
-.mobile-dock > div {
-  height: 64px;
-  flex-shrink: 0;
-}
-
-/* Adding padding at the bottom for devices with notches */
-@supports (padding: env(safe-area-inset-bottom)) {
-  .mobile-dock {
-    padding-bottom: env(safe-area-inset-bottom);
-    height: auto; /* Let the height be determined by content + padding */
-    min-height: 64px; /* Ensure minimum height even without safe area */
-  }
+/* Create a pseudo-element that extends below the dock to handle the safe area */
+.mobile-dock::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Start at the bottom of the dock */
+  top: 100%;
+  /* Extend down by the safe area amount */
+  height: env(safe-area-inset-bottom, 0px);
+  /* Match the background and blur of the dock */
+  background: inherit;
+  backdrop-filter: inherit;
+  -webkit-backdrop-filter: inherit;
+  /* Ensure border is visible */
+  border-top: none;
+  border-left: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  z-index: -1;
 }
