@@ -7,7 +7,7 @@
     "dev:frontend": "next dev",
     "dev:backend": "convex dev",
     "predev": "convex dev --until-success && node setup.mjs --once && convex dashboard",
-    "build": "next build",
+    "build": "npm install --legacy-peer-deps && next build",
     "start": "next start",
     "lint": "next lint"
   },
