@@ -86,13 +86,13 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
         "flex flex-col",
         className
       )}
-      style={{ 
-        height: `calc(64px + env(safe-area-inset-bottom))`,
-        paddingBottom: 'env(safe-area-inset-bottom)'
+      style={{
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0), 0)',
+        height: '64px'
       }}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-[64px] pt-2">
+      <div className="flex items-center justify-around w-full h-full pt-2">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 
