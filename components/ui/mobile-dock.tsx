@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback, useEffect } from "react";
+import { memo, useMemo, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -79,16 +79,26 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   }, [pathname]);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+    <div 
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+      style={{
+        willChange: "transform",
+        transform: "translateZ(0)",
+        backfaceVisibility: "hidden"
+      }}
+    >
       {/* Dock content - fixed height of 64px */}
       <nav 
         className={cn(
           "bg-background/85 backdrop-blur-md border-t border-border",
           "flex flex-col",
+          "will-change-transform",
           className
         )}
         style={{ 
-          height: "64px" 
+          height: "64px",
+          transform: "translateZ(0)",
+          backfaceVisibility: "hidden"
         }}
         aria-label="Mobile navigation"
       >
@@ -104,7 +114,14 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       </nav>
       
       {/* Safe area spacer - only appears on iOS devices with notches */}
-      <div className="bg-background/85 backdrop-blur-md w-full h-[env(safe-area-inset-bottom,0px)]" />
+      <div 
+        className="bg-background/85 backdrop-blur-md w-full" 
+        style={{ 
+          height: "env(safe-area-inset-bottom, 0px)",
+          transform: "translateZ(0)",
+          backfaceVisibility: "hidden"
+        }}
+      />
     </div>
   );
 });
