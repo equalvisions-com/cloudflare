@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { SwipeablePanels } from "@/components/ui/SwipeablePanels";
+import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { UserActivityFeed } from "@/components/profile/UserActivityFeed";
 import { UserLikesFeed } from "@/components/profile/UserLikesFeed";
 import { Id } from "@/convex/_generated/dataModel";
@@ -244,11 +244,10 @@ export function UserProfileTabs({
   ]);
 
   return (
-    <div className="w-full border-t">
-      <SwipeablePanels 
+    <div className="w-full border-t z-50">
+      <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}
-        defaultTabIndex={0}
       />
     </div>
   );

@@ -1045,7 +1045,7 @@ const ActivityCard = React.memo(({
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Mail className="h-3 w-3" />
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
@@ -1239,7 +1239,7 @@ const ActivityCard = React.memo(({
                     <Podcast className="h-3 w-3" />
                   }
                   {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Mail className="h-3 w-3" />
+                    <Mail className="h-3 w-3" strokeWidth={2.5} />
                   }
                   {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
                    (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
@@ -1794,7 +1794,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Mail className="h-3 w-3" />
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}

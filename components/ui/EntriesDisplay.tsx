@@ -316,7 +316,7 @@ const EntryCard = React.memo(({ entry, interactions }: {
               {entry.post_media_type && (
                 <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
                   {entry.post_media_type.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" />}
+                  {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
                 </span>
               )}
