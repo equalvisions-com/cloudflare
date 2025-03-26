@@ -49,7 +49,7 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, username } = useSidebar();
+  const { isAuthenticated, username, profileImage } = useSidebar();
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -118,7 +118,7 @@ function Sidebar() {
           {/* User menu if authenticated */}
           {isAuthenticated && (
             <div className="px-3 mb-2">
-              <UserMenuClient initialDisplayName={username || ""} />
+              <UserMenuClient initialDisplayName={username || ""} profileImage={profileImage} />
             </div>
           )}
           

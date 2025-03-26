@@ -37,17 +37,17 @@ export function UserMenuClient({ initialDisplayName, profileImage }: UserMenuCli
     <div className="flex items-center gap-2 text-sm font-medium">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="icon" className="rounded-full w-14 h-14 p-0">
+          <Button variant="secondary" size="icon" className="rounded-full p-0 overflow-hidden h-14 w-14">
             {profileImage ? (
               <Image 
                 src={profileImage} 
-                alt={displayName}
-                width={56}
-                height={56}
-                className="w-14 h-14 rounded-full object-cover"
+                alt={displayName} 
+                width={56} 
+                height={56} 
+                className="h-full w-full object-cover"
               />
             ) : (
-              <PersonIcon className="h-8 w-8" />
+              <PersonIcon className="h-6 w-6" />
             )}
             <span className="sr-only">Toggle user menu</span>
           </Button>

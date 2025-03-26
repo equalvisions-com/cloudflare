@@ -49,6 +49,14 @@ function UserMenuFallback() {
 }
 
 // Wrapper to pass the initial display name to the client component
-function UserMenuClientWrapper({ displayName, isBoarded, profileImage }: { displayName: string; isBoarded: boolean; profileImage: string }) {
+function UserMenuClientWrapper({ 
+  displayName, 
+  isBoarded,
+  profileImage 
+}: { 
+  displayName: string; 
+  isBoarded: boolean;
+  profileImage: string;
+}) {
   return <UserMenuClient initialDisplayName={displayName} isBoarded={isBoarded} profileImage={profileImage} />;
 }
