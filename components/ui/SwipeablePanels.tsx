@@ -75,10 +75,22 @@ const TabContent = React.memo(({
       !isMobile && !isActive && "hidden" // Hide when not active on desktop
     )}
     style={{ 
-      position: 'relative'
+      position: 'relative',
+      // Use visibility instead of display to ensure proper height calculation
+      // Only the active slide should influence the container height
+      visibility: isActive ? 'visible' : 'hidden',
+      // Non-active slides should take up zero height so they don't affect the container
+      height: isActive ? 'auto' : '0',
+      overflow: isActive ? 'visible' : 'hidden'
     }}
   >
-    <div className="embla-slide-content w-full">
+    <div 
+      className="embla-slide-content w-full"
+      style={{
+        height: isActive ? 'auto' : '0',
+        display: isActive ? 'block' : 'none'
+      }}
+    >
       {tab.content}
     </div>
   </div>
@@ -125,8 +137,7 @@ export function SwipeablePanels({
       duration: 20,
       // Add these critical options to prevent bouncing
       inViewThreshold: 0, 
-      dragThreshold: 10, // Higher threshold prevents accidental swipes
-      watchDrag: true
+      dragThreshold: 10 // Higher threshold prevents accidental swipes
     } : { 
       align: 'start' as const,
       skipSnaps: true,
@@ -169,16 +180,7 @@ export function SwipeablePanels({
     // Initial height calculation on first mount
     scanAllSlides();
     
-    // Additional height recalculation after a longer delay to ensure all content is loaded
-    const delayedReInit = setTimeout(() => {
-      if (emblaApi) {
-        emblaApi.reInit();
-      }
-    }, 300);
-    
-    return () => {
-      clearTimeout(delayedReInit);
-    };
+    return () => {};
   }, [emblaApi, scanAllSlides, isInitialized]);
 
   // Handle tab change - both from tab clicks and swipe
@@ -319,7 +321,7 @@ export function SwipeablePanels({
       .embla-container-with-auto-height {
         display: flex;
         flex-direction: column;
-        min-height: 250px;
+        min-height: 50px;
         -webkit-overflow-scrolling: touch; /* For iOS smooth scrolling */
       }
       
@@ -335,14 +337,11 @@ export function SwipeablePanels({
         flex: 0 0 100%;
         min-width: 0;
         width: 100%;
-        height: auto !important;
         overflow: visible;
       }
       
       .embla-slide-content {
         width: 100%;
-        height: auto !important;
-        overflow: visible !important;
         opacity: 1 !important;
       }
       
@@ -392,7 +391,6 @@ export function SwipeablePanels({
         )} 
         ref={emblaRef}
         style={{ 
-          minHeight: "250px",
           WebkitOverflowScrolling: "touch" // For iOS
         }}
       >
