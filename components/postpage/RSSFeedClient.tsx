@@ -187,8 +187,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                   <h3 className="text-base font-semibold text-primary leading-tight">
                     {postTitle}
                   </h3>
-                  <span 
-                    className="text-base text-muted-foreground flex-shrink-0"
+                  <span className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={format(new Date(entry.pubDate), 'PPP p')}
                   >
                     {timestamp}
@@ -196,7 +195,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 </div>
               )}
               {mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-[10px]">
                   {mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" />}
                   {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}

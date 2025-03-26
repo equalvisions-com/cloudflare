@@ -232,7 +232,7 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
   
   const type = mediaType.toLowerCase();
   return (
-    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground medium rounded-md mt-1.5">
       {type === 'podcast' && <Podcast className="h-3 w-3" />}
       {type === 'newsletter' && <Mail className="h-3 w-3" />}
       {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}

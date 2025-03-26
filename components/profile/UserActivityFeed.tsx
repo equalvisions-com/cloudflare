@@ -1040,7 +1040,7 @@ const ActivityCard = React.memo(({
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
                 {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
                     {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
@@ -1234,7 +1234,7 @@ const ActivityCard = React.memo(({
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
               {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md font-medium mt-1.5">
                   {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />
                   }
@@ -1789,7 +1789,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 </div>
                 {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md mt-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
