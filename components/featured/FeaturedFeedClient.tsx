@@ -163,7 +163,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
     <article>
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-start gap-3 mb-4">
           {/* Featured Image */}
           {postMetadata.featuredImg && postUrl && (
             <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
@@ -206,7 +206,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                 </div>
               )}
               {postMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-full mt-[10px]">
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-full mt-[8px]">
                   {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
