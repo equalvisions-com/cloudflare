@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PersonIcon } from "@radix-ui/react-icons";
 import { useUserMenuState } from "./useUserMenuState";
+import Image from "next/image";
 
 interface UserMenuClientProps {
   initialDisplayName: string;
   isBoarded?: boolean;
+  profileImage?: string;
 }
 
 export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
@@ -27,17 +29,26 @@ export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
   );
 }
 
-export function UserMenuClient({ initialDisplayName }: UserMenuClientProps) {
+export function UserMenuClient({ initialDisplayName, profileImage }: UserMenuClientProps) {
   const { displayName, isAuthenticated, handleSignIn, handleSignOut } =
     useUserMenuState(initialDisplayName);
 
   return (
     <div className="flex items-center gap-2 text-sm font-medium">
-      {displayName}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="icon" className="rounded-full">
-            <PersonIcon className="h-5 w-5" />
+          <Button variant="secondary" size="icon" className="rounded-full w-14 h-14 p-0">
+            {profileImage ? (
+              <Image 
+                src={profileImage} 
+                alt={displayName}
+                width={56}
+                height={56}
+                className="w-14 h-14 rounded-full object-cover"
+              />
+            ) : (
+              <PersonIcon className="h-8 w-8" />
+            )}
             <span className="sr-only">Toggle user menu</span>
           </Button>
         </DropdownMenuTrigger>
