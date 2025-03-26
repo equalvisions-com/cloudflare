@@ -117,7 +117,7 @@ function Sidebar() {
         <nav className="flex flex-col gap-4">
           {/* User menu if authenticated */}
           {isAuthenticated && (
-            <div className="px-3 mb-2">
+            <div className="mb-2">
               <UserMenuClient initialDisplayName={username || ""} profileImage={profileImage} />
             </div>
           )}
