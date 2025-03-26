@@ -59,6 +59,17 @@ const TabButtons = React.memo(({
 
 TabButtons.displayName = 'TabButtons';
 
+// Memoized stable content for each tab - ensures content is only rendered once
+const StableTabContent = React.memo(({ 
+  children 
+}: { 
+  children: React.ReactNode;
+}) => {
+  return <>{children}</>;
+}, () => true); // Always return true to prevent re-rendering
+
+StableTabContent.displayName = 'StableTabContent';
+
 // Memoized tab content to prevent re-rendering
 const TabContent = React.memo(({ 
   tab, 
@@ -70,34 +81,50 @@ const TabContent = React.memo(({
   isActive: boolean;
   isMobile: boolean;
   id: string;
-}) => (
-  <div 
-    className={cn(
-      "flex-[0_0_100%] min-w-0 embla-slide",
-      !isMobile && !isActive && "hidden" // Hide when not active on desktop
-    )}
-    id={`tab-content-${id}`}
-    style={{ 
-      position: 'relative',
-      // Use visibility instead of display to ensure proper height calculation
-      // Only the active slide should influence the container height
-      visibility: isActive ? 'visible' : 'hidden',
-      // Non-active slides should take up zero height so they don't affect the container
-      height: isActive ? 'auto' : '0',
-      overflow: isActive ? 'visible' : 'hidden'
-    }}
-  >
+}) => {
+  // Use a reference to track if this tab has been rendered before
+  const hasRendered = useRef(false);
+  
+  // Mark as rendered on first render
+  useEffect(() => {
+    hasRendered.current = true;
+  }, []);
+  
+  return (
     <div 
-      className="embla-slide-content w-full"
-      style={{
+      className={cn(
+        "flex-[0_0_100%] min-w-0 embla-slide",
+        !isMobile && !isActive && "hidden" // Hide when not active on desktop
+      )}
+      id={`tab-content-${id}`}
+      style={{ 
+        position: 'relative',
+        // Use visibility instead of display to ensure proper height calculation
+        // Only the active slide should influence the container height
+        visibility: isActive ? 'visible' : 'hidden',
+        // Non-active slides should take up zero height so they don't affect the container
         height: isActive ? 'auto' : '0',
-        display: isActive ? 'block' : 'none'
+        overflow: isActive ? 'visible' : 'hidden'
       }}
     >
-      {tab.content}
+      <div 
+        className="embla-slide-content w-full"
+        style={{
+          height: isActive ? 'auto' : '0',
+          display: isActive ? 'block' : 'none'
+        }}
+      >
+        {/* Wrap tab content in StableTabContent to prevent re-rendering */}
+        <StableTabContent>
+          {tab.content}
+        </StableTabContent>
+      </div>
     </div>
-  </div>
-));
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render when active state changes
+  return prevProps.isActive === nextProps.isActive && prevProps.isMobile === nextProps.isMobile;
+});
 
 TabContent.displayName = 'TabContent';
 
@@ -107,6 +134,11 @@ export function SwipeablePanels({
   defaultTabIndex = 0,
   onTabChange
 }: SwipeablePanelsProps) {
+  // Store rendered tabs in a mutable ref to preserve across renders
+  const renderedTabsRef = useRef<Record<string, React.ReactNode>>({});
+  
+  // Use refs for any values that should not trigger re-renders when they change
+  const activeTabIndexRef = useRef(defaultTabIndex);
   const [activeTabIndex, setActiveTabIndex] = useState(defaultTabIndex);
   const [isMobile, setIsMobile] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -115,6 +147,16 @@ export function SwipeablePanels({
   // Store scroll positions for each tab
   const scrollPositions = useRef<Record<number, number>>({});
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Pre-render all tabs initially to improve switching performance
+  useEffect(() => {
+    // Cache all tab contents on first render
+    tabs.forEach(tab => {
+      if (!renderedTabsRef.current[tab.id]) {
+        renderedTabsRef.current[tab.id] = tab.content;
+      }
+    });
+  }, [tabs]);
   
   // Update isMobile state based on window width
   useEffect(() => {
@@ -220,9 +262,10 @@ export function SwipeablePanels({
   // Handle tab change - both from tab clicks and swipe
   const handleTabChange = useCallback((index: number) => {
     // Save scroll position of current tab before switching
-    saveScrollPosition(activeTabIndex);
+    saveScrollPosition(activeTabIndexRef.current);
     
-    prevActiveTabRef.current = activeTabIndex;
+    prevActiveTabRef.current = activeTabIndexRef.current;
+    activeTabIndexRef.current = index;
     setActiveTabIndex(index);
     
     if (emblaApi) {
@@ -240,7 +283,7 @@ export function SwipeablePanels({
     if (onTabChange) {
       onTabChange(index);
     }
-  }, [emblaApi, onTabChange, activeTabIndex, saveScrollPosition, restoreScrollPosition]);
+  }, [emblaApi, onTabChange, saveScrollPosition, restoreScrollPosition]);
 
   // Sync carousel changes with tabs
   useEffect(() => {
@@ -248,11 +291,12 @@ export function SwipeablePanels({
 
     const onSelect = () => {
       const index = emblaApi.selectedScrollSnap();
-      if (index !== activeTabIndex) {
+      if (index !== activeTabIndexRef.current) {
         // Save scroll position of current tab before switching
-        saveScrollPosition(activeTabIndex);
+        saveScrollPosition(activeTabIndexRef.current);
         
-        prevActiveTabRef.current = activeTabIndex;
+        prevActiveTabRef.current = activeTabIndexRef.current;
+        activeTabIndexRef.current = index;
         setActiveTabIndex(index);
         
         // Force height recalculation after slide change
@@ -286,7 +330,7 @@ export function SwipeablePanels({
     const handleScroll = () => {
       if (typeof window !== 'undefined') {
         // Save current scroll position for the active tab
-        scrollPositions.current[activeTabIndex] = window.scrollY;
+        scrollPositions.current[activeTabIndexRef.current] = window.scrollY;
       }
     };
     
@@ -295,7 +339,7 @@ export function SwipeablePanels({
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [activeTabIndex]);
+  }, []);  // Removing activeTabIndex dependency to prevent re-adding listeners
 
   // Extra effect to handle drag start and stop
   useEffect(() => {
@@ -435,12 +479,15 @@ export function SwipeablePanels({
     };
   }, []);
 
+  // Use memoized tabs array to prevent unnecessary re-renders
+  const memoizedTabs = useMemo(() => tabs, [tabs]);
+
   return (
     <div className={cn("w-full", className)} ref={mainContainerRef}>
       {/* Tab buttons */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md">
         <TabButtons 
-          tabs={tabs} 
+          tabs={memoizedTabs} 
           activeTabIndex={activeTabIndex} 
           onTabChange={handleTabChange} 
         />
@@ -461,7 +508,7 @@ export function SwipeablePanels({
           "flex embla-slides-container",
           !isMobile && "!transform-none" // Prevent transform on desktop
         )}>
-          {tabs.map((tab, index) => (
+          {memoizedTabs.map((tab, index) => (
             <TabContent 
               key={tab.id}
               tab={tab}
