@@ -166,7 +166,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
         <div className="flex items-start gap-3 mb-4">
           {/* Featured Image */}
           {postMetadata.featuredImg && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
+            <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
                 <Image
                   src={postMetadata.featuredImg}
@@ -185,7 +185,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
           <div className="flex-grow">
             <div className="w-full">
               {postMetadata.title && (
-                <div className="flex items-center justify-between gap-2 pt-[4px]">
+                <div className="flex items-center justify-between gap-2 pt-[3.20px]">
                   {postUrl ? (
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-base font-semibold text-primary leading-tight">
