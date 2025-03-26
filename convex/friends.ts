@@ -3,6 +3,12 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+// Define pagination validator inline
+const paginationOptsValidator = {
+  skip: v.optional(v.number()),
+  limit: v.optional(v.number()),
+};
+
 // Check the friendship status between two users
 export const getFriendshipStatus = query({
   args: {
@@ -551,57 +557,6 @@ export const deleteFriendship = mutation({
   },
 });
 
-// Get all friends for a user
-export const getFriends = query({
-  args: {
-    userId: v.optional(v.id("users")),
-    status: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { userId, status } = args;
-    
-    // If no userId is provided, try to get the current user
-    let currentUserId = userId;
-    if (!currentUserId) {
-      const authUserId = await getAuthUserId(ctx);
-      if (authUserId === null) {
-        return [];
-      }
-      currentUserId = authUserId;
-    }
-
-    // Get friendships where the user is the requester
-    let sentFriendships = await ctx.db
-      .query("friends")
-      .withIndex("by_requester", (q) => q.eq("requesterId", currentUserId))
-      .collect();
-
-    // Get friendships where the user is the requestee
-    let receivedFriendships = await ctx.db
-      .query("friends")
-      .withIndex("by_requestee", (q) => q.eq("requesteeId", currentUserId))
-      .collect();
-
-    // If status is provided, filter the results
-    if (status) {
-      sentFriendships = sentFriendships.filter(f => f.status === status);
-      receivedFriendships = receivedFriendships.filter(f => f.status === status);
-    }
-
-    // Combine and return with the direction
-    return [
-      ...sentFriendships.map(friendship => ({
-        ...friendship,
-        direction: "sent",
-      })),
-      ...receivedFriendships.map(friendship => ({
-        ...friendship,
-        direction: "received",
-      })),
-    ];
-  },
-});
-
 // Get notifications (incoming friend requests and accepted friends) with user info in one query
 export const getNotifications = query({
   args: {},
@@ -792,5 +747,323 @@ export const friendRequests = query({
       friendRequests: friendsWithDetails.filter(Boolean),
       cursor: friendships.continueCursor,
     };
+  },
+});
+
+// Get a user's friends (accepted friendship status)
+export const getFriends = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Find friendships where this user is the requester and status is "accepted"
+    const asRequesterFriends = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", (q) => 
+        q.eq("requesterId", args.userId).eq("status", "accepted")
+      )
+      .collect();
+    
+    // Find friendships where this user is the requestee and status is "accepted"
+    const asRequesteeFriends = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", (q) => 
+        q.eq("requesteeId", args.userId).eq("status", "accepted")
+      )
+      .collect();
+    
+    // Combine results and fetch friend user details
+    const friendships = [...asRequesterFriends, ...asRequesteeFriends];
+    const friendIds = friendships.map(friendship => 
+      friendship.requesterId.toString() === args.userId.toString() // Use toString() instead of equals
+        ? friendship.requesteeId 
+        : friendship.requesterId
+    );
+    
+    // Get the details for all friends
+    const friends = await Promise.all(
+      friendIds.map(async (friendId) => {
+        const user = await ctx.db.get(friendId);
+        return user ? {
+          _id: user._id,
+          name: user.name || null,
+          username: user.username || null,
+          profileImage: user.profileImage || user.image || null,
+        } : null;
+      })
+    );
+    
+    // Return only valid friends (filter out null values)
+    return friends.filter(Boolean);
+  },
+});
+
+// Get friend requests for a user
+export const getFriendRequests = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Find friendships where this user is the requestee and status is "pending"
+    const requests = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", (q) => 
+        q.eq("requesteeId", args.userId).eq("status", "pending")
+      )
+      .order("desc")
+      .collect();
+    
+    // Get the details of the requesters
+    const requestsWithUsers = await Promise.all(
+      requests.map(async (request) => {
+        const user = await ctx.db.get(request.requesterId);
+        return user ? {
+          _id: request._id,
+          createdAt: request.createdAt,
+          requester: {
+            _id: user._id,
+            name: user.name || null,
+            username: user.username || null,
+            profileImage: user.profileImage || user.image || null,
+          }
+        } : null;
+      })
+    );
+    
+    // Return only valid requests (filter out null values)
+    return requestsWithUsers.filter(Boolean);
+  },
+});
+
+// Get friend activities
+export const getFriendActivities = query({
+  args: {
+    userId: v.id("users"),
+    ...paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    // Get the user's friends
+    const friends = await getFriends(ctx, { userId: args.userId });
+    const friendIds = friends.filter(Boolean).map(friend => friend!._id);
+    
+    if (friendIds.length === 0) {
+      return { activityGroups: [], hasMore: false };
+    }
+    
+    // Create an empty array to hold all activities
+    const allActivities = [];
+    
+    // Get likes from friends (with limit + 1 to check if there are more)
+    const limit = args.limit || 30; // Default to 30 if undefined
+    const skip = args.skip || 0;    // Default to 0 if undefined
+    
+    const likes = await ctx.db
+      .query("likes")
+      // Use filter one at a time instead of .in()
+      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+      .order("desc")
+      .take(limit + 1);
+    
+    // Add likes to activities array
+    for (const like of likes) {
+      const user = await ctx.db.get(like.userId);
+      if (user) {
+        allActivities.push({
+          type: "like",
+          timestamp: like._creationTime,
+          entryGuid: like.entryGuid,
+          feedUrl: like.feedUrl,
+          title: like.title,
+          link: like.link,
+          pubDate: like.pubDate,
+          _id: like._id,
+          userId: like.userId,
+          username: user.username || "",
+          userImage: user.profileImage || user.image || null,
+          userName: user.name || user.username || "",
+        });
+      }
+    }
+    
+    // Get comments from friends
+    const comments = await ctx.db
+      .query("comments")
+      // Use filter one at a time instead of .in()
+      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+      .order("desc")
+      .take(limit + 1);
+    
+    // Add comments to activities array
+    for (const comment of comments) {
+      const user = await ctx.db.get(comment.userId);
+      if (user) {
+        allActivities.push({
+          type: "comment",
+          timestamp: comment.createdAt,
+          entryGuid: comment.entryGuid,
+          feedUrl: comment.feedUrl,
+          content: comment.content,
+          _id: comment._id,
+          userId: comment.userId,
+          username: comment.username,
+          userImage: user.profileImage || user.image || null,
+          userName: user.name || user.username || "",
+        });
+      }
+    }
+    
+    // Get retweets from friends
+    const retweets = await ctx.db
+      .query("retweets")
+      // Use filter one at a time instead of .in()
+      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+      .order("desc")
+      .take(limit + 1);
+    
+    // Add retweets to activities array
+    for (const retweet of retweets) {
+      const user = await ctx.db.get(retweet.userId);
+      if (user) {
+        allActivities.push({
+          type: "retweet",
+          timestamp: retweet.retweetedAt,
+          entryGuid: retweet.entryGuid,
+          feedUrl: retweet.feedUrl,
+          title: retweet.title,
+          link: retweet.link,
+          pubDate: retweet.pubDate,
+          _id: retweet._id,
+          userId: retweet.userId,
+          username: user.username || "",
+          userImage: user.profileImage || user.image || null,
+          userName: user.name || user.username || "",
+        });
+      }
+    }
+    
+    // Sort all activities by timestamp (newest first)
+    allActivities.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Apply pagination
+    const paginatedActivities = allActivities.slice(skip, skip + limit);
+    const hasMore = allActivities.length > skip + limit;
+    
+    // Group activities by entry
+    const activityGroups = [];
+    const groupedByEntry = new Map();
+    
+    for (const activity of paginatedActivities) {
+      const entryKey = `${activity.entryGuid}:${activity.feedUrl}`;
+      
+      if (!groupedByEntry.has(entryKey)) {
+        // Create a new group
+        const group = {
+          entryGuid: activity.entryGuid,
+          feedUrl: activity.feedUrl,
+          activities: [activity],
+          entry: null as any, // Use any type to avoid null conflicts
+          metrics: null as any, // Use any type to avoid null conflicts
+        };
+        
+        groupedByEntry.set(entryKey, group);
+        activityGroups.push(group);
+      } else {
+        // Add to existing group
+        groupedByEntry.get(entryKey).activities.push(activity);
+      }
+    }
+    
+    // Fetch entry details and metrics for each group
+    await Promise.all(activityGroups.map(async (group) => {
+      try {
+        // Query MySQL for RSS entry details (using a Convex HTTP action would be needed)
+        // For now, we'll use the first activity's data as a fallback
+        const firstActivity = group.activities[0];
+        group.entry = {
+          guid: firstActivity.entryGuid,
+          title: firstActivity.title || "",
+          link: firstActivity.link || "",
+          pub_date: firstActivity.pubDate || "",
+          feed_url: firstActivity.feedUrl,
+        };
+        
+        // Get metrics for this entry
+        // Use length instead of count() for likes
+        const likes = await ctx.db
+          .query("likes")
+          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+          .collect();
+        const likeCount = likes.length;
+        
+        // Use length instead of count() for comments
+        const comments = await ctx.db
+          .query("comments")
+          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+          .collect();
+        const commentCount = comments.length;
+          
+        // Use length instead of count() for retweets
+        const retweets = await ctx.db
+          .query("retweets")
+          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+          .collect();
+        const retweetCount = retweets.length;
+        
+        // Check if current user has liked/retweeted
+        const isLiked = await ctx.db
+          .query("likes")
+          .withIndex("by_user_entry", (q) => 
+            q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
+          )
+          .unique() !== null;
+          
+        const isRetweeted = await ctx.db
+          .query("retweets")
+          .withIndex("by_user_entry", (q) => 
+            q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
+          )
+          .unique() !== null;
+        
+        group.metrics = {
+          likes: { isLiked, count: likeCount },
+          comments: { count: commentCount },
+          retweets: { isRetweeted, count: retweetCount },
+        };
+      } catch (err) {
+        console.error("Error fetching entry details:", err);
+      }
+    }));
+    
+    return { activityGroups, hasMore };
+  },
+});
+
+// Accept or reject a friend request
+export const respondToFriendRequest = mutation({
+  args: {
+    requestId: v.id("friends"),   // The ID of the friend request
+    accept: v.boolean(),          // Whether to accept or reject
+  },
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId);
+    
+    if (!request) {
+      return { success: false, message: "Friend request not found" };
+    }
+    
+    const now = Date.now();
+    
+    if (args.accept) {
+      // Accept the request
+      await ctx.db.patch(args.requestId, {
+        status: "accepted",
+        updatedAt: now,
+      });
+      return { success: true, message: "Friend request accepted" };
+    } else {
+      // Reject by deleting the request
+      await ctx.db.delete(args.requestId);
+      return { success: true, message: "Friend request rejected" };
+    }
   },
 }); 
