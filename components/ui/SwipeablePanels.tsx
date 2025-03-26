@@ -277,7 +277,8 @@ export function SwipeablePanels({
     style.textContent = `
       .embla-container-with-auto-height {
         transition: height 0.2s ease-in-out;
-        min-height: 50px;
+        height: auto !important;
+        min-height: 200px;
       }
       
       .embla-slides-container {
@@ -290,11 +291,15 @@ export function SwipeablePanels({
         flex: 0 0 100%;
         min-width: 0;
         width: 100%;
+        height: auto !important;
+        min-height: 200px;
+        overflow: visible;
       }
       
       .embla-slide-content {
         width: 100%;
         height: auto !important;
+        overflow: visible !important;
         opacity: 1 !important;
       }
       
