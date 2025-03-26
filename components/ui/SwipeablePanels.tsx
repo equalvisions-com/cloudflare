@@ -98,18 +98,20 @@ const TabContent = React.memo(({
       )}
       id={`tab-content-${id}`}
       data-active={isActive ? "true" : "false"}
+      style={{ 
+        opacity: 1, // Keep opacity at 1 for properly calculating height
+        // Keep all slides absolute positioned except the active one
+        position: isActive ? 'relative' : 'absolute',
+        // Hide inactive slides but keep them in the DOM for animation
+        visibility: isActive ? 'visible' : 'hidden',
+        // Ensure inactive slides don't take up space
+        zIndex: isActive ? 'auto' : -1,
+        width: '100%',
+        top: 0,
+        left: 0
+      }}
     >
-      <div 
-        className="embla-slide-content w-full"
-        style={!isActive && !isMobile ? {
-          // When not active on desktop, hide with absolute positioning
-          // but keep rendered for correct height calculation when swiping
-          position: 'absolute',
-          visibility: 'hidden',
-          pointerEvents: 'none',
-          zIndex: -1
-        } : undefined}
-      >
+      <div className="embla-slide-content w-full">
         {/* Wrap tab content in StableTabContent to prevent re-rendering */}
         <StableTabContent>
           {tab.content}
@@ -140,9 +142,13 @@ export function SwipeablePanels({
   const [isInitialized, setIsInitialized] = useState(false);
   const prevActiveTabRef = useRef(defaultTabIndex);
   
+  // Store slide heights separately from embla's auto height
+  const slideHeights = useRef<Record<number, number>>({});
+  
   // Store scroll positions for each tab
   const scrollPositions = useRef<Record<number, number>>({});
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Pre-render all tabs initially to improve switching performance
   useEffect(() => {
@@ -323,15 +329,32 @@ export function SwipeablePanels({
   useEffect(() => {
     if (!emblaApi) return;
     
+    // Run this on select to better handle height transition
+    const onSelect = () => {
+      // Re-initialize to recalculate heights after selection
+      setTimeout(() => {
+        emblaApi.reInit();
+      }, 100);
+    };
+    
+    // Run this on settle to make sure height is final
     const onSettled = () => {
       // Re-initialize to recalculate heights after animation completes
       emblaApi.reInit();
     };
-    
+
+    // Listen for both events
+    emblaApi.on('select', onSelect);
     emblaApi.on('settle', onSettled);
     
+    // Add listener for resize
+    const onResize = () => emblaApi.reInit();
+    window.addEventListener('resize', onResize);
+    
     return () => {
+      emblaApi.off('select', onSelect);
       emblaApi.off('settle', onSettled);
+      window.removeEventListener('resize', onResize);
     };
   }, [emblaApi]);
 
@@ -452,6 +475,7 @@ export function SwipeablePanels({
         display: flex;
         flex-direction: column;
         min-height: 50px;
+        position: relative;
         -webkit-overflow-scrolling: touch; /* For iOS smooth scrolling */
       }
       
@@ -467,18 +491,25 @@ export function SwipeablePanels({
         flex: 0 0 100%;
         min-width: 0;
         width: 100%;
-        overflow: visible;
+        /* Ensure only the active slide contributes to height */
         position: relative;
+      }
+      
+      /* During animation, allow both slides to be visible */
+      .is-animating .embla-slide {
+        position: absolute;
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      /* Only the active slide is positioned relatively */
+      .embla-slide[data-active="true"] {
+        position: relative;
+        z-index: 1;
       }
       
       .embla-slide-content {
         width: 100%;
-        opacity: 1 !important;
-      }
-      
-      /* Ensure only the active tab content sets the height */
-      .embla-slide[data-active="true"] .embla-slide-content {
-        position: relative;
       }
       
       .embla-viewport {
@@ -508,6 +539,31 @@ export function SwipeablePanels({
     };
   }, []);
 
+  // Track animation state to handle visibility during transitions
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onScroll = () => {
+      if (containerRef.current) {
+        containerRef.current.classList.add('is-animating');
+      }
+    };
+    
+    const onSettle = () => {
+      if (containerRef.current) {
+        containerRef.current.classList.remove('is-animating');
+      }
+    };
+    
+    emblaApi.on('scroll', onScroll);
+    emblaApi.on('settle', onSettle);
+    
+    return () => {
+      emblaApi.off('scroll', onScroll);
+      emblaApi.off('settle', onSettle);
+    };
+  }, [emblaApi]);
+
   // Use memoized tabs array to prevent unnecessary re-renders
   const memoizedTabs = useMemo(() => tabs, [tabs]);
 
@@ -533,10 +589,13 @@ export function SwipeablePanels({
           WebkitOverflowScrolling: "touch" // For iOS
         }}
       >
-        <div className={cn(
-          "flex embla-slides-container",
-          !isMobile && "!transform-none" // Prevent transform on desktop
-        )}>
+        <div 
+          className={cn(
+            "flex embla-slides-container relative",
+            !isMobile && "!transform-none" // Prevent transform on desktop
+          )}
+          ref={containerRef}
+        >
           {memoizedTabs.map((tab, index) => (
             <TabContent 
               key={tab.id}
