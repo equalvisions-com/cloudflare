@@ -3,7 +3,6 @@
 import React, { useMemo } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
-import { About } from "@/components/postpage/about";
 import type { RSSItem } from "@/lib/rss";
 
 // Define RSSEntryWithData interface (consider moving to a shared types file)
@@ -64,12 +63,6 @@ const FeedTabContent = React.memo(({
 });
 FeedTabContent.displayName = 'FeedTabContent';
 
-// Separated out as a standalone component
-const AboutTabContent = React.memo(({ postTitle }: { postTitle: string }) => {
-  return <About postTitle={postTitle} />;
-});
-AboutTabContent.displayName = 'AboutTabContent';
-
 export function PostTabsWrapper({ 
   postTitle, 
   feedUrl, 
@@ -79,10 +72,10 @@ export function PostTabsWrapper({
 }: PostTabsWrapperProps) {
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
-    // Feed tab - shows RSS feed content
+    // Dynamic tab label based on mediaType
     {
       id: 'feed',
-      label: 'Feed',
+      label: mediaType === 'podcast' ? 'Episodes' : mediaType === 'newsletter' ? 'Newsletters' : 'Feed',
       content: (
         <FeedTabContent 
           postTitle={postTitle} 
@@ -92,12 +85,6 @@ export function PostTabsWrapper({
           mediaType={mediaType}
         />
       )
-    },
-    // About tab
-    {
-      id: 'about',
-      label: 'About',
-      content: <AboutTabContent postTitle={postTitle} />
     }
   ], [postTitle, feedUrl, rssData, featuredImg, mediaType]);
 

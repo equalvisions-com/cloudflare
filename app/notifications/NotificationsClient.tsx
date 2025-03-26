@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XIcon, UserIcon } from "lucide-react";
 import {
@@ -15,6 +15,7 @@ import { useMutation } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
+import { useNotification } from "@/components/ui/notification-context";
 
 // Define types for our notifications
 interface FriendshipData {
@@ -81,6 +82,7 @@ const formatTimestamp = (timestamp: number): string => {
 
 export default function NotificationsClient() {
   const { toast } = useToast();
+  const { setNotificationCount } = useNotification();
   
   // Get notifications data in a single query
   const data = useQuery(api.friends.getNotifications) as NotificationsData | undefined;
@@ -92,6 +94,18 @@ export default function NotificationsClient() {
   // Loading states
   const [acceptingIds, setAcceptingIds] = useState<Set<string>>(new Set());
   const [decliningIds, setDecliningIds] = useState<Set<string>>(new Set());
+  
+  // Update notification count whenever data changes
+  useEffect(() => {
+    if (data?.notifications) {
+      // Count only pending friend requests (type === "friend_request")
+      const pendingRequestsCount = data.notifications.filter(
+        notification => notification.friendship.type === "friend_request"
+      ).length;
+      
+      setNotificationCount(pendingRequestsCount);
+    }
+  }, [data, setNotificationCount]);
   
   if (!data) {
     return (

@@ -32,7 +32,7 @@ const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link href={item.href} className="w-full" prefetch={true}>
     <Button
       variant="ghost"
-      className={`justify-start gap-2 px-3 py-1 rounded-full ${
+      className={`w-full justify-start gap-2 px-3 py-1 rounded-lg ${
         isActive ? "font-bold" : ""
       }`}
     >
@@ -48,7 +48,7 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, username } = useSidebar();
+  const { isAuthenticated, username, notificationCount } = useSidebar();
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -63,11 +63,6 @@ function Sidebar() {
         label: "Home",
         icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2} />,
       },
-      {
-        href: "/notifications",
-        label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2} />,
-      }, 
       {
         href: "/newsletters",
         label: "Newsletters",
@@ -85,12 +80,31 @@ function Sidebar() {
       },
     ];
 
+    // Only add alerts link if user is authenticated
+    if (isAuthenticated) {
+      items.push({
+        href: "/notifications",
+        label: "Notifications",
+        icon: (
+          <div className="relative">
+            <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2} />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-medium rounded-full h-4 w-4 flex items-center justify-center">
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            )}
+          </div>
+        ),
+      });
+    }
+
     const userProfileRoute = `/@${username}`;
 
     // Conditionally add profile or sign in based on auth status
     items.push(
       isAuthenticated
-        ? {
+        ? 
+        {
             href: userProfileRoute,
             label: "Profile",
             icon: <User className="h-5 w-5 shrink-0" strokeWidth={isRouteActive(userProfileRoute) ? 3 : 2} />,
@@ -103,7 +117,7 @@ function Sidebar() {
     );
 
     return items;
-  }, [isRouteActive, isAuthenticated, username]);
+  }, [isRouteActive, isAuthenticated, username, notificationCount]);
 
   return (
     <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">

@@ -222,9 +222,7 @@
     @apply bg-background text-foreground;
   }
   /* Remove all main styling related to height */
-  main {
-    border-width: 0px;
-  }
+
 }
 
 @layer base {
@@ -239,7 +237,7 @@
     border: 0;
   }
   main {
-    border-width: 0px;
+    border: none !important;
   }
 }
 
