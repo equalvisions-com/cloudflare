@@ -96,10 +96,6 @@ interface FeaturedData {
 interface FeedTabsContainerClientWrapperProps {
   initialData: InitialData | null;
   featuredData?: FeaturedData | null;
-  friendsData?: {
-    activityGroups: any[]; // Using any to avoid type errors
-    hasMore: boolean;
-  } | null;
   pageSize: number;
 }
 
@@ -109,8 +105,7 @@ interface FeedTabsContainerClientWrapperProps {
  */
 export function FeedTabsContainerClientWrapper({ 
   initialData, 
-  featuredData,
-  friendsData, 
+  featuredData, 
   pageSize 
 }: FeedTabsContainerClientWrapperProps) {
   return (
@@ -119,7 +114,6 @@ export function FeedTabsContainerClientWrapper({
         <FeedTabsContainerWithErrorBoundary
           initialData={initialData}
           featuredData={featuredData}
-          friendsData={friendsData}
           pageSize={pageSize}
         />
       </ReactErrorBoundary>

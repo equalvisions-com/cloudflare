@@ -4,8 +4,6 @@ import React, { useMemo } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
-import { FriendsFeedClientWithErrorBoundary } from "@/components/friends-feed/FriendsFeedClient";
-import type { FriendActivityGroup } from "@/components/friends-feed/FriendsFeedClient";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
 // Define the RSSItem interface based on the database schema
@@ -71,10 +69,6 @@ interface FeedTabsContainerProps {
     entries: unknown[]; // Using unknown for type safety
     totalEntries: number;
   } | null;
-  friendsData?: {
-    activityGroups: FriendActivityGroup[];
-    hasMore: boolean;
-  } | null;
   pageSize?: number;
 }
 
@@ -126,26 +120,7 @@ const DiscoverTabContent = React.memo(({
 });
 DiscoverTabContent.displayName = 'DiscoverTabContent';
 
-// Memoized component for the "Friends" tab content
-const FriendsTabContent = React.memo(({ 
-  friendsData,
-  pageSize
-}: { 
-  friendsData: FeedTabsContainerProps['friendsData'],
-  pageSize: number 
-}) => {
-  console.log("Rendering FriendsTabContent with data:", friendsData);
-  
-  return (
-    <FriendsFeedClientWithErrorBoundary 
-      initialData={friendsData || null}
-      pageSize={pageSize}
-    />
-  );
-});
-FriendsTabContent.displayName = 'FriendsTabContent';
-
-export function FeedTabsContainer({ initialData, featuredData, friendsData, pageSize = 30 }: FeedTabsContainerProps) {
+export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
     // Discover tab - first in order
@@ -154,19 +129,13 @@ export function FeedTabsContainer({ initialData, featuredData, friendsData, page
       label: 'Discover',
       content: <DiscoverTabContent featuredData={featuredData} />
     },
-    // Following tab - shows RSS feed content
+    // Following tab (renamed from Discover) - shows RSS feed content
     {
       id: 'following',
       label: 'Following',
       content: <FollowingTabContent initialData={initialData} pageSize={pageSize} />
-    },
-    // Friends tab - shows friend activity
-    {
-      id: 'friends',
-      label: 'Friends',
-      content: <FriendsTabContent friendsData={friendsData} pageSize={pageSize} />
     }
-  ], [initialData, featuredData, friendsData, pageSize]);
+  ], [initialData, featuredData, pageSize]);
 
   return (
     <div className="w-full">
