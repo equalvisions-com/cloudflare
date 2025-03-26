@@ -97,8 +97,19 @@ const TabContent = React.memo(({
         !isMobile && !isActive && "hidden" // Hide when not active on desktop
       )}
       id={`tab-content-${id}`}
+      data-active={isActive ? "true" : "false"}
     >
-      <div className="embla-slide-content w-full">
+      <div 
+        className="embla-slide-content w-full"
+        style={!isActive && !isMobile ? {
+          // When not active on desktop, hide with absolute positioning
+          // but keep rendered for correct height calculation when swiping
+          position: 'absolute',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          zIndex: -1
+        } : undefined}
+      >
         {/* Wrap tab content in StableTabContent to prevent re-rendering */}
         <StableTabContent>
           {tab.content}
@@ -308,6 +319,22 @@ export function SwipeablePanels({
     };
   }, [emblaApi, onTabChange, activeTabIndex, saveScrollPosition, restoreScrollPosition]);
 
+  // Ensure height is re-calculated after tab slides
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onSettled = () => {
+      // Re-initialize to recalculate heights after animation completes
+      emblaApi.reInit();
+    };
+    
+    emblaApi.on('settle', onSettled);
+    
+    return () => {
+      emblaApi.off('settle', onSettled);
+    };
+  }, [emblaApi]);
+
   // Save scroll position on scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -441,11 +468,17 @@ export function SwipeablePanels({
         min-width: 0;
         width: 100%;
         overflow: visible;
+        position: relative;
       }
       
       .embla-slide-content {
         width: 100%;
         opacity: 1 !important;
+      }
+      
+      /* Ensure only the active tab content sets the height */
+      .embla-slide[data-active="true"] .embla-slide-content {
+        position: relative;
       }
       
       .embla-viewport {
