@@ -59,6 +59,35 @@ const TabButtons = React.memo(({
 
 TabButtons.displayName = 'TabButtons';
 
+// Memoized tab content to prevent re-rendering
+const TabContent = React.memo(({ 
+  tab, 
+  isActive,
+  isMobile
+}: { 
+  tab: Tab;
+  isActive: boolean;
+  isMobile: boolean;
+}) => (
+  <div 
+    className={cn(
+      "flex-[0_0_100%] min-w-0 embla-slide",
+      !isMobile && !isActive && "hidden" // Hide when not active on desktop
+    )}
+    style={{ 
+      height: 'auto',
+      visibility: isActive ? 'visible' : isMobile ? 'hidden' : 'hidden',
+      position: 'relative'
+    }}
+  >
+    <div className="embla-slide-content w-full">
+      {tab.content}
+    </div>
+  </div>
+));
+
+TabContent.displayName = 'TabContent';
+
 export function SwipeablePanels({
   tabs,
   className,
@@ -67,8 +96,7 @@ export function SwipeablePanels({
 }: SwipeablePanelsProps) {
   const [activeTabIndex, setActiveTabIndex] = useState(defaultTabIndex);
   const [isMobile, setIsMobile] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const prevActiveTabRef = useRef(defaultTabIndex);
   
   // Update isMobile state based on window width
   useEffect(() => {
@@ -94,7 +122,7 @@ export function SwipeablePanels({
       dragFree: false,
       containScroll: 'trimSnaps' as const,
       loop: false,
-      duration: 10, // Faster than before, matching CategorySliderWrapper
+      duration: 10, // Fast speed for tab switching
       startIndex: defaultTabIndex
     } : { 
       align: 'start' as const,
@@ -112,46 +140,64 @@ export function SwipeablePanels({
     isMobile ? [WheelGesturesPlugin(), AutoHeight()] : [AutoHeight()]
   );
 
+  // Pre-initialize all tabs' heights by setting visibility before the user sees them
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    // Only run this effect once when the carousel is first initialized
+    const prepareAllSlides = () => {
+      // Move to each slide to ensure heights are calculated correctly
+      const currentSlide = emblaApi.selectedScrollSnap();
+      emblaApi.scrollTo(currentSlide);
+      
+      // Force a reinitialization
+      requestAnimationFrame(() => {
+        emblaApi.reInit();
+      });
+    };
+    
+    prepareAllSlides();
+  }, [emblaApi]); // Only run when emblaApi changes (once at initialization)
+
   // Handle tab change - both from tab clicks and swipe
   const handleTabChange = useCallback((index: number) => {
+    prevActiveTabRef.current = activeTabIndex;
     setActiveTabIndex(index);
+    
     if (emblaApi) {
-      emblaApi.scrollTo(index, true); // Use animation to match CategorySliderWrapper
+      emblaApi.scrollTo(index, true);
     }
+    
     if (onTabChange) {
       onTabChange(index);
     }
-  }, [emblaApi, onTabChange]);
+  }, [emblaApi, onTabChange, activeTabIndex]);
 
-  // Initial setup and sync carousel changes with tabs
+  // Sync carousel changes with tabs
   useEffect(() => {
     if (!emblaApi) return;
 
     const onSelect = () => {
       const index = emblaApi.selectedScrollSnap();
-      setActiveTabIndex(index);
-      if (onTabChange) {
-        onTabChange(index);
+      if (index !== activeTabIndex) {
+        prevActiveTabRef.current = activeTabIndex;
+        setActiveTabIndex(index);
+        
+        if (onTabChange) {
+          onTabChange(index);
+        }
       }
     };
 
     emblaApi.on('select', onSelect);
     
-    if (!isInitialized) {
-      // Initial scroll to ensure proper tab selection
-      emblaApi.scrollTo(activeTabIndex, false);
-      
-      // Force a reinitialization to set correct height on start
-      setTimeout(() => {
-        emblaApi.reInit();
-        setIsInitialized(true);
-      }, 0);
-    }
+    // Initial scroll to ensure proper tab selection (without animation)
+    emblaApi.scrollTo(activeTabIndex, false);
 
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, onTabChange, activeTabIndex, isInitialized]);
+  }, [emblaApi, onTabChange, activeTabIndex]);
 
   // Prevent browser back/forward navigation when interacting with carousel
   useEffect(() => {
@@ -213,12 +259,9 @@ export function SwipeablePanels({
     if (!emblaApi) return;
     
     const onResize = () => {
-      // Reinitialize Embla on resize with a slight delay
-      if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
-          emblaApi.reInit();
-        });
-      }
+      requestAnimationFrame(() => {
+        emblaApi.reInit();
+      });
     };
     
     window.addEventListener('resize', onResize);
@@ -228,44 +271,13 @@ export function SwipeablePanels({
     };
   }, [emblaApi]);
 
-  // Preload slides to prevent height issues
-  useEffect(() => {
-    // Pre-render all tabs in a hidden container to get accurate heights
-    const preloadContainer = document.createElement('div');
-    preloadContainer.style.position = 'absolute';
-    preloadContainer.style.visibility = 'hidden';
-    preloadContainer.style.overflow = 'auto';
-    preloadContainer.style.height = 'auto';
-    preloadContainer.style.width = '100%';
-    preloadContainer.style.top = '-9999px';
-    
-    document.body.appendChild(preloadContainer);
-    
-    // Force browser to layout the content
-    setTimeout(() => {
-      document.body.removeChild(preloadContainer);
-      
-      // Make sure embla is properly initialized with correct heights
-      if (emblaApi) {
-        emblaApi.reInit();
-      }
-    }, 50);
-    
-    return () => {
-      if (document.body.contains(preloadContainer)) {
-        document.body.removeChild(preloadContainer);
-      }
-    };
-  }, [emblaApi, tabs]);
-
   // Add CSS classes for auto height
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
       .embla-container-with-auto-height {
-        transition: height 0.2s ease-in-out; /* Faster transition to match CategorySliderWrapper */
-        height: auto !important;
-        min-height: 200px; /* Minimum height to avoid jumpiness */
+        transition: height 0.2s ease-in-out;
+        min-height: 50px;
       }
       
       .embla-slides-container {
@@ -278,20 +290,14 @@ export function SwipeablePanels({
         flex: 0 0 100%;
         min-width: 0;
         width: 100%;
-        height: auto !important; /* Force height auto */
-        overflow: visible; /* Ensure content isn't clipped */
-        min-height: 200px;
       }
       
       .embla-slide-content {
-        overflow: visible !important; /* Force visible overflow */
-        height: auto !important; /* Force height auto */
         width: 100%;
-        opacity: 1 !important; /* Ensure content is always visible */
-        display: block !important; /* Ensure content is always displayed */
+        height: auto !important;
+        opacity: 1 !important;
       }
       
-      /* Prevent flickering during transitions */
       .embla-viewport {
         overflow-x: hidden;
         width: 100%;
@@ -305,7 +311,7 @@ export function SwipeablePanels({
   }, []);
 
   return (
-    <div className={cn("w-full", className)} ref={containerRef}>
+    <div className={cn("w-full", className)}>
       {/* Tab buttons */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md">
         <TabButtons 
@@ -315,7 +321,7 @@ export function SwipeablePanels({
         />
       </div>
       
-      {/* Swipeable content */}
+      {/* Swipeable content - preload all panels for proper height calculation */}
       <div 
         className={cn(
           "overflow-hidden prevent-overscroll-navigation embla-container-with-auto-height embla-viewport",
@@ -328,17 +334,12 @@ export function SwipeablePanels({
           !isMobile && "!transform-none" // Prevent transform on desktop
         )}>
           {tabs.map((tab, index) => (
-            <div 
+            <TabContent 
               key={tab.id}
-              className={cn(
-                "flex-[0_0_100%] min-w-0 embla-slide",
-                !isMobile && activeTabIndex !== index && "hidden" // Hide when not active on desktop
-              )}
-            >
-              <div className="embla-slide-content w-full">
-                {tab.content}
-              </div>
-            </div>
+              tab={tab}
+              isActive={activeTabIndex === index}
+              isMobile={isMobile}
+            />
           ))}
         </div>
       </div>
