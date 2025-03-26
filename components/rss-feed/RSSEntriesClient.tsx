@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { RSSEntriesClientWithErrorBoundary } from './RSSEntriesDisplay.client';
-import { SwipeableWrapper } from '@/components/ui/SwipeableWrapper';
 
 // Define the interfaces needed from the original component
 interface RSSItem {
@@ -50,11 +49,9 @@ export function RSSEntriesClient({
   pageSize = 30
 }: RSSEntriesClientProps) {
   return (
-    <SwipeableWrapper>
-      <RSSEntriesClientWithErrorBoundary
-        initialData={initialData}
-        pageSize={pageSize}
-      />
-    </SwipeableWrapper>
+    <RSSEntriesClientWithErrorBoundary
+      initialData={initialData}
+      pageSize={pageSize}
+    />
   );
 } 

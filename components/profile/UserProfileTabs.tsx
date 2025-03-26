@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import { UserActivityFeedWrapper } from "@/components/profile/UserActivityFeedWrapper";
-import { UserLikesFeedWrapper } from "@/components/profile/UserLikesFeedWrapper";
+import { SwipeablePanels } from "@/components/ui/SwipeablePanels";
+import { UserActivityFeed } from "@/components/profile/UserActivityFeed";
+import { UserLikesFeed } from "@/components/profile/UserLikesFeed";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 
@@ -95,7 +95,7 @@ const ActivityTabContent = React.memo(({
   }
 
   return (
-    <UserActivityFeedWrapper
+    <UserActivityFeed
       userId={userId}
       username={username}
       name={name}
@@ -138,7 +138,7 @@ const LikesTabContent = React.memo(({
   }
 
   return (
-    <UserLikesFeedWrapper
+    <UserLikesFeed
       userId={userId}
       initialData={likesData}
       pageSize={pageSize}
@@ -244,11 +244,11 @@ export function UserProfileTabs({
   ]);
 
   return (
-    <div className="w-full border-t z-10">
-      <SwipeableTabs 
+    <div className="w-full border-t">
+      <SwipeablePanels 
         tabs={tabs} 
         onTabChange={handleTabChange}
-        animationDuration={300}
+        defaultTabIndex={0}
       />
     </div>
   );

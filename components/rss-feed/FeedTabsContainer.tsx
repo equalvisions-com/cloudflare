@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesClient";
-import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
+import { SwipeablePanels } from "@/components/ui/SwipeablePanels";
+import { RSSEntriesClient } from "./RSSEntriesClient";
+import { FeaturedFeedClient } from "@/components/featured/FeaturedFeedClient";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
 // Define the RSSItem interface based on the database schema
@@ -109,12 +109,22 @@ const DiscoverTabContent = React.memo(({
 }: { 
   featuredData: FeedTabsContainerProps['featuredData'] 
 }) => {
+  if (!featuredData) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No featured content available at the moment.</p>
+        <p className="text-sm mt-2">Check back later for featured content.</p>
+      </div>
+    );
+  }
+  
   return (
-    <FeaturedFeedWrapper 
+    <FeaturedFeedClient
       initialData={featuredData as { 
         entries: FeaturedEntryWithData[]; 
         totalEntries: number; 
-      } | null} 
+      }}
+      pageSize={30}
     />
   );
 });
@@ -139,9 +149,9 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
 
   return (
     <div className="w-full">
-      <SwipeableTabs 
-        tabs={tabs} 
-        animationDuration={300}
+      <SwipeablePanels 
+        tabs={tabs}
+        defaultTabIndex={0}
       />
     </div>
   );
