@@ -63,17 +63,20 @@ TabButtons.displayName = 'TabButtons';
 const TabContent = React.memo(({ 
   tab, 
   isActive,
-  isMobile
+  isMobile,
+  id
 }: { 
   tab: Tab;
   isActive: boolean;
   isMobile: boolean;
+  id: string;
 }) => (
   <div 
     className={cn(
       "flex-[0_0_100%] min-w-0 embla-slide",
       !isMobile && !isActive && "hidden" // Hide when not active on desktop
     )}
+    id={`tab-content-${id}`}
     style={{ 
       position: 'relative',
       // Use visibility instead of display to ensure proper height calculation
@@ -108,6 +111,10 @@ export function SwipeablePanels({
   const [isMobile, setIsMobile] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const prevActiveTabRef = useRef(defaultTabIndex);
+  
+  // Store scroll positions for each tab
+  const scrollPositions = useRef<Record<number, number>>({});
+  const mainContainerRef = useRef<HTMLDivElement>(null);
   
   // Update isMobile state based on window width
   useEffect(() => {
@@ -154,6 +161,33 @@ export function SwipeablePanels({
     isMobile ? [WheelGesturesPlugin(), AutoHeight()] : [AutoHeight()]
   );
 
+  // Save scroll position when tab changes
+  const saveScrollPosition = useCallback((index: number) => {
+    if (typeof window !== 'undefined') {
+      scrollPositions.current[index] = window.scrollY;
+    }
+  }, []);
+
+  // Restore scroll position for a tab
+  const restoreScrollPosition = useCallback((index: number) => {
+    if (typeof window !== 'undefined') {
+      // Use requestAnimationFrame to ensure the scroll happens after the DOM updates
+      requestAnimationFrame(() => {
+        // Check if we have a saved position for this tab
+        if (scrollPositions.current[index] !== undefined) {
+          window.scrollTo(0, scrollPositions.current[index]);
+        } else {
+          // If no saved position, scroll to the top of the content
+          if (mainContainerRef.current) {
+            const tabTop = mainContainerRef.current.getBoundingClientRect().top + window.scrollY;
+            // Add a small offset to account for the tab buttons height
+            window.scrollTo(0, tabTop - 60);
+          }
+        }
+      });
+    }
+  }, []);
+
   // Scan all slides to ensure proper height calculation
   const scanAllSlides = useCallback(() => {
     if (!emblaApi) return;
@@ -185,6 +219,9 @@ export function SwipeablePanels({
 
   // Handle tab change - both from tab clicks and swipe
   const handleTabChange = useCallback((index: number) => {
+    // Save scroll position of current tab before switching
+    saveScrollPosition(activeTabIndex);
+    
     prevActiveTabRef.current = activeTabIndex;
     setActiveTabIndex(index);
     
@@ -195,13 +232,15 @@ export function SwipeablePanels({
       // Force height recalculation after slide change
       setTimeout(() => {
         emblaApi.reInit();
+        // Restore scroll position for the newly active tab
+        restoreScrollPosition(index);
       }, 50);
     }
     
     if (onTabChange) {
       onTabChange(index);
     }
-  }, [emblaApi, onTabChange, activeTabIndex]);
+  }, [emblaApi, onTabChange, activeTabIndex, saveScrollPosition, restoreScrollPosition]);
 
   // Sync carousel changes with tabs
   useEffect(() => {
@@ -210,12 +249,17 @@ export function SwipeablePanels({
     const onSelect = () => {
       const index = emblaApi.selectedScrollSnap();
       if (index !== activeTabIndex) {
+        // Save scroll position of current tab before switching
+        saveScrollPosition(activeTabIndex);
+        
         prevActiveTabRef.current = activeTabIndex;
         setActiveTabIndex(index);
         
         // Force height recalculation after slide change
         setTimeout(() => {
           emblaApi.reInit();
+          // Restore scroll position for the newly active tab
+          restoreScrollPosition(index);
         }, 50);
         
         if (onTabChange) {
@@ -228,11 +272,30 @@ export function SwipeablePanels({
     
     // Initial scroll to ensure proper tab selection (without animation)
     emblaApi.scrollTo(activeTabIndex, false);
+    
+    // Restore scroll position for the initial tab
+    restoreScrollPosition(activeTabIndex);
 
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, onTabChange, activeTabIndex]);
+  }, [emblaApi, onTabChange, activeTabIndex, saveScrollPosition, restoreScrollPosition]);
+
+  // Save scroll position on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (typeof window !== 'undefined') {
+        // Save current scroll position for the active tab
+        scrollPositions.current[activeTabIndex] = window.scrollY;
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeTabIndex]);
 
   // Extra effect to handle drag start and stop
   useEffect(() => {
@@ -373,7 +436,7 @@ export function SwipeablePanels({
   }, []);
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full", className)} ref={mainContainerRef}>
       {/* Tab buttons */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md">
         <TabButtons 
@@ -404,6 +467,7 @@ export function SwipeablePanels({
               tab={tab}
               isActive={activeTabIndex === index}
               isMobile={isMobile}
+              id={tab.id}
             />
           ))}
         </div>
