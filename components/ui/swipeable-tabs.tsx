@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height';
+import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import './swipeable-tabs.css';
 
 interface SwipeableTabsProps {
@@ -122,6 +123,24 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
+  // Check if on mobile
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Check initially
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -131,7 +150,7 @@ export function SwipeableTabs({
     });
   }, [tabs]);
   
-  // Use the AutoHeight plugin with default options
+  // Use the AutoHeight plugin with enhanced mobile support
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     skipSnaps: false,
@@ -140,7 +159,10 @@ export function SwipeableTabs({
     containScroll: 'trimSnaps',
     dragFree: false,
     duration: animationDuration,
-  }, [AutoHeight()]);
+  }, [
+    AutoHeight(), 
+    ...(isMobile ? [WheelGesturesPlugin()] : [])
+  ]);
 
   // Add CSS to the document for tab content transitions
   useEffect(() => {
@@ -299,6 +321,52 @@ export function SwipeableTabs({
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
   }, [defaultTabIndex]);
+
+  // Prevent browser back/forward navigation when interacting with the content carousels
+  useEffect(() => {
+    if (!emblaApi || !isMobile) return;
+    
+    const viewport = emblaApi.rootNode();
+    if (!viewport) return;
+    
+    // Prevent horizontal swipe navigation only when actually dragging
+    const preventNavigation = (e: TouchEvent) => {
+      if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+      
+      const touch = e.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+      
+      const handleTouchMove = (e: TouchEvent) => {
+        if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+        
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - startX);
+        const deltaY = Math.abs(touch.clientY - startY);
+        
+        // Only prevent default if horizontal movement is greater than vertical
+        if (deltaX > deltaY) {
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      
+      const cleanup = () => {
+        document.removeEventListener('touchmove', handleTouchMove);
+      };
+      
+      document.addEventListener('touchend', cleanup, { once: true });
+      document.addEventListener('touchcancel', cleanup, { once: true });
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault
+    viewport.addEventListener('touchstart', preventNavigation, { passive: true });
+    
+    return () => {
+      viewport.removeEventListener('touchstart', preventNavigation);
+    };
+  }, [emblaApi, isMobile]);
 
   return (
     <div 

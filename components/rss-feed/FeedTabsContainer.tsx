@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
+import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesClient";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 
@@ -139,7 +139,10 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
 
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      <SwipeableTabs 
+        tabs={tabs} 
+        animationDuration={300}
+      />
     </div>
   );
 }

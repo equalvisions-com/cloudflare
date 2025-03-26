@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { FeaturedFeedClient } from './FeaturedFeedClient';
+import { SwipeableWrapper } from '@/components/ui/SwipeableWrapper';
 
 // Define the interface for post metadata
 interface PostMetadata {
@@ -52,9 +53,11 @@ export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
   }
 
   return (
-    <FeaturedFeedClient
-      initialData={initialData}
-      pageSize={30}
-    />
+    <SwipeableWrapper>
+      <FeaturedFeedClient
+        initialData={initialData}
+        pageSize={30}
+      />
+    </SwipeableWrapper>
   );
 } 
