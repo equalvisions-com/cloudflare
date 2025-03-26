@@ -9,8 +9,6 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
-import { NotificationProvider } from "@/components/ui/notification-context";
-import dynamic from "next/dynamic";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -21,12 +19,6 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-// Dynamically import the ResetNotificationCounter with no SSR
-const ResetNotificationCounter = dynamic(
-  () => import("@/app/notifications/ResetNotificationCounter"),
-  { ssr: false }
-);
 
 export const metadata: Metadata = {
   title: "Convex + Next.js + Convex Auth",
@@ -59,19 +51,16 @@ export default async function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
-                <NotificationProvider>
-                  <ResetNotificationCounter />
-                  <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
-                    <div className="">
-                      <div className="flex justify-end">
-                        <UserMenuServer />
-                      </div>
-                      {children}
+                <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
+                  <div className="">
+                    <div className="flex justify-end hidden">
+                      <UserMenuServer />
                     </div>
-                    <PersistentPlayer />
-                    <MobileDock />
-                  </SidebarProvider>
-                </NotificationProvider>
+                    {children}
+                  </div>
+                  <PersistentPlayer />
+                  <MobileDock />
+                </SidebarProvider>
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
