@@ -75,8 +75,6 @@ const TabContent = React.memo(({
       !isMobile && !isActive && "hidden" // Hide when not active on desktop
     )}
     style={{ 
-      height: 'auto',
-      visibility: isActive ? 'visible' : isMobile ? 'hidden' : 'hidden',
       position: 'relative'
     }}
   >
@@ -96,6 +94,7 @@ export function SwipeablePanels({
 }: SwipeablePanelsProps) {
   const [activeTabIndex, setActiveTabIndex] = useState(defaultTabIndex);
   const [isMobile, setIsMobile] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const prevActiveTabRef = useRef(defaultTabIndex);
   
   // Update isMobile state based on window width
@@ -115,6 +114,7 @@ export function SwipeablePanels({
   }, []);
 
   // Initialize Embla carousel with conditional options for mobile vs desktop
+  // Match settings from CategorySliderWrapper but add crucial settings to prevent bouncing
   const carouselOptions = useMemo(() => 
     isMobile ? {
       align: 'start' as const,
@@ -122,42 +122,64 @@ export function SwipeablePanels({
       dragFree: false,
       containScroll: 'trimSnaps' as const,
       loop: false,
-      duration: 10, // Fast speed for tab switching
-      startIndex: defaultTabIndex
+      duration: 20,
+      // Add these critical options to prevent bouncing
+      inViewThreshold: 0, 
+      dragThreshold: 10, // Higher threshold prevents accidental swipes
+      watchDrag: true
     } : { 
       align: 'start' as const,
       skipSnaps: true,
       dragFree: false,
       containScroll: 'keepSnaps' as const,
-      active: false, // Disable carousel on desktop
-      startIndex: defaultTabIndex
+      active: false // Disable carousel on desktop
     },
-    [isMobile, defaultTabIndex]
+    [isMobile]
   );
 
+  // Initialize carousel with appropriate plugins - match CategorySliderWrapper
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
     isMobile ? [WheelGesturesPlugin(), AutoHeight()] : [AutoHeight()]
   );
 
-  // Pre-initialize all tabs' heights by setting visibility before the user sees them
-  useEffect(() => {
+  // Scan all slides to ensure proper height calculation
+  const scanAllSlides = useCallback(() => {
     if (!emblaApi) return;
     
-    // Only run this effect once when the carousel is first initialized
-    const prepareAllSlides = () => {
-      // Move to each slide to ensure heights are calculated correctly
-      const currentSlide = emblaApi.selectedScrollSnap();
-      emblaApi.scrollTo(currentSlide);
-      
-      // Force a reinitialization
-      requestAnimationFrame(() => {
-        emblaApi.reInit();
-      });
-    };
+    // Get current slide
+    const currentSlide = emblaApi.selectedScrollSnap();
     
-    prepareAllSlides();
-  }, [emblaApi]); // Only run when emblaApi changes (once at initialization)
+    // Force reinitialization after a short delay to allow content to render
+    setTimeout(() => {
+      // Reinitialize to recalculate heights
+      emblaApi.reInit();
+      
+      // Scroll back to the original slide without animation
+      emblaApi.scrollTo(currentSlide, false);
+      
+      setIsInitialized(true);
+    }, 50);
+  }, [emblaApi]);
+
+  // Pre-initialize all tabs' heights
+  useEffect(() => {
+    if (!emblaApi || isInitialized) return;
+    
+    // Initial height calculation on first mount
+    scanAllSlides();
+    
+    // Additional height recalculation after a longer delay to ensure all content is loaded
+    const delayedReInit = setTimeout(() => {
+      if (emblaApi) {
+        emblaApi.reInit();
+      }
+    }, 300);
+    
+    return () => {
+      clearTimeout(delayedReInit);
+    };
+  }, [emblaApi, scanAllSlides, isInitialized]);
 
   // Handle tab change - both from tab clicks and swipe
   const handleTabChange = useCallback((index: number) => {
@@ -165,7 +187,13 @@ export function SwipeablePanels({
     setActiveTabIndex(index);
     
     if (emblaApi) {
+      // Scroll to target slide with animation
       emblaApi.scrollTo(index, true);
+      
+      // Force height recalculation after slide change
+      setTimeout(() => {
+        emblaApi.reInit();
+      }, 50);
     }
     
     if (onTabChange) {
@@ -183,6 +211,11 @@ export function SwipeablePanels({
         prevActiveTabRef.current = activeTabIndex;
         setActiveTabIndex(index);
         
+        // Force height recalculation after slide change
+        setTimeout(() => {
+          emblaApi.reInit();
+        }, 50);
+        
         if (onTabChange) {
           onTabChange(index);
         }
@@ -199,6 +232,27 @@ export function SwipeablePanels({
     };
   }, [emblaApi, onTabChange, activeTabIndex]);
 
+  // Extra effect to handle drag start and stop
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onDragStart = () => {
+      document.documentElement.classList.add('dragging-active');
+    };
+    
+    const onDragEnd = () => {
+      document.documentElement.classList.remove('dragging-active');
+    };
+    
+    emblaApi.on('pointerDown', onDragStart);
+    emblaApi.on('pointerUp', onDragEnd);
+    
+    return () => {
+      emblaApi.off('pointerDown', onDragStart);
+      emblaApi.off('pointerUp', onDragEnd);
+    };
+  }, [emblaApi]);
+
   // Prevent browser back/forward navigation when interacting with carousel
   useEffect(() => {
     if (!emblaApi || !isMobile) return;
@@ -206,23 +260,19 @@ export function SwipeablePanels({
     const viewport = emblaApi.rootNode();
     if (!viewport) return;
     
-    // Prevent horizontal swipe navigation only when actually dragging
-    const preventNavigation = (e: TouchEvent) => {
-      if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
-      
+    // Prevent ALL horizontal swipe navigation (not just when dragging)
+    const preventAllNavigation = (e: TouchEvent) => {
       const touch = e.touches[0];
       const startX = touch.clientX;
       const startY = touch.clientY;
       
       const handleTouchMove = (e: TouchEvent) => {
-        if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
-        
         const touch = e.touches[0];
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Only prevent default if horizontal movement is greater than vertical
-        if (deltaX > deltaY) {
+        // Prevent horizontal scroll (which causes overscroll)
+        if (deltaX > deltaY && deltaX > 5) {
           e.preventDefault();
         }
       };
@@ -237,20 +287,11 @@ export function SwipeablePanels({
       document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
-    // Prevent mousewheel horizontal navigation (for trackpads)
-    const preventWheelNavigation = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && emblaApi.internalEngine().dragHandler.pointerDown()) {
-        e.preventDefault();
-      }
-    };
-    
-    // Add event listeners with passive: false to allow preventDefault
-    viewport.addEventListener('touchstart', preventNavigation, { passive: true });
-    viewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
+    // Add event listener with passive: false to allow preventDefault
+    viewport.addEventListener('touchstart', preventAllNavigation, { passive: false });
     
     return () => {
-      viewport.removeEventListener('touchstart', preventNavigation);
-      viewport.removeEventListener('wheel', preventWheelNavigation);
+      viewport.removeEventListener('touchstart', preventAllNavigation);
     };
   }, [emblaApi, isMobile]);
 
@@ -276,14 +317,18 @@ export function SwipeablePanels({
     const style = document.createElement('style');
     style.textContent = `
       .embla-container-with-auto-height {
-        transition: height 0.2s ease-in-out;
-        height: auto !important;
+        display: flex;
+        flex-direction: column;
+        min-height: 250px;
+        -webkit-overflow-scrolling: touch; /* For iOS smooth scrolling */
       }
       
       .embla-slides-container {
         display: flex;
         align-items: flex-start;
         width: 100%;
+        flex: 1;
+        will-change: transform; /* Optimize for animations */
       }
       
       .embla-slide {
@@ -304,6 +349,21 @@ export function SwipeablePanels({
       .embla-viewport {
         overflow-x: hidden;
         width: 100%;
+        touch-action: pan-y pinch-zoom; /* Better touch behavior */
+      }
+      
+      .prevent-overscroll-navigation {
+        overscroll-behavior-x: none;
+        -ms-scroll-chaining: none;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* Prevent overscroll during drag */
+      html.dragging-active {
+        overscroll-behavior-x: none;
+        overflow-x: hidden;
       }
     `;
     document.head.appendChild(style);
@@ -324,13 +384,17 @@ export function SwipeablePanels({
         />
       </div>
       
-      {/* Swipeable content - preload all panels for proper height calculation */}
+      {/* Swipeable content - with enhanced touch behavior */}
       <div 
         className={cn(
           "overflow-hidden prevent-overscroll-navigation embla-container-with-auto-height embla-viewport",
           !isMobile && "overflow-visible" // Remove overflow hidden on desktop
         )} 
         ref={emblaRef}
+        style={{ 
+          minHeight: "250px",
+          WebkitOverflowScrolling: "touch" // For iOS
+        }}
       >
         <div className={cn(
           "flex embla-slides-container",
