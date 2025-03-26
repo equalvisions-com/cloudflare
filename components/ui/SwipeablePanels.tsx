@@ -97,23 +97,8 @@ const TabContent = React.memo(({
         !isMobile && !isActive && "hidden" // Hide when not active on desktop
       )}
       id={`tab-content-${id}`}
-      style={{ 
-        position: 'relative',
-        // Use visibility instead of display to ensure proper height calculation
-        // Only the active slide should influence the container height
-        visibility: isActive ? 'visible' : 'hidden',
-        // Non-active slides should take up zero height so they don't affect the container
-        height: isActive ? 'auto' : '0',
-        overflow: isActive ? 'visible' : 'hidden'
-      }}
     >
-      <div 
-        className="embla-slide-content w-full"
-        style={{
-          height: isActive ? 'auto' : '0',
-          display: isActive ? 'block' : 'none'
-        }}
-      >
+      <div className="embla-slide-content w-full">
         {/* Wrap tab content in StableTabContent to prevent re-rendering */}
         <StableTabContent>
           {tab.content}
@@ -175,7 +160,7 @@ export function SwipeablePanels({
   }, []);
 
   // Initialize Embla carousel with conditional options for mobile vs desktop
-  // Match settings from CategorySliderWrapper but add crucial settings to prevent bouncing
+  // Match settings from CategorySliderWrapper exactly
   const carouselOptions = useMemo(() => 
     isMobile ? {
       align: 'start' as const,
@@ -183,10 +168,8 @@ export function SwipeablePanels({
       dragFree: false,
       containScroll: 'trimSnaps' as const,
       loop: false,
-      duration: 20,
-      // Add these critical options to prevent bouncing
-      inViewThreshold: 0, 
-      dragThreshold: 10 // Higher threshold prevents accidental swipes
+      // Match CategorySliderWrapper.tsx duration
+      duration: 20
     } : { 
       align: 'start' as const,
       skipSnaps: true,
@@ -369,19 +352,23 @@ export function SwipeablePanels({
     const viewport = emblaApi.rootNode();
     if (!viewport) return;
     
-    // Prevent ALL horizontal swipe navigation (not just when dragging)
-    const preventAllNavigation = (e: TouchEvent) => {
+    // Match CategorySliderWrapper exact touch handling
+    const preventNavigation = (e: TouchEvent) => {
+      if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+      
       const touch = e.touches[0];
       const startX = touch.clientX;
       const startY = touch.clientY;
       
       const handleTouchMove = (e: TouchEvent) => {
+        if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
+        
         const touch = e.touches[0];
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Prevent horizontal scroll (which causes overscroll)
-        if (deltaX > deltaY && deltaX > 5) {
+        // Only prevent default if horizontal movement is greater than vertical
+        if (deltaX > deltaY) {
           e.preventDefault();
         }
       };
@@ -396,11 +383,20 @@ export function SwipeablePanels({
       document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
-    // Add event listener with passive: false to allow preventDefault
-    viewport.addEventListener('touchstart', preventAllNavigation, { passive: false });
+    // Match CategorySliderWrapper behavior for wheel/trackpad
+    const preventWheelNavigation = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && emblaApi.internalEngine().dragHandler.pointerDown()) {
+        e.preventDefault();
+      }
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault - match CategorySliderWrapper exactly
+    viewport.addEventListener('touchstart', preventNavigation, { passive: true });
+    viewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
     return () => {
-      viewport.removeEventListener('touchstart', preventAllNavigation);
+      viewport.removeEventListener('touchstart', preventNavigation);
+      viewport.removeEventListener('wheel', preventWheelNavigation);
     };
   }, [emblaApi, isMobile]);
 
