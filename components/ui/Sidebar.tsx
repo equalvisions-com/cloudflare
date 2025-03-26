@@ -9,7 +9,6 @@ import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { UserMenuClient } from "@/components/user-menu/UserMenuClient";
 
 interface NavItem {
   href: string;
@@ -49,7 +48,7 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, username, profileImage } = useSidebar();
+  const { isAuthenticated, username } = useSidebar();
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -115,13 +114,6 @@ function Sidebar() {
     <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">
       <CardContent className="p-0">
         <nav className="flex flex-col gap-4">
-          {/* User menu if authenticated */}
-          {isAuthenticated && (
-            <div className="mb-2">
-              <UserMenuClient initialDisplayName={username || ""} profileImage={profileImage} />
-            </div>
-          )}
-          
           {/* Navigation items */}
           <div className="flex flex-col gap-4">
             {navItems.map((item) => (
