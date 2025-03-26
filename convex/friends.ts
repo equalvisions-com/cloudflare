@@ -842,199 +842,232 @@ export const getFriendActivities = query({
     ...paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    // Get the user's friends
-    const friends = await getFriends(ctx, { userId: args.userId });
-    const friendIds = friends.filter(Boolean).map(friend => friend!._id);
+    console.log("getFriendActivities called with userId:", args.userId);
     
-    if (friendIds.length === 0) {
+    try {
+      // Get the user's friends
+      const friends = await getFriends(ctx, { userId: args.userId });
+      console.log(`Found ${friends.length} friends for user`);
+      
+      const friendIds = friends.filter(Boolean).map(friend => friend!._id);
+      
+      if (friendIds.length === 0) {
+        console.log("No friends found, returning empty data");
+        return { activityGroups: [], hasMore: false };
+      }
+      
+      // Create an empty array to hold all activities
+      const allActivities = [];
+      const limit = args.limit || 30; // Default to 30 if undefined
+      const skip = args.skip || 0;    // Default to 0 if undefined
+      
+      // Log friend IDs for debugging
+      console.log("Fetching activities for friends:", friendIds.map(id => id.toString()));
+      
+      // Get likes from friends (with limit + 1 to check if there are more)
+      const likes = await ctx.db
+        .query("likes")
+        .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+        .order("desc")
+        .take(limit + 1);
+      
+      console.log(`Found ${likes.length} likes from friends`);
+      
+      // Add likes to activities array
+      for (const like of likes) {
+        const user = await ctx.db.get(like.userId);
+        if (user) {
+          allActivities.push({
+            type: "like",
+            timestamp: like._creationTime,
+            entryGuid: like.entryGuid,
+            feedUrl: like.feedUrl,
+            title: like.title,
+            link: like.link,
+            pubDate: like.pubDate,
+            _id: like._id,
+            userId: like.userId,
+            username: user.username || "",
+            userImage: user.profileImage || user.image || null,
+            userName: user.name || user.username || "",
+          });
+        }
+      }
+      
+      // Get comments from friends
+      const comments = await ctx.db
+        .query("comments")
+        .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+        .order("desc")
+        .take(limit + 1);
+      
+      console.log(`Found ${comments.length} comments from friends`);
+      
+      // Add comments to activities array
+      for (const comment of comments) {
+        const user = await ctx.db.get(comment.userId);
+        if (user) {
+          allActivities.push({
+            type: "comment",
+            timestamp: comment.createdAt,
+            entryGuid: comment.entryGuid,
+            feedUrl: comment.feedUrl,
+            content: comment.content,
+            _id: comment._id,
+            userId: comment.userId,
+            username: comment.username,
+            userImage: user.profileImage || user.image || null,
+            userName: user.name || user.username || "",
+          });
+        }
+      }
+      
+      // Get retweets from friends
+      const retweets = await ctx.db
+        .query("retweets")
+        .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
+        .order("desc")
+        .take(limit + 1);
+      
+      console.log(`Found ${retweets.length} retweets from friends`);
+      
+      // Add retweets to activities array
+      for (const retweet of retweets) {
+        const user = await ctx.db.get(retweet.userId);
+        if (user) {
+          allActivities.push({
+            type: "retweet",
+            timestamp: retweet.retweetedAt,
+            entryGuid: retweet.entryGuid,
+            feedUrl: retweet.feedUrl,
+            title: retweet.title,
+            link: retweet.link,
+            pubDate: retweet.pubDate,
+            _id: retweet._id,
+            userId: retweet.userId,
+            username: user.username || "",
+            userImage: user.profileImage || user.image || null,
+            userName: user.name || user.username || "",
+          });
+        }
+      }
+      
+      console.log(`Total activities found: ${allActivities.length}`);
+      
+      // Sort all activities by timestamp (newest first)
+      allActivities.sort((a, b) => b.timestamp - a.timestamp);
+      
+      // Apply pagination
+      const paginatedActivities = allActivities.slice(skip, skip + limit);
+      const hasMore = allActivities.length > skip + limit;
+      
+      // If no activities found, return empty result
+      if (paginatedActivities.length === 0) {
+        console.log("No activities found after pagination");
+        return { activityGroups: [], hasMore: false };
+      }
+      
+      // Group activities by entry
+      const activityGroups = [];
+      const groupedByEntry = new Map();
+      
+      for (const activity of paginatedActivities) {
+        const entryKey = `${activity.entryGuid}:${activity.feedUrl}`;
+        
+        if (!groupedByEntry.has(entryKey)) {
+          // Create a new group
+          const group = {
+            entryGuid: activity.entryGuid,
+            feedUrl: activity.feedUrl,
+            activities: [activity],
+            entry: null as any,
+            metrics: null as any,
+          };
+          
+          groupedByEntry.set(entryKey, group);
+          activityGroups.push(group);
+        } else {
+          // Add to existing group
+          groupedByEntry.get(entryKey).activities.push(activity);
+        }
+      }
+      
+      console.log(`Created ${activityGroups.length} activity groups`);
+      
+      // Fetch entry details and metrics for each group
+      await Promise.all(activityGroups.map(async (group) => {
+        try {
+          // Query MySQL for RSS entry details (using a Convex HTTP action would be needed)
+          // For now, we'll use the first activity's data as a fallback
+          const firstActivity = group.activities[0];
+          group.entry = {
+            guid: firstActivity.entryGuid,
+            title: firstActivity.title || "",
+            link: firstActivity.link || "",
+            pub_date: firstActivity.pubDate || "",
+            feed_url: firstActivity.feedUrl,
+            image: null, // Add a default image field
+          };
+          
+          // Get metrics for this entry
+          // Use length instead of count() for likes
+          const likes = await ctx.db
+            .query("likes")
+            .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+            .collect();
+          const likeCount = likes.length;
+          
+          // Use length instead of count() for comments
+          const comments = await ctx.db
+            .query("comments")
+            .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+            .collect();
+          const commentCount = comments.length;
+            
+          // Use length instead of count() for retweets
+          const retweets = await ctx.db
+            .query("retweets")
+            .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
+            .collect();
+          const retweetCount = retweets.length;
+          
+          // Check if current user has liked/retweeted
+          const isLiked = await ctx.db
+            .query("likes")
+            .withIndex("by_user_entry", (q) => 
+              q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
+            )
+            .unique() !== null;
+            
+          const isRetweeted = await ctx.db
+            .query("retweets")
+            .withIndex("by_user_entry", (q) => 
+              q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
+            )
+            .unique() !== null;
+          
+          group.metrics = {
+            likes: { isLiked, count: likeCount },
+            comments: { count: commentCount },
+            retweets: { isRetweeted, count: retweetCount },
+          };
+        } catch (err) {
+          console.error("Error fetching entry details:", err);
+          // Provide default metrics to avoid null values
+          group.metrics = {
+            likes: { isLiked: false, count: 0 },
+            comments: { count: 0 },
+            retweets: { isRetweeted: false, count: 0 },
+          };
+        }
+      }));
+      
+      return { activityGroups, hasMore };
+    } catch (error) {
+      console.error("Error in getFriendActivities:", error);
+      // Return empty result in case of error
       return { activityGroups: [], hasMore: false };
     }
-    
-    // Create an empty array to hold all activities
-    const allActivities = [];
-    
-    // Get likes from friends (with limit + 1 to check if there are more)
-    const limit = args.limit || 30; // Default to 30 if undefined
-    const skip = args.skip || 0;    // Default to 0 if undefined
-    
-    const likes = await ctx.db
-      .query("likes")
-      // Use filter one at a time instead of .in()
-      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
-      .order("desc")
-      .take(limit + 1);
-    
-    // Add likes to activities array
-    for (const like of likes) {
-      const user = await ctx.db.get(like.userId);
-      if (user) {
-        allActivities.push({
-          type: "like",
-          timestamp: like._creationTime,
-          entryGuid: like.entryGuid,
-          feedUrl: like.feedUrl,
-          title: like.title,
-          link: like.link,
-          pubDate: like.pubDate,
-          _id: like._id,
-          userId: like.userId,
-          username: user.username || "",
-          userImage: user.profileImage || user.image || null,
-          userName: user.name || user.username || "",
-        });
-      }
-    }
-    
-    // Get comments from friends
-    const comments = await ctx.db
-      .query("comments")
-      // Use filter one at a time instead of .in()
-      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
-      .order("desc")
-      .take(limit + 1);
-    
-    // Add comments to activities array
-    for (const comment of comments) {
-      const user = await ctx.db.get(comment.userId);
-      if (user) {
-        allActivities.push({
-          type: "comment",
-          timestamp: comment.createdAt,
-          entryGuid: comment.entryGuid,
-          feedUrl: comment.feedUrl,
-          content: comment.content,
-          _id: comment._id,
-          userId: comment.userId,
-          username: comment.username,
-          userImage: user.profileImage || user.image || null,
-          userName: user.name || user.username || "",
-        });
-      }
-    }
-    
-    // Get retweets from friends
-    const retweets = await ctx.db
-      .query("retweets")
-      // Use filter one at a time instead of .in()
-      .filter(q => friendIds.some(id => q.eq(q.field("userId"), id)))
-      .order("desc")
-      .take(limit + 1);
-    
-    // Add retweets to activities array
-    for (const retweet of retweets) {
-      const user = await ctx.db.get(retweet.userId);
-      if (user) {
-        allActivities.push({
-          type: "retweet",
-          timestamp: retweet.retweetedAt,
-          entryGuid: retweet.entryGuid,
-          feedUrl: retweet.feedUrl,
-          title: retweet.title,
-          link: retweet.link,
-          pubDate: retweet.pubDate,
-          _id: retweet._id,
-          userId: retweet.userId,
-          username: user.username || "",
-          userImage: user.profileImage || user.image || null,
-          userName: user.name || user.username || "",
-        });
-      }
-    }
-    
-    // Sort all activities by timestamp (newest first)
-    allActivities.sort((a, b) => b.timestamp - a.timestamp);
-    
-    // Apply pagination
-    const paginatedActivities = allActivities.slice(skip, skip + limit);
-    const hasMore = allActivities.length > skip + limit;
-    
-    // Group activities by entry
-    const activityGroups = [];
-    const groupedByEntry = new Map();
-    
-    for (const activity of paginatedActivities) {
-      const entryKey = `${activity.entryGuid}:${activity.feedUrl}`;
-      
-      if (!groupedByEntry.has(entryKey)) {
-        // Create a new group
-        const group = {
-          entryGuid: activity.entryGuid,
-          feedUrl: activity.feedUrl,
-          activities: [activity],
-          entry: null as any, // Use any type to avoid null conflicts
-          metrics: null as any, // Use any type to avoid null conflicts
-        };
-        
-        groupedByEntry.set(entryKey, group);
-        activityGroups.push(group);
-      } else {
-        // Add to existing group
-        groupedByEntry.get(entryKey).activities.push(activity);
-      }
-    }
-    
-    // Fetch entry details and metrics for each group
-    await Promise.all(activityGroups.map(async (group) => {
-      try {
-        // Query MySQL for RSS entry details (using a Convex HTTP action would be needed)
-        // For now, we'll use the first activity's data as a fallback
-        const firstActivity = group.activities[0];
-        group.entry = {
-          guid: firstActivity.entryGuid,
-          title: firstActivity.title || "",
-          link: firstActivity.link || "",
-          pub_date: firstActivity.pubDate || "",
-          feed_url: firstActivity.feedUrl,
-        };
-        
-        // Get metrics for this entry
-        // Use length instead of count() for likes
-        const likes = await ctx.db
-          .query("likes")
-          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
-          .collect();
-        const likeCount = likes.length;
-        
-        // Use length instead of count() for comments
-        const comments = await ctx.db
-          .query("comments")
-          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
-          .collect();
-        const commentCount = comments.length;
-          
-        // Use length instead of count() for retweets
-        const retweets = await ctx.db
-          .query("retweets")
-          .withIndex("by_entry", (q) => q.eq("entryGuid", group.entryGuid))
-          .collect();
-        const retweetCount = retweets.length;
-        
-        // Check if current user has liked/retweeted
-        const isLiked = await ctx.db
-          .query("likes")
-          .withIndex("by_user_entry", (q) => 
-            q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
-          )
-          .unique() !== null;
-          
-        const isRetweeted = await ctx.db
-          .query("retweets")
-          .withIndex("by_user_entry", (q) => 
-            q.eq("userId", args.userId).eq("entryGuid", group.entryGuid)
-          )
-          .unique() !== null;
-        
-        group.metrics = {
-          likes: { isLiked, count: likeCount },
-          comments: { count: commentCount },
-          retweets: { isRetweeted, count: retweetCount },
-        };
-      } catch (err) {
-        console.error("Error fetching entry details:", err);
-      }
-    }));
-    
-    return { activityGroups, hasMore };
   },
 });
 
@@ -1066,4 +1099,141 @@ export const respondToFriendRequest = mutation({
       return { success: true, message: "Friend request rejected" };
     }
   },
+});
+
+// Helper function to create a test friendship for development
+export const createTestFriendship = mutation({
+  args: {
+    userId: v.id("users"),
+    friendUsername: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the friend by username
+    const potentialFriend = await ctx.db
+      .query("users")
+      .withIndex("by_username", q => q.eq("username", args.friendUsername))
+      .unique();
+    
+    if (!potentialFriend) {
+      throw new Error(`User with username "${args.friendUsername}" not found`);
+    }
+    
+    // Check if there's already a friendship
+    const existingFriendship = await ctx.db
+      .query("friends")
+      .withIndex("by_users", (q) => 
+        q.eq("requesterId", args.userId).eq("requesteeId", potentialFriend._id)
+      )
+      .unique();
+    
+    // If friendship exists, return it
+    if (existingFriendship) {
+      return {
+        success: true, 
+        message: `Already have friendship with status: ${existingFriendship.status}`,
+        friendship: existingFriendship
+      };
+    }
+    
+    // Create a test friendship (direct to accepted for testing)
+    const now = Date.now();
+    const friendshipId = await ctx.db.insert("friends", {
+      requesterId: args.userId,
+      requesteeId: potentialFriend._id,
+      status: "accepted",
+      createdAt: now,
+      updatedAt: now
+    });
+    
+    // Return success message
+    return {
+      success: true,
+      message: `Created test friendship with ${args.friendUsername}`,
+      friendship: {
+        _id: friendshipId,
+        requesterId: args.userId,
+        requesteeId: potentialFriend._id,
+        status: "accepted"
+      }
+    };
+  }
+});
+
+// Helper function to create a test activity for development
+export const createTestActivity = mutation({
+  args: {
+    userId: v.id("users"),
+    activityType: v.union(v.literal("like"), v.literal("comment"), v.literal("retweet")),
+    entryGuid: v.string(),
+    feedUrl: v.string(),
+    title: v.optional(v.string()),
+    link: v.optional(v.string()),
+    pubDate: v.optional(v.string()),
+    content: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if the user exists
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    
+    // Current timestamp
+    const now = Date.now();
+    
+    if (args.activityType === "like") {
+      // Create a test like
+      const likeId = await ctx.db.insert("likes", {
+        userId: args.userId,
+        entryGuid: args.entryGuid,
+        feedUrl: args.feedUrl,
+        title: args.title || "Test entry title",
+        pubDate: args.pubDate || new Date().toISOString(),
+        link: args.link || `https://example.com/entry/${args.entryGuid}`,
+      });
+      
+      return { 
+        success: true, 
+        message: "Created test like activity",
+        activityId: likeId
+      };
+    } 
+    else if (args.activityType === "comment") {
+      // Create a test comment
+      const commentId = await ctx.db.insert("comments", {
+        userId: args.userId,
+        username: user.username || "testuser",
+        entryGuid: args.entryGuid,
+        feedUrl: args.feedUrl,
+        content: args.content || "This is a test comment",
+        createdAt: now,
+      });
+      
+      return { 
+        success: true, 
+        message: "Created test comment activity",
+        activityId: commentId
+      };
+    }
+    else if (args.activityType === "retweet") {
+      // Create a test retweet
+      const retweetId = await ctx.db.insert("retweets", {
+        userId: args.userId,
+        entryGuid: args.entryGuid,
+        feedUrl: args.feedUrl,
+        title: args.title || "Test entry title",
+        pubDate: args.pubDate || new Date().toISOString(),
+        link: args.link || `https://example.com/entry/${args.entryGuid}`,
+        retweetedAt: now,
+      });
+      
+      return { 
+        success: true, 
+        message: "Created test retweet activity",
+        activityId: retweetId
+      };
+    }
+    
+    throw new Error("Invalid activity type");
+  }
 }); 

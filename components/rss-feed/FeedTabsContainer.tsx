@@ -134,6 +134,8 @@ const FriendsTabContent = React.memo(({
   friendsData: FeedTabsContainerProps['friendsData'],
   pageSize: number 
 }) => {
+  console.log("Rendering FriendsTabContent with data:", friendsData);
+  
   return (
     <FriendsFeedClientWithErrorBoundary 
       initialData={friendsData || null}

@@ -10,6 +10,8 @@ function getConvexClient() {
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("Friends activity API endpoint called");
+    
     // Get Convex client
     const convex = getConvexClient();
     
@@ -17,8 +19,11 @@ export async function GET(request: NextRequest) {
     const currentUser = await convex.query(api.users.viewer);
     
     if (!currentUser) {
+      console.log("API: No authenticated user found");
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log(`API: Found authenticated user with ID: ${currentUser._id}`);
     
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -27,6 +32,7 @@ export async function GET(request: NextRequest) {
     
     // Calculate offset
     const offset = (page - 1) * pageSize;
+    console.log(`API: Fetching page ${page}, pageSize ${pageSize}, offset ${offset}`);
     
     // Fetch friend activities
     const friendActivities = await convex.query(api.friends.getFriendActivities, {
@@ -35,10 +41,14 @@ export async function GET(request: NextRequest) {
       limit: pageSize
     });
     
-    return NextResponse.json({
+    console.log(`API: Fetched ${friendActivities.activityGroups?.length || 0} activity groups`);
+    
+    const response = {
       activityGroups: friendActivities.activityGroups,
       hasMore: friendActivities.hasMore
-    });
+    };
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error in friend activity API:', error);
     return NextResponse.json(

@@ -91,6 +91,14 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
     userId ? { userId } : "skip"
   );
   
+  // Debug the initial data
+  useEffect(() => {
+    console.log("FriendsFeedClient initialData:", initialData);
+    if (initialData?.activityGroups?.length) {
+      console.log(`Received ${initialData.activityGroups.length} activity groups`);
+    }
+  }, [initialData]);
+  
   // Load friend activities
   const loadFriendActivities = useCallback(async () => {
     if (isLoading || !hasMore || !userId) return;
@@ -99,10 +107,12 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
     const nextPage = currentPage + 1;
     
     try {
+      console.log(`Loading more friend activities, page ${nextPage}`);
       const response = await fetch(`/api/friends/activity?page=${nextPage}&pageSize=${pageSize}`);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data = await response.json();
+      console.log("Friend activities loaded:", data);
       
       if (data.activityGroups?.length) {
         setActivityGroups(prev => [...prev, ...data.activityGroups]);
@@ -138,12 +148,17 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
   
   // Render an activity group
   const renderActivityGroup = useCallback((group: FriendActivityGroup, index: number) => {
-    if (!group.entry) return null;
+    if (!group.entry) {
+      console.log("No entry data in group:", group);
+      return null;
+    }
     
     const entry = group.entry;
     const sortedActivities = [...group.activities].sort((a, b) => b.timestamp - a.timestamp);
     const firstActivity = sortedActivities[0];
     const isComment = sortedActivities.some(act => act.type === "comment");
+    
+    console.log(`Rendering activity group ${index} for entry: ${entry.title}`);
     
     return (
       <article key={`${group.entryGuid}-${index}`} className="border-b border-border last:border-0">
@@ -274,6 +289,7 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
   
   // Handle no friends or empty feed case
   if (!userId) {
+    console.log("No user ID available");
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>Please sign in to see your friends&apos; activity.</p>
@@ -282,6 +298,7 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
   }
   
   if (friendsData && friendsData.length === 0) {
+    console.log("No friends found for user");
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>You haven&apos;t added any friends yet.</p>
@@ -290,12 +307,20 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
     );
   }
   
+  console.log(`Rendering FriendsFeedClient with ${activityGroups.length} groups`);
+  
+  // Debug the activity groups data
+  if (activityGroups.length > 0) {
+    console.log("First activity group:", activityGroups[0]);
+  }
+  
   return (
     <div className="w-full">
       {activityGroups.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <p>No friend activity found.</p>
           <p className="text-sm mt-2">Your friends haven&apos;t interacted with any posts yet.</p>
+          {isLoading && <p className="text-sm mt-2">Loading...</p>}
         </div>
       ) : (
         <Virtuoso
@@ -303,6 +328,7 @@ export function FriendsFeedClient({ initialData, pageSize = 30 }: FriendsFeedCli
           totalCount={activityGroups.length}
           overscan={500}
           endReached={() => {
+            console.log(`End reached, hasMore: ${hasMore}, isLoading: ${isLoading}`);
             if (hasMore && !isLoading) {
               loadFriendActivities();
             }

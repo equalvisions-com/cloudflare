@@ -24,14 +24,29 @@ async function getFriendActivityData() {
     const currentUser = await convex.query(api.users.viewer);
     const userId = currentUser?._id;
     
-    if (!userId) return null;
+    if (!userId) {
+      console.log("No user ID found, cannot fetch friend activities");
+      return null;
+    }
     
     // Fetch friend activity data
+    console.log("Fetching friend activities for user:", userId);
     const friendActivities = await convex.query(api.friends.getFriendActivities, {
       userId,
       skip: 0,
       limit: 30
     });
+    
+    console.log("Friend activities fetched:", JSON.stringify(friendActivities, null, 2));
+    
+    // If activities are null or empty, return null to avoid type errors
+    if (!friendActivities || !friendActivities.activityGroups || friendActivities.activityGroups.length === 0) {
+      console.log("No friend activities found");
+      return {
+        activityGroups: [],
+        hasMore: false
+      };
+    }
     
     // Cast to expected type for the FriendsFeedClient
     return {
@@ -40,7 +55,11 @@ async function getFriendActivityData() {
     };
   } catch (error) {
     console.error("Error fetching friend activity data:", error);
-    return null;
+    // Return empty data rather than null to avoid rendering issues
+    return {
+      activityGroups: [],
+      hasMore: false
+    };
   }
 }
 
