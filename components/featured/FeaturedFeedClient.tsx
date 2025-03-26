@@ -12,7 +12,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { MoreVertical, Podcast, Mail } from "lucide-react";
+import { MoreVertical, Podcast, Mail, Text } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -185,7 +185,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
           <div className="flex-grow">
             <div className="w-full">
               {postMetadata.title && (
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 pt-[4px]">
                   {postUrl ? (
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-base font-semibold text-primary leading-tight">
@@ -206,11 +206,15 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                 </div>
               )}
               {postMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-full mt-[8px]">
-                  {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
-                  {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
-                </span>
+                <div className="inline-flex items-center gap-2 text-sm text-muted-foreground mt-[6px]">
+                  <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
+                    {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
+                    {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" />}
+                  </span>
+                  <span className="font-medium">
+                    {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
+                  </span>
+                </div>
               )}
             </div>
           </div>

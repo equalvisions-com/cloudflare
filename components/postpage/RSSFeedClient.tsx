@@ -13,7 +13,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Mail, MoreVertical, Loader2 } from "lucide-react";
+import { Podcast, Mail, MoreVertical, Loader2, Text } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -195,11 +195,15 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 </div>
               )}
               {mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-full mt-[7px]">
-                  {mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
-                  {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
-                </span>
+                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-[6px]">
+                  <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
+                    {mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
+                    {mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" />}
+                  </span>
+                  <span className="font-medium">
+                    {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
+                  </span>
+                </div>
               )}
             </div>
           </div>
