@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import AutoHeight from 'embla-carousel-auto-height';
-import './swipeable-panels.css';
 
-// Mobile breakpoint constant - match the same value used in CategorySliderWrapper
+// Mobile breakpoint constant
 const MOBILE_BREAKPOINT = 768;
 
 // Common interface for tabs
@@ -24,7 +23,7 @@ interface SwipeablePanelsProps {
   onTabChange?: (index: number) => void;
 }
 
-// Memoized tab buttons component - follows exact same styling as CategorySliderWrapper
+// Memoized tab buttons component
 const TabButtons = React.memo(({ 
   tabs, 
   activeTabIndex, 
@@ -68,8 +67,10 @@ export function SwipeablePanels({
 }: SwipeablePanelsProps) {
   const [activeTabIndex, setActiveTabIndex] = useState(defaultTabIndex);
   const [isMobile, setIsMobile] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   
-  // Update isMobile state based on window width - exactly like CategorySliderWrapper
+  // Update isMobile state based on window width
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
@@ -86,38 +87,43 @@ export function SwipeablePanels({
   }, []);
 
   // Initialize Embla carousel with conditional options for mobile vs desktop
-  // These are the exact same options used in CategorySliderWrapper
   const carouselOptions = useMemo(() => 
     isMobile ? {
       align: 'start' as const,
       skipSnaps: false,
       dragFree: false,
-      containScroll: 'trimSnaps' as const
+      containScroll: 'trimSnaps' as const,
+      loop: false,
+      duration: 10, // Faster than before, matching CategorySliderWrapper
+      startIndex: defaultTabIndex
     } : { 
       align: 'start' as const,
       skipSnaps: true,
       dragFree: false,
       containScroll: 'keepSnaps' as const,
-      active: false // Disable carousel on desktop
+      active: false, // Disable carousel on desktop
+      startIndex: defaultTabIndex
     },
-    [isMobile]
+    [isMobile, defaultTabIndex]
   );
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
-    isMobile ? [AutoHeight(), WheelGesturesPlugin()] : [AutoHeight()]
+    isMobile ? [WheelGesturesPlugin(), AutoHeight()] : [AutoHeight()]
   );
 
-  // Handle tab change - both from tab clicks and swipe - match CategorySliderWrapper behavior
+  // Handle tab change - both from tab clicks and swipe
   const handleTabChange = useCallback((index: number) => {
     setActiveTabIndex(index);
-    emblaApi?.scrollTo(index);
+    if (emblaApi) {
+      emblaApi.scrollTo(index, true); // Use animation to match CategorySliderWrapper
+    }
     if (onTabChange) {
       onTabChange(index);
     }
   }, [emblaApi, onTabChange]);
 
-  // Sync carousel changes with tabs - exactly like CategorySliderWrapper
+  // Initial setup and sync carousel changes with tabs
   useEffect(() => {
     if (!emblaApi) return;
 
@@ -130,14 +136,24 @@ export function SwipeablePanels({
     };
 
     emblaApi.on('select', onSelect);
+    
+    if (!isInitialized) {
+      // Initial scroll to ensure proper tab selection
+      emblaApi.scrollTo(activeTabIndex, false);
+      
+      // Force a reinitialization to set correct height on start
+      setTimeout(() => {
+        emblaApi.reInit();
+        setIsInitialized(true);
+      }, 0);
+    }
 
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, onTabChange]);
+  }, [emblaApi, onTabChange, activeTabIndex, isInitialized]);
 
   // Prevent browser back/forward navigation when interacting with carousel
-  // This exact same code is used in CategorySliderWrapper
   useEffect(() => {
     if (!emblaApi || !isMobile) return;
     
@@ -175,14 +191,14 @@ export function SwipeablePanels({
       document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
-    // Prevent mousewheel horizontal navigation (for trackpads) - Added to exactly match CategorySliderWrapper
+    // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && emblaApi.internalEngine().dragHandler.pointerDown()) {
         e.preventDefault();
       }
     };
     
-    // Add event listeners with passive: false to allow preventDefault - Match exact same event handling as CategorySliderWrapper
+    // Add event listeners with passive: false to allow preventDefault
     viewport.addEventListener('touchstart', preventNavigation, { passive: true });
     viewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
     
@@ -192,9 +208,105 @@ export function SwipeablePanels({
     };
   }, [emblaApi, isMobile]);
 
+  // Effect to handle resize and reinitialize carousel
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const onResize = () => {
+      // Reinitialize Embla on resize with a slight delay
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          emblaApi.reInit();
+        });
+      }
+    };
+    
+    window.addEventListener('resize', onResize);
+    
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, [emblaApi]);
+
+  // Preload slides to prevent height issues
+  useEffect(() => {
+    // Pre-render all tabs in a hidden container to get accurate heights
+    const preloadContainer = document.createElement('div');
+    preloadContainer.style.position = 'absolute';
+    preloadContainer.style.visibility = 'hidden';
+    preloadContainer.style.overflow = 'auto';
+    preloadContainer.style.height = 'auto';
+    preloadContainer.style.width = '100%';
+    preloadContainer.style.top = '-9999px';
+    
+    document.body.appendChild(preloadContainer);
+    
+    // Force browser to layout the content
+    setTimeout(() => {
+      document.body.removeChild(preloadContainer);
+      
+      // Make sure embla is properly initialized with correct heights
+      if (emblaApi) {
+        emblaApi.reInit();
+      }
+    }, 50);
+    
+    return () => {
+      if (document.body.contains(preloadContainer)) {
+        document.body.removeChild(preloadContainer);
+      }
+    };
+  }, [emblaApi, tabs]);
+
+  // Add CSS classes for auto height
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .embla-container-with-auto-height {
+        transition: height 0.2s ease-in-out; /* Faster transition to match CategorySliderWrapper */
+        height: auto !important;
+        min-height: 200px; /* Minimum height to avoid jumpiness */
+      }
+      
+      .embla-slides-container {
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
+      }
+      
+      .embla-slide {
+        flex: 0 0 100%;
+        min-width: 0;
+        width: 100%;
+        height: auto !important; /* Force height auto */
+        overflow: visible; /* Ensure content isn't clipped */
+        min-height: 200px;
+      }
+      
+      .embla-slide-content {
+        overflow: visible !important; /* Force visible overflow */
+        height: auto !important; /* Force height auto */
+        width: 100%;
+        opacity: 1 !important; /* Ensure content is always visible */
+        display: block !important; /* Ensure content is always displayed */
+      }
+      
+      /* Prevent flickering during transitions */
+      .embla-viewport {
+        overflow-x: hidden;
+        width: 100%;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
-    <div className={cn("w-full", className)}>
-      {/* Tab buttons - match the exact same layout in CategorySliderWrapper */}
+    <div className={cn("w-full", className)} ref={containerRef}>
+      {/* Tab buttons */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md">
         <TabButtons 
           tabs={tabs} 
@@ -203,10 +315,10 @@ export function SwipeablePanels({
         />
       </div>
       
-      {/* Swipeable content - use exact same className structure as CategorySliderWrapper */}
+      {/* Swipeable content */}
       <div 
         className={cn(
-          "overflow-hidden prevent-overscroll-navigation embla-container-with-auto-height",
+          "overflow-hidden prevent-overscroll-navigation embla-container-with-auto-height embla-viewport",
           !isMobile && "overflow-visible" // Remove overflow hidden on desktop
         )} 
         ref={emblaRef}
@@ -223,7 +335,9 @@ export function SwipeablePanels({
                 !isMobile && activeTabIndex !== index && "hidden" // Hide when not active on desktop
               )}
             >
-              {tab.content}
+              <div className="embla-slide-content w-full">
+                {tab.content}
+              </div>
             </div>
           ))}
         </div>
