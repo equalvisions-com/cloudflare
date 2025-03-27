@@ -4,11 +4,11 @@ import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Repeat } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useToast } from "@/components/ui/use-toast";
 import { useState, useEffect } from 'react';
+import { RetweetIcon } from "@/components/icons";
 
 interface RetweetButtonProps {
   entryGuid: string;
@@ -141,10 +141,10 @@ export function RetweetButtonClient({
       className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
     >
-      <Repeat 
+      <RetweetIcon 
         className={`h-4 w-4 transition-colors duration-200 ${isRetweeted ? 'text-green-500' : ''}`}
       />
-      <span className="transition-all duration-200">{retweetCount}</span>
+      <span className="transition-all duration-200 text-muted-foreground font-bold">{retweetCount}</span>
     </Button>
   );
 } 

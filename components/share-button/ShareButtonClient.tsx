@@ -1,9 +1,9 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { Share } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { ShareIcon } from "@/components/icons";
 
 interface ShareButtonProps {
   url: string;
@@ -56,7 +56,7 @@ export function ShareButtonClient({ url, title }: ShareButtonProps) {
       onClick={handleShare}
       disabled={isSharing}
     >
-      <Share className="h-4 w-4" />
+      <ShareIcon className="h-4 w-4" />
     </Button>
   );
 } 

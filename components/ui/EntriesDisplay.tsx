@@ -8,7 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Podcast, Mail, MoreVertical, Text } from 'lucide-react';
+import { Podcast, Mail, MoreVertical } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
@@ -314,15 +314,11 @@ const EntryCard = React.memo(({ entry, interactions }: {
                 </div>
               )}
               {entry.post_media_type && (
-                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-[6px]">
-                  <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
-                    {entry.post_media_type.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                    {entry.post_media_type.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" />}
-                  </span>
-                  <span className="font-medium">
-                    {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
-                  </span>
-                </div>
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                  {entry.post_media_type.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
+                  {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
+                  {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
+                </span>
               )}
             </div>
           </div>

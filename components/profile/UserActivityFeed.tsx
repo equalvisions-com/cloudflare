@@ -15,7 +15,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Podcast, Mail, Text } from "lucide-react";
+import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -1040,20 +1040,16 @@ const ActivityCard = React.memo(({
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
                 {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                  <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-[6px]">
-                    <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
-                      {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
-                        <Podcast className="h-3 w-3" />
-                      }
-                      {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                        <Text className="h-3 w-3" />
-                      }
-                    </span>
-                    <span className="font-medium">
-                      {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                       (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                    {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                    }
+                    {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                  </span>
                 )}
               </div>
             </div>
@@ -1238,20 +1234,16 @@ const ActivityCard = React.memo(({
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
               {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-[6px]">
-                  <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
-                    {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
-                      <Podcast className="h-3 w-3" />
-                    }
-                    {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Text className="h-3 w-3" />
-                    }
-                  </span>
-                  <span className="font-medium">
-                    {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                     (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
-                  </span>
-                </div>
+                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md font-medium mt-1.5">
+                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                    <Podcast className="h-3 w-3" />
+                  }
+                  {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                    <Mail className="h-3 w-3" strokeWidth={2.5} />
+                  }
+                  {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
+                   (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                </span>
               )}
             </div>
           </div>
@@ -1797,20 +1789,16 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 </div>
                 {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-[6px]">
-                    <span className="inline-flex items-center justify-center p-1 bg-secondary/60 rounded-md">
-                      {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
-                        <Podcast className="h-3 w-3" />
-                      }
-                      {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                        <Text className="h-3 w-3" />
-                      }
-                    </span>
-                    <span className="font-medium">
-                      {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
-                       (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                    }
+                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                  </span>
                 )}
               </div>
             </div>
