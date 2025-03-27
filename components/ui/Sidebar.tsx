@@ -84,7 +84,7 @@ function Sidebar() {
     if (isAuthenticated) {
       items.push({
         href: "/notifications",
-        label: "Notifications",
+        label: "Alerts",
         icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2} />,
       });
     }

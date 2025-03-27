@@ -124,7 +124,6 @@ const LikesTabContent = React.memo(({
     return (
       <div className="flex justify-center items-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Loading likes...</span>
       </div>
     );
   }
@@ -224,7 +223,7 @@ export function UserProfileTabs({
     // Likes tab
     {
       id: 'likes',
-      label: 'Bookmarks',
+      label: 'Likes',
       content: <LikesTabContent 
                 userId={userId}
                 likesData={likesState.data} 

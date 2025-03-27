@@ -905,7 +905,7 @@ const ActivityCard = React.memo(({
         {activity.type === "comment" ? (
           <>
           {/* Featured Image and Title in flex layout */}
-          <div className="flex items-start gap-4 mb-4 relative">
+          <div className="flex items-start gap-4 mb-4 relative mt-4">
             {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
               {(entryDetail.post_featured_img || entryDetail.image) && (
@@ -1056,7 +1056,7 @@ const ActivityCard = React.memo(({
           // Original full-width layout for retweets/likes
           <>
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4 relative">
+        <div className="flex items-start gap-4 mb-4 relative mt-4">
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
           {(entryDetail.post_featured_img || entryDetail.image) && (
             <div className="flex-shrink-0 w-12 h-12">
@@ -1569,7 +1569,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
           </div>
           
           {/* Featured Image and Title */}
-          <div className="flex items-start gap-4 mb-4 relative">
+          <div className="flex items-start gap-4 mb-4 relative mt-4">
             {/* Featured Image */}
             <div className="flex-shrink-0 relative">
               {(entryDetail.post_featured_img || entryDetail.image) && (
