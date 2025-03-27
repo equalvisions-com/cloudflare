@@ -229,7 +229,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                 onClick={handleCardClick}
                 className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
-                <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                <Card className={`overflow-hidden shadow-none rounded-xl ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                   {entry.image && (
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
@@ -265,7 +265,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
               rel="noopener noreferrer"
               className="block hover:opacity-80 transition-opacity"
             >
-              <Card className="overflow-hidden shadow-none border">
+              <Card className="overflow-hidden shadow-none border rounded-xl">
                 {entry.image && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
