@@ -4,45 +4,42 @@ import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Repeat } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
-import { useToast } from "@/components/ui/use-toast";
 import { useState, useEffect } from 'react';
 
-interface RetweetButtonProps {
+interface BookmarkButtonProps {
   entryGuid: string;
   feedUrl: string;
   title: string;
   pubDate: string;
   link: string;
   initialData?: {
-    isRetweeted: boolean;
-    count: number;
+    isBookmarked: boolean;
   };
 }
 
-export function RetweetButtonClientWithErrorBoundary(props: RetweetButtonProps) {
+export function BookmarkButtonClientWithErrorBoundary(props: BookmarkButtonProps) {
   return (
     <ErrorBoundary>
-      <RetweetButtonClient {...props} />
+      <BookmarkButtonClient {...props} />
     </ErrorBoundary>
   );
 }
 
-export function RetweetButtonClient({ 
+export function BookmarkButtonClient({ 
   entryGuid, 
   feedUrl, 
   title, 
   pubDate, 
   link,
-  initialData = { isRetweeted: false, count: 0 }
-}: RetweetButtonProps) {
+  initialData = { isBookmarked: false }
+}: BookmarkButtonProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const { isAuthenticated } = useConvexAuth();
-  const retweet = useMutation(api.retweets.retweet);
-  const unretweet = useMutation(api.retweets.unretweet);
+  const bookmark = useMutation(api.bookmarks.bookmark);
+  const removeBookmark = useMutation(api.bookmarks.removeBookmark);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -51,7 +48,7 @@ export function RetweetButtonClient({
   const [metricsLoaded, setMetricsLoaded] = useState(false);
   
   // Use state for optimistic updates
-  const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number, timestamp: number} | null>(null);
+  const [optimisticState, setOptimisticState] = useState<{isBookmarked: boolean, timestamp: number} | null>(null);
   
   // Update metricsLoaded when metrics are received
   useEffect(() => {
@@ -62,19 +59,16 @@ export function RetweetButtonClient({
   
   // Determine the current state, prioritizing optimistic updates
   // If metrics haven't loaded yet, use initialData to prevent flickering
-  const isRetweeted = optimisticState?.isRetweeted ?? (metricsLoaded ? (metrics?.retweets?.isRetweeted ?? initialData.isRetweeted) : initialData.isRetweeted);
-  const retweetCount = optimisticState?.count ?? (metricsLoaded ? (metrics?.retweets?.count ?? initialData.count) : initialData.count);
+  const isBookmarked = optimisticState?.isBookmarked ?? (metricsLoaded ? metrics?.bookmarks.isBookmarked : initialData.isBookmarked);
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
     if (metrics && optimisticState) {
       // Only clear optimistic state if server data matches what we expect
       // or if the optimistic update is older than 5 seconds (fallback)
-      const isServerMatchingOptimistic = metrics.retweets?.isRetweeted === optimisticState.isRetweeted;
+      const isServerMatchingOptimistic = metrics.bookmarks.isBookmarked === optimisticState.isBookmarked;
       const isOptimisticUpdateStale = Date.now() - optimisticState.timestamp > 5000;
       
-      // Only clear if the server state matches our optimistic state
-      // This prevents flickering when the server confirms our update
       if (isServerMatchingOptimistic || isOptimisticUpdateStale) {
         setOptimisticState(null);
       }
@@ -89,8 +83,7 @@ export function RetweetButtonClient({
 
     // Calculate new state for optimistic update
     const newState = {
-      isRetweeted: !isRetweeted,
-      count: retweetCount + (isRetweeted ? -1 : 1),
+      isBookmarked: !isBookmarked,
       timestamp: Date.now()
     };
 
@@ -98,39 +91,23 @@ export function RetweetButtonClient({
     setOptimisticState(newState);
 
     try {
-      if (isRetweeted) {
-        await unretweet({ entryGuid });
-        toast({
-          title: "Removed from your posts",
-          description: "This post has been removed from your profile.",
-          duration: 3000,
-        });
+      if (isBookmarked) {
+        await removeBookmark({ entryGuid });
       } else {
-        await retweet({
+        await bookmark({
           entryGuid,
           feedUrl,
           title,
           pubDate,
           link,
         });
-        toast({
-          title: "Added to your posts",
-          description: "This post will now appear on your profile.",
-          duration: 3000,
-        });
       }
       // Convex will automatically update the UI with the new state
       // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
       // Revert optimistic update on error
-      console.error('Error updating retweet status:', err);
+      console.error('Error updating bookmark status:', err);
       setOptimisticState(null);
-      toast({
-        title: "Error",
-        description: "There was an error processing your request.",
-        variant: "destructive",
-        duration: 3000,
-      });
     }
   };
 
@@ -138,17 +115,12 @@ export function RetweetButtonClient({
     <Button
       variant="ghost"
       size="sm"
-      className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
+      className="px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
     >
-      <Repeat 
-        className={`h-4 w-4 stroke-[2.5] transition-colors duration-200 ${
-          isRetweeted 
-            ? 'text-green-500 fill-none' 
-            : 'text-muted-foreground fill-none'
-        }`}
+      <Bookmark 
+        className={`h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200 ${isBookmarked ? 'fill-current text-red-500' : ''}`}
       />
-      <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{retweetCount}</span>
     </Button>
   );
 } 

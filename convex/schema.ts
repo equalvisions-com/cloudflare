@@ -76,6 +76,21 @@ export default defineSchema({
   .index("by_entry", ["entryGuid"])
   .index("by_feedUrl", ["feedUrl"]),
 
+  bookmarks: defineTable({
+    userId: v.id("users"),
+    entryGuid: v.string(),
+    feedUrl: v.string(),
+    title: v.string(),
+    pubDate: v.string(),
+    link: v.string(),
+    bookmarkedAt: v.number(), // Timestamp for when the bookmark was created
+  })
+  .index("by_user_entry", ["userId", "entryGuid"])
+  .index("by_user", ["userId"])
+  .index("by_entry", ["entryGuid"])
+  .index("by_feedUrl", ["feedUrl"])
+  .index("by_time", ["bookmarkedAt"]), // For chronological display
+
   retweets: defineTable({
     userId: v.id("users"),
     entryGuid: v.string(),

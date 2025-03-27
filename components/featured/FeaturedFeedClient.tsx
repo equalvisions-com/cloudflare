@@ -10,17 +10,10 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
+import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Podcast, Text } from "lucide-react";
-import { DotsIcon } from "@/components/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
@@ -49,6 +42,9 @@ interface FeaturedEntryWithData {
       isRetweeted: boolean;
       count: number;
     };
+    bookmarks?: {
+      isBookmarked: boolean;
+    };
   };
   postMetadata: PostMetadata;
 }
@@ -56,46 +52,6 @@ interface FeaturedEntryWithData {
 interface FeaturedEntryProps {
   entryWithData: FeaturedEntryWithData;
 }
-
-interface MoreOptionsDropdownProps {
-  entry: FeaturedEntry;
-}
-
-const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="px-0 hover:bg-transparent focus-visible:ring-0 focus:ring-0 focus:ring-offset-0 focus-visible:ring-offset-0 focus-visible:outline-none"
-        >
-          <DotsIcon className="!h-[18px] !w-[18px]" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem 
-          onClick={() => window.open(entry.link, '_blank')}
-          className="cursor-pointer"
-        >
-          Open in new tab
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => navigator.clipboard.writeText(entry.link)}
-          className="cursor-pointer"
-        >
-          Copy link
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(entry.title)}&body=${encodeURIComponent(entry.link)}`, '_blank')}
-          className="cursor-pointer"
-        >
-          Email this
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
 
 const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: FeaturedEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
@@ -163,109 +119,68 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
   return (
     <article>
       <div className="p-4">
-        {/* Main Container */}
-        <div className="flex flex-col gap-4">
-          {/* Profile Header Row */}
-          <div className="flex gap-4">
-            {/* Featured Image Column */}
-            <div className="flex-shrink-0">
-              {postMetadata.featuredImg && postUrl && (
-                <Link href={postUrl} className="block w-12 h-12 relative rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
-                  <AspectRatio ratio={1}>
-                    <Image
-                      src={postMetadata.featuredImg}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="96px"
-                      loading="lazy"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </Link>
-              )}
-            </div>
-            
-            {/* Title and Metadata Column */}
-            <div className="flex-grow">
-              {/* Title and Timestamp */}
-              <div className="w-full">
-                {postMetadata.title && (
-                  <div className="flex items-center justify-between gap-2">
-                    {postUrl ? (
-                      <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                        <h3 className="text-sm font-bold text-primary leading-tight mt-[-2px]">
-                          {postMetadata.title}
-                        </h3>
-                      </Link>
-                    ) : (
-                      <h3 className="text-base font-semibold text-primary leading-tight">
+        {/* Top Row: Featured Image and Title */}
+        <div className="flex items-start gap-4 mb-4">
+          {/* Featured Image */}
+          {postMetadata.featuredImg && postUrl && (
+            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
+              <AspectRatio ratio={1}>
+                <Image
+                  src={postMetadata.featuredImg}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="96px"
+                  loading="lazy"
+                  priority={false}
+                />
+              </AspectRatio>
+            </Link>
+          )}
+          
+          {/* Title and Timestamp */}
+          <div className="flex-grow">
+            <div className="w-full mt-[-3px]">
+              {postMetadata.title && (
+                <div className="flex items-center justify-between gap-2">
+                  {postUrl ? (
+                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
+                      <h3 className="text-sm font-bold text-primary leading-tight">
                         {postMetadata.title}
                       </h3>
-                    )}
-                    <span 
-                      className="text-sm leading-none text-muted-foreground flex-shrink-0"
-                      title={format(new Date(entry.pub_date), 'PPP p')}
-                    >
-                      {timestamp}
-                    </span>
-                  </div>
-                )}
-                {postMetadata.mediaType && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
-                    {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                    {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
-                    {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
+                    </Link>
+                  ) : (
+                    <h3 className="text-sm font-bold text-primary leading-tight">
+                      {postMetadata.title}
+                    </h3>
+                  )}
+                  <span 
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    title={format(new Date(entry.pub_date), 'PPP p')}
+                  >
+                    {timestamp}
                   </span>
-                )}
-              </div>
+                </div>
+              )}
+              {postMetadata.mediaType && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                  {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
+                  {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
+                  {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
+                </span>
+              )}
             </div>
           </div>
-
-          {/* Content Card - Full Width */}
-          {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
-            <div>
-              <div 
-                onClick={handleCardClick}
-                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-              >
-                <Card className={`overflow-hidden shadow-none rounded-xl ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                  {entry.image && (
-                    <CardHeader className="p-0">
-                      <AspectRatio ratio={2/1}>
-                        <Image
-                          src={entry.image}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, 768px"
-                          loading="lazy"
-                          priority={false}
-                        />
-                      </AspectRatio>
-                    </CardHeader>
-                  )}
-                  <CardContent className="pt-4">
-                    <h3 className="text-base font-semibold leading-tight">
-                      {decode(entry.title)}
-                    </h3>
-                    {entry.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                        {decode(entry.description)}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          ) : (
-            <a
-              href={entry.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block hover:opacity-80 transition-opacity"
+        </div>
+        
+        {/* Content */}
+        {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
+          <div>
+            <div 
+              onClick={handleCardClick}
+              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
-              <Card className="overflow-hidden shadow-none border rounded-xl">
+              <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
@@ -281,60 +196,98 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="p-4">
-                  <h3 className="text-base font-bold">
+                <CardContent className="border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.3]">
                     {decode(entry.title)}
                   </h3>
                   {entry.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                       {decode(entry.description)}
                     </p>
                   )}
                 </CardContent>
               </Card>
-            </a>
-          )}
-
-          {/* Horizontal Interaction Buttons */}
-          <div className="flex items-center h-[16px]">
-            <div className="flex gap-8 flex-grow">
-              <div>
-                <LikeButtonClient
-                  entryGuid={entry.guid}
-                  feedUrl={entry.feed_url}
-                  title={entry.title}
-                  pubDate={entry.pub_date}
-                  link={entry.link}
-                  initialData={initialData.likes}
-                />
-              </div>
-              <div>
-                <CommentSectionClient
-                  entryGuid={entry.guid}
-                  feedUrl={entry.feed_url}
-                  initialData={initialData.comments}
-                />
-              </div>
-              <div>
-                <RetweetButtonClientWithErrorBoundary
-                  entryGuid={entry.guid}
-                  feedUrl={entry.feed_url}
-                  title={entry.title}
-                  pubDate={entry.pub_date}
-                  link={entry.link}
-                  initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
-                />
-              </div>
-              <div>
-                <ShareButtonClient
-                  url={entry.link}
-                  title={entry.title}
-                />
-              </div>
             </div>
-            <div>
-              <MoreOptionsDropdown entry={entry} />
-            </div>
+          </div>
+        ) : (
+          <a
+            href={entry.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block hover:opacity-80 transition-opacity"
+          >
+            <Card className="rounded-xl border overflow-hidden shadow-none">
+              {entry.image && (
+                <CardHeader className="p-0">
+                  <AspectRatio ratio={2/1}>
+                    <Image
+                      src={entry.image}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 768px"
+                      loading="lazy"
+                      priority={false}
+                    />
+                  </AspectRatio>
+                </CardHeader>
+              )}
+              <CardContent className="p-4 border-t pt-[11px]">
+                <h3 className="text-base font-bold capitalize leading-[1.3]">
+                  {decode(entry.title)}
+                </h3>
+                {entry.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                    {decode(entry.description)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </a>
+        )}
+        
+        {/* Horizontal Interaction Buttons */}
+        <div className="flex justify-between items-center mt-4 h-[16px]">
+          <div>
+            <LikeButtonClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={initialData.likes}
+            />
+          </div>
+          <div>
+            <CommentSectionClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url}
+              initialData={initialData.comments}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={initialData.bookmarks || { isBookmarked: false }}
+            />
+            <ShareButtonClient
+              url={entry.link}
+              title={entry.title}
+            />
           </div>
         </div>
       </div>

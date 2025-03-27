@@ -23,7 +23,6 @@ import {
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CommentIcon } from "@/components/icons";
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -452,8 +451,8 @@ export function CommentSectionClient({
         className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
         onClick={toggleComments}
       >
-        <CommentIcon className="h-[18px] w-[18px] transition-colors duration-200" />
-        <span className="transition-all duration-200 text-muted-foreground text-sm font-semibold">{commentCount}</span>
+        <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
+        <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
       </Button>
       
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

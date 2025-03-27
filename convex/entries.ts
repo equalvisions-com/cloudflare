@@ -13,7 +13,7 @@ export const getFeedDataWithMetrics = query({
     const userId = await getAuthUserId(ctx).catch(() => null);
 
     // Run all queries in parallel for maximum efficiency
-    const [likes, comments, retweets, posts] = await Promise.all([
+    const [likes, comments, retweets, bookmarks, posts] = await Promise.all([
       // Get all likes for the requested entries
       ctx.db
         .query("likes")
@@ -43,6 +43,19 @@ export const getFeedDataWithMetrics = query({
       // Get all retweets for the requested entries
       ctx.db
         .query("retweets")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect(),
+        
+      // Get all bookmarks for the requested entries
+      ctx.db
+        .query("bookmarks")
         .withIndex("by_entry")
         .filter((q) => 
           q.or(
@@ -99,6 +112,15 @@ export const getFeedDataWithMetrics = query({
         userRetweetedSet.add(retweet.entryGuid);
       }
     }
+    
+    // Process bookmarks data
+    const userBookmarkedSet = new Set<string>();
+    
+    for (const bookmark of bookmarks) {
+      if (userId && bookmark.userId === userId) {
+        userBookmarkedSet.add(bookmark.entryGuid);
+      }
+    }
 
     // Create a map of feed URLs to post metadata
     const postMetadataMap = new Map(
@@ -129,6 +151,9 @@ export const getFeedDataWithMetrics = query({
           retweets: {
             isRetweeted: userId ? userRetweetedSet.has(guid) : false,
             count: retweetCountMap.get(guid) || 0
+          },
+          bookmarks: {
+            isBookmarked: userId ? userBookmarkedSet.has(guid) : false
           }
         }
       })),
@@ -252,7 +277,7 @@ export const getEntryMetrics = query({
     const userId = await getAuthUserId(ctx).catch(() => null);
 
     // Get likes, comments, and retweets counts in parallel
-    const [likes, comments, retweets] = await Promise.all([
+    const [likes, comments, retweets, bookmarks] = await Promise.all([
       ctx.db
         .query("likes")
         .withIndex("by_entry")
@@ -267,6 +292,11 @@ export const getEntryMetrics = query({
         .query("retweets")
         .withIndex("by_entry")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
+        .collect(),
+      ctx.db
+        .query("bookmarks")
+        .withIndex("by_entry")
+        .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .collect()
     ]);
 
@@ -275,6 +305,9 @@ export const getEntryMetrics = query({
     
     // Check if user has retweeted
     const isRetweeted = userId ? retweets.some(retweet => retweet.userId === userId) : false;
+    
+    // Check if user has bookmarked
+    const isBookmarked = userId ? bookmarks.some(bookmark => bookmark.userId === userId) : false;
 
     return {
       likes: {
@@ -287,6 +320,9 @@ export const getEntryMetrics = query({
       retweets: {
         count: retweets.length,
         isRetweeted
+      },
+      bookmarks: {
+        isBookmarked
       }
     };
   },
