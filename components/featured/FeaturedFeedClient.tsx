@@ -194,7 +194,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                   <div className="flex items-center justify-between gap-2">
                     {postUrl ? (
                       <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                        <h3 className="text-sm font-semibold text-primary leading-tight mt-[-2px]">
+                        <h3 className="text-sm font-bold text-primary leading-tight mt-[-2px]">
                           {postMetadata.title}
                         </h3>
                       </Link>
