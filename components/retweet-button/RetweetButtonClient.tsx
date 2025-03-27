@@ -142,9 +142,9 @@ export function RetweetButtonClient({
       onClick={handleClick}
     >
       <RetweetIcon 
-        className={`h-4 w-4 transition-colors duration-200 ${isRetweeted ? 'text-green-500' : ''}`}
+        className={`h-[18px] w-[18px] transition-colors duration-200 ${isRetweeted ? 'text-green-500' : ''}`}
       />
-      <span className="transition-all duration-200 text-muted-foreground font-bold">{retweetCount}</span>
+      <span className="transition-all duration-200 text-muted-foreground text-sm font-semibold">{retweetCount}</span>
     </Button>
   );
 } 

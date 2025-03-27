@@ -121,10 +121,8 @@ export function LikeButtonClient({
       className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
     >
-      <LikeIcon 
-        className={`h-4 w-4 transition-colors duration-200 ${isLiked ? 'text-red-500 fill-red-500' : ''}`}
-      />
-      <span className="transition-all duration-200 text-muted-foreground font-bold">{likeCount}</span>
+      <LikeIcon className={`h-[18px] w-[18px] transition-colors duration-200 ${isLiked ? 'text-red-500 fill-red-500' : ''}`} />
+      <span className="transition-all duration-200 text-muted-foreground text-sm font-semibold">{likeCount}</span>
     </Button>
   );
 } 

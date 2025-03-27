@@ -452,8 +452,8 @@ export function CommentSectionClient({
         className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
         onClick={toggleComments}
       >
-        <CommentIcon className="h-4 w-4 transition-colors duration-200" />
-        <span className="transition-all duration-200 text-muted-foreground font-bold">{commentCount}</span>
+        <CommentIcon className="h-[18px] w-[18px] transition-colors duration-200" />
+        <span className="transition-all duration-200 text-muted-foreground text-sm font-semibold">{commentCount}</span>
       </Button>
       
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

@@ -56,7 +56,7 @@ export function ShareButtonClient({ url, title }: ShareButtonProps) {
       onClick={handleShare}
       disabled={isSharing}
     >
-      <ShareIcon className="h-4 w-4" />
+      <ShareIcon className="h-[18px] w-[18px]" />
     </Button>
   );
 } 
