@@ -8,18 +8,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Podcast, Mail, MoreVertical, Text } from 'lucide-react';
+import { Podcast, Text } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
 import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
 import { Button } from '@/components/ui/button';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Virtuoso } from 'react-virtuoso';
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
+import { decode } from 'html-entities';
 
 // Define the shape of an RSS entry
 interface RSSEntry {

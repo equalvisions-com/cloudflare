@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { MoreVertical, Podcast, Text, Loader2 } from "lucide-react";
+import { Podcast, Text, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -15,7 +15,6 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -152,30 +151,6 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
     metricsMap
   };
 }
-
-// Memoized MoreOptionsDropdown component
-const MoreOptionsDropdown = React.memo(({ entry }: { entry: RSSEntry }) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent p-0">
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem asChild>
-        <a
-          href={entry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cursor-pointer"
-        >
-          Open in new tab
-        </a>
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-));
-MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
 
 // Memoized timestamp formatter
 const useFormattedTimestamp = (pubDate?: string) => {

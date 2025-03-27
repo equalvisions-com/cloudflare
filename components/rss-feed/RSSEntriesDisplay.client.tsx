@@ -15,13 +15,7 @@ import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Text, MoreVertical, Loader2 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Podcast, Text, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -79,47 +73,6 @@ interface RSSEntryWithData {
 interface RSSEntryProps {
   entryWithData: RSSEntryWithData;
 }
-
-// Add the MoreOptionsDropdown component before the RSSEntry component
-interface MoreOptionsDropdownProps {
-  entry: RSSItem;
-}
-
-const MoreOptionsDropdown = ({ entry }: MoreOptionsDropdownProps) => {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="px-0 hover:bg-transparent -mr-2 focus-visible:ring-0 focus:ring-0 focus:ring-offset-0 focus-visible:ring-offset-0 focus-visible:outline-none"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem 
-          onClick={() => window.open(entry.link, '_blank')}
-          className="cursor-pointer"
-        >
-          Open in new tab
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => navigator.clipboard.writeText(entry.link)}
-          className="cursor-pointer"
-        >
-          Copy link
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(entry.title)}&body=${encodeURIComponent(entry.link)}`, '_blank')}
-          className="cursor-pointer"
-        >
-          Email this
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
 
 // Memoize the RSSEntry component to prevent unnecessary re-renders
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata } }: RSSEntryProps) => {

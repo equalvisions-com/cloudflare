@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Text } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Text, Podcast } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -15,7 +15,6 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Podcast, Mail } from "lucide-react";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -717,70 +716,46 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   }
 }
 
-// Memoized MoreOptionsDropdown component
-const MoreOptionsDropdown = React.memo(({ entry }: { entry: RSSEntry }) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent p-0">
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem asChild>
-        <a
-          href={entry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cursor-pointer"
-        >
-          Open in new tab
-        </a>
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-));
-MoreOptionsDropdown.displayName = 'MoreOptionsDropdown';
-
 // Activity card with entry details
 const ActivityCard = React.memo(({ 
   activity, 
   username, 
   name,
   profileImage,
-  entryDetails,
+  entryDetail,
   getEntryMetrics
 }: { 
   activity: ActivityItem; 
   username: string;
   name: string;
   profileImage?: string | null;
-  entryDetails?: RSSEntry;
+  entryDetail?: RSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
 }) => {
   const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
+  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail.link;
   
   // Get metrics for this entry - explicitly memoized to prevent regeneration
   const interactions = useMemo(() => {
-    if (!entryDetails) return undefined;
-    return getEntryMetrics(entryDetails.guid);
-  }, [entryDetails, getEntryMetrics]);
+    if (!entryDetail) return undefined;
+    return getEntryMetrics(entryDetail.guid);
+  }, [entryDetail, getEntryMetrics]);
   
   // Format entry timestamp using the same logic as RSSFeedClient
   const entryTimestamp = useMemo(() => {
-    if (!entryDetails?.pub_date) return '';
+    if (!entryDetail?.pub_date) return '';
 
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
     let pubDate: Date;
     
-    if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
+    if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
       // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = entryDetails.pub_date.split(' ');
+      const [datePart, timePart] = entryDetail.pub_date.split(' ');
       pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
       // Handle other formats
-      pubDate = new Date(entryDetails.pub_date);
+      pubDate = new Date(entryDetail.pub_date);
     }
     
     const now = new Date();
@@ -812,7 +787,7 @@ const ActivityCard = React.memo(({
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entryDetails?.pub_date]);
+  }, [entryDetail?.pub_date]);
 
   // Format activity timestamp for comments
   const activityTimestamp = useMemo(() => {
@@ -853,14 +828,14 @@ const ActivityCard = React.memo(({
 
   // Handle card click for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
+    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
-      playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
+      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
     }
-  }, [entryDetails, playTrack]);
+  }, [entryDetail, playTrack]);
   
   // If we don't have entry details, show a simplified card
-  if (!entryDetails) {
+  if (!entryDetail) {
     return (
       <div className="p-4 rounded-lg shadow-sm mb-4">
         <div className="flex items-start">
@@ -933,19 +908,19 @@ const ActivityCard = React.memo(({
           <div className="flex items-start gap-4 mb-4 relative">
             {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
-              {(entryDetails.post_featured_img || entryDetails.image) && (
+              {(entryDetail.post_featured_img || entryDetail.image) && (
                 <div className="w-12 h-12 relative z-10">
                   <Link 
-                    href={entryDetails.category_slug && entryDetails.post_slug ? 
-                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                      entryDetails.link}
+                    href={entryDetail.category_slug && entryDetail.post_slug ? 
+                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                      entryDetail.link}
                     className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
                     <AspectRatio ratio={1}>
                       <Image
-                        src={entryDetails.post_featured_img || entryDetails.image || ''}
+                        src={entryDetail.post_featured_img || entryDetail.image || ''}
                         alt=""
                         fill
                         className="object-cover"
@@ -964,21 +939,21 @@ const ActivityCard = React.memo(({
               <div className="w-full mt-[-3px]">
                 <div className="flex items-center justify-between gap-2">
                   <Link 
-                    href={entryDetails.category_slug && entryDetails.post_slug ? 
-                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                      entryDetails.link}
+                    href={entryDetail.category_slug && entryDetail.post_slug ? 
+                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                      entryDetail.link}
                     className="hover:opacity-80 transition-opacity"
-                    target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                    rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
                     <h3 className="text-sm font-bold text-primary leading-tight">
-                      {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                     </h3>
                   </Link>
                   <span 
                     className="text-sm leading-none text-muted-foreground flex-shrink-0"
-                    title={entryDetails.pub_date ? 
-                      format(new Date(entryDetails.pub_date), 'PPP p') : 
+                    title={entryDetail.pub_date ? 
+                      format(new Date(entryDetail.pub_date), 'PPP p') : 
                       new Date(activity.timestamp).toLocaleString()
                     }
                   >
@@ -986,16 +961,16 @@ const ActivityCard = React.memo(({
                   </span>
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
-                {(entryDetails.post_media_type || entryDetails.mediaType) && (
+                {(entryDetail.post_media_type || entryDetail.mediaType) && (
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
-                    {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
-                    {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
                       <Text className="h-3 w-3" strokeWidth={2.5} />
                     }
-                    {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                     (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
                   </span>
                 )}
               </div>
@@ -1004,18 +979,18 @@ const ActivityCard = React.memo(({
                 
           {/* Entry Content Card - Full width */}
           <div className="mt-4">
-            {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+            {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
               <div>
                 <div 
                   onClick={handleCardClick}
                   className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
                 >
                   <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                    {entryDetails.image && (
+                    {entryDetail.image && (
                       <CardHeader className="p-0">
                         <AspectRatio ratio={2/1}>
                           <Image
-                            src={entryDetails.image}
+                            src={entryDetail.image}
                             alt=""
                             fill
                             className="object-cover"
@@ -1028,11 +1003,11 @@ const ActivityCard = React.memo(({
                     )}
                     <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                       <h3 className="text-base font-bold capitalize leading-[1.5]">
-                        {entryDetails.title}
+                        {entryDetail.title}
                       </h3>
-                      {entryDetails.description && (
+                      {entryDetail.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                          {entryDetails.description}
+                          {entryDetail.description}
                         </p>
                       )}
                     </CardContent>
@@ -1041,17 +1016,17 @@ const ActivityCard = React.memo(({
               </div>
             ) : (
               <a
-                href={entryDetails.link}
+                href={entryDetail.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block hover:opacity-80 transition-opacity"
               >
                 <Card className="rounded-xl border overflow-hidden shadow-none">
-                  {entryDetails.image && (
+                  {entryDetail.image && (
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
                         <Image
-                          src={entryDetails.image}
+                          src={entryDetail.image}
                           alt=""
                           fill
                           className="object-cover"
@@ -1064,11 +1039,11 @@ const ActivityCard = React.memo(({
                   )}
                   <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                     <h3 className="text-base font-bold capitalize leading-[1.5]">
-                      {entryDetails.title}
+                      {entryDetail.title}
                     </h3>
-                    {entryDetails.description && (
+                    {entryDetail.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                        {entryDetails.description}
+                        {entryDetail.description}
                       </p>
                     )}
                   </CardContent>
@@ -1083,19 +1058,19 @@ const ActivityCard = React.memo(({
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4 relative">
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
-          {(entryDetails.post_featured_img || entryDetails.image) && (
+          {(entryDetail.post_featured_img || entryDetail.image) && (
             <div className="flex-shrink-0 w-12 h-12">
               <Link 
-                href={entryDetails.category_slug && entryDetails.post_slug ? 
-                  `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                  entryDetails.link}
+                href={entryDetail.category_slug && entryDetail.post_slug ? 
+                  `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                  entryDetail.link}
                 className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
               >
                 <AspectRatio ratio={1}>
                   <Image
-                    src={entryDetails.post_featured_img || entryDetails.image || ''}
+                    src={entryDetail.post_featured_img || entryDetail.image || ''}
                     alt=""
                     fill
                     className="object-cover"
@@ -1113,21 +1088,21 @@ const ActivityCard = React.memo(({
             <div className="w-full mt-[-3px]">
               <div className="flex items-center justify-between gap-2">
                 <Link 
-                  href={entryDetails.category_slug && entryDetails.post_slug ? 
-                    `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                    entryDetails.link}
+                  href={entryDetail.category_slug && entryDetail.post_slug ? 
+                    `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                    entryDetail.link}
                   className="hover:opacity-80 transition-opacity"
-                  target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                  rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
+                  rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                 >
                   <h3 className="text-sm font-bold text-primary leading-tight">
-                    {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                    {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                   </h3>
                 </Link>
                 <span 
                   className="text-sm leading-none text-muted-foreground flex-shrink-0"
-                  title={entryDetails.pub_date ? 
-                    format(new Date(entryDetails.pub_date), 'PPP p') : 
+                  title={entryDetail.pub_date ? 
+                    format(new Date(entryDetail.pub_date), 'PPP p') : 
                     new Date(activity.timestamp).toLocaleString()
                   }
                 >
@@ -1135,16 +1110,16 @@ const ActivityCard = React.memo(({
                 </span>
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
-              {(entryDetails.post_media_type || entryDetails.mediaType) && (
+              {(entryDetail.post_media_type || entryDetail.mediaType) && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
-                  {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
+                  {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />
                   }
-                  {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
+                  {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
                     <Text className="h-3 w-3" strokeWidth={2.5} />
                   }
-                  {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
-                   (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
+                  {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                   (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
                 </span>
               )}
             </div>
@@ -1153,18 +1128,18 @@ const ActivityCard = React.memo(({
 
             {/* Entry Content Card - Full width for retweets/likes */}
         <div>
-          {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') ? (
+          {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
             <div>
               <div 
                 onClick={handleCardClick}
                 className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
                 <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                  {entryDetails.image && (
+                  {entryDetail.image && (
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
                         <Image
-                          src={entryDetails.image}
+                          src={entryDetail.image}
                           alt=""
                           fill
                           className="object-cover"
@@ -1177,11 +1152,11 @@ const ActivityCard = React.memo(({
                   )}
                   <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                     <h3 className="text-base font-bold capitalize leading-[1.5]">
-                      {entryDetails.title}
+                      {entryDetail.title}
                     </h3>
-                    {entryDetails.description && (
+                    {entryDetail.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                        {entryDetails.description}
+                        {entryDetail.description}
                       </p>
                     )}
                   </CardContent>
@@ -1190,17 +1165,17 @@ const ActivityCard = React.memo(({
             </div>
           ) : (
             <a
-              href={entryDetails.link}
+              href={entryDetail.link}
               target="_blank"
               rel="noopener noreferrer"
               className="block hover:opacity-80 transition-opacity"
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
-                {entryDetails.image && (
+                {entryDetail.image && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entryDetails.image}
+                        src={entryDetail.image}
                         alt=""
                         fill
                         className="object-cover"
@@ -1213,11 +1188,11 @@ const ActivityCard = React.memo(({
                 )}
                 <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {entryDetails.title}
+                    {entryDetail.title}
                   </h3>
-                  {entryDetails.description && (
+                  {entryDetail.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {entryDetails.description}
+                      {entryDetail.description}
                     </p>
                   )}
                 </CardContent>
@@ -1232,43 +1207,43 @@ const ActivityCard = React.memo(({
          <div className="flex justify-between items-center mt-4 h-[16px]">
           <div>
             <LikeButtonClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
           </div>
           <div>
             <CommentSectionClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
               initialData={interactions?.comments || { count: 0 }}
             />
           </div>
           <div>
             <RetweetButtonClientWithErrorBoundary
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
           <div className="flex items-center gap-4">
             <BookmarkButtonClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
               initialData={{ isBookmarked: false }}
             />
             <ShareButtonClient
-              url={entryDetails.link}
-              title={entryDetails.title}
+              url={entryDetail.link}
+              title={entryDetail.title}
             />
           </div>
         </div>
@@ -1276,7 +1251,7 @@ const ActivityCard = React.memo(({
       
      
       
-      <div id={`comments-${entryDetails.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
+      <div id={`comments-${entryDetail.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
       
       {/* User Comment Activity - moved below the entry card */}
       {activity.type === "comment" && (
@@ -1571,7 +1546,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
           username={username}
           name={name}
           profileImage={profileImage}
-          entryDetails={entryDetail}
+          entryDetail={entryDetail}
           getEntryMetrics={getEntryMetrics}
         />
       );
