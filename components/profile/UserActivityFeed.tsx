@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, ChevronDown } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Text } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -22,6 +22,7 @@ import { api } from '@/convex/_generated/api';
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { Textarea } from "@/components/ui/textarea";
+import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 
 
 // Types for activity items
@@ -922,60 +923,6 @@ const ActivityCard = React.memo(({
                 <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
               </span>
             )}
-            <div className="text-xs text-gray-500 mt-2">
-              {activity.type === "retweet" ? (
-                <span className="hidden"></span>
-              ) : activity.type === "comment" ? (
-                <span className="hidden"></span>
-              ) : (
-                (() => {
-                  if (!entryDetails.pub_date) return '';
-
-                  // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-                  const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                  let pubDate: Date;
-                  
-                  if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
-                    // Convert MySQL datetime string to UTC time
-                    const [datePart, timePart] = entryDetails.pub_date.split(' ');
-                    pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-                  } else {
-                    // Handle other formats
-                    pubDate = new Date(entryDetails.pub_date);
-                  }
-                  
-                  const now = new Date();
-                  
-                  // Ensure we're working with valid dates
-                  if (isNaN(pubDate.getTime())) {
-                    return '';
-                  }
-
-                  // Calculate time difference
-                  const diffInMs = now.getTime() - pubDate.getTime();
-                  const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                  const diffInHours = Math.floor(diffInMinutes / 60);
-                  const diffInDays = Math.floor(diffInHours / 24);
-                  const diffInMonths = Math.floor(diffInDays / 30);
-                  
-                  // For future dates (more than 1 minute ahead), show 'in X'
-                  const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                  const prefix = isFuture ? 'in ' : '';
-                  const suffix = isFuture ? '' : ' ago';
-                  
-                  // Format based on the time difference
-                  if (diffInMinutes < 60) {
-                    return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                  } else if (diffInHours < 24) {
-                    return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                  } else if (diffInDays < 30) {
-                    return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                  } else {
-                    return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                  }
-                })()
-              )}
-            </div>
           </div>
         </div>
         
@@ -987,12 +934,12 @@ const ActivityCard = React.memo(({
             {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
               {(entryDetails.post_featured_img || entryDetails.image) && (
-                <div className="w-14 h-14 relative z-10">
+                <div className="w-12 h-12 relative z-10">
                   <Link 
                     href={entryDetails.category_slug && entryDetails.post_slug ? 
                       `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
                       entryDetails.link}
-                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                    className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
                     target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                     rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
                   >
@@ -1014,7 +961,7 @@ const ActivityCard = React.memo(({
             
             {/* Title and Timestamp */}
             <div className="flex-grow">
-              <div className="w-full">
+              <div className="w-full mt-[-3px]">
                 <div className="flex items-center justify-between gap-2">
                   <Link 
                     href={entryDetails.category_slug && entryDetails.post_slug ? 
@@ -1024,12 +971,12 @@ const ActivityCard = React.memo(({
                     target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                     rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-base font-semibold text-primary leading-tight">
+                    <h3 className="text-sm font-bold text-primary leading-tight">
                       {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
                     </h3>
                   </Link>
                   <span 
-                    className="leading-none text-muted-foreground flex-shrink-0"
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={entryDetails.pub_date ? 
                       format(new Date(entryDetails.pub_date), 'PPP p') : 
                       new Date(activity.timestamp).toLocaleString()
@@ -1040,12 +987,12 @@ const ActivityCard = React.memo(({
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
                 {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
                     {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                      <Text className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
@@ -1063,10 +1010,10 @@ const ActivityCard = React.memo(({
                   onClick={handleCardClick}
                   className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
                 >
-                  <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                  <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                     {entryDetails.image && (
                       <CardHeader className="p-0">
-                        <AspectRatio ratio={16/9}>
+                        <AspectRatio ratio={2/1}>
                           <Image
                             src={entryDetails.image}
                             alt=""
@@ -1079,12 +1026,12 @@ const ActivityCard = React.memo(({
                         </AspectRatio>
                       </CardHeader>
                     )}
-                    <CardContent className="p-4 bg-secondary/60 border-t">
-                      <h3 className="text-lg font-semibold leading-tight">
+                    <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                      <h3 className="text-base font-bold capitalize leading-[1.5]">
                         {entryDetails.title}
                       </h3>
                       {entryDetails.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                           {entryDetails.description}
                         </p>
                       )}
@@ -1099,10 +1046,10 @@ const ActivityCard = React.memo(({
                 rel="noopener noreferrer"
                 className="block hover:opacity-80 transition-opacity"
               >
-                <Card className="overflow-hidden shadow-none">
+                <Card className="rounded-xl border overflow-hidden shadow-none">
                   {entryDetails.image && (
                     <CardHeader className="p-0">
-                      <AspectRatio ratio={16/9}>
+                      <AspectRatio ratio={2/1}>
                         <Image
                           src={entryDetails.image}
                           alt=""
@@ -1115,12 +1062,12 @@ const ActivityCard = React.memo(({
                       </AspectRatio>
                     </CardHeader>
                   )}
-                  <CardContent className="p-4 bg-secondary/60 border-t">
-                    <h3 className="text-lg font-semibold leading-tight">
+                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
                       {entryDetails.title}
                     </h3>
                     {entryDetails.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                         {entryDetails.description}
                       </p>
                     )}
@@ -1137,12 +1084,12 @@ const ActivityCard = React.memo(({
         <div className="flex items-start gap-4 mb-4 relative">
           {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
-                <div className="flex-shrink-0 w-14 h-14">
+            <div className="flex-shrink-0 w-12 h-12">
               <Link 
                 href={entryDetails.category_slug && entryDetails.post_slug ? 
                   `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
                   entryDetails.link}
-                className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
                 target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                 rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
               >
@@ -1163,7 +1110,7 @@ const ActivityCard = React.memo(({
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full">
+            <div className="w-full mt-[-3px]">
               <div className="flex items-center justify-between gap-2">
                 <Link 
                   href={entryDetails.category_slug && entryDetails.post_slug ? 
@@ -1173,73 +1120,28 @@ const ActivityCard = React.memo(({
                   target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                   rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
                 >
-                  <h3 className="text-base font-semibold text-primary leading-tight">
+                  <h3 className="text-sm font-bold text-primary leading-tight">
                     {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
                   </h3>
                 </Link>
                 <span 
-                  className="leading-none text-muted-foreground flex-shrink-0"
+                  className="text-sm leading-none text-muted-foreground flex-shrink-0"
                   title={entryDetails.pub_date ? 
                     format(new Date(entryDetails.pub_date), 'PPP p') : 
                     new Date(activity.timestamp).toLocaleString()
                   }
                 >
-                      {(() => {
-                        if (!entryDetails.pub_date) return '';
-
-                        // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-                        const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                        let pubDate: Date;
-                        
-                        if (typeof entryDetails.pub_date === 'string' && mysqlDateRegex.test(entryDetails.pub_date)) {
-                          // Convert MySQL datetime string to UTC time
-                          const [datePart, timePart] = entryDetails.pub_date.split(' ');
-                          pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-                        } else {
-                          // Handle other formats
-                          pubDate = new Date(entryDetails.pub_date);
-                        }
-                        
-                        const now = new Date();
-                        
-                        // Ensure we're working with valid dates
-                        if (isNaN(pubDate.getTime())) {
-                          return '';
-                        }
-
-                        // Calculate time difference
-                        const diffInMs = now.getTime() - pubDate.getTime();
-                        const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                        const diffInHours = Math.floor(diffInMinutes / 60);
-                        const diffInDays = Math.floor(diffInHours / 24);
-                        const diffInMonths = Math.floor(diffInDays / 30);
-                        
-                        // For future dates (more than 1 minute ahead), show 'in X'
-                        const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                        const prefix = isFuture ? 'in ' : '';
-                        const suffix = isFuture ? '' : ' ago';
-                        
-                        // Format based on the time difference
-                        if (diffInMinutes < 60) {
-                          return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                        } else if (diffInHours < 24) {
-                          return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                        } else if (diffInDays < 30) {
-                          return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                        } else {
-                          return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                        }
-                      })()}
+                  {entryTimestamp}
                 </span>
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
               {(entryDetails.post_media_type || entryDetails.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground rounded-md font-medium mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
                   {(entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />
                   }
                   {(entryDetails.post_media_type?.toLowerCase() === 'newsletter' || entryDetails.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Mail className="h-3 w-3" strokeWidth={2.5} />
+                    <Text className="h-3 w-3" strokeWidth={2.5} />
                   }
                   {(entryDetails.post_media_type || entryDetails.mediaType || 'article').charAt(0).toUpperCase() + 
                    (entryDetails.post_media_type || entryDetails.mediaType || 'article').slice(1)}
@@ -1257,10 +1159,10 @@ const ActivityCard = React.memo(({
                 onClick={handleCardClick}
                 className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
-                <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                   {entryDetails.image && (
                     <CardHeader className="p-0">
-                      <AspectRatio ratio={16/9}>
+                      <AspectRatio ratio={2/1}>
                         <Image
                           src={entryDetails.image}
                           alt=""
@@ -1273,12 +1175,12 @@ const ActivityCard = React.memo(({
                       </AspectRatio>
                     </CardHeader>
                   )}
-                  <CardContent className="p-4 bg-secondary/60 border-t">
-                    <h3 className="text-lg font-semibold leading-tight">
+                  <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
                       {entryDetails.title}
                     </h3>
                     {entryDetails.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                         {entryDetails.description}
                       </p>
                     )}
@@ -1293,10 +1195,10 @@ const ActivityCard = React.memo(({
               rel="noopener noreferrer"
               className="block hover:opacity-80 transition-opacity"
             >
-              <Card className="overflow-hidden shadow-none">
+              <Card className="rounded-xl border overflow-hidden shadow-none">
                 {entryDetails.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={16/9}>
+                    <AspectRatio ratio={2/1}>
                       <Image
                         src={entryDetails.image}
                         alt=""
@@ -1309,12 +1211,12 @@ const ActivityCard = React.memo(({
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="p-4 bg-secondary/60 border-t">
-                  <h3 className="text-lg font-semibold leading-tight">
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
                     {entryDetails.title}
                   </h3>
                   {entryDetails.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                       {entryDetails.description}
                     </p>
                   )}
@@ -1327,7 +1229,7 @@ const ActivityCard = React.memo(({
         )}
 
          {/* Move engagement buttons below the card but within the article container */}
-         <div className="flex justify-between items-center h-[32px] pt-4 text-muted-foreground">
+         <div className="flex justify-between items-center mt-4 h-[16px]">
           <div>
             <LikeButtonClient
               entryGuid={entryDetails.guid}
@@ -1355,14 +1257,19 @@ const ActivityCard = React.memo(({
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
-          <div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={{ isBookmarked: false }}
+            />
             <ShareButtonClient
               url={entryDetails.link}
               title={entryDetails.title}
             />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entryDetails} />
           </div>
         </div>
       </div>
@@ -1691,12 +1598,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             {/* Featured Image */}
             <div className="flex-shrink-0 relative">
               {(entryDetail.post_featured_img || entryDetail.image) && (
-                <div className="w-14 h-14 relative z-10">
+                <div className="w-12 h-12 relative z-10">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
                       `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
                       entryDetail.link}
-                    className="block w-full h-full relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                    className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
                     target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
                     rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
@@ -1718,7 +1625,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             
             {/* Title and Timestamp */}
             <div className="flex-grow">
-              <div className="w-full">
+              <div className="w-full mt-[-3px]">
                 <div className="flex items-center justify-between gap-2">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
@@ -1728,12 +1635,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                     target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
                     rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-base font-semibold text-primary leading-tight">
+                    <h3 className="text-sm font-bold text-primary leading-tight">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                     </h3>
                   </Link>
                   <span 
-                    className="leading-none text-muted-foreground flex-shrink-0"
+                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={entryDetail.pub_date ? 
                       format(new Date(entryDetail.pub_date), 'PPP p') : 
                       new Date(group.firstActivity.timestamp).toLocaleString()
@@ -1789,12 +1696,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 </div>
                 {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                      <Text className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
@@ -1812,10 +1719,10 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                   onClick={handleCardClick}
                   className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
                 >
-                  <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                  <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                     {entryDetail.image && (
                       <CardHeader className="p-0">
-                        <AspectRatio ratio={16/9}>
+                        <AspectRatio ratio={2/1}>
                           <Image
                             src={entryDetail.image}
                             alt=""
@@ -1828,12 +1735,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                         </AspectRatio>
                       </CardHeader>
                     )}
-                    <CardContent className="p-4 bg-secondary/60 border-t">
-                      <h3 className="text-lg font-semibold leading-tight">
+                    <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                      <h3 className="text-base font-bold capitalize leading-[1.5]">
                         {entryDetail.title}
                       </h3>
                       {entryDetail.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                           {entryDetail.description}
                         </p>
                       )}
@@ -1848,10 +1755,10 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 rel="noopener noreferrer"
                 className="block hover:opacity-80 transition-opacity"
               >
-                <Card className="overflow-hidden shadow-none">
+                <Card className="rounded-xl border overflow-hidden shadow-none">
                   {entryDetail.image && (
                     <CardHeader className="p-0">
-                      <AspectRatio ratio={16/9}>
+                      <AspectRatio ratio={2/1}>
                         <Image
                           src={entryDetail.image}
                           alt=""
@@ -1864,12 +1771,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                       </AspectRatio>
                     </CardHeader>
                   )}
-                  <CardContent className="p-4 bg-secondary/60 border-t">
-                    <h3 className="text-lg font-semibold leading-tight">
+                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
                       {entryDetail.title}
                     </h3>
                     {entryDetail.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                         {entryDetail.description}
                       </p>
                     )}
@@ -1879,7 +1786,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             )}
           </div>
              {/* Add engagement buttons below the card */}
-             <div className="flex justify-between items-center h-[32px] pt-4 text-muted-foreground">
+             <div className="flex justify-between items-center mt-4 h-[16px]">
              <div>
               <LikeButtonClient
                 entryGuid={entryDetail.guid}
@@ -1907,14 +1814,19 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 initialData={interactions.retweets}
               />
             </div>
-            <div>
+            <div className="flex items-center gap-4">
+              <BookmarkButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={{ isBookmarked: false }}
+              />
               <ShareButtonClient
                 url={entryDetail.link}
                 title={entryDetail.title}
               />
-            </div>
-            <div className="flex justify-end">
-              <MoreOptionsDropdown entry={entryDetail} />
             </div>
           </div>
         </div>

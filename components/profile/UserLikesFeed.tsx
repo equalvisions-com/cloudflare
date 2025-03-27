@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { MoreVertical, Podcast, Mail, Loader2 } from "lucide-react";
+import { MoreVertical, Podcast, Text, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -13,6 +13,7 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
+import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAudio } from '@/components/audio-player/AudioContext';
@@ -232,9 +233,9 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
   
   const type = mediaType.toLowerCase();
   return (
-    <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground medium rounded-md mt-1.5">
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
       {type === 'podcast' && <Podcast className="h-3 w-3" />}
-      {type === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
+      {type === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
       {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
     </span>
   );
@@ -243,12 +244,12 @@ MediaTypeBadge.displayName = 'MediaTypeBadge';
 
 // Memoized entry card content component
 const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
-  <CardContent className="p-4 bg-secondary/60 border-t">
-    <h3 className="text-lg font-semibold leading-tight">
+  <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+    <h3 className="text-base font-bold capitalize leading-[1.5]">
       {entry.title}
     </h3>
     {entry.description && (
-      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
         {entry.description}
       </p>
     )}
@@ -299,7 +300,7 @@ const ActivityCard = React.memo(({
               href={entryDetails.category_slug && entryDetails.post_slug ? 
                 `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
                 entryDetails.link}
-              className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity"
+              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
               target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
               rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
             >
@@ -319,7 +320,7 @@ const ActivityCard = React.memo(({
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full">
+            <div className="w-full mt-[-3px]">
               <div className="flex items-center justify-between gap-2">
                 <Link 
                   href={entryDetails.category_slug && entryDetails.post_slug ? 
@@ -329,7 +330,7 @@ const ActivityCard = React.memo(({
                   target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                   rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
                 >
-                  <h3 className="text-base font-semibold text-primary leading-tight">
+                  <h3 className="text-sm font-bold text-primary leading-tight">
                     {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
                   </h3>
                 </Link>
@@ -355,10 +356,10 @@ const ActivityCard = React.memo(({
               onClick={handleCardClick}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
-              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+              <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entryDetails.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={16/9}>
+                    <AspectRatio ratio={2/1}>
                       <Image
                         src={entryDetails.image}
                         alt=""
@@ -382,10 +383,10 @@ const ActivityCard = React.memo(({
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
           >
-            <Card className="overflow-hidden shadow-none">
+            <Card className="rounded-xl border overflow-hidden shadow-none">
               {entryDetails.image && (
                 <CardHeader className="p-0">
-                  <AspectRatio ratio={16/9}>
+                  <AspectRatio ratio={2/1}>
                     <Image
                       src={entryDetails.image}
                       alt=""
@@ -432,14 +433,19 @@ const ActivityCard = React.memo(({
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
-          <div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entryDetails.guid}
+              feedUrl={entryDetails.feed_url || ''}
+              title={entryDetails.title}
+              pubDate={entryDetails.pub_date}
+              link={entryDetails.link}
+              initialData={{ isBookmarked: false }}
+            />
             <ShareButtonClient
               url={entryDetails.link}
               title={entryDetails.title}
             />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entryDetails} />
           </div>
         </div>
       </div>
@@ -591,7 +597,7 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
         useWindowScroll
         data={activities}
         endReached={loadMoreActivities}
-        overscan={200}
+        overscan={20}
         itemContent={(index, activity) => (
           <ActivityCard 
             key={activity._id} 
@@ -601,22 +607,10 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
           />
         )}
         components={{
-          Footer: () => (
-            <div className="py-4 text-center">
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Loading more...</span>
-                </div>
-              ) : hasMore ? (
-                <div className="h-8" />
-              ) : (
-                <div className="text-muted-foreground text-sm py-2">
-                  {activities.length > 0 ? 'No more likes to load' : 'No likes found'}
-                </div>
-              )}
-            </div>
-          )
+          Footer: () => 
+            isLoading && hasMore ? (
+              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+            ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
     </div>

@@ -196,8 +196,8 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="border-t pt-[11px]">
-                  <h3 className="text-base font-bold capitalize leading-[1.3]">
+                <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
                     {decode(entry.title)}
                   </h3>
                   {entry.description && (
@@ -232,8 +232,8 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                   </AspectRatio>
                 </CardHeader>
               )}
-              <CardContent className="p-4 border-t pt-[11px]">
-                <h3 className="text-base font-bold capitalize leading-[1.3]">
+              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                <h3 className="text-base font-bold capitalize leading-[1.5]">
                   {decode(entry.title)}
                 </h3>
                 {entry.description && (

@@ -8,7 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Podcast, Mail, MoreVertical } from 'lucide-react';
+import { Podcast, Mail, MoreVertical, Text } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
@@ -19,6 +19,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Virtuoso } from 'react-virtuoso';
 import { useAudio } from '@/components/audio-player/AudioContext';
+import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -195,7 +196,7 @@ export function EntriesDisplay({
         useWindowScroll
         totalCount={entries.length}
         endReached={loadMore}
-        overscan={10}
+        overscan={20}
         itemContent={index => {
           const entry = entries[index];
           return (
@@ -207,21 +208,10 @@ export function EntriesDisplay({
           );
         }}
         components={{
-          Footer: () => (
-            <div className="py-4 text-center">
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <Loader2 className="h-6 w-6 mb-16 animate-spin" />
-                </div>
-              ) : hasMore ? (
-                <div className="h-8" />
-              ) : (
-                <div className="text-muted-foreground text-sm py-2">
-                  No more entries to load
-                </div>
-              )}
-            </div>
-          )
+          Footer: () => 
+            isLoading && hasMore ? (
+              <div className="text-center py-4">Loading more entries...</div>
+            ) : <div className="h-0" />
         }}
       />
     </div>
@@ -237,22 +227,47 @@ const EntryCard = React.memo(({ entry, interactions }: {
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
   const timestamp = useMemo(() => {
-    const pubDate = new Date(entry.pub_date);
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    let pubDate: Date;
+    
+    if (typeof entry.pub_date === 'string' && mysqlDateRegex.test(entry.pub_date)) {
+      // Convert MySQL datetime string to UTC time
+      const [datePart, timePart] = entry.pub_date.split(' ');
+      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+    } else {
+      // Handle other formats
+      pubDate = new Date(entry.pub_date);
+    }
+    
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - pubDate.getTime()) / (1000 * 60));
+    
+    // Ensure we're working with valid dates
+    if (isNaN(pubDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
-
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : ' ago';
+    
     // Format based on the time difference
     if (diffInMinutes < 60) {
-      return `${diffInMinutes}m`;
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
     } else if (diffInHours < 24) {
-      return `${diffInHours}h`;
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
     } else if (diffInDays < 30) {
-      return `${diffInDays}d`;
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
     } else {
-      return `${diffInMonths}mo`;
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
   }, [entry.pub_date]);
 
@@ -272,18 +287,17 @@ const EntryCard = React.memo(({ entry, interactions }: {
     }
   }, [entry, playTrack]);
 
-  // Moved MoreOptionsDropdown outside of EntryCard render to prevent recreation
   return (
     <article>
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-start gap-4 mb-4">
           {/* Featured Image */}
-          {entry.post_featured_img && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
+          {(entry.post_featured_img || entry.image) && postUrl && (
+            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
                 <Image
-                  src={entry.post_featured_img}
+                  src={entry.post_featured_img || entry.image || ''}
                   alt=""
                   fill
                   className="object-cover"
@@ -297,14 +311,20 @@ const EntryCard = React.memo(({ entry, interactions }: {
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full">
-              {entry.post_title && postUrl && (
+            <div className="w-full mt-[-3px]">
+              {(entry.post_title || entry.title) && (
                 <div className="flex items-center justify-between gap-2">
-                  <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                    <h3 className="text-base font-semibold text-primary leading-tight">
-                      {entry.post_title}
+                  {postUrl ? (
+                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
+                      <h3 className="text-sm font-bold text-primary leading-tight">
+                        {entry.post_title || entry.title}
+                      </h3>
+                    </Link>
+                  ) : (
+                    <h3 className="text-sm font-bold text-primary leading-tight">
+                      {entry.post_title || entry.title}
                     </h3>
-                  </Link>
+                  )}
                   <span 
                     className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={format(new Date(entry.pub_date), 'PPP p')}
@@ -313,28 +333,31 @@ const EntryCard = React.memo(({ entry, interactions }: {
                   </span>
                 </div>
               )}
-              {entry.post_media_type && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
-                  {entry.post_media_type.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {entry.post_media_type.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
-                  {entry.post_media_type.charAt(0).toUpperCase() + entry.post_media_type.slice(1)}
+              {(entry.post_media_type || entry.mediaType) && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                  {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') && 
+                    <Podcast className="h-3 w-3" />}
+                  {(entry.post_media_type?.toLowerCase() === 'newsletter' || entry.mediaType?.toLowerCase() === 'newsletter') && 
+                    <Text className="h-3 w-3" strokeWidth={2.5} />}
+                  {((entry.post_media_type || entry.mediaType) || '').charAt(0).toUpperCase() + 
+                   ((entry.post_media_type || entry.mediaType) || '').slice(1)}
                 </span>
               )}
             </div>
           </div>
         </div>
-
-        {/* Entry Content Card */}
+        
+        {/* Content */}
         {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') ? (
           <div>
             <div 
               onClick={handleCardClick}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
-              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+              <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={16/9}>
+                    <AspectRatio ratio={2/1}>
                       <Image
                         src={entry.image}
                         alt=""
@@ -347,12 +370,12 @@ const EntryCard = React.memo(({ entry, interactions }: {
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="p-4 bg-secondary/60 border-t">
-                  <h3 className="text-lg font-semibold leading-tight">
+                <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
                     {entry.title}
                   </h3>
                   {entry.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                       {entry.description}
                     </p>
                   )}
@@ -367,10 +390,10 @@ const EntryCard = React.memo(({ entry, interactions }: {
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
           >
-            <Card className="overflow-hidden shadow-none">
+            <Card className="rounded-xl border overflow-hidden shadow-none">
               {entry.image && (
                 <CardHeader className="p-0">
-                  <AspectRatio ratio={16/9}>
+                  <AspectRatio ratio={2/1}>
                     <Image
                       src={entry.image}
                       alt=""
@@ -383,12 +406,12 @@ const EntryCard = React.memo(({ entry, interactions }: {
                   </AspectRatio>
                 </CardHeader>
               )}
-              <CardContent className="p-4 bg-secondary/60 border-t">
-                <h3 className="text-lg font-semibold leading-tight">
+              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                <h3 className="text-base font-bold capitalize leading-[1.5]">
                   {entry.title}
                 </h3>
                 {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                     {entry.description}
                   </p>
                 )}
@@ -426,14 +449,19 @@ const EntryCard = React.memo(({ entry, interactions }: {
               initialData={interactions.retweets}
             />
           </div>
-          <div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feed_url || ''}
+              title={entry.title}
+              pubDate={entry.pub_date}
+              link={entry.link}
+              initialData={{ isBookmarked: false }}
+            />
             <ShareButtonClient
               url={entry.link}
               title={entry.title}
             />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entry} />
           </div>
         </div>
       </div>
@@ -443,29 +471,4 @@ const EntryCard = React.memo(({ entry, interactions }: {
   );
 });
 
-EntryCard.displayName = 'EntryCard';
-
-// Moved outside of EntryCard and memoized
-const MoreOptionsDropdown = React.memo(({ entry }: { entry: RSSEntry }) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent p-0">
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem asChild>
-        <a
-          href={entry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cursor-pointer"
-        >
-          Open in new tab
-        </a>
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-));
-
-MoreOptionsDropdown.displayName = 'MoreOptionsDropdown'; 
+EntryCard.displayName = 'EntryCard'; 

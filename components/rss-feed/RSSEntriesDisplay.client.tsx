@@ -11,10 +11,11 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
+import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Mail, MoreVertical, Loader2 } from "lucide-react";
+import { Podcast, Text, MoreVertical, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +62,9 @@ interface RSSEntryWithData {
     retweets?: {
       isRetweeted: boolean;
       count: number;
+    };
+    bookmarks?: {
+      isBookmarked: boolean;
     };
   };
   postMetadata: {
@@ -201,7 +205,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         <div className="flex items-start gap-4 mb-4">
           {/* Featured Image */}
           {safePostMetadata.featuredImg && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-14 h-14 relative rounded-lg overflow-hidden border border-border hover:opacity-80 transition-opacity">
+            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
                 <Image
                   src={safePostMetadata.featuredImg}
@@ -218,14 +222,20 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full">
-              {safePostMetadata.title && postUrl && (
+            <div className="w-full mt-[-3px]">
+              {safePostMetadata.title && (
                 <div className="flex items-center justify-between gap-2">
-                  <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                    <h3 className="text-base font-semibold text-primary leading-tight">
+                  {postUrl ? (
+                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
+                      <h3 className="text-sm font-bold text-primary leading-tight">
+                        {safePostMetadata.title}
+                      </h3>
+                    </Link>
+                  ) : (
+                    <h3 className="text-sm font-bold text-primary leading-tight">
                       {safePostMetadata.title}
                     </h3>
-                  </Link>
+                  )}
                   <span 
                     className="text-sm leading-none text-muted-foreground flex-shrink-0"
                     title={format(new Date(entry.pubDate), 'PPP p')}
@@ -235,9 +245,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                 </div>
               )}
               {safePostMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-secondary/60 px-2 py-1 text-muted-foreground font-medium rounded-md mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
                   {safePostMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {safePostMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
+                  {safePostMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
                   {safePostMetadata.mediaType.charAt(0).toUpperCase() + safePostMetadata.mediaType.slice(1)}
                 </span>
               )}
@@ -252,10 +262,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               onClick={handleCardClick}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
-              <Card className={`overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+              <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={16/9}>
+                    <AspectRatio ratio={2/1}>
                       <Image
                         src={entry.image}
                         alt=""
@@ -268,12 +278,12 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                     </AspectRatio>
                   </CardHeader>
                 )}
-                <CardContent className="p-4 bg-secondary/60 border-t">
-                  <h3 className="text-lg font-semibold leading-tight">
+                <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
                     {decode(entry.title)}
                   </h3>
                   {entry.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                       {decode(entry.description)}
                     </p>
                   )}
@@ -288,10 +298,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
           >
-            <Card className="overflow-hidden shadow-none">
+            <Card className="rounded-xl border overflow-hidden shadow-none">
               {entry.image && (
                 <CardHeader className="p-0">
-                  <AspectRatio ratio={16/9}>
+                  <AspectRatio ratio={2/1}>
                     <Image
                       src={entry.image}
                       alt=""
@@ -304,12 +314,12 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                   </AspectRatio>
                 </CardHeader>
               )}
-              <CardContent className="p-4 bg-secondary/60 border-t">
-                <h3 className="text-lg font-semibold leading-tight">
+              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                <h3 className="text-base font-bold capitalize leading-[1.5]">
                   {decode(entry.title)}
                 </h3>
                 {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
                     {decode(entry.description)}
                   </p>
                 )}
@@ -347,14 +357,19 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
-          <div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entry.guid}
+              feedUrl={entry.feedUrl}
+              title={entry.title}
+              pubDate={entry.pubDate}
+              link={entry.link}
+              initialData={initialData.bookmarks || { isBookmarked: false }}
+            />
             <ShareButtonClient
               url={entry.link}
               title={entry.title}
             />
-          </div>
-          <div className="flex justify-end">
-            <MoreOptionsDropdown entry={entry} />
           </div>
         </div>
       </div>
@@ -461,7 +476,7 @@ function EntriesContentComponent({
   }
 
   return (
-    <div className="border-0">
+    <div className="space-y-0">
       <Virtuoso
         useWindowScroll
         totalCount={paginatedEntries.length}
@@ -474,36 +489,14 @@ function EntriesContentComponent({
             logger.debug(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={100}
+        overscan={20}
         initialTopMostItemIndex={0}
-        rangeChanged={(range) => {
-          // Log when we're approaching the end of the list
-          const { endIndex } = range;
-          const totalItems = paginatedEntries.length;
-          const remainingItems = totalItems - endIndex - 1;
-          
-          if (remainingItems <= 5 && hasMore && !isPending) {
-            logger.debug(`📊 Approaching end of list: ${remainingItems} items remaining, total: ${totalItems}`);
-            loadMore();
-          }
-        }}
         itemContent={renderItem}
         components={{
-          Footer: () => (
-            <div ref={loadMoreRef} className="py-4 text-center">
-              {isPending ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <Loader2 className="h-6 w-6 mb-16 animate-spin" />
-                </div>
-              ) : hasMore ? (
-                <div className="h-8" />
-              ) : (
-                <div className="text-muted-foreground text-sm py-2">
-                  No more entries to load
-                </div>
-              )}
-            </div>
-          )
+          Footer: () => 
+            isPending && hasMore ? (
+              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+            ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
     </div>
@@ -648,7 +641,8 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
               initialData: {
                 likes: { isLiked: false, count: 0 },
                 comments: { count: 0 },
-                retweets: { isRetweeted: false, count: 0 }
+                retweets: { isRetweeted: false, count: 0 },
+                bookmarks: { isBookmarked: false }
               },
               postMetadata: existingMetadata || {
                 title: feedTitle || entryTitle || '',
