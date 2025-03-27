@@ -229,7 +229,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
           <div className="flex-1 min-w-0 space-y-2 pt-0">
             <div className="flex justify-between items-start gap-4 mt-[-4px]">
               <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
-                <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
+                <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
               </Link>
               {post.feedUrl && (
                 <div className="flex-shrink-0">
@@ -239,7 +239,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     postTitle={post.title}
                     initialIsFollowing={post.isFollowing ?? false}
                     isAuthenticated={post.isAuthenticated}
-                    className="px-2 h-[23px] text-xs"
+                    className="px-2 h-[23px] text-xs font-semibold"
                   />
                 </div>
               )}

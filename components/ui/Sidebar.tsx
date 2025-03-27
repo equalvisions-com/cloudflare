@@ -33,7 +33,7 @@ const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
     <Button
       variant="ghost"
       className={`w-full justify-start gap-2 px-3 py-1 rounded-lg ${
-        isActive ? "font-bold" : ""
+        isActive ? "text-base font-bold leading-none" : ""
       }`}
     >
       {item.icon}
@@ -61,22 +61,22 @@ function Sidebar() {
       {
         href: "/",
         label: "Home",
-        icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2} />,
+        icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2.5} />,
       },
       {
         href: "/newsletters",
         label: "Newsletters",
-        icon: <Mail className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/newsletters") ? 3 : 2} />,
+        icon: <Mail className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/newsletters") ? 3 : 2.5} />,
       },
       {
         href: "/podcasts",
         label: "Podcasts",
-        icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/podcasts") ? 2.75 : 2} />,
+        icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/podcasts") ? 2.75 : 2.5 } />,
       },
       {
         href: "/chat",
         label: "Chat",
-        icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2} />,
+        icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2.5} />,
       },
     ];
 
@@ -85,7 +85,7 @@ function Sidebar() {
       items.push({
         href: "/notifications",
         label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2} />,
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2.5} />,
       });
     }
 
@@ -98,12 +98,12 @@ function Sidebar() {
         {
             href: userProfileRoute,
             label: "Profile",
-            icon: <User className="h-5 w-5 shrink-0" strokeWidth={isRouteActive(userProfileRoute) ? 3 : 2} />,
+            icon: <User className="h-5 w-5 shrink-0" strokeWidth={isRouteActive(userProfileRoute) ? 3 : 2.5} />,
           }
         : {
             href: "/signin",
             label: "Sign In",
-            icon: <LogIn className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/signin") ? 3 : 2} />,
+            icon: <LogIn className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/signin") ? 3 : 2.5} />,
           }
     );
 
