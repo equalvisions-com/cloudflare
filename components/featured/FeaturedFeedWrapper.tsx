@@ -39,10 +39,9 @@ interface FeaturedFeedWrapperProps {
     entries: FeaturedEntryWithData[];
     totalEntries: number;
   } | null;
-  isVisible?: boolean;
 }
 
-export function FeaturedFeedWrapper({ initialData, isVisible = true }: FeaturedFeedWrapperProps) {
+export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
   if (!initialData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -56,7 +55,6 @@ export function FeaturedFeedWrapper({ initialData, isVisible = true }: FeaturedF
     <FeaturedFeedClient
       initialData={initialData}
       pageSize={30}
-      isVisible={isVisible}
     />
   );
 } 
