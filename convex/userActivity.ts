@@ -159,4 +159,56 @@ export const getUserLikes = query({
       hasMore
     };
   },
+});
+
+/**
+ * Query to get a user's bookmarks with pagination support
+ */
+export const getUserBookmarks = query({
+  args: {
+    userId: v.id("users"),
+    skip: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = args.userId;
+    const limit = args.limit || 30;
+    const skip = args.skip || 0;
+    
+    // Fetch the user's bookmarks
+    const bookmarks = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+    
+    // Transform bookmarks into items
+    const bookmarkItems = bookmarks.map(bookmark => ({
+      _id: bookmark._id.toString(),
+      entryGuid: bookmark.entryGuid,
+      feedUrl: bookmark.feedUrl,
+      title: bookmark.title,
+      link: bookmark.link,
+      pubDate: bookmark.pubDate,
+      bookmarkedAt: bookmark.bookmarkedAt,
+    }));
+    
+    // Sort by timestamp (newest first)
+    bookmarkItems.sort((a, b) => b.bookmarkedAt - a.bookmarkedAt);
+    
+    // Get total count
+    const totalCount = bookmarkItems.length;
+    
+    // Apply pagination
+    const paginatedBookmarks = bookmarkItems.slice(skip, skip + limit);
+    
+    // Check if there are more items
+    const hasMore = skip + limit < totalCount;
+    
+    return {
+      bookmarks: paginatedBookmarks,
+      totalCount,
+      hasMore
+    };
+  },
 }); 

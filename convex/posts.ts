@@ -168,4 +168,40 @@ export const getByTitles = query({
 
     return posts;
   },
+});
+
+/**
+ * Fetch posts by feed URLs
+ */
+export const getByFeedUrls = query({
+  args: {
+    feedUrls: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { feedUrls } = args;
+    
+    if (!feedUrls.length) {
+      return [];
+    }
+    
+    const posts = [];
+    
+    // Process in batches to avoid query limits
+    const batchSize = 30;
+    for (let i = 0; i < feedUrls.length; i += batchSize) {
+      const batch = feedUrls.slice(i, i + batchSize);
+      
+      // Process each feed URL individually
+      for (const feedUrl of batch) {
+        const results = await ctx.db
+          .query("posts")
+          .withIndex("by_feedUrl", (q) => q.eq("feedUrl", feedUrl))
+          .collect();
+        
+        posts.push(...results);
+      }
+    }
+    
+    return posts;
+  },
 }); 

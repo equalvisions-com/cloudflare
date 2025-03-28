@@ -1255,7 +1255,7 @@ const ActivityCard = React.memo(({
       
       {/* User Comment Activity - moved below the entry card */}
       {activity.type === "comment" && (
-        <div className="border-l border-r border-b border-t relative">
+        <div className="border-b border-t relative">
           <div className="relative z-10">
             <ActivityDescription 
               item={activity} 

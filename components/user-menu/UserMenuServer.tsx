@@ -3,12 +3,14 @@ import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Suspense } from "react";
 import { UserMenuClient } from "./UserMenuClient";
+import { Id } from "@/convex/_generated/dataModel";
 
 // Utility function to fetch the user profile
 export async function getUserProfile() {
   let displayName = "Guest";
   let isAuthenticated = false;
   let isBoarded = false;
+  let userId: Id<"users"> | null = null;
 
   try {
     const token = await convexAuthNextjsToken();
@@ -18,13 +20,14 @@ export async function getUserProfile() {
       if (profile) {
         displayName = profile.username;
         isBoarded = profile.isBoarded ?? false;
+        userId = profile.userId;
       }
     }
   } catch (error) {
     console.error("Error fetching profile:", error);
   }
 
-  return { displayName, isAuthenticated, isBoarded };
+  return { displayName, isAuthenticated, isBoarded, userId };
 }
 
 export async function UserMenuServer() {

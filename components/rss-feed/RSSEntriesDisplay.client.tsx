@@ -342,7 +342,6 @@ interface RSSEntriesClientProps {
     postTitles?: string[];
   };
   pageSize?: number;
-  isVisible?: boolean;
 }
 
 // Define a proper type for entry metrics
@@ -471,7 +470,7 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
   );
 }
 
-export function RSSEntriesClient({ initialData, pageSize = 30, isVisible = true }: RSSEntriesClientProps) {
+export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -701,11 +700,6 @@ export function RSSEntriesClient({ initialData, pageSize = 30, isVisible = true 
         </Button>
       </div>
     );
-  }
-  
-  // Return null if not visible
-  if (!isVisible) {
-    return null;
   }
   
   // Return the EntriesContent directly
