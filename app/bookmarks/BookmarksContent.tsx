@@ -31,8 +31,6 @@ export const BookmarksContent = ({ isAuthenticated, userId, initialData }: Bookm
   }
 
   return (
-    <div className="flex-1 p-6">
       <BookmarksFeed userId={userId} initialData={initialData} pageSize={30} />
-    </div>
   );
 }; 
