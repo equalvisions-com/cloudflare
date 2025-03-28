@@ -8,7 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Podcast, Text } from 'lucide-react';
+import { Podcast, Mail } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
@@ -334,11 +334,11 @@ const EntryCard = React.memo(({ entry, interactions }: {
                 </div>
               )}
               {(entry.post_media_type || entry.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                   {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />}
                   {(entry.post_media_type?.toLowerCase() === 'newsletter' || entry.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Text className="h-3 w-3" strokeWidth={2.5} />}
+                    <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {((entry.post_media_type || entry.mediaType) || '').charAt(0).toUpperCase() + 
                    ((entry.post_media_type || entry.mediaType) || '').slice(1)}
                 </span>

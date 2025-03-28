@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Text, Podcast } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Podcast } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -962,12 +962,12 @@ const ActivityCard = React.memo(({
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Text className="h-3 w-3" strokeWidth={2.5} />
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
@@ -1111,12 +1111,12 @@ const ActivityCard = React.memo(({
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
               {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                   {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />
                   }
                   {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Text className="h-3 w-3" strokeWidth={2.5} />
+                    <Mail className="h-3 w-3" strokeWidth={2.5} />
                   }
                   {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
                    (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
@@ -1671,12 +1671,12 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
                 </div>
                 {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
                     {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Text className="h-3 w-3" strokeWidth={2.5} />
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
                     }
                     {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
                      (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}

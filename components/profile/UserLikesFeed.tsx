@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Podcast, Text, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -208,9 +208,9 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
   
   const type = mediaType.toLowerCase();
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
       {type === 'podcast' && <Podcast className="h-3 w-3" />}
-      {type === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
+      {type === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
       {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
     </span>
   );

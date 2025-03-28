@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users } from "lucide-react";
+import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
@@ -73,15 +73,17 @@ function Sidebar() {
         label: "Podcasts",
         icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/podcasts") ? 2.75 : 2.5 } />,
       },
-      {
-        href: "/chat",
-        label: "Chat",
-        icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2.5} />,
-      },
+    
     ];
 
     // Only add alerts link if user is authenticated
     if (isAuthenticated) {
+      items.push({
+        href: "/bookmarks",
+        label: "Bookmarks",
+        icon: <Bookmark className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/bookmarks") ? 3 : 2.5} />,
+      });
+      
       items.push({
         href: "/notifications",
         label: "Alerts",
@@ -115,7 +117,7 @@ function Sidebar() {
       <CardContent className="p-0">
         <nav className="flex flex-col gap-4">
           {/* Navigation items */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {navItems.map((item) => (
               <NavLink 
                 key={item.href} 

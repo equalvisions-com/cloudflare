@@ -13,7 +13,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Podcast, Text } from "lucide-react";
+import { Podcast, Mail } from "lucide-react";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
@@ -163,9 +163,9 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                 </div>
               )}
               {postMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                   {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
+                  {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
                 </span>
               )}

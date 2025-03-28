@@ -204,9 +204,6 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
-
-@layer base {
   * {
     @apply border-border;
     box-sizing: border-box;
@@ -214,15 +211,15 @@
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
+    overscroll-behavior-x: none;
   }
   body {
     margin: 0;
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
+    overscroll-behavior-x: none;
   }
-  /* Remove all main styling related to height */
-
 }
 
 @layer base {

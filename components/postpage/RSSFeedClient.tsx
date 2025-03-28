@@ -14,7 +14,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Text, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -155,9 +155,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 </div>
               )}
               {mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                   {mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
+                  {mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
                 </span>
               )}

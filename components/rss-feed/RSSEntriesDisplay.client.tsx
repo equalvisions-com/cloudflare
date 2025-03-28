@@ -15,7 +15,7 @@ import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Text, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -198,9 +198,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                 </div>
               )}
               {safePostMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[6px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
                   {safePostMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {safePostMetadata.mediaType.toLowerCase() === 'newsletter' && <Text className="h-3 w-3" strokeWidth={2.5} />}
+                  {safePostMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {safePostMetadata.mediaType.charAt(0).toUpperCase() + safePostMetadata.mediaType.slice(1)}
                 </span>
               )}
@@ -342,6 +342,7 @@ interface RSSEntriesClientProps {
     postTitles?: string[];
   };
   pageSize?: number;
+  isVisible?: boolean;
 }
 
 // Define a proper type for entry metrics
@@ -470,7 +471,7 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
   );
 }
 
-export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClientProps) {
+export function RSSEntriesClient({ initialData, pageSize = 30, isVisible = true }: RSSEntriesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -700,6 +701,11 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
         </Button>
       </div>
     );
+  }
+  
+  // Return null if not visible
+  if (!isVisible) {
+    return null;
   }
   
   // Return the EntriesContent directly

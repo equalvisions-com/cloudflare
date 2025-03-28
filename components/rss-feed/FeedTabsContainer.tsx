@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
+import useEmblaCarousel from 'embla-carousel-react';
+import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+import { cn } from '@/lib/utils';
 
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
@@ -72,74 +74,121 @@ interface FeedTabsContainerProps {
   pageSize?: number;
 }
 
-// Memoized component for the "Following" tab content
-const FollowingTabContent = React.memo(({ 
-  initialData, 
-  pageSize 
+// Memoized tab header component
+const TabHeaders = memo(({ 
+  tabs, 
+  selectedTab, 
+  onTabClick 
 }: { 
-  initialData: FeedTabsContainerProps['initialData'], 
-  pageSize: number 
-}) => {
-  if (!initialData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
-        <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
-      </div>
-    );
-  }
-
-  return (
-    <RSSEntriesClient
-      initialData={initialData as { 
-        entries: RSSEntryWithData[]; 
-        totalEntries: number; 
-        hasMore: boolean; 
-        postTitles?: string[]; 
-      }}
-      pageSize={pageSize}
-    />
-  );
-});
-FollowingTabContent.displayName = 'FollowingTabContent';
-
-// Memoized component for the "Discover" tab content
-const DiscoverTabContent = React.memo(({ 
-  featuredData 
-}: { 
-  featuredData: FeedTabsContainerProps['featuredData'] 
+  tabs: { id: string; label: string }[], 
+  selectedTab: number, 
+  onTabClick: (index: number) => void 
 }) => {
   return (
-    <FeaturedFeedWrapper 
-      initialData={featuredData as { 
-        entries: FeaturedEntryWithData[]; 
-        totalEntries: number; 
-      } | null} 
-    />
+    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
+      {tabs.map((tab, index) => (
+        <button
+          key={tab.id}
+          onClick={() => onTabClick(index)}
+          className={cn(
+            'flex-1 py-3 text-center font-bold text-sm relative transition-colors',
+            selectedTab === index 
+              ? 'text-primary' 
+              : 'text-muted-foreground hover:text-primary/80'
+          )}
+          role="tab"
+          aria-selected={selectedTab === index}
+          aria-controls={`panel-${tab.id}`}
+          id={`tab-${tab.id}`}
+        >
+          <span>{tab.label}</span>
+          {selectedTab === index && (
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-primary" />
+          )}
+        </button>
+      ))}
+    </div>
   );
 });
-DiscoverTabContent.displayName = 'DiscoverTabContent';
+TabHeaders.displayName = 'TabHeaders';
 
 export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
-  // Memoize the tabs configuration to prevent unnecessary re-creation
-  const tabs = useMemo(() => [
-    // Discover tab - first in order
+  const [selectedTab, setSelectedTab] = useState(0);
+  
+  // Initialize Embla carousel with options
+  const [emblaRef, emblaApi] = useEmblaCarousel(
     {
-      id: 'discover',
-      label: 'Discover',
-      content: <DiscoverTabContent featuredData={featuredData} />
+      align: 'start',
+      skipSnaps: false,
+      dragFree: false,
+      containScroll: 'trimSnaps',
+      loop: false,
+      duration: 20 // Fast but smooth scroll
     },
-    // Following tab (renamed from Discover) - shows RSS feed content
-    {
-      id: 'following',
-      label: 'Following',
-      content: <FollowingTabContent initialData={initialData} pageSize={pageSize} />
+    [WheelGesturesPlugin()]
+  );
+
+  // Handle tab selection
+  const handleTabClick = useCallback((index: number) => {
+    if (emblaApi) {
+      emblaApi.scrollTo(index);
     }
-  ], [initialData, featuredData, pageSize]);
+    setSelectedTab(index);
+  }, [emblaApi]);
+
+  // Sync carousel with tab selection
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      setSelectedTab(emblaApi.selectedScrollSnap());
+    };
+
+    emblaApi.on('select', onSelect);
+    return () => {
+      emblaApi.off('select', onSelect);
+    };
+  }, [emblaApi]);
+
+  // Define tabs configuration
+  const tabs = useMemo(() => [
+    { id: 'discover', label: 'Discover' },
+    { id: 'following', label: 'Following' }
+  ], []);
 
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      {/* Tab Headers */}
+      <TabHeaders 
+        tabs={tabs} 
+        selectedTab={selectedTab} 
+        onTabClick={handleTabClick} 
+      />
+
+      {/* Swipeable Content Area */}
+      <div className="w-full overflow-hidden" ref={emblaRef}>
+        <div className="flex">
+          <div className="min-w-0 flex-[0_0_100%]">
+            <FeaturedFeedWrapper 
+              initialData={featuredData as { 
+                entries: FeaturedEntryWithData[]; 
+                totalEntries: number; 
+              } | null}
+            />
+          </div>
+          <div className="min-w-0 flex-[0_0_100%]">
+            <RSSEntriesClient
+              initialData={initialData as { 
+                entries: RSSEntryWithData[]; 
+                totalEntries: number; 
+                hasMore: boolean; 
+                postTitles?: string[]; 
+              }}
+              pageSize={pageSize}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
