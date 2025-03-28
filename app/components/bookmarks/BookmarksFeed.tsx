@@ -440,7 +440,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksF
   if (bookmarks.length === 0 && !isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>You haven't bookmarked any posts yet.</p>
+        <p>You haven&apos;t bookmarked any posts yet.</p>
       </div>
     );
   }

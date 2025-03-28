@@ -23,7 +23,7 @@ export const BookmarksContent = ({ isAuthenticated, userId, initialData }: Bookm
         <div className="p-8 border border-gray-200 rounded-lg">
           <h2 className="text-xl font-semibold mb-2">Login to view your bookmarks</h2>
           <p className="text-gray-500">
-            Sign in to see all the posts you've bookmarked.
+            Sign in to see all the posts you&apos;ve bookmarked.
           </p>
         </div>
       </div>
@@ -31,6 +31,8 @@ export const BookmarksContent = ({ isAuthenticated, userId, initialData }: Bookm
   }
 
   return (
+    <div className="flex-1 p-6">
       <BookmarksFeed userId={userId} initialData={initialData} pageSize={30} />
+    </div>
   );
 }; 
