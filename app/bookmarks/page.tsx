@@ -17,8 +17,8 @@ export const metadata = {
   description: "View all your saved bookmarks in one place",
 };
 
-// Cache the initial data fetching
-export const getInitialBookmarksData = cache(async (userId: any) => {
+// Cache the initial data fetching - make it a regular function, not exported
+const getInitialBookmarksData = cache(async (userId: any) => {
   try {
     console.log(`📡 Fetching initial bookmarks data for user: ${userId}`);
     const startTime = Date.now();

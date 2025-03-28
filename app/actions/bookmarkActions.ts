@@ -117,12 +117,14 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
     
     // Step 3: Enrich with Convex post data
     try {
-      // Get feed URLs from entries
-      const feedUrls = [...new Set(
-        Object.values(entryDetails)
-          .map(entry => entry.feed_url)
-          .filter(Boolean)
-      )];
+      // Get feed URLs from entries and ensure they're all strings
+      const feedUrlsWithUndefined = Object.values(entryDetails)
+        .map(entry => entry.feed_url);
+      
+      // Type-safe filter to remove undefined values
+      const feedUrls: string[] = feedUrlsWithUndefined
+        .filter((url): url is string => typeof url === 'string')
+        .filter(url => url.length > 0);
       
       if (feedUrls.length > 0) {
         console.log(`📡 Fetching post data for ${feedUrls.length} feed URLs`);
