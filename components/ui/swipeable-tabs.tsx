@@ -163,8 +163,9 @@ export function SwipeableTabs({
     skipSnaps: false,
     dragFree: false,
     containScroll: 'trimSnaps' as const,
+    duration: 30, // Slightly longer duration for smoother animation
     loop: false,
-    duration: 20 // Fast but smooth scroll
+    speed: 0.8 // Add speed factor for smoother motion
   }), []);
 
   // Initialize Embla with plugins
