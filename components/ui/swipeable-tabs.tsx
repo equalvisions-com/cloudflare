@@ -163,13 +163,19 @@ export function SwipeableTabs({
     skipSnaps: false,
     dragFree: false,
     containScroll: 'trimSnaps' as const,
-    duration: animationDuration
+    duration: animationDuration,
+    watchResize: false // Prevent height adjustments during swipe
   }), [animationDuration]);
 
   // Initialize Embla with plugins
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
-    isMobile ? [AutoHeight(), WheelGesturesPlugin()] : []
+    isMobile ? [
+      AutoHeight({
+        active: true,
+      }), 
+      WheelGesturesPlugin()
+    ] : []
   );
 
   // Add CSS to the document for tab content transitions
@@ -225,6 +231,11 @@ export function SwipeableTabs({
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
         restoreScrollPosition(index);
+
+        // Only update height after the swipe is complete
+        requestAnimationFrame(() => {
+          emblaApi.reInit();
+        });
       }
     };
     
@@ -263,6 +274,7 @@ export function SwipeableTabs({
           <div 
             className="w-full overflow-hidden embla-container-with-auto-height" 
             ref={emblaRef}
+            style={{ minHeight: '100vh' }}
           >
             <div className="flex embla-slides-container">
               {tabs.map((tab, index) => (
