@@ -53,78 +53,51 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   const { username, isAuthenticated } = useSidebar();
   const [isVisible, setIsVisible] = useState(true);
   const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down' | null>(null);
-  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
-  const confirmationCount = useRef(0);
+  const lastScrollDirection = useRef<'up' | 'down'>('up');
+  const ticking = useRef(false);
   
-  // Scroll direction detection with improved handling for momentum scrolling
+  // Handle scroll events
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Always show dock when at the top of the page
-      if (currentScrollY <= 5) {
-        setIsVisible(true);
-        lastScrollY.current = currentScrollY;
-        return;
-      }
-      
-      // Determine current scroll direction
-      const currentDirection = currentScrollY < lastScrollY.current ? 'up' : 'down';
-      
-      // If direction is same as previous, increment the confirmation counter
-      if (currentDirection === scrollDirection.current) {
-        confirmationCount.current++;
-      } else {
-        // Direction changed, reset counter and update direction
-        confirmationCount.current = 1;
-        scrollDirection.current = currentDirection;
-      }
-      
-      // Only process significant scroll changes to avoid micromovements
-      if (Math.abs(currentScrollY - lastScrollY.current) >= 10) {
-        // Require multiple confirmations for direction change
-        if (confirmationCount.current >= 2) {
-          if (currentDirection === 'up') {
-            setIsVisible(true);
-          } else {
-            setIsVisible(false);
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          
+          // Determine scroll direction
+          const direction = currentScrollY > lastScrollY.current ? 'down' : 'up';
+          
+          // Minimum scroll threshold to trigger direction change (prevents bounces)
+          const MIN_SCROLL_THRESHOLD = 5;
+          const scrollDifference = Math.abs(currentScrollY - lastScrollY.current);
+          
+          // Check if we've scrolled enough to consider it a real scroll
+          if (scrollDifference > MIN_SCROLL_THRESHOLD) {
+            // Only update visibility if direction has changed or matching our hide/show rules
+            if (direction === 'down' && isVisible) {
+              setIsVisible(false);
+            } else if (direction === 'up' && !isVisible) {
+              setIsVisible(true);
+            }
+            
+            lastScrollDirection.current = direction;
           }
-        }
+          
+          lastScrollY.current = currentScrollY;
+          ticking.current = false;
+        });
         
-        // Update scroll position
-        lastScrollY.current = currentScrollY;
+        ticking.current = true;
       }
-      
-      // Clear any existing timeout
-      if (scrollTimeout.current) {
-        clearTimeout(scrollTimeout.current);
-      }
-      
-      // Set a timeout to handle the end of scroll events (including momentum scrolling)
-      scrollTimeout.current = setTimeout(() => {
-        // When at the bottom of the page and scroll momentum ends, keep the dock hidden
-        const isAtBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 10;
-        if (isAtBottom && currentDirection === 'down') {
-          setIsVisible(false);
-        }
-      }, 100);
     };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (scrollTimeout.current) {
-        clearTimeout(scrollTimeout.current);
-      }
+      window.removeEventListener('scroll', handleScroll);
     };
-  }, []);
-  
-  // Show the dock when the route changes
-  useEffect(() => {
-    setIsVisible(true);
-  }, [pathname]);
+  }, [isVisible]);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -156,7 +129,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col transition-transform duration-150",
+        "flex flex-col transition-transform duration-200 ease-in-out",
         isVisible ? "translate-y-0" : "translate-y-full",
         className
       )}
