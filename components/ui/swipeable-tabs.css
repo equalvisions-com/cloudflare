@@ -3,6 +3,12 @@
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
   width: 100%;
+  min-height: 100vh;
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
@@ -11,6 +17,9 @@
   align-items: flex-start;
   touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
+  min-height: inherit;
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 
 /* Ensure each slide takes full width */
@@ -19,6 +28,10 @@
   min-width: 0;
   position: relative;
   width: 100%;
+  min-height: inherit;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Mobile-specific styles */
@@ -32,6 +45,8 @@
   [class*="flex-[0_0_100%]"] {
     width: 100%;
     flex: 0 0 100% !important;
+    min-height: inherit;
+    will-change: transform;
   }
   
   /* Force flex display */

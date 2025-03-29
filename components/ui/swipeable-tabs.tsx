@@ -163,9 +163,9 @@ export function SwipeableTabs({
     skipSnaps: false,
     dragFree: false,
     containScroll: 'trimSnaps' as const,
-    duration: animationDuration,
-    watchResize: false // Prevent height adjustments during swipe
-  }), [animationDuration]);
+    loop: false,
+    duration: 20 // Fast but smooth scroll
+  }), []);
 
   // Initialize Embla with plugins
   const [emblaRef, emblaApi] = useEmblaCarousel(
