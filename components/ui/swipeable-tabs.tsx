@@ -158,14 +158,23 @@ export function SwipeableTabs({
   }, [onTabChange]);
 
   // Configure carousel options based on mobile/desktop
-  const carouselOptions = useMemo(() => ({
-    align: 'start' as const,
-    skipSnaps: true,
-    dragFree: true,
-    containScroll: 'keepSnaps' as const,
-    duration: 30,
-    loop: false
-  }), []);
+  const carouselOptions = useMemo(() => 
+    isMobile ? {
+      align: 'start' as const,
+      skipSnaps: true,
+      dragFree: false,
+      containScroll: 'keepSnaps' as const,
+      duration: 20, // Fast but smooth scroll
+      loop: false
+    } : { 
+      align: 'start' as const,
+      skipSnaps: true,
+      dragFree: false,
+      containScroll: 'keepSnaps' as const,
+      active: false // Disable carousel on desktop
+    },
+    [isMobile]
+  );
 
   // Initialize Embla with plugins
   const [emblaRef, emblaApi] = useEmblaCarousel(
