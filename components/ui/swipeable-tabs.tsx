@@ -109,7 +109,6 @@ export function SwipeableTabs({
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [visitedTabs, setVisitedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
   const [isMobile, setIsMobile] = useState(false);
-  const virtuosoRef = useRef(null);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -159,9 +158,108 @@ export function SwipeableTabs({
     }
   }, [onTabChange]);
 
-  // Handle tab click
+  // Configure carousel options based on mobile/desktop
+  const carouselOptions = useMemo(() => 
+    isMobile ? {
+      align: 'start' as const,
+      skipSnaps: false,
+      dragFree: false,
+      containScroll: 'trimSnaps' as const,
+      duration: 20,
+      loop: false,
+      inViewThreshold: 0,
+      watchDrag: true
+    } : { 
+      align: 'start' as const,
+      skipSnaps: false,
+      dragFree: false,
+      containScroll: 'trimSnaps' as const,
+      active: false
+    },
+    [isMobile]
+  );
+
+  // Initialize Embla with plugins
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    carouselOptions,
+    isMobile ? [
+      AutoHeight({
+        active: true,
+      }), 
+      WheelGesturesPlugin()
+    ] : []
+  );
+
+  // Add CSS to the document for tab content transitions
+  useEffect(() => {
+    // Create a style element
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .tab-content {
+        display: block;
+      }
+      .tab-content-active {
+        display: block;
+      }
+      .tab-content-inactive {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Clean up
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // Save scroll position when user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!isRestoringScrollRef.current) {
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [selectedTab]);
+
+  // Sync tab selection with carousel
+  useEffect(() => {
+    if (!emblaApi) return undefined;
+    
+    const onSelect = () => {
+      const index = emblaApi.selectedScrollSnap();
+      
+      if (selectedTab !== index) {
+        if (!isRestoringScrollRef.current) {
+          scrollPositionsRef.current[selectedTab] = window.scrollY;
+        }
+        
+        // Only add to visitedTabs if we haven't been there before
+        if (!visitedTabs.has(index)) {
+          setVisitedTabs(prev => new Set([...prev, index]));
+        }
+        
+        setSelectedTab(index);
+        handleTabChangeWithDebounce(index);
+        restoreScrollPosition(index);
+      }
+    };
+    
+    emblaApi.on('select', onSelect);
+    return () => {
+      emblaApi.off('select', onSelect);
+      return undefined;
+    };
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
+
+  // Handle tab click - use immediate scroll for clicks
   const handleTabClick = useCallback((index: number) => {
-    if (index === selectedTab) return;
+    if (!emblaApi || index === selectedTab) return;
     
     if (!isRestoringScrollRef.current) {
       scrollPositionsRef.current[selectedTab] = window.scrollY;
@@ -172,10 +270,11 @@ export function SwipeableTabs({
       setVisitedTabs(prev => new Set([...prev, index]));
     }
     
+    emblaApi.scrollTo(index);
     setSelectedTab(index);
     handleTabChangeWithDebounce(index);
     restoreScrollPosition(index);
-  }, [selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
 
   return (
     <div className={cn('w-full h-full', className)}>
@@ -187,26 +286,31 @@ export function SwipeableTabs({
 
       <div className="w-full">
         {isMobile ? (
-          <Virtuoso
-            ref={virtuosoRef}
-            useWindowScroll
-            totalCount={1}
-            itemContent={() => (
-              <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-                {tabs.map((tab, index) => (
-                  <div 
-                    key={`tab-content-${tab.id}`}
-                    className="flex-[0_0_100%] min-w-0 snap-start"
-                  >
-                    <div className="w-full">
-                      {tab.content}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div 
+            className="w-full overflow-hidden embla-container-with-auto-height" 
+            ref={emblaRef}
             style={{ minHeight: '100vh' }}
-          />
+          >
+            <div className="flex embla-slides-container h-full">
+              {tabs.map((tab, index) => (
+                <div 
+                  key={`tab-content-${tab.id}`}
+                  className="flex-[0_0_100%] min-w-0 embla-slide h-full"
+                >
+                  <Virtuoso
+                    useWindowScroll
+                    style={{ height: '100%', width: '100%' }}
+                    totalCount={1}
+                    itemContent={() => (
+                      <div className="w-full">
+                        {tab.content}
+                      </div>
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           tabs.map((tab, index) => (
             <div 
@@ -216,7 +320,16 @@ export function SwipeableTabs({
                 selectedTab === index ? "block" : "hidden"
               )}
             >
-              {visitedTabs.has(index) && tab.content}
+              <Virtuoso
+                useWindowScroll
+                style={{ width: '100%' }}
+                totalCount={1}
+                itemContent={() => (
+                  <div className="w-full">
+                    {tab.content}
+                  </div>
+                )}
+              />
             </div>
           ))
         )}
