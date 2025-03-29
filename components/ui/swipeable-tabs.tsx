@@ -160,12 +160,11 @@ export function SwipeableTabs({
   // Configure carousel options based on mobile/desktop
   const carouselOptions = useMemo(() => ({
     align: 'start' as const,
-    skipSnaps: false,
-    dragFree: false,
-    containScroll: 'trimSnaps' as const,
-    duration: 30, // Slightly longer duration for smoother animation
-    loop: false,
-    speed: 0.8 // Add speed factor for smoother motion
+    skipSnaps: true,
+    dragFree: true,
+    containScroll: 'keepSnaps' as const,
+    duration: 30,
+    loop: false
   }), []);
 
   // Initialize Embla with plugins
