@@ -274,14 +274,15 @@ export function SwipeableTabs({
           <div 
             className="w-full overflow-hidden embla-container-with-auto-height" 
             ref={emblaRef}
+            style={{ minHeight: '100vh' }}
           >
-            <div className="flex embla-slides-container">
+            <div className="flex embla-slides-container h-full">
               {tabs.map((tab, index) => (
                 <div 
                   key={`tab-content-${tab.id}`}
-                  className="flex-[0_0_100%] min-w-0 embla-slide"
+                  className="flex-[0_0_100%] min-w-0 embla-slide h-full"
                 >
-                  <div className="w-full">
+                  <div className="w-full h-full">
                     {tab.content}
                   </div>
                 </div>
