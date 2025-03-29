@@ -246,44 +246,6 @@
   /* Removed overflow control */
 }
 
-/* iOS Safe Area fixes */
-@supports (padding: max(0px)) {
-  /* Extend background color to safe areas */
-  body {
-    background-color: hsl(var(--background));
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-  }
-  
-  /* Fix for mobile dock safe area to match theme background */
-  .safe-area-bg {
-    background-color: hsl(var(--background));
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: env(safe-area-inset-bottom, 0px);
-    z-index: 45;
-  }
-  
-  /* Fix for iOS when switching from light to dark mode */
-  html {
-    background-color: hsl(var(--background));
-  }
-  
-  body::before {
-    content: "";
-    display: block;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-bottom, 0px);
-    background-color: hsl(var(--background));
-    z-index: 40;
-  }
-}
-
 /* SwipeableTabs Component Styles */
 .opacity-0 {
   transition: opacity 0ms;
