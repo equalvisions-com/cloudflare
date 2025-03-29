@@ -3,7 +3,6 @@
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
   width: 100%;
-  min-height: 100vh;
   touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
   -webkit-backface-visibility: hidden;
@@ -17,7 +16,6 @@
   align-items: flex-start;
   touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
-  min-height: inherit;
   will-change: transform;
   transform-style: preserve-3d;
 }
@@ -28,7 +26,6 @@
   min-width: 0;
   position: relative;
   width: 100%;
-  min-height: inherit;
   -webkit-backface-visibility: hidden;
   -moz-backface-visibility: hidden;
   backface-visibility: hidden;
@@ -45,7 +42,6 @@
   [class*="flex-[0_0_100%]"] {
     width: 100%;
     flex: 0 0 100% !important;
-    min-height: inherit;
     will-change: transform;
   }
   
