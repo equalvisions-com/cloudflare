@@ -2,11 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import useEmblaCarousel from 'embla-carousel-react';
-import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
-import AutoHeight from 'embla-carousel-auto-height';
-import './swipeable-tabs.css';
 import { Virtuoso } from 'react-virtuoso';
+import './swipeable-tabs.css';
 
 interface SwipeableTabsProps {
   tabs: {
@@ -16,8 +13,8 @@ interface SwipeableTabsProps {
   }[];
   defaultTabIndex?: number;
   className?: string;
-  animationDuration?: number; // Animation duration in milliseconds
-  onTabChange?: (index: number) => void; // Callback when tab changes
+  animationDuration?: number;
+  onTabChange?: (index: number) => void;
 }
 
 // Memoized tab header component to prevent re-renders
@@ -33,14 +30,12 @@ const TabHeaders = React.memo(({
   const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [, forceUpdate] = useState({});
 
-  // Force re-render when selected tab changes to ensure indicator width updates
   useEffect(() => {
     forceUpdate({});
   }, [selectedTab]);
 
   return (
     <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
-      
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -73,50 +68,19 @@ const TabHeaders = React.memo(({
 });
 TabHeaders.displayName = 'TabHeaders';
 
-// Memoized tab content component to prevent re-renders
-const TabContent = React.memo(({ 
-  content, 
-  isActive,
-  id
-}: { 
-  content: React.ReactNode, 
-  isActive: boolean,
-  id: string
-}) => {
-  return (
-    <div 
-      id={`tab-content-${id}`}
-      role="tabpanel"
-      aria-labelledby={`tab-${id}`}
-      className={cn(
-        "w-full",
-        isActive ? "block" : "hidden"
-      )}
-    >
-      {content}
-    </div>
-  );
-});
-TabContent.displayName = 'TabContent';
-
 export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 0,
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
-  const [visitedTabs, setVisitedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
   const [isMobile, setIsMobile] = useState(false);
-  
-  // Store scroll positions for each tab
-  const scrollPositionsRef = useRef<Record<number, number>>({});
-  const isRestoringScrollRef = useRef(false);
-  const lastTabChangeRef = useRef<{ index: number; time: number }>({ 
-    index: defaultTabIndex, 
-    time: Date.now() 
-  });
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+  const lastTouchXRef = useRef(0);
+  const touchStartXRef = useRef(0);
+  const touchStartTimeRef = useRef(0);
 
   // Check for mobile viewport
   useEffect(() => {
@@ -129,220 +93,110 @@ export function SwipeableTabs({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Function to restore scroll position
-  const restoreScrollPosition = useCallback((index: number) => {
-    isRestoringScrollRef.current = true;
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
-    
-    requestAnimationFrame(() => {
-      window.scrollTo(0, savedPosition);
-      setTimeout(() => {
-        isRestoringScrollRef.current = false;
-      }, 100);
-    });
-  }, []);
-
-  // Function to handle tab change with debouncing
-  const handleTabChangeWithDebounce = useCallback((index: number) => {
-    const now = Date.now();
-    if (
-      index === lastTabChangeRef.current.index || 
-      (now - lastTabChangeRef.current.time < 300)
-    ) {
-      return;
-    }
-    
-    lastTabChangeRef.current = { index, time: now };
+  // Handle tab change
+  const handleTabChange = useCallback((index: number) => {
+    setSelectedTab(index);
     if (onTabChange) {
       onTabChange(index);
     }
   }, [onTabChange]);
 
-  // Configure carousel options based on mobile/desktop
-  const carouselOptions = useMemo(() => 
-    isMobile ? {
-      align: 'start' as const,
-      skipSnaps: false,
-      dragFree: false,
-      containScroll: 'trimSnaps' as const,
-      duration: 20,
-      loop: false,
-      inViewThreshold: 0,
-      watchDrag: true
-    } : { 
-      align: 'start' as const,
-      skipSnaps: false,
-      dragFree: false,
-      containScroll: 'trimSnaps' as const,
-      active: false
-    },
-    [isMobile]
-  );
+  // Handle touch start
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (!isMobile) return;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartTimeRef.current = Date.now();
+    lastTouchXRef.current = e.touches[0].clientX;
+    isScrollingRef.current = false;
+  }, [isMobile]);
 
-  // Initialize Embla with plugins
-  const [emblaRef, emblaApi] = useEmblaCarousel(
-    carouselOptions,
-    isMobile ? [
-      AutoHeight({
-        active: true,
-      }), 
-      WheelGesturesPlugin()
-    ] : []
-  );
-
-  // Add CSS to the document for tab content transitions
-  useEffect(() => {
-    // Create a style element
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .tab-content {
-        display: block;
-      }
-      .tab-content-active {
-        display: block;
-      }
-      .tab-content-inactive {
-        display: none;
-      }
-    `;
-    document.head.appendChild(style);
+  // Handle touch move
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isMobile || isScrollingRef.current) return;
     
-    // Clean up
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
+    const touchX = e.touches[0].clientX;
+    const deltaX = touchX - lastTouchXRef.current;
+    lastTouchXRef.current = touchX;
 
-  // Save scroll position when user scrolls
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [selectedTab]);
-
-  // Sync tab selection with carousel
-  useEffect(() => {
-    if (!emblaApi) return undefined;
-    
-    const onSelect = () => {
-      const index = emblaApi.selectedScrollSnap();
-      
-      if (selectedTab !== index) {
-        if (!isRestoringScrollRef.current) {
-          scrollPositionsRef.current[selectedTab] = window.scrollY;
-        }
-        
-        // Only add to visitedTabs if we haven't been there before
-        if (!visitedTabs.has(index)) {
-          setVisitedTabs(prev => new Set([...prev, index]));
-        }
-        
-        setSelectedTab(index);
-        handleTabChangeWithDebounce(index);
-        restoreScrollPosition(index);
-      }
-    };
-    
-    emblaApi.on('select', onSelect);
-    return () => {
-      emblaApi.off('select', onSelect);
-      return undefined;
-    };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
-
-  // Handle tab click - use immediate scroll for clicks
-  const handleTabClick = useCallback((index: number) => {
-    if (!emblaApi || index === selectedTab) return;
-    
-    if (!isRestoringScrollRef.current) {
-      scrollPositionsRef.current[selectedTab] = window.scrollY;
+    if (Math.abs(deltaX) > Math.abs(e.touches[0].clientY - touchStartXRef.current)) {
+      e.preventDefault();
     }
-    
-    // Only add to visitedTabs if we haven't been there before
-    if (!visitedTabs.has(index)) {
-      setVisitedTabs(prev => new Set([...prev, index]));
+  }, [isMobile]);
+
+  // Handle touch end
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (!isMobile || isScrollingRef.current) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const deltaX = touchEndX - touchStartXRef.current;
+    const timeDelta = Date.now() - touchStartTimeRef.current;
+    const velocity = Math.abs(deltaX) / timeDelta;
+
+    if (Math.abs(deltaX) > 50 || velocity > 0.5) {
+      if (deltaX > 0 && selectedTab > 0) {
+        handleTabChange(selectedTab - 1);
+      } else if (deltaX < 0 && selectedTab < tabs.length - 1) {
+        handleTabChange(selectedTab + 1);
+      }
     }
-    
-    emblaApi.scrollTo(index);
-    setSelectedTab(index);
-    handleTabChangeWithDebounce(index);
-    restoreScrollPosition(index);
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
+  }, [isMobile, selectedTab, tabs.length, handleTabChange]);
+
+  // Add touch event listeners
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    scroller.addEventListener('touchstart', handleTouchStart);
+    scroller.addEventListener('touchmove', handleTouchMove, { passive: false });
+    scroller.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      scroller.removeEventListener('touchstart', handleTouchStart);
+      scroller.removeEventListener('touchmove', handleTouchMove);
+      scroller.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   return (
     <div className={cn('w-full h-full', className)}>
       <TabHeaders 
         tabs={tabs} 
         selectedTab={selectedTab} 
-        onTabClick={handleTabClick} 
+        onTabClick={handleTabChange} 
       />
 
-      <div className="w-full">
+      <div ref={scrollerRef} className="w-full">
         {isMobile ? (
-          <div 
-            className="w-full overflow-hidden embla-container-with-auto-height" 
-            ref={emblaRef}
-          >
-            <div className="flex embla-slides-container">
-              {tabs.map((tab, index) => {
-                const isVisible = Math.abs(index - selectedTab) <= 1;
-                return (
-                  <div 
-                    key={`tab-content-${tab.id}`}
-                    className="flex-[0_0_100%] min-w-0 embla-slide"
-                  >
-                    {/* Always render content but only show when visible or adjacent */}
-                    <div className={cn(
-                      "w-full transition-opacity duration-200",
-                      isVisible ? "opacity-100" : "opacity-0"
-                    )}>
-                      {(visitedTabs.has(index) || isVisible) && (
-                        <Virtuoso
-                          useWindowScroll
-                          context={{ selectedTab, isVisible: selectedTab === index }}
-                          style={{ width: '100%' }}
-                          totalCount={1}
-                          itemContent={() => (
-                            <div className="w-full">
-                              {tab.content}
-                            </div>
-                          )}
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="swipeable-container">
+            <div 
+              className="swipeable-content" 
+              style={{ transform: `translateX(-${selectedTab * 100}%)` }}
+            >
+              {tabs.map((tab, index) => (
+                <div key={tab.id} className="swipeable-slide">
+                  <Virtuoso
+                    useWindowScroll
+                    totalCount={1}
+                    itemContent={() => tab.content}
+                    overscan={200}
+                    style={{ height: '100%', width: '100%' }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         ) : (
           tabs.map((tab, index) => (
-            <div 
-              key={`tab-content-${tab.id}`}
-              className={cn(
-                "w-full",
-                selectedTab === index ? "block" : "hidden"
-              )}
-            >
-              <Virtuoso
-                useWindowScroll
-                context={{ selectedTab, isVisible: selectedTab === index }}
-                style={{ width: '100%' }}
-                totalCount={1}
-                itemContent={() => (
-                  <div className="w-full">
-                    {tab.content}
-                  </div>
-                )}
-              />
-            </div>
+            selectedTab === index && (
+              <div key={tab.id} className="w-full">
+                <Virtuoso
+                  useWindowScroll
+                  totalCount={1}
+                  itemContent={() => tab.content}
+                  overscan={200}
+                />
+              </div>
+            )
           ))
         )}
       </div>
