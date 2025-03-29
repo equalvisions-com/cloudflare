@@ -161,17 +161,19 @@ export function SwipeableTabs({
   const carouselOptions = useMemo(() => 
     isMobile ? {
       align: 'start' as const,
-      skipSnaps: true,
+      skipSnaps: false,
       dragFree: false,
-      containScroll: 'keepSnaps' as const,
-      duration: 20, // Fast but smooth scroll
-      loop: false
+      containScroll: 'trimSnaps' as const,
+      duration: 20,
+      loop: false,
+      inViewThreshold: 0,
+      watchDrag: true
     } : { 
       align: 'start' as const,
-      skipSnaps: true,
+      skipSnaps: false,
       dragFree: false,
-      containScroll: 'keepSnaps' as const,
-      active: false // Disable carousel on desktop
+      containScroll: 'trimSnaps' as const,
+      active: false
     },
     [isMobile]
   );
@@ -255,7 +257,7 @@ export function SwipeableTabs({
     };
   }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
 
-  // Handle tab click
+  // Handle tab click - use immediate scroll for clicks
   const handleTabClick = useCallback((index: number) => {
     if (!emblaApi || index === selectedTab) return;
     
@@ -264,7 +266,7 @@ export function SwipeableTabs({
     }
     
     setVisitedTabs(prev => new Set([...prev, index]));
-    emblaApi.scrollTo(index, true);
+    emblaApi.scrollTo(index);
     setSelectedTab(index);
     handleTabChangeWithDebounce(index);
     restoreScrollPosition(index);
@@ -285,14 +287,14 @@ export function SwipeableTabs({
             ref={emblaRef}
             style={{ minHeight: '100vh' }}
           >
-            <div className="flex embla-slides-container">
+            <div className="flex embla-slides-container h-full">
               {tabs.map((tab, index) => (
                 <div 
                   key={`tab-content-${tab.id}`}
-                  className="flex-[0_0_100%] min-w-0 embla-slide"
+                  className="flex-[0_0_100%] min-w-0 embla-slide h-full"
                 >
-                  <div className="w-full pb-8">
-                    {(visitedTabs.has(index) || Math.abs(index - selectedTab) <= 1) && tab.content}
+                  <div className="w-full h-full">
+                    {tab.content}
                   </div>
                 </div>
               ))}
