@@ -143,7 +143,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
           <div className="flex-grow">
             <div className="w-full mt-[-3px]">
               {postTitle && (
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-bold text-primary leading-tight">
                     {postTitle}
                   </h3>

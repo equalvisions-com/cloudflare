@@ -937,7 +937,7 @@ const ActivityCard = React.memo(({
             {/* Title and Timestamp */}
             <div className="flex-grow">
               <div className="w-full mt-[-3px]">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
                       `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
@@ -1086,7 +1086,7 @@ const ActivityCard = React.memo(({
           {/* Title and Timestamp */}
           <div className="flex-grow">
             <div className="w-full mt-[-3px]">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start justify-between gap-2">
                 <Link 
                   href={entryDetail.category_slug && entryDetail.post_slug ? 
                     `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
@@ -1601,7 +1601,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
             {/* Title and Timestamp */}
             <div className="flex-grow">
               <div className="w-full mt-[-3px]">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
                       `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 

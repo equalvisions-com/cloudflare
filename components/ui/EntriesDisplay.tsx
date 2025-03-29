@@ -313,7 +313,7 @@ const EntryCard = React.memo(({ entry, interactions }: {
           <div className="flex-grow">
             <div className="w-full mt-[-3px]">
               {(entry.post_title || entry.title) && (
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-sm font-bold text-primary leading-tight">

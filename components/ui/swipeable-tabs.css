@@ -9,10 +9,21 @@
 .embla-slides-container {
   display: flex;
   align-items: flex-start;
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Ensure each slide takes full width */
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
+  position: relative;
+}
+
+/* Prevent overscroll behavior on mobile */
+@media (max-width: 768px) {
+  .prevent-overscroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 } 
