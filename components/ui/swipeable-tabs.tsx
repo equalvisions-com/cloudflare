@@ -289,26 +289,37 @@ export function SwipeableTabs({
           <div 
             className="w-full overflow-hidden embla-container-with-auto-height" 
             ref={emblaRef}
-            style={{ minHeight: '100vh' }}
           >
-            <div className="flex embla-slides-container h-full">
-              {tabs.map((tab, index) => (
-                <div 
-                  key={`tab-content-${tab.id}`}
-                  className="flex-[0_0_100%] min-w-0 embla-slide h-full"
-                >
-                  <Virtuoso
-                    useWindowScroll
-                    style={{ height: '100%', width: '100%' }}
-                    totalCount={1}
-                    itemContent={() => (
-                      <div className="w-full">
-                        {tab.content}
-                      </div>
-                    )}
-                  />
-                </div>
-              ))}
+            <div className="flex embla-slides-container">
+              {tabs.map((tab, index) => {
+                const isVisible = Math.abs(index - selectedTab) <= 1;
+                return (
+                  <div 
+                    key={`tab-content-${tab.id}`}
+                    className="flex-[0_0_100%] min-w-0 embla-slide"
+                  >
+                    {/* Always render content but only show when visible or adjacent */}
+                    <div className={cn(
+                      "w-full transition-opacity duration-200",
+                      isVisible ? "opacity-100" : "opacity-0"
+                    )}>
+                      {(visitedTabs.has(index) || isVisible) && (
+                        <Virtuoso
+                          useWindowScroll
+                          context={{ selectedTab, isVisible: selectedTab === index }}
+                          style={{ width: '100%' }}
+                          totalCount={1}
+                          itemContent={() => (
+                            <div className="w-full">
+                              {tab.content}
+                            </div>
+                          )}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -322,6 +333,7 @@ export function SwipeableTabs({
             >
               <Virtuoso
                 useWindowScroll
+                context={{ selectedTab, isVisible: selectedTab === index }}
                 style={{ width: '100%' }}
                 totalCount={1}
                 itemContent={() => (
