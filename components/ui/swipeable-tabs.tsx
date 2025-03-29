@@ -238,15 +238,14 @@ export function SwipeableTabs({
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
         
-        setVisitedTabs(prev => new Set([...prev, index]));
+        // Only add to visitedTabs if we haven't been there before
+        if (!visitedTabs.has(index)) {
+          setVisitedTabs(prev => new Set([...prev, index]));
+        }
+        
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
         restoreScrollPosition(index);
-
-        // Only update height after the swipe is complete
-        requestAnimationFrame(() => {
-          emblaApi.reInit();
-        });
       }
     };
     
@@ -255,7 +254,7 @@ export function SwipeableTabs({
       emblaApi.off('select', onSelect);
       return undefined;
     };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
 
   // Handle tab click - use immediate scroll for clicks
   const handleTabClick = useCallback((index: number) => {
@@ -265,12 +264,16 @@ export function SwipeableTabs({
       scrollPositionsRef.current[selectedTab] = window.scrollY;
     }
     
-    setVisitedTabs(prev => new Set([...prev, index]));
+    // Only add to visitedTabs if we haven't been there before
+    if (!visitedTabs.has(index)) {
+      setVisitedTabs(prev => new Set([...prev, index]));
+    }
+    
     emblaApi.scrollTo(index);
     setSelectedTab(index);
     handleTabChangeWithDebounce(index);
     restoreScrollPosition(index);
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, visitedTabs]);
 
   return (
     <div className={cn('w-full h-full', className)}>
