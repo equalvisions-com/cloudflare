@@ -2,7 +2,7 @@
 
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
-  /* No transition for immediate height changes */
+  width: 100%;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
@@ -18,12 +18,24 @@
   flex: 0 0 100%;
   min-width: 0;
   position: relative;
+  width: 100%;
 }
 
-/* Prevent overscroll behavior on mobile */
+/* Mobile-specific styles */
 @media (max-width: 768px) {
   .prevent-overscroll {
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure content takes full width */
+  [class*="flex-[0_0_100%]"] {
+    width: 100%;
+    flex: 0 0 100% !important;
+  }
+  
+  /* Force flex display */
+  .flex {
+    display: flex !important;
   }
 } 

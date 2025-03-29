@@ -111,11 +111,7 @@ export function SwipeableTabs({
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
-  
-  // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
-  
-  // Ref to track the last tab change
   const lastTabChangeRef = useRef<{ index: number; time: number }>({ 
     index: defaultTabIndex, 
     time: Date.now() 
@@ -124,37 +120,56 @@ export function SwipeableTabs({
   // Check for mobile viewport
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768); // Same breakpoint as CategorySliderWrapper
+      setIsMobile(window.innerWidth < 768);
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
+  // Function to restore scroll position
+  const restoreScrollPosition = useCallback((index: number) => {
+    isRestoringScrollRef.current = true;
+    const savedPosition = scrollPositionsRef.current[index] ?? 0;
+    
+    requestAnimationFrame(() => {
+      window.scrollTo(0, savedPosition);
+      setTimeout(() => {
+        isRestoringScrollRef.current = false;
+      }, 100);
+    });
+  }, []);
+
+  // Function to handle tab change with debouncing
+  const handleTabChangeWithDebounce = useCallback((index: number) => {
+    const now = Date.now();
+    if (
+      index === lastTabChangeRef.current.index || 
+      (now - lastTabChangeRef.current.time < 300)
+    ) {
+      return;
+    }
+    
+    lastTabChangeRef.current = { index, time: now };
+    if (onTabChange) {
+      onTabChange(index);
+    }
+  }, [onTabChange]);
+
   // Configure carousel options based on mobile/desktop
-  const carouselOptions = useMemo(() => 
-    isMobile ? {
-      align: 'start' as const,
-      skipSnaps: false,
-      dragFree: false,
-      containScroll: 'trimSnaps' as const,
-      duration: animationDuration
-    } : { 
-      align: 'start' as const,
-      skipSnaps: true,
-      dragFree: false,
-      containScroll: 'keepSnaps' as const,
-      duration: animationDuration,
-      active: false // Disable carousel on desktop
-    },
-    [isMobile, animationDuration]
-  );
+  const carouselOptions = useMemo(() => ({
+    align: 'start' as const,
+    skipSnaps: false,
+    dragFree: false,
+    containScroll: 'trimSnaps' as const,
+    duration: animationDuration
+  }), [animationDuration]);
 
   // Initialize Embla with plugins
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
-    isMobile ? [AutoHeight(), WheelGesturesPlugin()] : [AutoHeight()]
+    isMobile ? [WheelGesturesPlugin()] : []
   );
 
   // Add CSS to the document for tab content transitions
@@ -183,7 +198,6 @@ export function SwipeableTabs({
   // Save scroll position when user scrolls
   useEffect(() => {
     const handleScroll = () => {
-      // Only save scroll position if we're not in the middle of restoring
       if (!isRestoringScrollRef.current) {
         scrollPositionsRef.current[selectedTab] = window.scrollY;
       }
@@ -195,147 +209,86 @@ export function SwipeableTabs({
     };
   }, [selectedTab]);
 
-  // Function to restore scroll position
-  const restoreScrollPosition = useCallback((index: number) => {
-    // Set flag to prevent scroll events during restoration
-    isRestoringScrollRef.current = true;
-    
-    // Get saved position (default to 0 if not set)
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
-    
-    // Use requestAnimationFrame for better timing
-    requestAnimationFrame(() => {
-      // Set scroll position
-      window.scrollTo(0, savedPosition);
-      
-      // Reset flag after a short delay
-      setTimeout(() => {
-        isRestoringScrollRef.current = false;
-      }, 100);
-    });
-  }, []);
-
-  // Function to handle tab change with debouncing
-  const handleTabChangeWithDebounce = useCallback((index: number) => {
-    // Skip if it's the same tab or if the change happened too recently (within 300ms)
-    const now = Date.now();
-    if (
-      index === lastTabChangeRef.current.index || 
-      (now - lastTabChangeRef.current.time < 300 && index !== selectedTab)
-    ) {
-      return;
-    }
-    
-    // Update the last tab change ref
-    lastTabChangeRef.current = { index, time: now };
-    
-    // Call the onTabChange callback if provided
-    if (onTabChange) {
-      onTabChange(index);
-    }
-  }, [onTabChange, selectedTab]);
-  
   // Sync tab selection with carousel
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!emblaApi) return undefined;
     
     const onSelect = () => {
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
-        // Save current scroll position
         if (!isRestoringScrollRef.current) {
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
         
-        // Mark this tab as visited
         setVisitedTabs(prev => new Set([...prev, index]));
-        
-        // Update selected tab
         setSelectedTab(index);
-        
-        // Handle tab change with debounce
         handleTabChangeWithDebounce(index);
-        
-        // Restore scroll position
         restoreScrollPosition(index);
       }
     };
     
     emblaApi.on('select', onSelect);
-    
     return () => {
       emblaApi.off('select', onSelect);
+      return undefined;
     };
-  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
 
   // Handle tab click
-  const handleTabClick = useCallback(
-    (index: number) => {
-      if (!emblaApi || index === selectedTab) return;
-      
-      // Save current scroll position
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
-      }
-      
-      // Mark this tab as visited
-      setVisitedTabs(prev => new Set([...prev, index]));
-      
-      // Use scrollTo with immediate=true to skip animation
-      emblaApi.scrollTo(index, true);
-      
-      // Update selected tab
-      setSelectedTab(index);
-      
-      // Handle tab change with debounce
-      handleTabChangeWithDebounce(index);
-      
-      // Restore scroll position
-      restoreScrollPosition(index);
-    },
-    [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]
-  );
-
-  // When component mounts, ensure scroll position is at 0 for the initial tab
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    scrollPositionsRef.current[defaultTabIndex] = 0;
-  }, [defaultTabIndex]);
+  const handleTabClick = useCallback((index: number) => {
+    if (!emblaApi || index === selectedTab) return;
+    
+    if (!isRestoringScrollRef.current) {
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+    }
+    
+    setVisitedTabs(prev => new Set([...prev, index]));
+    emblaApi.scrollTo(index, true);
+    setSelectedTab(index);
+    handleTabChangeWithDebounce(index);
+    restoreScrollPosition(index);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
 
   return (
     <div className={cn('w-full h-full', className)}>
-      {/* Tab Headers */}
       <TabHeaders 
         tabs={tabs} 
         selectedTab={selectedTab} 
         onTabClick={handleTabClick} 
       />
 
-      {/* Tab contents container */}
-      <div 
-        className={cn(
-          "w-full overflow-hidden prevent-overscroll",
-          !isMobile && "overflow-visible" // Remove overflow hidden on desktop
-        )} 
-        ref={emblaRef}
-      >
-        <div className={cn(
-          "flex",
-          !isMobile && "!transform-none" // Prevent transform on desktop
-        )}>
-          {tabs.map((tab, index) => (
+      <div className="w-full">
+        {isMobile ? (
+          <div 
+            className="w-full overflow-hidden" 
+            ref={emblaRef}
+          >
+            <div className="flex">
+              {tabs.map((tab, index) => (
+                <div 
+                  key={`tab-content-${tab.id}`}
+                  className="flex-[0_0_100%] min-w-0"
+                >
+                  {visitedTabs.has(index) && tab.content}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          // On desktop, render tabs normally
+          tabs.map((tab, index) => (
             <div 
               key={`tab-content-${tab.id}`}
               className={cn(
-                "flex-[0_0_100%] min-w-0",
-                !isMobile && selectedTab !== index && "hidden" // Hide when not active on desktop
+                "w-full",
+                selectedTab === index ? "block" : "hidden"
               )}
             >
               {visitedTabs.has(index) && tab.content}
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
     </div>
   );
