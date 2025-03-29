@@ -169,7 +169,7 @@ export function SwipeableTabs({
   // Initialize Embla with plugins
   const [emblaRef, emblaApi] = useEmblaCarousel(
     carouselOptions,
-    isMobile ? [WheelGesturesPlugin()] : []
+    isMobile ? [AutoHeight(), WheelGesturesPlugin()] : []
   );
 
   // Add CSS to the document for tab content transitions
@@ -261,14 +261,14 @@ export function SwipeableTabs({
       <div className="w-full">
         {isMobile ? (
           <div 
-            className="w-full overflow-hidden" 
+            className="w-full overflow-hidden embla-container-with-auto-height" 
             ref={emblaRef}
           >
-            <div className="flex">
+            <div className="flex embla-slides-container">
               {tabs.map((tab, index) => (
                 <div 
                   key={`tab-content-${tab.id}`}
-                  className="flex-[0_0_100%] min-w-0"
+                  className="flex-[0_0_100%] min-w-0 embla-slide"
                 >
                   {(visitedTabs.has(index) || Math.abs(index - selectedTab) <= 1) && (
                     <div style={{ opacity: visitedTabs.has(index) ? 1 : 0 }}>
@@ -280,7 +280,6 @@ export function SwipeableTabs({
             </div>
           </div>
         ) : (
-          // On desktop, render tabs normally
           tabs.map((tab, index) => (
             <div 
               key={`tab-content-${tab.id}`}
