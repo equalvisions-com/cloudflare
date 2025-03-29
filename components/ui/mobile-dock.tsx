@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useState, useEffect } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -51,6 +51,31 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  
+  // Scroll direction detection
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Show dock if scrolling up, hide if scrolling down
+      if (currentScrollY < lastScrollY) {
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY) {
+        setIsVisible(false);
+      }
+      
+      // Update scroll position
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [lastScrollY]);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -82,7 +107,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
         "bg-background/85 backdrop-blur-md border-t border-border",
-        "flex flex-col",
+        "flex flex-col transition-transform duration-150",
+        isVisible ? "translate-y-0" : "translate-y-full",
         className
       )}
       style={{ 
