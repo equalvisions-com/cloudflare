@@ -201,40 +201,37 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   }, [pathname]);
 
   return (
-    <nav 
-      className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
-        "bg-background border-t border-border",
-        "flex flex-col transition-transform duration-200 ease-in-out",
-        isVisible ? "translate-y-0" : "translate-y-[200%]", // Use 200% to ensure it's completely off-screen
-        className
-      )}
-      style={{ 
-        height: "64px",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        marginBottom: "-1px" // This prevents a potential gap at the bottom
-      }}
-      aria-label="Mobile navigation"
-    >
-      <div className="flex items-center justify-around w-full pt-2">
-        {navItems.map((item) => (
-          <NavItem 
-            key={item.href} 
-            item={item} 
-            isActive={checkIsActive(item.href)} 
-          />
-        ))}
-      </div>
+    <>
+      {/* Safe area background - this will be shown behind the dock */}
+      <div className={cn("safe-area-bg", !isVisible && "hidden")} />
       
-      {/* Color extension to cover safe area */}
-      <div 
-        className="absolute bg-background left-0 right-0 border-t border-border" 
+      {/* Main navigation bar */}
+      <nav 
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
+          "bg-background backdrop-blur-md border-t border-border",
+          "flex flex-col transition-transform duration-200 ease-in-out",
+          isVisible ? "translate-y-0" : "translate-y-[200%]", // Use 200% to ensure it's completely off-screen
+          className
+        )}
         style={{ 
-          height: "env(safe-area-inset-bottom, 0px)",
-          bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))"
+          height: "64px",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          marginBottom: "-1px" // This prevents a potential gap at the bottom
         }}
-      />
-    </nav>
+        aria-label="Mobile navigation"
+      >
+        <div className="flex items-center justify-around w-full pt-2">
+          {navItems.map((item) => (
+            <NavItem 
+              key={item.href} 
+              item={item} 
+              isActive={checkIsActive(item.href)} 
+            />
+          ))}
+        </div>
+      </nav>
+    </>
   );
 });
 
