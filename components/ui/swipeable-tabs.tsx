@@ -270,7 +270,11 @@ export function SwipeableTabs({
                   key={`tab-content-${tab.id}`}
                   className="flex-[0_0_100%] min-w-0"
                 >
-                  {visitedTabs.has(index) && tab.content}
+                  {(visitedTabs.has(index) || Math.abs(index - selectedTab) <= 1) && (
+                    <div style={{ opacity: visitedTabs.has(index) ? 1 : 0 }}>
+                      {tab.content}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
