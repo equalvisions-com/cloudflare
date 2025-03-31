@@ -235,17 +235,28 @@ export function SwipeableTabs({
     const activeSlideNode = slideRefs.current[selectedTab];
     if (!activeSlideNode) return;
 
+    let debounceTimeout: NodeJS.Timeout | null = null; // Variable for debounce timeout
+
     const resizeObserver = new ResizeObserver(() => {
-      // Using requestAnimationFrame to avoid layout thrashing and ensure reInit runs smoothly
-      window.requestAnimationFrame(() => {
-          emblaApi.reInit();
-      });
+      // Clear any existing timeout
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+
+      // Set a new timeout to run reInit after a short delay (e.g., 150ms)
+      debounceTimeout = setTimeout(() => {
+          emblaApi?.reInit();
+      }, 150);
     });
 
     resizeObserver.observe(activeSlideNode);
 
     return () => {
         resizeObserver.disconnect();
+        // Clear timeout on cleanup as well
+        if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+        }
     };
   }, [emblaApi, selectedTab]); // Re-run when selectedTab changes to observe the new active slide
 
