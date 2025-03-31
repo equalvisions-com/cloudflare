@@ -518,6 +518,26 @@ export function SwipeableTabs({
     scrollPositionsRef.current[defaultTabIndex] = 0;
   }, [defaultTabIndex]);
 
+  // Add CSS for transition
+  useEffect(() => {
+    // Add CSS to handle tab transitions
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .embla__swipeable_tabs .tab-slide {
+        opacity: 1;
+        transition: opacity 0.1s ease;
+      }
+      .embla__swipeable_tabs .tab-slide[aria-hidden="true"] {
+        opacity: 0.99;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <div 
       className={cn('w-full', className)}
@@ -549,11 +569,16 @@ export function SwipeableTabs({
             
             // Use the memoized renderer for this tab
             const renderTab = memoizedTabRenderers[index];
+            
+            // Use React.memo to prevent re-renders of inactive tabs
+            const MemoizedTabContent = useMemo(() => {
+              return renderTab(isActive);
+            }, [isActive, renderTab]);
 
             return (
               <div 
                 key={`carousel-${tab.id}`} 
-                className="min-w-0 flex-[0_0_100%] transform-gpu" 
+                className="min-w-0 flex-[0_0_100%] transform-gpu tab-slide" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{ 
@@ -563,7 +588,7 @@ export function SwipeableTabs({
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
-                {renderTab(isActive)}
+                {MemoizedTabContent}
               </div>
             );
           })}
