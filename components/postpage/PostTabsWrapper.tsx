@@ -76,7 +76,7 @@ export function PostTabsWrapper({
     {
       id: 'feed',
       label: mediaType === 'podcast' ? 'Episodes' : mediaType === 'newsletter' ? 'Newsletters' : 'Feed',
-      content: (
+      component: ({ isActive }: { isActive: boolean }) => (
         <FeedTabContent 
           postTitle={postTitle} 
           feedUrl={feedUrl} 
