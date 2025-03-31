@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { cn } from "@/lib/utils";
 
 // Add a consistent logging utility
 const logger = {
@@ -374,11 +375,12 @@ interface EntriesContentProps {
     hasMore?: boolean;
     postTitles?: string[];
   };
-  isActive: boolean;
+  isActive?: boolean;
+  className?: string;
 }
 
-// Modify the EntriesContentComponent to properly preserve scroll position
-function EntriesContentComponent({
+// Define a component for the RSS entries
+const EntriesContentComponent = React.memo(({
   paginatedEntries,
   hasMore,
   loadMoreRef,
@@ -387,105 +389,31 @@ function EntriesContentComponent({
   entryMetrics,
   postMetadata,
   initialData,
-  isActive
-}: EntriesContentProps & { isActive: boolean }) {
-  // Debug logging for pagination
-  useEffect(() => {
-    logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
-  }, [paginatedEntries.length, hasMore, isPending]);
+  isActive = true,
+  className,
+}: EntriesContentProps) => {
+  // Track if this tab was ever visible to avoid unnecessary rendering
+  const wasEverVisible = useRef<boolean>(isActive);
   
-  // Keep a ref to the Virtuoso instance to control it programmatically
+  // Keep a ref to the Virtuoso instance
   const virtuosoRef = useRef<any>(null);
-
-  // Track if this tab was ever visible (to avoid unnecessary rendering)
-  const wasEverVisible = useRef<boolean>(false);
   
   // Store the current first visible item index to restore position
   const [firstItemIndex, setFirstItemIndex] = useState(0);
+  
   // Track if position has been restored for this tab session
   const hasRestoredPosition = useRef(false);
-  // Track if we're currently in a transition
-  const isTransitioning = useRef(false);
   
   // Track whether this component is mounted
   const isMounted = useRef(true);
-
-  // Get a ref to the current component's scrollable container
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Add tab transition detection
-  useEffect(() => {
-    // Only set up transition detection after the component is rendered at least once
-    if (!wasEverVisible.current) return;
-
-    // Create a function to find the Embla container
-    const findEmblaContainer = () => {
-      // Look for the Embla container up the DOM tree
-      if (!containerRef.current) return null;
-      
-      let parent = containerRef.current.parentElement;
-      while (parent) {
-        if (parent.classList.contains('embla__swipeable_tabs')) {
-          return parent;
-        }
-        parent = parent.parentElement;
-      }
-      return null;
-    };
-
-    // Find the Embla carousel container
-    const emblaContainer = findEmblaContainer();
-    if (!emblaContainer) return;
-
-    // Create a mutation observer to watch for transform changes during transitions
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        if (mutation.type === 'attributes' && 
-            mutation.attributeName === 'style' && 
-            emblaContainer.style.transform && 
-            emblaContainer.style.transform !== 'translate3d(0px, 0px, 0px)') {
-          // If the transform is not at the default position, we're in a transition
-          isTransitioning.current = true;
-        } else if (mutation.type === 'attributes' && 
-                  mutation.attributeName === 'style' && 
-                  (!emblaContainer.style.transform || 
-                  emblaContainer.style.transform === 'translate3d(0px, 0px, 0px)')) {
-          // Transition is complete
-          isTransitioning.current = false;
-          // If this tab is now active and we have a valid scroll position, restore it
-          if (isActive && virtuosoRef.current && firstItemIndex > 0 && !hasRestoredPosition.current) {
-            setTimeout(() => {
-              virtuosoRef.current?.scrollToIndex({
-                index: firstItemIndex,
-                align: 'start',
-                behavior: 'auto'
-              });
-              hasRestoredPosition.current = true;
-            }, 50);
-          }
-        }
-      });
-    });
-
-    // Observe changes to the style attribute of the Embla container
-    observer.observe(emblaContainer, { attributes: true, attributeFilter: ['style'] });
-
-    // Clean up the observer on unmount
-    return () => {
-      observer.disconnect();
-    };
-  }, [isActive, firstItemIndex, wasEverVisible]);
-
+  
   // When the tab becomes active, mark it as having been visible
   useEffect(() => {
     if (isActive) {
       wasEverVisible.current = true;
       
       // Only restore position once when tab becomes active, not on every render or scroll
-      // Skip initial position restoration if we're in a transition - we'll do it after the transition completes
-      if (!hasRestoredPosition.current && virtuosoRef.current && firstItemIndex > 0 && !isTransitioning.current) {
-        logger.debug(`Restoring scroll position to index ${firstItemIndex}`);
-        
+      if (!hasRestoredPosition.current && virtuosoRef.current && firstItemIndex > 0) {
         // Use setTimeout to ensure restoration happens after render
         setTimeout(() => {
           if (virtuosoRef.current && isMounted.current) {
@@ -515,7 +443,7 @@ function EntriesContentComponent({
       isMounted.current = false;
     };
   }, []);
-
+  
   // Define the renderItem callback outside of any conditionals
   const renderItem = useCallback((index: number) => {
     if (!paginatedEntries || index >= paginatedEntries.length) {
@@ -552,49 +480,40 @@ function EntriesContentComponent({
       </div>
     );
   }
-
-  // Only fully render the Virtuoso component if this tab is active or was once active
+  
+  // Only fully render if this tab is active or was once active
   if (!isActive && !wasEverVisible.current) {
     return <div className="h-screen" />; // Placeholder with height to avoid layout shifts
   }
 
   return (
-    <div className="space-y-0" ref={containerRef}>
+    <div className={cn("space-y-0", className)}>
       <Virtuoso
         ref={virtuosoRef}
         useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
-          logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${paginatedEntries.length}`);
           if (hasMore && !isPending && isActive) {
-            logger.debug('📥 Virtuoso end reached, loading more entries');
             loadMore();
-          } else {
-            logger.debug(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={20}
+        overscan={20} 
         initialTopMostItemIndex={0}
-        itemContent={renderItem}
-        // Use a stable key based on feed content, not changing with active state
-        key={`feed-content-${paginatedEntries.length > 0 ? paginatedEntries[0].entry.feedUrl : 'empty'}`}
+        // Use a stable key based on feed content
+        key={`feed-${paginatedEntries.length > 0 ? paginatedEntries[0].entry.guid : 'empty'}`}
         // Track the first visible item to restore position later
         rangeChanged={range => {
           // Only update the position if we're active and scrolling isn't from our restoration
-          // Also don't update during transitions to prevent scroll jumping
-          if (isActive && range.startIndex !== undefined && hasRestoredPosition.current && !isTransitioning.current) {
+          if (isActive && range.startIndex !== undefined && hasRestoredPosition.current) {
             setFirstItemIndex(range.startIndex);
-            logger.debug(`Saved scroll position: startIndex=${range.startIndex}`);
           }
         }}
-        // Use CSS to fix position during transitions
+        // Apply hardware acceleration for smoother rendering
         style={{
-          // Apply a transform to counteract parent transform during transitions
-          position: isTransitioning.current ? 'relative' : undefined,
-          // Force hardware acceleration for smoother transitions
           transform: 'translate3d(0,0,0)',
           WebkitBackfaceVisibility: 'hidden'
         }}
+        itemContent={renderItem}
         components={{
           Footer: () => 
             isPending && hasMore ? (
@@ -604,9 +523,9 @@ function EntriesContentComponent({
       />
     </div>
   );
-}
+});
 
-// Update the EntriesContentProps interface to include isActive
+// Define the interface for our component props
 interface EntriesContentProps {
   paginatedEntries: RSSEntryWithData[];
   hasMore: boolean;
@@ -621,11 +540,9 @@ interface EntriesContentProps {
     hasMore?: boolean;
     postTitles?: string[];
   };
-  isActive: boolean;
+  isActive?: boolean;
+  className?: string;
 }
-
-// Then apply React.memo with correct typing
-const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
 
 // Now update the RSSEntriesClient to pass isActive to EntriesContent
 export function RSSEntriesClient({ 
@@ -870,7 +787,7 @@ export function RSSEntriesClient({
   // Return the EntriesContent directly
   return (
     <div className="w-full">
-      <EntriesContent
+      <EntriesContentComponent
         paginatedEntries={allEntriesState}
         hasMore={hasMoreState}
         loadMoreRef={loadMoreRef}
