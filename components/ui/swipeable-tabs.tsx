@@ -10,7 +10,7 @@ interface SwipeableTabsProps {
   tabs: {
     id: string;
     label: string;
-    content: React.ReactNode;
+    component: React.ComponentType<{ isActive: boolean }>; // Expect a component type
   }[];
   defaultTabIndex?: number;
   className?: string;
@@ -104,7 +104,7 @@ export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 200, // Default to 200ms for smoother animation
+  animationDuration = 400, // Increase default duration for slower animation
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
@@ -235,7 +235,7 @@ export function SwipeableTabs({
     const activeSlideNode = slideRefs.current[selectedTab];
     if (!activeSlideNode) return;
 
-    let debounceTimeout: NodeJS.Timeout | null = null; // Variable for debounce timeout
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null; // Use standard timeout type
 
     const resizeObserver = new ResizeObserver(() => {
       // Clear any existing timeout
@@ -383,16 +383,25 @@ export function SwipeableTabs({
         ref={emblaRef}
       >
         <div className="flex items-start"> {/* Add align-items: flex-start */}
-          {tabs.map((tab, index) => (
-            <div 
-              key={`carousel-${tab.id}`} 
-              className="min-w-0 flex-[0_0_100%]" 
-              ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
-            >
-              {/* Render TabContent directly inside the slide */}
-              {tab.content} {/* Render content unconditionally */}
-            </div>
-          ))}
+          {tabs.map((tab, index) => {
+            // Get the component type for the current tab
+            const TabComponent = tab.component;
+            // Determine if this tab is the active one
+            const isActive = index === selectedTab;
+
+            return (
+              <div 
+                key={`carousel-${tab.id}`} 
+                className="min-w-0 flex-[0_0_100%]" 
+                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
+                aria-hidden={!isActive} // Add aria-hidden for accessibility
+                // inert={!isActive ? "" : undefined} // Consider adding inert if browser support/TS allows
+              >
+                {/* Render the component, passing the isActive prop */}
+                <TabComponent isActive={isActive} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

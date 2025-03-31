@@ -72,7 +72,8 @@ interface FeedTabsContainerProps {
   pageSize?: number;
 }
 
-// Memoized component for the "Following" tab content
+// Memoized component for the "Following" tab content - REMOVED as we pass component directly
+/*
 const FollowingTabContent = React.memo(({ 
   initialData, 
   pageSize 
@@ -102,8 +103,10 @@ const FollowingTabContent = React.memo(({
   );
 });
 FollowingTabContent.displayName = 'FollowingTabContent';
+*/
 
-// Memoized component for the "Discover" tab content
+// Memoized component for the "Discover" tab content - REMOVED as we pass component directly
+/*
 const DiscoverTabContent = React.memo(({ 
   featuredData 
 }: { 
@@ -119,6 +122,7 @@ const DiscoverTabContent = React.memo(({
   );
 });
 DiscoverTabContent.displayName = 'DiscoverTabContent';
+*/
 
 export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
   // Memoize the tabs configuration to prevent unnecessary re-creation
@@ -127,19 +131,33 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
     {
       id: 'discover',
       label: 'Discover',
-      content: <DiscoverTabContent featuredData={featuredData} />
+      // Pass the component type, wrapping it if needed to pass props + isActive
+      component: ({ isActive }: { isActive: boolean }) => (
+        <FeaturedFeedWrapper 
+          initialData={featuredData as any /* Adjust typing */} 
+          // You might need to pass isActive down further into FeaturedFeedClient 
+          // isActive={isActive} 
+        />
+      )
     },
     // Following tab (renamed from Discover) - shows RSS feed content
     {
       id: 'following',
       label: 'Following',
-      content: <FollowingTabContent initialData={initialData} pageSize={pageSize} />
+      // Pass the component type, wrapping it to include isActive
+      component: ({ isActive }: { isActive: boolean }) => (
+        <RSSEntriesClient 
+          initialData={initialData as any /* Adjust typing */} 
+          pageSize={pageSize} 
+          isActive={isActive} // Pass isActive prop
+        />
+      )
     }
   ], [initialData, featuredData, pageSize]);
 
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
     </div>
   );
 }

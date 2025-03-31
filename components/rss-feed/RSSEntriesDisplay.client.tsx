@@ -342,6 +342,7 @@ interface RSSEntriesClientProps {
     postTitles?: string[];
   };
   pageSize?: number;
+  isActive?: boolean;
 }
 
 // Define a proper type for entry metrics
@@ -470,7 +471,11 @@ export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) 
   );
 }
 
-export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClientProps) {
+export function RSSEntriesClient({ 
+  initialData, 
+  pageSize = 30, 
+  isActive = true
+}: RSSEntriesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -481,29 +486,32 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
   const ITEMS_PER_REQUEST = pageSize;
   
   // Track all entries manually
-  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
+  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData?.entries || []);
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
+  const [hasMoreState, setHasMoreState] = useState(initialData?.hasMore || false);
   
   // Debug log the initial data
   useEffect(() => {
-    if (initialData) {
-      logger.debug('Initial data received in client:', {
-        entriesCount: initialData.entries?.length || 0,
-        postTitles: initialData.postTitles || [],
-        hasMore: initialData.hasMore,
-        totalEntries: initialData.totalEntries
-      });
-      
-      // Initialize state with initial data
-      setAllEntriesState(initialData.entries || []);
-      setHasMoreState(initialData.hasMore || false);
+    logger.debug('Initial data received in client:', {
+      entriesCount: initialData?.entries?.length || 0,
+      postTitles: initialData?.postTitles || [],
+      hasMore: initialData?.hasMore,
+      totalEntries: initialData?.totalEntries
+    });
+    
+    // Initialize state with initial data, using fallbacks for null/undefined
+    setAllEntriesState(initialData?.entries || []);
+    setHasMoreState(initialData?.hasMore || false);
+    // Reset page number if initialData changes (e.g., on error recovery)
+    if (initialData) { // Only reset page if we actually get new initial data
+        setCurrentPage(1);
     }
   }, [initialData]);
   
   // Function to load more entries directly
   const loadMoreEntries = useCallback(async () => {
-    if (isLoading || !hasMoreState) {
+    // Only load more if the tab is active and not already loading/no more data
+    if (!isActive || isLoading || !hasMoreState) { 
       logger.debug(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
       return;
     }
@@ -514,9 +522,9 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     try {
       // Extract post titles from the initial data
       let postTitlesParam = '';
-      if (initialData.postTitles && initialData.postTitles.length > 0) {
+      if (initialData?.postTitles && initialData.postTitles.length > 0) {
         postTitlesParam = JSON.stringify(initialData.postTitles);
-      } else if (initialData.entries && initialData.entries.length > 0) {
+      } else if (initialData?.entries && initialData.entries.length > 0) {
         // Extract unique post titles from entries
         const feedTitles = [...new Set(
           initialData.entries
@@ -537,7 +545,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
       baseUrl.searchParams.set('postTitles', postTitlesParam);
       
       // Pass the total entries to avoid unnecessary COUNT queries on the server
-      if (initialData.totalEntries) {
+      if (initialData?.totalEntries) {
         baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
         logger.debug(`📊 Passing cached totalEntries: ${initialData.totalEntries}`);
       }
@@ -624,7 +632,7 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, hasMoreState, initialData, isLoading, ITEMS_PER_REQUEST]);
+  }, [currentPage, hasMoreState, initialData, isLoading, ITEMS_PER_REQUEST, isActive]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => {
@@ -642,10 +650,10 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
     )];
   }, [allEntriesState]);
   
-  // Use the combined query to fetch entry metrics
+  // Use the combined query to fetch entry metrics - ONLY IF ACTIVE
   const combinedData = useQuery(
     api.entries.getFeedDataWithMetrics,
-    entryGuids.length > 0 ? { entryGuids, feedUrls } : "skip"
+    isActive && entryGuids.length > 0 ? { entryGuids, feedUrls } : "skip"
   );
   
   // Create a map for metrics lookups
@@ -691,9 +699,9 @@ export function RSSEntriesClient({ initialData, pageSize = 30 }: RSSEntriesClien
           variant="outline" 
           onClick={() => {
             setFetchError(null);
-            setAllEntriesState(initialData.entries || []);
+            setAllEntriesState(initialData?.entries || []);
             setCurrentPage(1);
-            setHasMoreState(initialData.hasMore || false);
+            setHasMoreState(initialData?.hasMore || false);
           }}
         >
           Try Again
