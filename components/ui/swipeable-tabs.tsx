@@ -108,7 +108,6 @@ export function SwipeableTabs({
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
-  const [visitedTabs, setVisitedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -303,9 +302,6 @@ export function SwipeableTabs({
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
         
-        // Mark this tab as visited
-        setVisitedTabs(prev => new Set([...prev, index]));
-        
         // Update selected tab
         setSelectedTab(index);
         
@@ -337,9 +333,6 @@ export function SwipeableTabs({
       if (!isRestoringScrollRef.current) {
         scrollPositionsRef.current[selectedTab] = window.scrollY;
       }
-      
-      // Mark this tab as visited
-      setVisitedTabs(prev => new Set([...prev, index]));
       
       // Use scrollTo with immediate=true to skip animation
       emblaApi.scrollTo(index, true);
@@ -386,8 +379,7 @@ export function SwipeableTabs({
               ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
             >
               {/* Render TabContent directly inside the slide */}
-              {/* Only render content if the tab has been visited */}
-              {visitedTabs.has(index) ? tab.content : null}
+              {tab.content} {/* Render content unconditionally */}
             </div>
           ))}
         </div>
