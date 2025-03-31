@@ -188,7 +188,7 @@ export function SwipeableTabs({
         if (!isRestoringScrollRef.current && transitionScrollLockRef.current === null) {
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
-      }, 150); // Debounce delay of 150ms
+      }, 75); // REDUCED Debounce delay to 75ms
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -199,7 +199,7 @@ export function SwipeableTabs({
         clearTimeout(scrollDebounceTimeoutRef.current);
       }
     };
-  }, [selectedTab]); 
+  }, [selectedTab]);
 
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
@@ -230,8 +230,8 @@ export function SwipeableTabs({
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Only prevent default if horizontal movement is greater than vertical
-        if (deltaX > deltaY) {
+        // Only prevent default if horizontal movement is SIGNIFICANTLY greater
+        if (deltaX > deltaY * 1.5) { // ADJUSTED Threshold
           e.preventDefault();
         }
       };
@@ -465,10 +465,11 @@ export function SwipeableTabs({
 
     let isTransitioning = false;
     
+    // RELAXED preventScroll: Only preventDefault, don't force scrollTo
     const preventScroll = (e: Event) => {
-      if (isTransitioning && transitionScrollLockRef.current !== null) {
-        window.scrollTo(0, transitionScrollLockRef.current);
-        e.preventDefault();
+      if (isTransitioning) {
+        // REMOVED: window.scrollTo(0, transitionScrollLockRef.current);
+        e.preventDefault(); 
       }
     };
     
