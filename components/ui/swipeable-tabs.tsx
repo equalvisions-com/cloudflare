@@ -121,6 +121,17 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
+  // Create memoized component renderers
+  const memoizedTabRenderers = useMemo(() => {
+    return tabs.map((tab) => {
+      // This function is stable across renders
+      return (isActive: boolean) => {
+        const TabComponent = tab.component;
+        return <TabComponent isActive={isActive} />;
+      };
+    });
+  }, [tabs]); // Only recreate if tabs array changes
+  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -425,10 +436,10 @@ export function SwipeableTabs({
       >
         <div className="flex items-start"> {/* Add align-items: flex-start */}
           {tabs.map((tab, index) => {
-            // Get the component type for the current tab
-            const TabComponent = tab.component;
-            // Determine if this tab is the active one
             const isActive = index === selectedTab;
+            
+            // Use the memoized renderer for this tab
+            const renderTab = memoizedTabRenderers[index];
 
             return (
               <div 
@@ -438,8 +449,8 @@ export function SwipeableTabs({
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{ willChange: 'transform' }} // Add will-change hint AGAIN
               >
-                {/* Render the component, passing the isActive prop */}
-                <TabComponent isActive={isActive} />
+                {/* The renderer function is stable, only the isActive prop changes */}
+                {renderTab(isActive)}
               </div>
             );
           })}
