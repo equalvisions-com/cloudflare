@@ -380,7 +380,7 @@ interface EntriesContentProps {
 }
 
 // Define a component for the RSS entries
-const EntriesContentComponent = React.memo(({
+const EntriesContentComponent = ({
   paginatedEntries,
   hasMore,
   loadMoreRef,
@@ -523,7 +523,13 @@ const EntriesContentComponent = React.memo(({
       />
     </div>
   );
-});
+};
+
+// Set the display name for debugging
+EntriesContentComponent.displayName = 'EntriesContent';
+
+// Wrap with React.memo AFTER defining the component and its displayName
+const EntriesContent = React.memo(EntriesContentComponent);
 
 // Define the interface for our component props
 interface EntriesContentProps {
@@ -787,7 +793,7 @@ export function RSSEntriesClient({
   // Return the EntriesContent directly
   return (
     <div className="w-full">
-      <EntriesContentComponent
+      <EntriesContent
         paginatedEntries={allEntriesState}
         hasMore={hasMoreState}
         loadMoreRef={loadMoreRef}
