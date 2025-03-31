@@ -149,12 +149,12 @@ export function SwipeableTabs({
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    skipSnaps: true,
+    skipSnaps: false,
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'trimSnaps',
-    dragFree: true,
-    duration: animationDuration * 1.2, // Slightly longer duration for smoother end
+    dragFree: false,
+    duration: 20, // Fast but smooth scroll like CategorySliderWrapper
   }, [AutoHeight()]); // Re-add AutoHeight plugin
 
   // Save scroll position when user scrolls
@@ -252,10 +252,16 @@ export function SwipeableTabs({
 
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
     let isInTransition = false;
+    let delayedReInitTimeout: ReturnType<typeof setTimeout> | null = null;
     
     // Function to track transition state
     const onTransitionStart = () => {
       isInTransition = true;
+      // Clear any pending reInit when a new transition starts
+      if (delayedReInitTimeout) {
+        clearTimeout(delayedReInitTimeout);
+        delayedReInitTimeout = null;
+      }
     };
     
     const onTransitionEnd = () => {
@@ -275,8 +281,14 @@ export function SwipeableTabs({
           if (emblaApi) {
             // If in transition, delay reInit
             if (isInTransition) {
-              // If animating, delay reInit until animation completes
-              setTimeout(() => emblaApi.reInit(), animationDuration);
+              // If animating, delay reInit until animation completes with a much longer buffer
+              if (delayedReInitTimeout) {
+                clearTimeout(delayedReInitTimeout);
+              }
+              // Use a much longer delay (300ms) to ensure animation is truly complete
+              delayedReInitTimeout = setTimeout(() => {
+                if (emblaApi) emblaApi.reInit();
+              }, 300); // Buffer after animation to prevent visible snapping
             } else {
               emblaApi.reInit();
             }
@@ -296,6 +308,7 @@ export function SwipeableTabs({
       resizeObserver.disconnect();
       observerRef.current = null; // Clear the ref
       if (debounceTimeout) clearTimeout(debounceTimeout);
+      if (delayedReInitTimeout) clearTimeout(delayedReInitTimeout);
       emblaApi.off('settle', onTransitionEnd);
       emblaApi.off('select', onTransitionStart);
     };
@@ -314,18 +327,21 @@ export function SwipeableTabs({
         // console.log('Pointer Up / Settle: Attempting to reconnect observer'); // Debug log
         if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
 
-        // Get the CURRENT selected index directly from emblaApi
-        const currentSelectedIndex = emblaApi.selectedScrollSnap();
-        const activeSlideNode = slideRefs.current[currentSelectedIndex];
+        // Wait a bit before reconnecting to avoid interrupting animation
+        setTimeout(() => {
+          // Get the CURRENT selected index directly from emblaApi
+          const currentSelectedIndex = emblaApi.selectedScrollSnap();
+          const activeSlideNode = slideRefs.current[currentSelectedIndex];
 
-        if (activeSlideNode) {
-          // console.log('Reconnecting observer to tab', currentSelectedIndex); // Debug log
-          // Ensure we don't observe multiple times if events fire closely
-          observerRef.current.disconnect(); 
-          observerRef.current.observe(activeSlideNode);
-        } else {
-          // console.log('Could not find active slide node for index', currentSelectedIndex); // Debug log
-        }
+          if (activeSlideNode && observerRef.current) {
+            // console.log('Reconnecting observer to tab', currentSelectedIndex); // Debug log
+            // Ensure we don't observe multiple times if events fire closely
+            observerRef.current.disconnect(); 
+            observerRef.current.observe(activeSlideNode);
+          } else {
+            // console.log('Could not find active slide node for index', currentSelectedIndex); // Debug log
+          }
+        }, 250); // Wait 250ms after settle/pointerUp before re-enabling height adjustment
     };
 
     // Add listeners
