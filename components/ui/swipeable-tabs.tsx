@@ -125,10 +125,13 @@ export function SwipeableTabs({
   const memoizedTabRenderers = useMemo(() => {
     return tabs.map((tab) => {
       // This function is stable across renders
-      return (isActive: boolean) => {
+      const TabRenderer = (isActive: boolean) => {
         const TabComponent = tab.component;
         return <TabComponent isActive={isActive} />;
       };
+      // Add display name to satisfy the linter
+      TabRenderer.displayName = `TabRenderer_${tab.id}`;
+      return TabRenderer;
     });
   }, [tabs]); // Only recreate if tabs array changes
   
