@@ -68,10 +68,11 @@ interface UserLikesFeedProps {
     entryMetrics?: Record<string, InteractionStates>;
   } | null;
   pageSize?: number;
+  isActive?: boolean;
 }
 
 // Custom hook for batch metrics - same as in UserActivityFeed
-function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
+function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>, isActive?: boolean) {
   // Track if we've already received initial metrics
   const hasInitialMetrics = useMemo(() => 
     Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
@@ -104,7 +105,7 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   // Fetch batch metrics for all entries only when needed
   const batchMetricsQuery = useQuery(
     api.entries.batchGetEntriesMetrics,
-    shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
+    isActive && shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
   );
   
   // Create a memoized metrics map that combines initial metrics with query results
@@ -435,7 +436,7 @@ ActivityCard.displayName = 'ActivityCard';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) {
+export function UserLikesFeed({ userId, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
@@ -459,7 +460,8 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
   // Use our custom hook for metrics
   const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
     entryGuids,
-    initialData?.entryMetrics
+    initialData?.entryMetrics,
+    isActive
   );
 
   // Log when initial data is received
@@ -482,7 +484,7 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
 
   // Function to load more activities
   const loadMoreActivities = useCallback(async () => {
-    if (isLoading || !hasMore) {
+    if (!isActive || isLoading || !hasMore) {
       console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}`);
       return;
     }
@@ -525,7 +527,7 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMore, currentSkip, userId, pageSize, activities.length]);
+  }, [isActive, isLoading, hasMore, currentSkip, userId, pageSize, activities.length]);
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {

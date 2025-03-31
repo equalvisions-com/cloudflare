@@ -207,29 +207,34 @@ export function UserProfileTabs({
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
-    // Activity tab
-    {
-      id: 'activity',
-      label: 'Activity',
-      content: <ActivityTabContent 
-                userId={userId} 
-                username={username} 
-                name={name}
-                profileImage={profileImage}
-                activityData={activityData} 
-                pageSize={pageSize} 
-              />
+    { 
+      id: 'activity', 
+      label: 'Activity', 
+      component: ({ isActive }: { isActive: boolean }) => (
+        <UserActivityFeed 
+          key="activity-feed" 
+          userId={userId} 
+          username={username} 
+          name={name}
+          profileImage={profileImage}
+          initialData={activityData} 
+          pageSize={pageSize} 
+          isActive={isActive}
+        /> 
+      )
     },
-    // Likes tab
-    {
-      id: 'likes',
-      label: 'Likes',
-      content: <LikesTabContent 
-                userId={userId}
-                likesData={likesState.data} 
-                pageSize={pageSize}
-                isLoading={likesState.status === 'loading'}
-              />
+    { 
+      id: 'likes', 
+      label: 'Likes', 
+      component: ({ isActive }: { isActive: boolean }) => (
+        <UserLikesFeed 
+          key="likes-feed" 
+          userId={userId} 
+          initialData={likesState.data} 
+          pageSize={pageSize} 
+          isActive={isActive}
+        /> 
+      )
     }
   ], [
     userId, 
