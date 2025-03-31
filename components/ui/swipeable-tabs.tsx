@@ -147,6 +147,7 @@ export function SwipeableTabs({
   // Use the AutoHeight plugin with default options - REMOVED AutoHeight
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
+  const tabHeightsRef = useRef<Record<number, number>>({});
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     skipSnaps: false,
@@ -254,9 +255,30 @@ export function SwipeableTabs({
     let isInTransition = false;
     let delayedReInitTimeout: ReturnType<typeof setTimeout> | null = null;
     
+    // Pre-measure slide heights to avoid layout shifts during animation
+    const measureSlideHeights = () => {
+      slideRefs.current.forEach((slide, index) => {
+        if (slide && slide.offsetHeight > 0) {
+          tabHeightsRef.current[index] = slide.offsetHeight;
+        }
+      });
+    };
+    
+    // Call initially
+    measureSlideHeights();
+    
     // Function to track transition state
     const onTransitionStart = () => {
       isInTransition = true;
+      
+      // Apply fixed height to container during animation
+      const emblaContainer = emblaApi.containerNode();
+      const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
+      if (emblaContainer && targetHeight) {
+        emblaContainer.style.height = `${targetHeight}px`;
+        emblaContainer.style.transition = 'none';
+      }
+      
       // Clear any pending reInit when a new transition starts
       if (delayedReInitTimeout) {
         clearTimeout(delayedReInitTimeout);
@@ -266,6 +288,20 @@ export function SwipeableTabs({
     
     const onTransitionEnd = () => {
       isInTransition = false;
+      
+      // After transition completes, let AutoHeight take over again
+      const emblaContainer = emblaApi.containerNode();
+      if (emblaContainer) {
+        setTimeout(() => {
+          if (emblaContainer) {
+            emblaContainer.style.height = '';
+            emblaContainer.style.transition = '';
+            emblaApi.reInit();
+            // Remeasure heights
+            measureSlideHeights();
+          }
+        }, 50); // Short delay after animation
+      }
     };
     
     // Add transition listeners
@@ -481,7 +517,11 @@ export function SwipeableTabs({
           WebkitBackfaceVisibility: 'hidden'
         }}
       >
-        <div className="flex items-start"> {/* Add align-items: flex-start */}
+        <div className="flex items-start"
+          style={{
+            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined
+          }}
+        > 
           {tabs.map((tab, index) => {
             const isActive = index === selectedTab;
             
