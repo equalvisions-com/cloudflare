@@ -434,7 +434,7 @@ function EntriesContentComponent({
         useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
-          logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${paginatedEntries.length}`);
+          logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}`);
           if (hasMore && !isPending) {
             logger.debug('📥 Virtuoso end reached, loading more entries');
             loadMore();

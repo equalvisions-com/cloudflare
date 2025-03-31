@@ -15,4 +15,17 @@
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
+}
+
+/* Prevent browser navigation interference with horizontal swipes */
+.prevent-overscroll-navigation {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+/* Main swipeable tabs container */
+.swipeable-tabs-container {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch; /* For iOS */
+  overscroll-behavior-x: none;
 } 

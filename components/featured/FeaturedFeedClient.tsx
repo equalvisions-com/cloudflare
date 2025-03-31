@@ -55,10 +55,12 @@ interface FeaturedEntryProps {
 
 const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: FeaturedEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = currentTrack?.src === entry.link;
+  const isCurrentlyPlaying = currentTrack?.src === entry?.link;
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
+    if (!entry?.pub_date) return '';
+    
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
     let pubDate: Date;
@@ -101,20 +103,24 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entry.pub_date]);
+  }, [entry?.pub_date]);
 
   // Generate post URL if we have category and post slugs
-  const postUrl = postMetadata.categorySlug && postMetadata.postSlug 
+  const postUrl = postMetadata?.categorySlug && postMetadata?.postSlug 
     ? `/${postMetadata.categorySlug}/${postMetadata.postSlug}`
     : null;
 
   // Handle podcast playback
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (postMetadata.mediaType?.toLowerCase() === 'podcast') {
+    if (postMetadata?.mediaType?.toLowerCase() === 'podcast' && entry?.link) {
       e.preventDefault();
-      playTrack(entry.link, decode(entry.title), entry.image);
+      playTrack(entry.link, decode(entry.title || ''), entry.image || '');
     }
-  }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
+  }, [postMetadata?.mediaType, entry?.link, entry?.title, entry?.image, playTrack]);
+
+  if (!entry) {
+    return null;
+  }
 
   return (
     <article>
@@ -252,41 +258,41 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
-              title={entry.title}
+              title={entry.title || ''}
               pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.likes}
+              link={entry.link || ''}
+              initialData={initialData?.likes || { isLiked: false, count: 0 }}
             />
           </div>
           <div>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
-              initialData={initialData.comments}
+              initialData={initialData?.comments || { count: 0 }}
             />
           </div>
           <div>
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
-              title={entry.title}
+              title={entry.title || ''}
               pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
+              link={entry.link || ''}
+              initialData={initialData?.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
           <div className="flex items-center gap-4">
             <BookmarkButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
-              title={entry.title}
+              title={entry.title || ''}
               pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.bookmarks || { isBookmarked: false }}
+              link={entry.link || ''}
+              initialData={initialData?.bookmarks || { isBookmarked: false }}
             />
             <ShareButtonClient
-              url={entry.link}
-              title={entry.title}
+              url={entry.link || ''}
+              title={entry.title || ''}
             />
           </div>
         </div>
@@ -314,7 +320,7 @@ const FeedContent = React.memo(({
   loadMore: () => void,
   isLoading: boolean
 }) => {
-  if (!entries.length) {
+  if (!entries || !entries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         No featured entries found.
@@ -336,6 +342,8 @@ const FeedContent = React.memo(({
         initialTopMostItemIndex={0}
         itemContent={index => {
           const entryWithData = visibleEntries[index];
+          if (!entryWithData) return null;
+          
           return (
             <FeaturedEntry
               entryWithData={entryWithData}
@@ -355,9 +363,9 @@ const FeedContent = React.memo(({
 FeedContent.displayName = 'FeedContent';
 
 interface FeaturedFeedClientProps {
-  initialData: {
-    entries: FeaturedEntryWithData[];
-    totalEntries: number;
+  initialData?: {
+    entries?: FeaturedEntryWithData[];
+    totalEntries?: number;
   };
   pageSize?: number;
 }
@@ -370,18 +378,23 @@ export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientPro
   );
 }
 
-export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedClientProps) {
+export function FeaturedFeedClient({ initialData = { entries: [], totalEntries: 0 }, pageSize = 30 }: FeaturedFeedClientProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
+  // Handle the case where initialData or entries might be null/undefined
+  const entries = useMemo(() => {
+    return initialData?.entries || [];
+  }, [initialData]);
+  
   // Calculate visible entries based on current page
   const visibleEntries = useMemo(() => {
-    return initialData.entries.slice(0, currentPage * pageSize);
-  }, [initialData.entries, currentPage, pageSize]);
+    return entries.slice(0, currentPage * pageSize);
+  }, [entries, currentPage, pageSize]);
   
   // Check if there are more entries to load
-  const hasMore = visibleEntries.length < initialData.entries.length;
+  const hasMore = visibleEntries.length < entries.length;
   
   // Function to load more entries - just update the page number
   const loadMore = () => {
@@ -395,11 +408,10 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
     }
   };
   
-  // Return the FeedContent directly instead of using tabs
   return (
     <div className="w-full">
       <FeedContent
-        entries={initialData.entries}
+        entries={entries}
         visibleEntries={visibleEntries}
         loadMoreRef={loadMoreRef}
         hasMore={hasMore}

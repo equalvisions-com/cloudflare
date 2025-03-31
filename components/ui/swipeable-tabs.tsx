@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
+import { EmblaCarouselType } from 'embla-carousel';
 import AutoHeight from 'embla-carousel-auto-height';
 import './swipeable-tabs.css';
+
+// Define mobile breakpoint constant
+const MOBILE_BREAKPOINT = 768;
 
 interface SwipeableTabsProps {
   tabs: {
@@ -16,6 +20,26 @@ interface SwipeableTabsProps {
   className?: string;
   animationDuration?: number; // Animation duration in milliseconds
   onTabChange?: (index: number) => void; // Callback when tab changes
+}
+
+// Create a context to provide the embla instance and tab controls to children
+interface SwipeableTabsContextValue {
+  emblaApi: EmblaCarouselType | null;
+  selectedTab: number;
+  totalTabs: number;
+  scrollToTab: (index: number, immediate?: boolean) => void;
+}
+
+export const SwipeableTabsContext = createContext<SwipeableTabsContextValue>({
+  emblaApi: null,
+  selectedTab: 0,
+  totalTabs: 0,
+  scrollToTab: () => {}
+});
+
+// Hook to access the SwipeableTabsContext
+export function useSwipeableTabs() {
+  return useContext(SwipeableTabsContext);
 }
 
 // Memoized tab header component to prevent re-renders
@@ -38,7 +62,6 @@ const TabHeaders = React.memo(({
 
   return (
     <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
-      
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -81,6 +104,11 @@ const TabContent = React.memo(({
   isActive: boolean,
   id: string
 }) => {
+  // Clone the content element and pass the isVisible prop
+  const enhancedContent = React.isValidElement(content) 
+    ? React.cloneElement(content, { isVisible: isActive } as any) 
+    : content;
+  
   return (
     <div 
       id={`tab-content-${id}`}
@@ -94,7 +122,7 @@ const TabContent = React.memo(({
       role="tabpanel"
       aria-labelledby={`tab-${id}`}
     >
-      {content}
+      {enhancedContent}
     </div>
   );
 });
@@ -109,6 +137,7 @@ export function SwipeableTabs({
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [visitedTabs, setVisitedTabs] = useState<Set<number>>(new Set([defaultTabIndex]));
+  const [isMobile, setIsMobile] = useState(false);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -122,6 +151,22 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
+  // Check for mobile viewport on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    
+    // Check initially
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -131,54 +176,19 @@ export function SwipeableTabs({
     });
   }, [tabs]);
   
-  // Use the AutoHeight plugin with default options
-  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+  // Options for mobile carousel
+  const carouselOptions = useMemo(() => ({
     loop: false,
     skipSnaps: false,
     startIndex: defaultTabIndex,
-    align: 'start',
-    containScroll: 'trimSnaps',
+    align: 'start' as const,
+    containScroll: 'trimSnaps' as const,
     dragFree: false,
-    duration: animationDuration,
-  }, [AutoHeight()]);
-
-  // Add CSS to the document for tab content transitions
-  useEffect(() => {
-    // Create a style element
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .tab-content {
-        display: block;
-      }
-      .tab-content-active {
-        display: block;
-      }
-      .tab-content-inactive {
-        display: none;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // Clean up
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
-  // Save scroll position when user scrolls
-  useEffect(() => {
-    const handleScroll = () => {
-      // Only save scroll position if we're not in the middle of restoring
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [selectedTab]);
+    duration: isMobile ? 30 : animationDuration, // Use slightly longer duration on mobile for smoother animations
+  }), [defaultTabIndex, animationDuration, isMobile]);
+  
+  // Use the AutoHeight plugin with default options
+  const [emblaRef, emblaApi] = useEmblaCarousel(carouselOptions, [AutoHeight()]);
 
   // Function to restore scroll position
   const restoreScrollPosition = useCallback((index: number) => {
@@ -220,6 +230,31 @@ export function SwipeableTabs({
     }
   }, [onTabChange, selectedTab]);
   
+  // Function to scroll to a tab - will be provided via context
+  const scrollToTab = useCallback((index: number, immediate: boolean = false) => {
+    if (!emblaApi || index === selectedTab || index < 0 || index >= tabs.length) return;
+    
+    // Save current scroll position
+    if (!isRestoringScrollRef.current) {
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+    }
+    
+    // Mark this tab as visited
+    setVisitedTabs(prev => new Set([...prev, index]));
+    
+    // Use scrollTo
+    emblaApi.scrollTo(index, immediate);
+    
+    // Update selected tab
+    setSelectedTab(index);
+    
+    // Handle tab change with debounce
+    handleTabChangeWithDebounce(index);
+    
+    // Restore scroll position
+    restoreScrollPosition(index);
+  }, [emblaApi, selectedTab, tabs.length, handleTabChangeWithDebounce, restoreScrollPosition]);
+  
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -257,29 +292,9 @@ export function SwipeableTabs({
   // Handle tab click
   const handleTabClick = useCallback(
     (index: number) => {
-      if (!emblaApi || index === selectedTab) return;
-      
-      // Save current scroll position
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
-      }
-      
-      // Mark this tab as visited
-      setVisitedTabs(prev => new Set([...prev, index]));
-      
-      // Use scrollTo with immediate=true to skip animation
-      emblaApi.scrollTo(index, true);
-      
-      // Update selected tab
-      setSelectedTab(index);
-      
-      // Handle tab change with debounce
-      handleTabChangeWithDebounce(index);
-      
-      // Restore scroll position
-      restoreScrollPosition(index);
+      scrollToTab(index, !isMobile);
     },
-    [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]
+    [scrollToTab, isMobile]
   );
 
   // Pre-render all tab contents but keep them hidden when not active
@@ -294,6 +309,52 @@ export function SwipeableTabs({
     ));
   }, [tabs, selectedTab, visitedTabs]);
 
+  // Create the context value
+  const contextValue = useMemo(() => ({
+    emblaApi: emblaApi || null,
+    selectedTab,
+    totalTabs: tabs.length,
+    scrollToTab
+  }), [emblaApi, selectedTab, tabs.length, scrollToTab]);
+
+  // Add CSS to the document for tab content transitions
+  useEffect(() => {
+    // Create a style element
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .tab-content {
+        display: block;
+      }
+      .tab-content-active {
+        display: block;
+      }
+      .tab-content-inactive {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Clean up
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // Save scroll position when user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      // Only save scroll position if we're not in the middle of restoring
+      if (!isRestoringScrollRef.current) {
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [selectedTab]);
+
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -301,39 +362,39 @@ export function SwipeableTabs({
   }, [defaultTabIndex]);
 
   return (
-    <div 
-      className={cn('w-full h-full', className)}
-    >
-      {/* Tab Headers */}
-      <TabHeaders 
-        tabs={tabs} 
-        selectedTab={selectedTab} 
-        onTabClick={handleTabClick} 
-      />
+    <SwipeableTabsContext.Provider value={contextValue}>
+      <div className={cn('w-full h-full swipeable-tabs-container', className)}>
+        {/* Tab Headers */}
+        <TabHeaders 
+          tabs={tabs} 
+          selectedTab={selectedTab} 
+          onTabClick={handleTabClick} 
+        />
 
-      {/* All tab contents are rendered but only the selected one is visible */}
-      <div className="w-full">
-        {renderedTabs}
-      </div>
+        {/* All tab contents are rendered but only the selected one is visible */}
+        <div className="w-full">
+          {renderedTabs}
+        </div>
 
-      {/* Hidden carousel for tab switching - not visible but controls tab selection */}
-      <div 
-        className="w-full h-0 overflow-hidden" 
-        ref={emblaRef}
-        aria-hidden="true"
-      >
-        <div className="flex">
-          {tabs.map((tab) => (
-            <div 
-              key={`carousel-${tab.id}`} 
-              className="min-w-0 flex-[0_0_100%]"
-              style={{ minHeight: '1px' }} // Ensure content has minimum height
-            >
-              {/* Empty div just for carousel control */}
-            </div>
-          ))}
+        {/* Hidden carousel for tab switching - not visible but controls tab selection */}
+        <div 
+          className="w-full h-0 overflow-hidden prevent-overscroll-navigation" 
+          ref={emblaRef}
+          aria-hidden="true"
+        >
+          <div className="flex">
+            {tabs.map((tab) => (
+              <div 
+                key={`carousel-${tab.id}`} 
+                className="min-w-0 flex-[0_0_100%]"
+                style={{ minHeight: '1px' }} // Ensure content has minimum height
+              >
+                {/* Empty div just for carousel control */}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </SwipeableTabsContext.Provider>
   );
 } 
