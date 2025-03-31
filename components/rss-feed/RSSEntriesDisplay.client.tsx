@@ -402,6 +402,8 @@ function EntriesContentComponent({
   
   // Store the current first visible item index to restore position
   const [firstItemIndex, setFirstItemIndex] = useState(0);
+  // Track if position has been restored for this tab session
+  const hasRestoredPosition = useRef(false);
   
   // Track whether this component is mounted
   const isMounted = useRef(true);
@@ -411,20 +413,30 @@ function EntriesContentComponent({
     if (isActive) {
       wasEverVisible.current = true;
       
-      // Small delay to ensure the Virtuoso instance is available
-      const timer = setTimeout(() => {
-        if (virtuosoRef.current && isMounted.current) {
-          // Restore to the previously saved position
-          logger.debug(`Restoring scroll position to index ${firstItemIndex}`);
-          virtuosoRef.current.scrollToIndex({
-            index: firstItemIndex,
-            align: 'start',
-            behavior: 'auto'
-          });
-        }
-      }, 50);
+      // Only restore position once when tab becomes active, not on every render or scroll
+      if (!hasRestoredPosition.current && virtuosoRef.current && firstItemIndex > 0) {
+        logger.debug(`Restoring scroll position to index ${firstItemIndex}`);
+        
+        // Use setTimeout to ensure restoration happens after render
+        setTimeout(() => {
+          if (virtuosoRef.current && isMounted.current) {
+            // Use scrollToIndex but with smooth behavior to prevent jarring jumps
+            virtuosoRef.current.scrollToIndex({
+              index: firstItemIndex,
+              align: 'start',
+              behavior: 'auto'
+            });
+            
+            // Mark that we've restored position for this session
+            hasRestoredPosition.current = true;
+          }
+        }, 50);
+      }
       
-      return () => clearTimeout(timer);
+      // Reset the flag when tab becomes inactive
+      return () => {
+        hasRestoredPosition.current = false;
+      };
     }
   }, [isActive, firstItemIndex]);
   
@@ -499,7 +511,8 @@ function EntriesContentComponent({
         key={`feed-content-${paginatedEntries.length > 0 ? paginatedEntries[0].entry.feedUrl : 'empty'}`}
         // Track the first visible item to restore position later
         rangeChanged={range => {
-          if (isActive && range.startIndex !== undefined) {
+          // Only update the position if we're active and scrolling isn't from our restoration
+          if (isActive && range.startIndex !== undefined && hasRestoredPosition.current) {
             setFirstItemIndex(range.startIndex);
             logger.debug(`Saved scroll position: startIndex=${range.startIndex}`);
           }
