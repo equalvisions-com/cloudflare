@@ -251,6 +251,20 @@ export function SwipeableTabs({
     if (!activeSlideNode) return;
 
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isInTransition = false;
+    
+    // Function to track transition state
+    const onTransitionStart = () => {
+      isInTransition = true;
+    };
+    
+    const onTransitionEnd = () => {
+      isInTransition = false;
+    };
+    
+    // Add transition listeners
+    emblaApi.on('settle', onTransitionEnd);
+    emblaApi.on('select', onTransitionStart);
 
     // Create the observer instance
     const resizeObserver = new ResizeObserver(() => {
@@ -258,10 +272,17 @@ export function SwipeableTabs({
       debounceTimeout = setTimeout(() => {
         // Wrap reInit in requestAnimationFrame
         window.requestAnimationFrame(() => {
-          // console.log('ResizeObserver triggered reInit for tab', selectedTab); // Debug log
-          emblaApi?.reInit();
+          if (emblaApi) {
+            // If in transition, delay reInit
+            if (isInTransition) {
+              // If animating, delay reInit until animation completes
+              setTimeout(() => emblaApi.reInit(), animationDuration);
+            } else {
+              emblaApi.reInit();
+            }
+          }
         });
-      }, 200);
+      }, 250); // Slightly longer debounce
     });
 
     // Observe the initially active node
@@ -275,8 +296,10 @@ export function SwipeableTabs({
       resizeObserver.disconnect();
       observerRef.current = null; // Clear the ref
       if (debounceTimeout) clearTimeout(debounceTimeout);
+      emblaApi.off('settle', onTransitionEnd);
+      emblaApi.off('select', onTransitionStart);
     };
-  }, [emblaApi, selectedTab]); // Dependency on selectedTab ensures it observes the correct initial node
+  }, [emblaApi, selectedTab, animationDuration]); // Dependency on selectedTab ensures it observes the correct initial node
 
   // --- Effect to PAUSE/RESUME observer during interaction ---
   useEffect(() => {
@@ -436,6 +459,11 @@ export function SwipeableTabs({
       <div 
         className="w-full overflow-hidden embla__swipeable_tabs" // Make container visible, remove h-0
         ref={emblaRef}
+        style={{ 
+          willChange: 'transform',
+          WebkitPerspective: '1000',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
       >
         <div className="flex items-start"> {/* Add align-items: flex-start */}
           {tabs.map((tab, index) => {
@@ -447,10 +475,14 @@ export function SwipeableTabs({
             return (
               <div 
                 key={`carousel-${tab.id}`} 
-                className="min-w-0 flex-[0_0_100%]" 
+                className="min-w-0 flex-[0_0_100%] transform-gpu" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
-                style={{ willChange: 'transform' }} // Add will-change hint AGAIN
+                style={{ 
+                  willChange: 'transform', 
+                  transform: 'translate3d(0,0,0)',
+                  WebkitBackfaceVisibility: 'hidden'
+                }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
                 {renderTab(isActive)}
