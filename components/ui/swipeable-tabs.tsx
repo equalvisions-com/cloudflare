@@ -132,6 +132,7 @@ export function SwipeableTabs({
   
   // Use the AutoHeight plugin with default options - REMOVED AutoHeight
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
+  const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     skipSnaps: false,
@@ -228,37 +229,78 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
-  // Add ResizeObserver to track height changes of the active slide
+  // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
     if (!emblaApi || typeof window === 'undefined') return;
 
     const activeSlideNode = slideRefs.current[selectedTab];
     if (!activeSlideNode) return;
 
-    let debounceTimeout: ReturnType<typeof setTimeout> | null = null; // Use standard timeout type
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    // Create the observer instance
     const resizeObserver = new ResizeObserver(() => {
-      // Clear any existing timeout
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-
-      // Set a new timeout to run reInit after a short delay (e.g., 200ms)
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-          emblaApi?.reInit();
+        // console.log('ResizeObserver triggered reInit for tab', selectedTab); // Debug log
+        emblaApi?.reInit();
       }, 200);
     });
 
+    // Observe the initially active node
     resizeObserver.observe(activeSlideNode);
+    // Store the instance
+    observerRef.current = resizeObserver;
 
+    // Cleanup: disconnect the observer when tab changes or component unmounts
     return () => {
-        resizeObserver.disconnect();
-        // Clear timeout on cleanup as well
-        if (debounceTimeout) {
-            clearTimeout(debounceTimeout);
+      // console.log('Disconnecting observer for tab', selectedTab); // Debug log
+      resizeObserver.disconnect();
+      observerRef.current = null; // Clear the ref
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+    };
+  }, [emblaApi, selectedTab]); // Dependency on selectedTab ensures it observes the correct initial node
+
+  // --- Effect to PAUSE/RESUME observer during interaction ---
+  useEffect(() => {
+    if (!emblaApi || !observerRef) return; // Need emblaApi and the observerRef
+
+    const disableObserver = () => {
+        // console.log('Pointer Down: Disconnecting observer'); // Debug log
+        observerRef.current?.disconnect();
+    };
+
+    const enableObserver = () => {
+        // console.log('Pointer Up / Settle: Attempting to reconnect observer'); // Debug log
+        if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
+
+        // Get the CURRENT selected index directly from emblaApi
+        const currentSelectedIndex = emblaApi.selectedScrollSnap();
+        const activeSlideNode = slideRefs.current[currentSelectedIndex];
+
+        if (activeSlideNode) {
+          // console.log('Reconnecting observer to tab', currentSelectedIndex); // Debug log
+          // Ensure we don't observe multiple times if events fire closely
+          observerRef.current.disconnect(); 
+          observerRef.current.observe(activeSlideNode);
+        } else {
+          // console.log('Could not find active slide node for index', currentSelectedIndex); // Debug log
         }
     };
-  }, [emblaApi, selectedTab]); // Re-run when selectedTab changes to observe the new active slide
+
+    // Add listeners
+    emblaApi.on('pointerDown', disableObserver);
+    emblaApi.on('pointerUp', enableObserver);
+    emblaApi.on('settle', enableObserver); // Handles programmatic scrolls and snaps
+
+    // Cleanup listeners
+    return () => {
+      emblaApi.off('pointerDown', disableObserver);
+      emblaApi.off('pointerUp', enableObserver);
+      emblaApi.off('settle', enableObserver);
+    };
+    // Only depends on emblaApi itself, enableObserver has its own logic to find the right node
+  }, [emblaApi]);
 
   // Function to restore scroll position
   const restoreScrollPosition = useCallback((index: number) => {
