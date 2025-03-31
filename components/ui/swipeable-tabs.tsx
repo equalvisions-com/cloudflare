@@ -243,10 +243,10 @@ export function SwipeableTabs({
         clearTimeout(debounceTimeout);
       }
 
-      // Set a new timeout to run reInit after a short delay (e.g., 150ms)
+      // Set a new timeout to run reInit after a short delay (e.g., 200ms)
       debounceTimeout = setTimeout(() => {
           emblaApi?.reInit();
-      }, 150);
+      }, 200);
     });
 
     resizeObserver.observe(activeSlideNode);
@@ -391,7 +391,7 @@ export function SwipeableTabs({
                 className="min-w-0 flex-[0_0_100%]" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
-                // inert={!isActive ? "" : undefined} // Consider adding inert if browser support/TS allows
+                style={{ willChange: 'transform' }} // Add will-change hint AGAIN
               >
                 {/* Render the component, passing the isActive prop */}
                 <TabComponent isActive={isActive} />
