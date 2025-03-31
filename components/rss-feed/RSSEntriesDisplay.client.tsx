@@ -551,11 +551,11 @@ interface EntriesContentProps {
 }
 
 // Now update the RSSEntriesClient to pass isActive to EntriesContent
-export function RSSEntriesClient({ 
+const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
   isActive = true
-}: RSSEntriesClientProps) {
+}: RSSEntriesClientProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -806,12 +806,20 @@ export function RSSEntriesClient({
       />
     </div>
   );
-}
+};
 
+// Add display name
+RSSEntriesClientComponent.displayName = 'RSSEntriesClient';
+
+// Memoize the client component
+export const RSSEntriesClient = React.memo(RSSEntriesClientComponent);
+
+// Update Error Boundary wrapper if needed (or keep as is if it already uses the named export)
 export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
   return (
     <ErrorBoundary>
+      {/* Ensure this uses the memoized version */}
       <RSSEntriesClient {...props} />
     </ErrorBoundary>
   );
-} 
+}

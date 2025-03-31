@@ -114,6 +114,9 @@ export function SwipeableTabs({
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
   
+  // Ref to store the debounce timeout ID for handleScroll
+  const scrollDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
   
@@ -169,22 +172,34 @@ export function SwipeableTabs({
     duration: 20, // Fast but smooth scroll like CategorySliderWrapper
   }, [AutoHeight()]); // Re-add AutoHeight plugin
 
-  // Save scroll position when user scrolls
+  // Save scroll position when user scrolls (DEBOUNCED)
   useEffect(() => {
     const handleScroll = () => {
-      // Only save scroll position if:
-      // 1. We are NOT currently restoring scroll programmatically.
-      // 2. We are NOT actively locking the scroll during a transition.
-      if (!isRestoringScrollRef.current && transitionScrollLockRef.current === null) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
+      // Clear any existing debounce timeout
+      if (scrollDebounceTimeoutRef.current) {
+        clearTimeout(scrollDebounceTimeoutRef.current);
       }
+      
+      // Set a new timeout to save the scroll position after a delay
+      scrollDebounceTimeoutRef.current = setTimeout(() => {
+        // Only save scroll position if:
+        // 1. We are NOT currently restoring scroll programmatically.
+        // 2. We are NOT actively locking the scroll during a transition.
+        if (!isRestoringScrollRef.current && transitionScrollLockRef.current === null) {
+          scrollPositionsRef.current[selectedTab] = window.scrollY;
+        }
+      }, 150); // Debounce delay of 150ms
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      // Clear the timeout on cleanup
+      if (scrollDebounceTimeoutRef.current) {
+        clearTimeout(scrollDebounceTimeoutRef.current);
+      }
     };
-  }, [selectedTab]); // Depend only on selectedTab, refs don't need to be dependencies
+  }, [selectedTab]); 
 
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
@@ -317,7 +332,7 @@ export function SwipeableTabs({
               emblaContainer.style.height = `${targetHeight}px`;
               
               // After transition completes, remove fixed height and let AutoHeight take over
-              setTimeout(() => {
+      setTimeout(() => {
                 if (emblaContainer) {
                   emblaContainer.style.height = '';
                   emblaContainer.style.transition = '';
@@ -404,7 +419,7 @@ export function SwipeableTabs({
       onTabChange(index);
     }
   }, [onTabChange, selectedTab]);
-
+  
   // Handle tab click - PRE-SCROLL before animating and LOCK scroll
   const handleTabClick = useCallback(
     (index: number) => {
@@ -563,14 +578,14 @@ export function SwipeableTabs({
     };
   }, [emblaApi, tabs.length]); 
 
-  // When tab changes (slider select event), apply final scroll (NO visibility change here)
+  // When tab changes (slider select event), apply final scroll (Adjusted Delay)
   useEffect(() => {
     if (!emblaApi) return;
-
+    
     const onSelect = () => {
       const previousIndex = selectedTab; 
       const index = emblaApi.selectedScrollSnap();
-
+      
       if (previousIndex !== index) {
         const targetScrollPosition = scrollPositionsRef.current[index] ?? 0;
 
@@ -581,9 +596,10 @@ export function SwipeableTabs({
           transitionScrollLockRef.current = null; // Release lock
 
           requestAnimationFrame(() => {
+            // INCREASED DELAY before resetting flag
             setTimeout(() => { 
               isRestoringScrollRef.current = false; // Reset flag
-            }, 0); 
+            }, 100); // Use 100ms delay instead of 0
           });
         });
 
@@ -591,9 +607,9 @@ export function SwipeableTabs({
         handleTabChangeWithDebounce(index);
       }
     };
-
+    
     emblaApi.on('select', onSelect);
-
+    
     return () => {
       emblaApi.off('select', onSelect);
     };
@@ -660,8 +676,8 @@ export function SwipeableTabs({
             const isVisible = !isDragging || isActive; 
 
             return (
-              <div 
-                key={`carousel-${tab.id}`} 
+            <div 
+              key={`carousel-${tab.id}`} 
                 className="min-w-0 flex-[0_0_100%] transform-gpu" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} 
@@ -678,7 +694,7 @@ export function SwipeableTabs({
                 >
                    {renderTab(isActive)}
                 </div>
-              </div>
+            </div>
             );
           })}
         </div>
