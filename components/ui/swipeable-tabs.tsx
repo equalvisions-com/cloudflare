@@ -121,6 +121,12 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
+  // Keep track of visited tabs to avoid re-rendering
+  const visitedTabsRef = useRef<Set<number>>(new Set([defaultTabIndex]));
+  
+  // Store rendered components to prevent re-rendering
+  const renderedTabsRef = useRef<Record<number, React.ReactNode>>({});
+  
   // Create memoized component renderers
   const memoizedTabRenderers = useMemo(() => {
     return tabs.map((tab) => {
@@ -143,6 +149,15 @@ export function SwipeableTabs({
       }
     });
   }, [tabs]);
+  
+  // Pre-render initial tab
+  useEffect(() => {
+    // Pre-render the default tab
+    if (!renderedTabsRef.current[defaultTabIndex]) {
+      const renderTab = memoizedTabRenderers[defaultTabIndex];
+      renderedTabsRef.current[defaultTabIndex] = renderTab(true);
+    }
+  }, [defaultTabIndex, memoizedTabRenderers]);
   
   // Use the AutoHeight plugin with default options - REMOVED AutoHeight
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
@@ -472,6 +487,15 @@ export function SwipeableTabs({
         // Update selected tab
         setSelectedTab(index);
         
+        // Mark the tab as visited and pre-render it if not already rendered
+        if (!visitedTabsRef.current.has(index)) {
+          visitedTabsRef.current.add(index);
+          
+          // Render the component and store it
+          const renderTab = memoizedTabRenderers[index];
+          renderedTabsRef.current[index] = renderTab(true);
+        }
+        
         // Handle tab change with debounce
         handleTabChangeWithDebounce(index);
         
@@ -485,7 +509,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]);
+  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce, memoizedTabRenderers]);
 
   // Handle tab click
   const handleTabClick = useCallback(
@@ -518,26 +542,6 @@ export function SwipeableTabs({
     scrollPositionsRef.current[defaultTabIndex] = 0;
   }, [defaultTabIndex]);
 
-  // Add CSS for transition
-  useEffect(() => {
-    // Add CSS to handle tab transitions
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .embla__swipeable_tabs .tab-slide {
-        opacity: 1;
-        transition: opacity 0.1s ease;
-      }
-      .embla__swipeable_tabs .tab-slide[aria-hidden="true"] {
-        opacity: 0.99;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   return (
     <div 
       className={cn('w-full', className)}
@@ -567,18 +571,16 @@ export function SwipeableTabs({
           {tabs.map((tab, index) => {
             const isActive = index === selectedTab;
             
-            // Use the memoized renderer for this tab
-            const renderTab = memoizedTabRenderers[index];
-            
-            // Use React.memo to prevent re-renders of inactive tabs
-            const MemoizedTabContent = useMemo(() => {
-              return renderTab(isActive);
-            }, [isActive, renderTab]);
+            // Initialize component for this tab if it's becoming active and not yet rendered
+            if (isActive && !renderedTabsRef.current[index]) {
+              const renderTab = memoizedTabRenderers[index];
+              renderedTabsRef.current[index] = renderTab(true);
+            }
 
             return (
               <div 
                 key={`carousel-${tab.id}`} 
-                className="min-w-0 flex-[0_0_100%] transform-gpu tab-slide" 
+                className="min-w-0 flex-[0_0_100%] transform-gpu" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{ 
@@ -587,8 +589,11 @@ export function SwipeableTabs({
                   WebkitBackfaceVisibility: 'hidden'
                 }}
               >
-                {/* The renderer function is stable, only the isActive prop changes */}
-                {MemoizedTabContent}
+                {/* Use the pre-rendered component */}
+                {renderedTabsRef.current[index] || (
+                  // Fallback in case it's not yet rendered
+                  <div style={{ height: tabHeightsRef.current[index] || 100 }}></div>
+                )}
               </div>
             );
           })}
