@@ -149,12 +149,12 @@ export function SwipeableTabs({
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    skipSnaps: false,
+    skipSnaps: true,
     startIndex: defaultTabIndex,
     align: 'start',
     containScroll: 'trimSnaps',
-    dragFree: false,
-    duration: animationDuration,
+    dragFree: true,
+    duration: animationDuration * 1.2, // Slightly longer duration for smoother end
   }, [AutoHeight()]); // Re-add AutoHeight plugin
 
   // Save scroll position when user scrolls
