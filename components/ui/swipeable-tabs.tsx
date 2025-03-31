@@ -242,8 +242,11 @@ export function SwipeableTabs({
     const resizeObserver = new ResizeObserver(() => {
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        // console.log('ResizeObserver triggered reInit for tab', selectedTab); // Debug log
-        emblaApi?.reInit();
+        // Wrap reInit in requestAnimationFrame
+        window.requestAnimationFrame(() => {
+          // console.log('ResizeObserver triggered reInit for tab', selectedTab); // Debug log
+          emblaApi?.reInit();
+        });
       }, 200);
     });
 
