@@ -397,7 +397,7 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   
   // Return the FeedContent directly instead of using tabs
   return (
-    <div className="w-full">
+    <div className="w-full scrollable-content-area">
       <FeedContent
         entries={initialData.entries}
         visibleEntries={visibleEntries}

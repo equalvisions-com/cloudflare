@@ -712,7 +712,7 @@ export function RSSEntriesClient({
   
   // Return the EntriesContent directly
   return (
-    <div className="w-full">
+    <div className="w-full scrollable-content-area">
       <EntriesContent
         paginatedEntries={allEntriesState}
         hasMore={hasMoreState}
