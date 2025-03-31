@@ -294,11 +294,33 @@ export function SwipeableTabs({
       if (emblaContainer) {
         setTimeout(() => {
           if (emblaContainer) {
-            emblaContainer.style.height = '';
-            emblaContainer.style.transition = '';
-            emblaApi.reInit();
-            // Remeasure heights
-            measureSlideHeights();
+            // First, add a smooth transition for height
+            emblaContainer.style.transition = 'height 150ms ease-out';
+            
+            // Get the next tab's height
+            const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
+            if (targetHeight) {
+              // Apply the exact target height with a transition
+              emblaContainer.style.height = `${targetHeight}px`;
+              
+              // After transition completes, remove fixed height and let AutoHeight take over
+              setTimeout(() => {
+                if (emblaContainer) {
+                  emblaContainer.style.height = '';
+                  emblaContainer.style.transition = '';
+                  emblaApi.reInit();
+                  // Remeasure heights
+                  measureSlideHeights();
+                }
+              }, 150); // Match the transition duration
+            } else {
+              // Fallback if height not available
+              emblaContainer.style.height = '';
+              emblaContainer.style.transition = '';
+              emblaApi.reInit();
+              // Remeasure heights
+              measureSlideHeights();
+            }
           }
         }, 50); // Short delay after animation
       }
