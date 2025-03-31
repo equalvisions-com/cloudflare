@@ -102,7 +102,7 @@ interface UserActivityFeedProps {
 }
 
 // Custom hook for batch metrics - similar to EntriesDisplay.tsx
-function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>, isActive?: boolean) {
+function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
   // Debug log the initial metrics to make sure they're being received correctly
   useEffect(() => {
     if (initialMetrics && Object.keys(initialMetrics).length > 0) {
@@ -142,7 +142,7 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   // Fetch batch metrics for all entries only when needed
   const batchMetricsQuery = useQuery(
     api.entries.batchGetEntriesMetrics,
-    isActive && shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
+    shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
   );
   
   // Create a memoized metrics map that combines initial metrics with query results
@@ -1309,7 +1309,16 @@ ActivityCard.displayName = 'ActivityCard';
  * Client component that displays a user's activity feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserActivityFeed({ userId, username, name, profileImage, initialData, pageSize = 30, apiEndpoint = "/api/activity", isActive = true }: UserActivityFeedProps) {
+export function UserActivityFeed({ 
+  userId, 
+  username, 
+  name, 
+  profileImage, 
+  initialData, 
+  pageSize = 30, 
+  apiEndpoint = "/api/activity",
+  isActive = true
+}: UserActivityFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>(initialData?.activities || []);
   const [isLoading, setIsLoading] = useState(false);
@@ -1333,8 +1342,7 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
   // Use our custom hook for metrics
   const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
     entryGuids,
-    initialData?.entryMetrics,
-    isActive
+    initialData?.entryMetrics
   );
 
   // Group activities by entry GUID for comments
@@ -1427,7 +1435,6 @@ export function UserActivityFeed({ userId, username, name, profileImage, initial
   // Function to load more activities
   const loadMoreActivities = useCallback(async () => {
     if (!isActive || isLoading || !hasMore) {
-      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}`);
       return;
     }
 

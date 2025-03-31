@@ -321,10 +321,6 @@ export function SwipeableTabs({
         
         // Restore scroll position
         restoreScrollPosition(index);
-        
-        // Re-initialize Embla AFTER state update and potential re-render 
-        // Use setTimeout to ensure it runs after the current execution context
-        setTimeout(() => emblaApi?.reInit(), 0);
       }
     };
     

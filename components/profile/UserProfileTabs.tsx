@@ -77,14 +77,16 @@ const ActivityTabContent = React.memo(({
   name,
   profileImage,
   activityData, 
-  pageSize 
+  pageSize,
+  isActive
 }: { 
   userId: Id<"users">, 
   username: string,
   name: string,
   profileImage?: string | null,
   activityData: FeedData | null, 
-  pageSize: number 
+  pageSize: number,
+  isActive: boolean
 }) => {
   if (!activityData) {
     return (
@@ -103,6 +105,7 @@ const ActivityTabContent = React.memo(({
       initialData={activityData}
       pageSize={pageSize}
       apiEndpoint="/api/activity"
+      isActive={isActive}
     />
   );
 });
@@ -207,33 +210,33 @@ export function UserProfileTabs({
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
-    { 
-      id: 'activity', 
-      label: 'Activity', 
+    // Activity tab
+    {
+      id: 'activity',
+      label: 'Activity',
       component: ({ isActive }: { isActive: boolean }) => (
-        <UserActivityFeed 
-          key="activity-feed" 
+        <ActivityTabContent 
           userId={userId} 
           username={username} 
           name={name}
           profileImage={profileImage}
-          initialData={activityData} 
+          activityData={activityData} 
           pageSize={pageSize} 
           isActive={isActive}
-        /> 
+        />
       )
     },
-    { 
-      id: 'likes', 
-      label: 'Likes', 
+    // Likes tab
+    {
+      id: 'likes',
+      label: 'Likes',
       component: ({ isActive }: { isActive: boolean }) => (
-        <UserLikesFeed 
-          key="likes-feed" 
-          userId={userId} 
-          initialData={likesState.data} 
-          pageSize={pageSize} 
-          isActive={isActive}
-        /> 
+        <LikesTabContent 
+          userId={userId}
+          likesData={likesState.data} 
+          pageSize={pageSize}
+          isLoading={likesState.status === 'loading'}
+        />
       )
     }
   ], [

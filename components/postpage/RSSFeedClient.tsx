@@ -387,9 +387,10 @@ interface RSSFeedClientProps {
   pageSize?: number;
   featuredImg?: string;
   mediaType?: string;
+  isActive?: boolean;
 }
 
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType }: RSSFeedClientProps) {
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [fetchError, setFetchError] = useState<Error | null>(null);
   const ITEMS_PER_REQUEST = pageSize;
@@ -416,7 +417,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   }, [initialData]);
   
   const loadMoreEntries = useCallback(async () => {
-    if (isLoading || !hasMoreState) {
+    if (!isActive || isLoading || !hasMoreState) {
       console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
       return;
     }
@@ -484,7 +485,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length, initialData]);
+  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length, initialData, isActive]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 
