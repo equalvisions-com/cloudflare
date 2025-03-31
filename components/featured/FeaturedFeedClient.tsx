@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -305,69 +305,15 @@ const FeedContent = React.memo(({
   loadMoreRef,
   hasMore,
   loadMore,
-  isLoading,
-  isActive = true
+  isLoading
 }: { 
   entries: FeaturedEntryWithData[],
   visibleEntries: FeaturedEntryWithData[],
   loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
   hasMore: boolean,
   loadMore: () => void,
-  isLoading: boolean,
-  isActive?: boolean
+  isLoading: boolean
 }) => {
-  // Track if this tab was ever visible to avoid unnecessary rendering
-  const wasEverVisible = useRef<boolean>(isActive);
-  
-  // Keep a ref to the Virtuoso instance
-  const virtuosoRef = useRef<any>(null);
-  
-  // Store the current first visible item index to restore position
-  const [firstItemIndex, setFirstItemIndex] = useState(0);
-  
-  // Track if position has been restored for this tab session
-  const hasRestoredPosition = useRef(false);
-  
-  // Track whether this component is mounted
-  const isMounted = useRef(true);
-  
-  // When the tab becomes active, mark it as having been visible
-  useEffect(() => {
-    if (isActive) {
-      wasEverVisible.current = true;
-      
-      // Only restore position once when tab becomes active, not on every render or scroll
-      if (!hasRestoredPosition.current && virtuosoRef.current && firstItemIndex > 0) {
-        // Use setTimeout to ensure restoration happens after render
-        setTimeout(() => {
-          if (virtuosoRef.current && isMounted.current) {
-            // Use scrollToIndex but with smooth behavior to prevent jarring jumps
-            virtuosoRef.current.scrollToIndex({
-              index: firstItemIndex,
-              align: 'start',
-              behavior: 'auto'
-            });
-            
-            // Mark that we've restored position for this session
-            hasRestoredPosition.current = true;
-          }
-        }, 50);
-      }
-      
-      // Reset the flag when tab becomes inactive
-      return () => {
-        hasRestoredPosition.current = false;
-      };
-    }
-  }, [isActive, firstItemIndex]);
-  
-  // Set up cleanup function to mark when component unmounts
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
   if (!entries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -375,39 +321,19 @@ const FeedContent = React.memo(({
       </div>
     );
   }
-  
-  // Only fully render if this tab is active or was once active
-  if (!isActive && !wasEverVisible.current) {
-    return <div className="h-screen" />; // Placeholder with height to avoid layout shifts
-  }
 
   return (
     <div className="space-y-0">
       <Virtuoso
-        ref={virtuosoRef}
         useWindowScroll
         totalCount={visibleEntries.length}
         endReached={() => {
-          if (hasMore && !isLoading && isActive) {
+          if (hasMore && !isLoading) {
             loadMore();
           }
         }}
         overscan={20}
         initialTopMostItemIndex={0}
-        // Use a stable key based on feed content
-        key={`featured-feed-${visibleEntries.length > 0 ? visibleEntries[0].entry.guid : 'empty'}`}
-        // Track the first visible item to restore position later
-        rangeChanged={range => {
-          // Only update the position if we're active and scrolling isn't from our restoration
-          if (isActive && range.startIndex !== undefined && hasRestoredPosition.current) {
-            setFirstItemIndex(range.startIndex);
-          }
-        }}
-        // Apply hardware acceleration for smoother rendering
-        style={{
-          transform: 'translate3d(0,0,0)',
-          WebkitBackfaceVisibility: 'hidden'
-        }}
         itemContent={index => {
           const entryWithData = visibleEntries[index];
           return (
@@ -434,7 +360,6 @@ interface FeaturedFeedClientProps {
     totalEntries: number;
   };
   pageSize?: number;
-  isActive?: boolean;
 }
 
 export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
@@ -445,11 +370,7 @@ export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientPro
   );
 }
 
-export function FeaturedFeedClient({ 
-  initialData, 
-  pageSize = 30,
-  isActive = true
-}: FeaturedFeedClientProps) {
+export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedClientProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -464,7 +385,7 @@ export function FeaturedFeedClient({
   
   // Function to load more entries - just update the page number
   const loadMore = () => {
-    if (hasMore && !isLoading && isActive) {
+    if (hasMore && !isLoading) {
       setIsLoading(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
@@ -484,7 +405,6 @@ export function FeaturedFeedClient({
         hasMore={hasMore}
         loadMore={loadMore}
         isLoading={isLoading}
-        isActive={isActive}
       />
     </div>
   );

@@ -104,33 +104,33 @@ export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 400, // Increase default duration for slower animation
+  animationDuration = 400,
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
-  // Add state to track dragging
-  const [isDragging, setIsDragging] = useState(false);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
   
-  // Ref to store the debounce timeout ID for handleScroll
-  const scrollDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
   
-  // Ref to hold the scroll position during transitions to "lock" it
-  const transitionScrollLockRef = useRef<number | null>(null);
-  
-  // Ref to track if we've already pre-scrolled a target during the current drag
-  const preScrolledIndexRef = useRef<number>(-1); 
+  // Flag to block Embla transitions during pre-loading
+  const isPreparingTransitionRef = useRef(false);
   
   // Ref to track the last tab change to prevent duplicate events
   const lastTabChangeRef = useRef<{ index: number; time: number }>({ 
     index: defaultTabIndex, 
     time: Date.now() 
   });
+  
+  // Keep track of rendered tabs
+  const [renderedTabs, setRenderedTabs] = useState<Record<number, boolean>>({
+    [defaultTabIndex]: true
+  });
+  
+  // References to tab container elements
+  const tabContainerRefs = useRef<(HTMLDivElement | null)[]>([]);
   
   // Create memoized component renderers
   const memoizedTabRenderers = useMemo(() => {
@@ -146,9 +146,6 @@ export function SwipeableTabs({
     });
   }, [tabs]); // Only recreate if tabs array changes
   
-  // Add refs for content wrappers to manage visibility during scroll restoration
-  const contentRefs = useRef<(HTMLDivElement | null)[]>([]);
-  
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
     tabs.forEach((_, index) => {
@@ -158,10 +155,11 @@ export function SwipeableTabs({
     });
   }, [tabs]);
   
-  // Use the AutoHeight plugin with default options - REMOVED AutoHeight
+  // Use the AutoHeight plugin with default options
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const tabHeightsRef = useRef<Record<number, number>>({});
+  
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     skipSnaps: false,
@@ -170,37 +168,46 @@ export function SwipeableTabs({
     containScroll: 'trimSnaps',
     dragFree: false,
     duration: 20, // Fast but smooth scroll like CategorySliderWrapper
-  }, [AutoHeight()]); // Re-add AutoHeight plugin
+    watchResize: false,  // Disable automatic resize to give us more control
+  }, [AutoHeight()]); 
 
-  // Save scroll position when user scrolls (DEBOUNCED)
+  // Save scroll position when user scrolls
   useEffect(() => {
     const handleScroll = () => {
-      // Clear any existing debounce timeout
-      if (scrollDebounceTimeoutRef.current) {
-        clearTimeout(scrollDebounceTimeoutRef.current);
+      // Only save scroll position if we're not in the middle of restoring
+      if (!isRestoringScrollRef.current) {
+        // Save for the currently selected tab only
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
       }
-      
-      // Set a new timeout to save the scroll position after a delay
-      scrollDebounceTimeoutRef.current = setTimeout(() => {
-        // Only save scroll position if:
-        // 1. We are NOT currently restoring scroll programmatically.
-        // 2. We are NOT actively locking the scroll during a transition.
-        if (!isRestoringScrollRef.current && transitionScrollLockRef.current === null) {
-          scrollPositionsRef.current[selectedTab] = window.scrollY;
-        }
-      }, 75); // REDUCED Debounce delay to 75ms
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      // Clear the timeout on cleanup
-      if (scrollDebounceTimeoutRef.current) {
-        clearTimeout(scrollDebounceTimeoutRef.current);
-      }
     };
   }, [selectedTab]);
 
+  // Pre-render tabs for smoother transitions - RENDER ALL TABS ON MOUNT
+  useEffect(() => {
+    // Render ALL tabs immediately to ensure smooth transitions
+    setRenderedTabs(
+      tabs.reduce((obj, _, index) => {
+        obj[index] = true;
+        return obj;
+      }, {} as Record<number, boolean>)
+    );
+    
+    // Pre-measure ALL tab heights immediately on mount after a short delay
+    const measureAllHeightsTimeout = setTimeout(() => {
+      slideRefs.current.forEach((slide, index) => {
+        if (slide && slide.offsetHeight > 0) {
+          tabHeightsRef.current[index] = slide.offsetHeight;
+        }
+      });
+    }, 100);
+    return () => clearTimeout(measureAllHeightsTimeout);
+  }, [selectedTab, tabs.length]);
+  
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
     if (!emblaApi) return;
@@ -230,8 +237,8 @@ export function SwipeableTabs({
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Only prevent default if horizontal movement is SIGNIFICANTLY greater
-        if (deltaX > deltaY * 1.5) { // ADJUSTED Threshold
+        // Only prevent default if horizontal movement is greater than vertical
+        if (deltaX > deltaY) {
           e.preventDefault();
         }
       };
@@ -295,19 +302,44 @@ export function SwipeableTabs({
     // Call initially
     measureSlideHeights();
     
-    // Function to track transition state
+    // Function to track transition state AND perform instant adjustments
     const onTransitionStart = () => {
       isInTransition = true;
       
-      // Apply fixed height to container during animation
+      // Get target index immediately
+      const targetIndex = emblaApi.selectedScrollSnap();
+
+      // Use the functional update pattern to avoid accessing renderedTabs directly
+      setRenderedTabs(prev => {
+        // Only update if this tab isn't already rendered
+        if (prev[targetIndex]) return prev;
+        return { ...prev, [targetIndex]: true };
+      });
+
+      // Apply fixed height to container instantly
       const emblaContainer = emblaApi.containerNode();
-      const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
+      const targetHeight = tabHeightsRef.current[targetIndex];
       if (emblaContainer && targetHeight) {
         emblaContainer.style.height = `${targetHeight}px`;
         emblaContainer.style.transition = 'none';
       }
       
-      // Clear any pending reInit when a new transition starts
+      // --- Immediate Scroll Restoration --- 
+      isRestoringScrollRef.current = true;
+      const savedPosition = scrollPositionsRef.current[targetIndex] ?? 0;
+      
+      // Scroll immediately before animation starts
+      window.scrollTo(0, savedPosition);
+      
+      // Reset flag slightly later to allow scroll events to potentially settle
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          isRestoringScrollRef.current = false;
+        }, 50); // Short delay is usually sufficient
+      });
+      // --- End Immediate Scroll Restoration ---
+
+      // Clear any pending reInit timeout
       if (delayedReInitTimeout) {
         clearTimeout(delayedReInitTimeout);
         delayedReInitTimeout = null;
@@ -332,7 +364,7 @@ export function SwipeableTabs({
               emblaContainer.style.height = `${targetHeight}px`;
               
               // After transition completes, remove fixed height and let AutoHeight take over
-      setTimeout(() => {
+              setTimeout(() => {
                 if (emblaContainer) {
                   emblaContainer.style.height = '';
                   emblaContainer.style.transition = '';
@@ -400,6 +432,50 @@ export function SwipeableTabs({
     };
   }, [emblaApi, selectedTab, animationDuration]); // Dependency on selectedTab ensures it observes the correct initial node
 
+  // --- Effect to PAUSE/RESUME observer during interaction ---
+  useEffect(() => {
+    if (!emblaApi || !observerRef) return; // Need emblaApi and the observerRef
+
+    const disableObserver = () => {
+        // console.log('Pointer Down: Disconnecting observer'); // Debug log
+        observerRef.current?.disconnect();
+    };
+
+    const enableObserver = () => {
+        // console.log('Pointer Up / Settle: Attempting to reconnect observer'); // Debug log
+        if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
+
+        // Wait a bit before reconnecting to avoid interrupting animation
+        setTimeout(() => {
+          // Get the CURRENT selected index directly from emblaApi
+          const currentSelectedIndex = emblaApi.selectedScrollSnap();
+          const activeSlideNode = slideRefs.current[currentSelectedIndex];
+
+          if (activeSlideNode && observerRef.current) {
+            // console.log('Reconnecting observer to tab', currentSelectedIndex); // Debug log
+            // Ensure we don't observe multiple times if events fire closely
+            observerRef.current.disconnect(); 
+            observerRef.current.observe(activeSlideNode);
+          } else {
+            // console.log('Could not find active slide node for index', currentSelectedIndex); // Debug log
+          }
+        }, 250); // Wait 250ms after settle/pointerUp before re-enabling height adjustment
+    };
+
+    // Add listeners
+    emblaApi.on('pointerDown', disableObserver);
+    emblaApi.on('pointerUp', enableObserver);
+    emblaApi.on('settle', enableObserver); // Handles programmatic scrolls and snaps
+
+    // Cleanup listeners
+    return () => {
+      emblaApi.off('pointerDown', disableObserver);
+      emblaApi.off('pointerUp', enableObserver);
+      emblaApi.off('settle', enableObserver);
+    };
+    // Only depends on emblaApi itself, enableObserver has its own logic to find the right node
+  }, [emblaApi]);
+
   // Function to handle tab change with debouncing
   const handleTabChangeWithDebounce = useCallback((index: number) => {
     // Skip if it's the same tab or if the change happened too recently (within 300ms)
@@ -420,192 +496,26 @@ export function SwipeableTabs({
     }
   }, [onTabChange, selectedTab]);
   
-  // Handle tab click - PRE-SCROLL before animating and LOCK scroll
-  const handleTabClick = useCallback(
-    (index: number) => {
-      if (!emblaApi || index === selectedTab) return;
-      
-      // 1. Save current scroll position for the outgoing tab
-      const outgoingScrollY = window.scrollY;
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = outgoingScrollY;
-      }
-      
-      // 2. Set the scroll lock position
-      transitionScrollLockRef.current = outgoingScrollY;
-
-      // 3. Get target scroll position for the incoming tab
-      const targetScrollPosition = scrollPositionsRef.current[index] ?? 0;
-
-      // 4. Set flag and IMMEDIATELY scroll to the target position BEFORE embla scrolls
-      isRestoringScrollRef.current = true;
-      window.scrollTo(0, targetScrollPosition);
-      
-      // 5. Tell Embla to scroll to the new tab (animation starts here)
-      emblaApi.scrollTo(index, false);
-      
-      // 6. Update selected tab state 
-      setSelectedTab(index); 
-      
-      // 7. Handle tab change callback
-      handleTabChangeWithDebounce(index);
-      
-      // 8. Reset flags after a delay
-      setTimeout(() => {
-        isRestoringScrollRef.current = false;
-        transitionScrollLockRef.current = null; // Release lock after click transition likely done
-      }, 50); 
-    },
-    [emblaApi, selectedTab, handleTabChangeWithDebounce]
-  );
-
-  // --- Effect to PAUSE/RESUME observer and LOCK SCROLL during interaction ---
-  useEffect(() => {
-    if (!emblaApi || !observerRef) return; 
-
-    let isTransitioning = false;
-    
-    // RELAXED preventScroll: Only preventDefault, don't force scrollTo
-    const preventScroll = (e: Event) => {
-      if (isTransitioning) {
-        // REMOVED: window.scrollTo(0, transitionScrollLockRef.current);
-        e.preventDefault(); 
-      }
-    };
-    
-    const startTransition = (currentScrollY: number) => {
-      setIsDragging(true); // Set dragging state TRUE
-      isTransitioning = true;
-      transitionScrollLockRef.current = currentScrollY; 
-      preScrolledIndexRef.current = -1; 
-      window.addEventListener('scroll', preventScroll, { passive: false });
-    };
-    
-    const endTransition = () => {
-      setIsDragging(false); // Set dragging state FALSE
-      isTransitioning = false;
-      window.removeEventListener('scroll', preventScroll);
-      transitionScrollLockRef.current = null; 
-      preScrolledIndexRef.current = -1; 
-    };
-
-    const disableObserver = () => {
-        const currentScrollY = window.scrollY;
-        if (!isRestoringScrollRef.current) {
-          scrollPositionsRef.current[emblaApi.selectedScrollSnap()] = currentScrollY;
-        }
-        observerRef.current?.disconnect();
-        startTransition(currentScrollY); 
-    };
-
-    const enableObserver = () => {
-        if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
-        const currentSelectedIndex = emblaApi.selectedScrollSnap();
-        setTimeout(() => {
-          const activeSlideNode = slideRefs.current[currentSelectedIndex];
-          if (activeSlideNode && observerRef.current) {
-            observerRef.current.disconnect(); 
-            observerRef.current.observe(activeSlideNode);
-          }
-          endTransition(); // Calls setIsDragging(false)
-        }, 250); 
-    };
-
-    emblaApi.on('pointerDown', disableObserver);
-    emblaApi.on('pointerUp', enableObserver); 
-    emblaApi.on('settle', enableObserver); 
-
-    return () => {
-      emblaApi.off('pointerDown', disableObserver);
-      emblaApi.off('pointerUp', enableObserver);
-      emblaApi.off('settle', enableObserver); 
-      window.removeEventListener('scroll', preventScroll); // Ensure cleanup
-      transitionScrollLockRef.current = null; // Ensure lock is released on unmount
-    };
-  }, [emblaApi]); // Removed observerRef dependency as it's handled internally
-
-  // --- Refined Effect for Pre-Scrolling during Swipe (no visibility change) --- 
-  useEffect(() => {
-    if (!emblaApi) return;
-
-    const onScroll = () => {
-      const engine = emblaApi.internalEngine();
-      if (!engine.dragHandler.pointerDown()) return; 
-
-      const progress = emblaApi.scrollProgress();
-      const slidesInView = emblaApi.slidesInView(); 
-      const location = engine.location.get(); 
-      const target = engine.target.get(); 
-      const direction = Math.sign(target - location); 
-      
-      let potentialTargetIndex = -1;
-      const currentIndex = emblaApi.selectedScrollSnap(); 
-
-      if (direction > 0 && currentIndex < tabs.length - 1) {
-        potentialTargetIndex = currentIndex + 1;
-      } else if (direction < 0 && currentIndex > 0) {
-        potentialTargetIndex = currentIndex - 1;
-      }
-      
-      let isPotentialTargetVisible = false;
-      if (potentialTargetIndex !== -1 && slidesInView.includes(potentialTargetIndex)) {
-         const progressRelativeToPotential = Math.abs(progress - potentialTargetIndex);
-         if (progressRelativeToPotential < 0.80) { 
-            isPotentialTargetVisible = true;
-         }
-      }
-            
-      // Check: Valid target? Sufficiently visible? Haven't pre-scrolled?
-      if (
-        potentialTargetIndex !== -1 &&
-        isPotentialTargetVisible && 
-        potentialTargetIndex !== preScrolledIndexRef.current
-      ) {
-        const targetScrollPosition = scrollPositionsRef.current[potentialTargetIndex] ?? 0;
-        const incomingContentEl = contentRefs.current[potentialTargetIndex]; // Get ref
-
-        if (incomingContentEl && window.scrollY !== targetScrollPosition) {
-           // Only apply scroll position silently
-           window.scrollTo(0, targetScrollPosition);
-           preScrolledIndexRef.current = potentialTargetIndex;
-        }
-      }
-    };
-
-    emblaApi.on('scroll', onScroll);
-
-    return () => {
-      emblaApi.off('scroll', onScroll);
-    };
-  }, [emblaApi, tabs.length]); 
-
-  // When tab changes (slider select event), apply final scroll (Adjusted Delay)
+  // Sync tab selection with carousel (Simplified)
   useEffect(() => {
     if (!emblaApi) return;
     
     const onSelect = () => {
-      const previousIndex = selectedTab; 
       const index = emblaApi.selectedScrollSnap();
       
-      if (previousIndex !== index) {
-        const targetScrollPosition = scrollPositionsRef.current[index] ?? 0;
-
-        isRestoringScrollRef.current = true;
-
-        requestAnimationFrame(() => {
-          window.scrollTo(0, targetScrollPosition); // Apply final scroll
-          transitionScrollLockRef.current = null; // Release lock
-
-          requestAnimationFrame(() => {
-            // INCREASED DELAY before resetting flag
-            setTimeout(() => { 
-              isRestoringScrollRef.current = false; // Reset flag
-            }, 100); // Use 100ms delay instead of 0
-          });
-        });
-
+      if (selectedTab !== index) {
+        // Save current scroll position BEFORE state update
+        if (!isRestoringScrollRef.current) {
+          scrollPositionsRef.current[selectedTab] = window.scrollY;
+        }
+        
+        // Update selected tab state
         setSelectedTab(index);
+        
+        // Handle tab change callback with debounce
         handleTabChangeWithDebounce(index);
+        
+        // Scroll restoration is now handled by the 'select' listener via onTransitionStart
       }
     };
     
@@ -614,27 +524,241 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce]);
+    // Removed restoreScrollPosition from dependencies
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce]); 
 
-  // Function to restore scroll position
-  const restoreScrollPosition = useCallback((index: number) => {
-    // Set flag to prevent scroll events during restoration
-    isRestoringScrollRef.current = true;
+  // Function to preload and prepare a tab for transition
+  const prepareTabTransition = useCallback((targetIndex: number) => {
+    // Set flag to block other transitions
+    isPreparingTransitionRef.current = true;
     
-    // Get saved position (default to 0 if not set)
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
+    // Save current position if not already being restored
+    if (!isRestoringScrollRef.current) {
+      // Use a local copy to avoid closure over selectedTab which might change
+      const currentTab = selectedTab;
+      scrollPositionsRef.current[currentTab] = window.scrollY;
+    }
     
-    // Use requestAnimationFrame for better timing
-    requestAnimationFrame(() => {
-      // Set scroll position
-      window.scrollTo(0, savedPosition);
+    // Pre-render the target tab to ensure content is ready
+    setRenderedTabs(prev => ({
+      ...prev,
+      [targetIndex]: true
+    }));
+    
+    // Give React a chance to render
+    return new Promise<void>(resolve => {
+      // Force microtask to complete render cycle
+      setTimeout(() => {
+        // FORCE a full render cycle before continuing
+        requestAnimationFrame(() => {
+          // Measure the height of the target tab if we don't have it yet
+          const targetSlide = slideRefs.current[targetIndex];
+          if (targetSlide && (!tabHeightsRef.current[targetIndex] || tabHeightsRef.current[targetIndex] === 0)) {
+            tabHeightsRef.current[targetIndex] = targetSlide.offsetHeight;
+          }
+          
+          // Apply height to both the container AND to all slides for consistency
+          if (emblaApi && tabHeightsRef.current[targetIndex]) {
+            const emblaContainer = emblaApi.containerNode();
+            if (emblaContainer) {
+              // Immediately set height to match the target slide's height
+              emblaContainer.style.height = `${tabHeightsRef.current[targetIndex]}px`;
+              emblaContainer.style.transition = 'none';
+              
+              // Also fix heights of all slides to this height to prevent any jumps
+              slideRefs.current.forEach((slide) => {
+                if (slide) {
+                  slide.style.height = `${tabHeightsRef.current[targetIndex]}px`;
+                  slide.style.minHeight = `${tabHeightsRef.current[targetIndex]}px`;
+                }
+              });
+            }
+          }
+          
+          // Now preload the scroll position
+          isRestoringScrollRef.current = true;
+          window.scrollTo(0, scrollPositionsRef.current[targetIndex] || 0);
+          
+          // Small delay to let scroll settle
+          setTimeout(() => {
+            isRestoringScrollRef.current = false;
+            isPreparingTransitionRef.current = false;
+            resolve();
+          }, 100); // Longer delay to ensure everything is ready
+        });
+      }, 0);
+    });
+  }, [emblaApi, selectedTab]);
+
+  // Handle tab click with enhanced preloading
+  const handleTabClick = useCallback(async (index: number) => {
+    if (!emblaApi || index === selectedTab || isPreparingTransitionRef.current) return;
+    
+    // Block further transitions during preparation
+    isPreparingTransitionRef.current = true;
+    
+    // Capture current scroll position
+    if (!isRestoringScrollRef.current) {
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+    }
+    
+    // IMMEDIATE setup: Directly set the container and slide heights now
+    const targetHeight = tabHeightsRef.current[index];
+    if (emblaApi && targetHeight) {
+      const emblaContainer = emblaApi.containerNode();
+      if (emblaContainer) {
+        // Apply target height with no transition
+        emblaContainer.style.transition = 'none';
+        emblaContainer.style.height = `${targetHeight}px`;
+        
+        // Force browser to acknowledge the height change
+        void emblaContainer.offsetHeight; // This triggers a reflow
+      }
       
-      // Reset flag after a short delay
+      // Pre-set scroll position before animation starts
+      isRestoringScrollRef.current = true;
+      window.scrollTo(0, scrollPositionsRef.current[index] || 0);
+    }
+
+    // Force browser to apply these changes before proceeding
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    // Now trigger the actual transition
+    emblaApi.scrollTo(index, true);
+    setSelectedTab(index);
+    
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isRestoringScrollRef.current = false;
+      isPreparingTransitionRef.current = false;
+    }, 50);
+    
+    // Notify of tab change
+    if (Date.now() - lastTabChangeRef.current.time > 300 || index !== lastTabChangeRef.current.index) {
+      lastTabChangeRef.current = { index, time: Date.now() };
+      onTabChange?.(index);
+    }
+  }, [emblaApi, selectedTab, prepareTabTransition, onTabChange]);
+
+  // Preload tabs on mount and when selected tab changes
+  useEffect(() => {
+    // Preload the currently selected tab first
+    setRenderedTabs(prev => ({
+      ...prev,
+      [selectedTab]: true
+    }));
+    
+    // Then preload adjacent tabs to improve perceived performance
+    const timer = setTimeout(() => {
+      const nextTab = selectedTab + 1 < tabs.length ? selectedTab + 1 : null;
+      const prevTab = selectedTab - 1 >= 0 ? selectedTab - 1 : null;
+      
+      setRenderedTabs(prev => {
+        const newState = { ...prev };
+        if (nextTab !== null) newState[nextTab] = true;
+        if (prevTab !== null) newState[prevTab] = true;
+        return newState;
+      });
+      
+      // Also measure their heights while we're at it
+      [nextTab, prevTab].forEach(tabIndex => {
+        if (tabIndex === null) return;
+        const slide = slideRefs.current[tabIndex];
+        if (slide && slide.offsetHeight > 0) {
+          tabHeightsRef.current[tabIndex] = slide.offsetHeight;
+        }
+      });
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [selectedTab, tabs.length]);
+
+  // For swipe gestures, intercept Embla's built-in transitions
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    // Handle initial pointer down to prepare for possible swipe
+    const handlePointerDown = () => {
+      // Immediately capture the current scroll position
+      if (!isRestoringScrollRef.current) {
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
+      }
+      
+      // Get indices of possible next slides
+      const currentIndex = emblaApi.selectedScrollSnap();
+      const nextIndex = currentIndex + 1 < tabs.length ? currentIndex + 1 : null;
+      const prevIndex = currentIndex - 1 >= 0 ? currentIndex - 1 : null;
+      
+      // Pre-set the heights of adjacent slides to this height
+      const currentHeight = tabHeightsRef.current[currentIndex] || 0;
+      if (currentHeight) {
+        [nextIndex, prevIndex].forEach(index => {
+          if (index === null) return;
+          
+          const slide = slideRefs.current[index];
+          if (slide) {
+            slide.style.height = `${currentHeight}px`;
+            slide.style.minHeight = `${currentHeight}px`;
+          }
+        });
+      }
+    };
+    
+    const handleSelect = async () => {
+      // Skip if we're already in the middle of a managed transition
+      if (isPreparingTransitionRef.current) return;
+      
+      const nextIndex = emblaApi.selectedScrollSnap();
+      if (nextIndex === selectedTab) return;
+      
+      // Save scroll position for current tab
+      if (!isRestoringScrollRef.current) {
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
+      }
+      
+      // IMMEDIATELY apply the target height before animation starts
+      const targetHeight = tabHeightsRef.current[nextIndex];
+      if (targetHeight && emblaApi) {
+        const emblaContainer = emblaApi.containerNode();
+        if (emblaContainer) {
+          emblaContainer.style.transition = 'none';
+          emblaContainer.style.height = `${targetHeight}px`;
+          
+          // Force browser to acknowledge the height change
+          void emblaContainer.offsetHeight; // This triggers a reflow
+        }
+      }
+      
+      // Update the selected tab
+      setSelectedTab(nextIndex);
+      
+      // Restore scroll position for new tab
+      isRestoringScrollRef.current = true;
+      window.scrollTo(0, scrollPositionsRef.current[nextIndex] || 0);
+      
+      // Reset the flag after scroll is restored
       setTimeout(() => {
         isRestoringScrollRef.current = false;
-      }, 100);
-    });
-  }, []);
+      }, 50);
+      
+      // Use a local value for comparison rather than the ref which might change
+      const lastChangeTime = lastTabChangeRef.current.time;
+      const lastChangeIndex = lastTabChangeRef.current.index;
+      if (Date.now() - lastChangeTime > 300 || nextIndex !== lastChangeIndex) {
+        lastTabChangeRef.current = { index: nextIndex, time: Date.now() };
+        onTabChange?.(nextIndex);
+      }
+    };
+    
+    // Register for both the pointerDown event (to prepare) and select event
+    emblaApi.on('select', handleSelect);
+    emblaApi.on('pointerDown', handlePointerDown);
+    
+    return () => {
+      emblaApi.off('select', handleSelect);
+      emblaApi.off('pointerDown', handlePointerDown);
+    };
+  }, [emblaApi, selectedTab, onTabChange, tabs.length]);
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
@@ -655,47 +779,52 @@ export function SwipeableTabs({
 
       {/* Carousel container is now visible and holds the actual content */}
       <div 
-        className="w-full overflow-hidden embla__swipeable_tabs" // Make container visible, remove h-0
+        className="w-full overflow-hidden embla__swipeable_tabs"
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
-          WebkitBackfaceVisibility: 'hidden'
+          WebkitBackfaceVisibility: 'hidden',
+          // Set fixed height at container level
+          height: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
+          // Disable transitions on the container to prevent height animation
+          transition: 'none'
         }}
       >
-        <div className="flex items-start"
-          style={{
-            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined
-          }}
-        > 
+        <div className="flex items-start"> 
           {tabs.map((tab, index) => {
             const isActive = index === selectedTab;
+            const isRendered = renderedTabs[index] === true;
             
             // Use the memoized renderer for this tab
             const renderTab = memoizedTabRenderers[index];
-            // Determine visibility based on dragging state and active status
-            const isVisible = !isDragging || isActive; 
 
             return (
-            <div 
-              key={`carousel-${tab.id}`} 
-                className="min-w-0 flex-[0_0_100%] transform-gpu" 
-                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
+              <div 
+                key={`carousel-${tab.id}`} 
+                className={cn(
+                  "min-w-0 flex-[0_0_100%] transform-gpu",
+                  !isActive && "opacity-0" // Keep rendered but invisible while inactive
+                )}
+                ref={(el: HTMLDivElement | null) => { 
+                  slideRefs.current[index] = el;
+                  tabContainerRefs.current[index] = el;
+                }} 
                 aria-hidden={!isActive} 
                 style={{ 
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
-                  WebkitBackfaceVisibility: 'hidden'
+                  WebkitBackfaceVisibility: 'hidden',
+                  // Set all slides to the current tab's height to prevent jumps during transition
+                  height: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
+                  minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
+                  // Add overflow hidden to prevent content from affecting height
+                  overflow: 'hidden'
                 }}
               >
-                {/* Apply visibility style directly based on state */}
-                <div 
-                  ref={(instance: HTMLDivElement | null) => { contentRefs.current[index] = instance; }}
-                  style={{ visibility: isVisible ? 'visible' : 'hidden' }}
-                >
-                   {renderTab(isActive)}
-                </div>
-            </div>
+                {/* Always keep content in DOM once rendered to maintain scroll positions */}
+                {isRendered && renderTab(isActive)}
+              </div>
             );
           })}
         </div>

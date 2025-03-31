@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { cn } from "@/lib/utils";
 
 // Add a consistent logging utility
 const logger = {
@@ -375,12 +374,10 @@ interface EntriesContentProps {
     hasMore?: boolean;
     postTitles?: string[];
   };
-  isActive?: boolean;
-  className?: string;
 }
 
-// Define a component for the RSS entries
-const EntriesContentComponent = ({
+// Define the component function first
+function EntriesContentComponent({
   paginatedEntries,
   hasMore,
   loadMoreRef,
@@ -388,61 +385,12 @@ const EntriesContentComponent = ({
   loadMore,
   entryMetrics,
   postMetadata,
-  initialData,
-  isActive = true,
-  className,
-}: EntriesContentProps) => {
-  // Track if this tab was ever visible to avoid unnecessary rendering
-  const wasEverVisible = useRef<boolean>(isActive);
-  
-  // Keep a ref to the Virtuoso instance
-  const virtuosoRef = useRef<any>(null);
-  
-  // Store the current first visible item index to restore position
-  const [firstItemIndex, setFirstItemIndex] = useState(0);
-  
-  // Track if position has been restored for this tab session
-  const hasRestoredPosition = useRef(false);
-  
-  // Track whether this component is mounted
-  const isMounted = useRef(true);
-  
-  // When the tab becomes active, mark it as having been visible
+  initialData
+}: EntriesContentProps) {
+  // Debug logging for pagination
   useEffect(() => {
-    if (isActive) {
-      wasEverVisible.current = true;
-      
-      // Only restore position once when tab becomes active, not on every render or scroll
-      if (!hasRestoredPosition.current && virtuosoRef.current && firstItemIndex > 0) {
-        // Use setTimeout to ensure restoration happens after render
-        setTimeout(() => {
-          if (virtuosoRef.current && isMounted.current) {
-            // Use scrollToIndex but with smooth behavior to prevent jarring jumps
-            virtuosoRef.current.scrollToIndex({
-              index: firstItemIndex,
-              align: 'start',
-              behavior: 'auto'
-            });
-            
-            // Mark that we've restored position for this session
-            hasRestoredPosition.current = true;
-          }
-        }, 50);
-      }
-      
-      // Reset the flag when tab becomes inactive
-      return () => {
-        hasRestoredPosition.current = false;
-      };
-    }
-  }, [isActive, firstItemIndex]);
-  
-  // Set up cleanup function to mark when component unmounts
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+    logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
+  }, [paginatedEntries.length, hasMore, isPending]);
   
   // Define the renderItem callback outside of any conditionals
   const renderItem = useCallback((index: number) => {
@@ -480,39 +428,23 @@ const EntriesContentComponent = ({
       </div>
     );
   }
-  
-  // Only fully render if this tab is active or was once active
-  if (!isActive && !wasEverVisible.current) {
-    return <div className="h-screen" />; // Placeholder with height to avoid layout shifts
-  }
 
   return (
-    <div className={cn("space-y-0", className)}>
+    <div className="space-y-0">
       <Virtuoso
-        ref={virtuosoRef}
         useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
-          if (hasMore && !isPending && isActive) {
+          logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${paginatedEntries.length}`);
+          if (hasMore && !isPending) {
+            logger.debug('📥 Virtuoso end reached, loading more entries');
             loadMore();
+          } else {
+            logger.debug(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={20} 
+        overscan={20}
         initialTopMostItemIndex={0}
-        // Use a stable key based on feed content
-        key={`feed-${paginatedEntries.length > 0 ? paginatedEntries[0].entry.guid : 'empty'}`}
-        // Track the first visible item to restore position later
-        rangeChanged={range => {
-          // Only update the position if we're active and scrolling isn't from our restoration
-          if (isActive && range.startIndex !== undefined && hasRestoredPosition.current) {
-            setFirstItemIndex(range.startIndex);
-          }
-        }}
-        // Apply hardware acceleration for smoother rendering
-        style={{
-          transform: 'translate3d(0,0,0)',
-          WebkitBackfaceVisibility: 'hidden'
-        }}
         itemContent={renderItem}
         components={{
           Footer: () => 
@@ -523,39 +455,27 @@ const EntriesContentComponent = ({
       />
     </div>
   );
-};
-
-// Set the display name for debugging
-EntriesContentComponent.displayName = 'EntriesContent';
-
-// Wrap with React.memo AFTER defining the component and its displayName
-const EntriesContent = React.memo(EntriesContentComponent);
-
-// Define the interface for our component props
-interface EntriesContentProps {
-  paginatedEntries: RSSEntryWithData[];
-  hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
-  isPending: boolean;
-  loadMore: () => void;
-  entryMetrics: Record<string, EntryMetrics> | null;
-  postMetadata?: Map<string, any>;
-  initialData: {
-    entries: RSSEntryWithData[];
-    totalEntries?: number;
-    hasMore?: boolean;
-    postTitles?: string[];
-  };
-  isActive?: boolean;
-  className?: string;
 }
 
-// Now update the RSSEntriesClient to pass isActive to EntriesContent
-const RSSEntriesClientComponent = ({ 
+// Then apply React.memo with correct typing
+const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
+
+// Add displayName to avoid React DevTools issues
+EntriesContent.displayName = 'EntriesContent';
+
+export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+  return (
+    <ErrorBoundary>
+      <RSSEntriesClient {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export function RSSEntriesClient({ 
   initialData, 
   pageSize = 30, 
   isActive = true
-}: RSSEntriesClientProps) => {
+}: RSSEntriesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -802,24 +722,7 @@ const RSSEntriesClientComponent = ({
         entryMetrics={entryMetricsMap}
         postMetadata={postMetadataMap}
         initialData={initialData}
-        isActive={isActive}
       />
     </div>
   );
-};
-
-// Add display name
-RSSEntriesClientComponent.displayName = 'RSSEntriesClient';
-
-// Memoize the client component
-export const RSSEntriesClient = React.memo(RSSEntriesClientComponent);
-
-// Update Error Boundary wrapper if needed (or keep as is if it already uses the named export)
-export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
-  return (
-    <ErrorBoundary>
-      {/* Ensure this uses the memoized version */}
-      <RSSEntriesClient {...props} />
-    </ErrorBoundary>
-  );
-}
+} 
