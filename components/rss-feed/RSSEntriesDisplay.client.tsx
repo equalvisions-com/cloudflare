@@ -374,9 +374,10 @@ interface EntriesContentProps {
     hasMore?: boolean;
     postTitles?: string[];
   };
+  isActive: boolean;
 }
 
-// Define the component function first
+// Modify the EntriesContentComponent to properly preserve scroll position
 function EntriesContentComponent({
   paginatedEntries,
   hasMore,
@@ -385,13 +386,55 @@ function EntriesContentComponent({
   loadMore,
   entryMetrics,
   postMetadata,
-  initialData
-}: EntriesContentProps) {
+  initialData,
+  isActive
+}: EntriesContentProps & { isActive: boolean }) {
   // Debug logging for pagination
   useEffect(() => {
     logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}`);
   }, [paginatedEntries.length, hasMore, isPending]);
   
+  // Keep a ref to the Virtuoso instance to control it programmatically
+  const virtuosoRef = useRef<any>(null);
+
+  // Track if this tab was ever visible (to avoid unnecessary rendering)
+  const wasEverVisible = useRef<boolean>(false);
+  
+  // Store the current first visible item index to restore position
+  const [firstItemIndex, setFirstItemIndex] = useState(0);
+  
+  // Track whether this component is mounted
+  const isMounted = useRef(true);
+
+  // When the tab becomes active, mark it as having been visible
+  useEffect(() => {
+    if (isActive) {
+      wasEverVisible.current = true;
+      
+      // Small delay to ensure the Virtuoso instance is available
+      const timer = setTimeout(() => {
+        if (virtuosoRef.current && isMounted.current) {
+          // Restore to the previously saved position
+          logger.debug(`Restoring scroll position to index ${firstItemIndex}`);
+          virtuosoRef.current.scrollToIndex({
+            index: firstItemIndex,
+            align: 'start',
+            behavior: 'auto'
+          });
+        }
+      }, 50);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isActive, firstItemIndex]);
+  
+  // Set up cleanup function to mark when component unmounts
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // Define the renderItem callback outside of any conditionals
   const renderItem = useCallback((index: number) => {
     if (!paginatedEntries || index >= paginatedEntries.length) {
@@ -429,14 +472,20 @@ function EntriesContentComponent({
     );
   }
 
+  // Only fully render the Virtuoso component if this tab is active or was once active
+  if (!isActive && !wasEverVisible.current) {
+    return <div className="h-screen" />; // Placeholder with height to avoid layout shifts
+  }
+
   return (
     <div className="space-y-0">
       <Virtuoso
+        ref={virtuosoRef}
         useWindowScroll
         totalCount={paginatedEntries.length}
         endReached={() => {
           logger.debug(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isPending: ${isPending}, entries: ${paginatedEntries.length}`);
-          if (hasMore && !isPending) {
+          if (hasMore && !isPending && isActive) {
             logger.debug('📥 Virtuoso end reached, loading more entries');
             loadMore();
           } else {
@@ -446,6 +495,16 @@ function EntriesContentComponent({
         overscan={20}
         initialTopMostItemIndex={0}
         itemContent={renderItem}
+        // Use a stable key based on feed content, not changing with active state
+        key={`feed-content-${paginatedEntries.length > 0 ? paginatedEntries[0].entry.feedUrl : 'empty'}`}
+        // Track the first visible item to restore position later
+        rangeChanged={range => {
+          if (isActive && range.startIndex !== undefined) {
+            setFirstItemIndex(range.startIndex);
+            logger.debug(`Saved scroll position: startIndex=${range.startIndex}`);
+          }
+        }}
+        style={{ display: isActive ? 'block' : 'none' }}
         components={{
           Footer: () => 
             isPending && hasMore ? (
@@ -457,20 +516,28 @@ function EntriesContentComponent({
   );
 }
 
+// Update the EntriesContentProps interface to include isActive
+interface EntriesContentProps {
+  paginatedEntries: RSSEntryWithData[];
+  hasMore: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  isPending: boolean;
+  loadMore: () => void;
+  entryMetrics: Record<string, EntryMetrics> | null;
+  postMetadata?: Map<string, any>;
+  initialData: {
+    entries: RSSEntryWithData[];
+    totalEntries?: number;
+    hasMore?: boolean;
+    postTitles?: string[];
+  };
+  isActive: boolean;
+}
+
 // Then apply React.memo with correct typing
 const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
 
-// Add displayName to avoid React DevTools issues
-EntriesContent.displayName = 'EntriesContent';
-
-export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
-  return (
-    <ErrorBoundary>
-      <RSSEntriesClient {...props} />
-    </ErrorBoundary>
-  );
-}
-
+// Now update the RSSEntriesClient to pass isActive to EntriesContent
 export function RSSEntriesClient({ 
   initialData, 
   pageSize = 30, 
@@ -722,7 +789,16 @@ export function RSSEntriesClient({
         entryMetrics={entryMetricsMap}
         postMetadata={postMetadataMap}
         initialData={initialData}
+        isActive={isActive}
       />
     </div>
+  );
+}
+
+export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+  return (
+    <ErrorBoundary>
+      <RSSEntriesClient {...props} />
+    </ErrorBoundary>
   );
 } 

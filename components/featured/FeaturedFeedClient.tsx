@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -305,15 +305,57 @@ const FeedContent = React.memo(({
   loadMoreRef,
   hasMore,
   loadMore,
-  isLoading
+  isLoading,
+  isActive = true
 }: { 
   entries: FeaturedEntryWithData[],
   visibleEntries: FeaturedEntryWithData[],
   loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
   hasMore: boolean,
   loadMore: () => void,
-  isLoading: boolean
+  isLoading: boolean,
+  isActive?: boolean
 }) => {
+  // Track if this tab was ever visible to avoid unnecessary rendering
+  const wasEverVisible = useRef<boolean>(isActive);
+  
+  // Keep a ref to the Virtuoso instance
+  const virtuosoRef = useRef<any>(null);
+  
+  // Store the current first visible item index to restore position
+  const [firstItemIndex, setFirstItemIndex] = useState(0);
+  
+  // Track whether this component is mounted
+  const isMounted = useRef(true);
+  
+  // When the tab becomes active, mark it as having been visible
+  useEffect(() => {
+    if (isActive) {
+      wasEverVisible.current = true;
+      
+      // Small delay to ensure the Virtuoso instance is available
+      const timer = setTimeout(() => {
+        if (virtuosoRef.current && isMounted.current) {
+          // Restore to the previously saved position
+          virtuosoRef.current.scrollToIndex({
+            index: firstItemIndex,
+            align: 'start',
+            behavior: 'auto'
+          });
+        }
+      }, 50);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isActive, firstItemIndex]);
+  
+  // Set up cleanup function to mark when component unmounts
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   if (!entries.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -321,19 +363,34 @@ const FeedContent = React.memo(({
       </div>
     );
   }
+  
+  // Only fully render if this tab is active or was once active
+  if (!isActive && !wasEverVisible.current) {
+    return <div className="h-screen" />; // Placeholder with height to avoid layout shifts
+  }
 
   return (
     <div className="space-y-0">
       <Virtuoso
+        ref={virtuosoRef}
         useWindowScroll
         totalCount={visibleEntries.length}
         endReached={() => {
-          if (hasMore && !isLoading) {
+          if (hasMore && !isLoading && isActive) {
             loadMore();
           }
         }}
         overscan={20}
         initialTopMostItemIndex={0}
+        // Use a stable key based on feed content
+        key={`featured-feed-${visibleEntries.length > 0 ? visibleEntries[0].entry.guid : 'empty'}`}
+        // Track the first visible item to restore position later
+        rangeChanged={range => {
+          if (isActive && range.startIndex !== undefined) {
+            setFirstItemIndex(range.startIndex);
+          }
+        }}
+        style={{ display: isActive ? 'block' : 'none' }}
         itemContent={index => {
           const entryWithData = visibleEntries[index];
           return (
@@ -360,6 +417,7 @@ interface FeaturedFeedClientProps {
     totalEntries: number;
   };
   pageSize?: number;
+  isActive?: boolean;
 }
 
 export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
@@ -370,7 +428,11 @@ export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientPro
   );
 }
 
-export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedClientProps) {
+export function FeaturedFeedClient({ 
+  initialData, 
+  pageSize = 30,
+  isActive = true
+}: FeaturedFeedClientProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -385,7 +447,7 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   
   // Function to load more entries - just update the page number
   const loadMore = () => {
-    if (hasMore && !isLoading) {
+    if (hasMore && !isLoading && isActive) {
       setIsLoading(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
@@ -405,6 +467,7 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
         hasMore={hasMore}
         loadMore={loadMore}
         isLoading={isLoading}
+        isActive={isActive}
       />
     </div>
   );

@@ -121,12 +121,6 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
-  // Keep track of visited tabs to avoid re-rendering
-  const visitedTabsRef = useRef<Set<number>>(new Set([defaultTabIndex]));
-  
-  // Store rendered components to prevent re-rendering
-  const renderedTabsRef = useRef<Record<number, React.ReactNode>>({});
-  
   // Create memoized component renderers
   const memoizedTabRenderers = useMemo(() => {
     return tabs.map((tab) => {
@@ -149,15 +143,6 @@ export function SwipeableTabs({
       }
     });
   }, [tabs]);
-  
-  // Pre-render initial tab
-  useEffect(() => {
-    // Pre-render the default tab
-    if (!renderedTabsRef.current[defaultTabIndex]) {
-      const renderTab = memoizedTabRenderers[defaultTabIndex];
-      renderedTabsRef.current[defaultTabIndex] = renderTab(true);
-    }
-  }, [defaultTabIndex, memoizedTabRenderers]);
   
   // Use the AutoHeight plugin with default options - REMOVED AutoHeight
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
@@ -487,15 +472,6 @@ export function SwipeableTabs({
         // Update selected tab
         setSelectedTab(index);
         
-        // Mark the tab as visited and pre-render it if not already rendered
-        if (!visitedTabsRef.current.has(index)) {
-          visitedTabsRef.current.add(index);
-          
-          // Render the component and store it
-          const renderTab = memoizedTabRenderers[index];
-          renderedTabsRef.current[index] = renderTab(true);
-        }
-        
         // Handle tab change with debounce
         handleTabChangeWithDebounce(index);
         
@@ -509,7 +485,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce, memoizedTabRenderers]);
+  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]);
 
   // Handle tab click
   const handleTabClick = useCallback(
@@ -571,11 +547,8 @@ export function SwipeableTabs({
           {tabs.map((tab, index) => {
             const isActive = index === selectedTab;
             
-            // Initialize component for this tab if it's becoming active and not yet rendered
-            if (isActive && !renderedTabsRef.current[index]) {
-              const renderTab = memoizedTabRenderers[index];
-              renderedTabsRef.current[index] = renderTab(true);
-            }
+            // Use the memoized renderer for this tab
+            const renderTab = memoizedTabRenderers[index];
 
             return (
               <div 
@@ -589,11 +562,8 @@ export function SwipeableTabs({
                   WebkitBackfaceVisibility: 'hidden'
                 }}
               >
-                {/* Use the pre-rendered component */}
-                {renderedTabsRef.current[index] || (
-                  // Fallback in case it's not yet rendered
-                  <div style={{ height: tabHeightsRef.current[index] || 100 }}></div>
-                )}
+                {/* The renderer function is stable, only the isActive prop changes */}
+                {renderTab(isActive)}
               </div>
             );
           })}
