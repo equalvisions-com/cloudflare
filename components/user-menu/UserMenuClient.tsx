@@ -15,7 +15,7 @@ import { PersonIcon } from "@radix-ui/react-icons";
 import { useUserMenuState } from "./useUserMenuState";
 
 interface UserMenuClientProps {
-  initialDisplayName: string;
+  initialDisplayName?: string;
   isBoarded?: boolean;
 }
 
