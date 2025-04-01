@@ -46,13 +46,7 @@ export default async function RootLayout({
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen bg-background`}
-          style={{
-            paddingTop: 'env(safe-area-inset-top, 0px)',
-            paddingRight: 'env(safe-area-inset-right, 0px)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            paddingLeft: 'env(safe-area-inset-left, 0px)',
-          }}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
