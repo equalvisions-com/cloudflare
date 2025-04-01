@@ -123,6 +123,11 @@
       }
     }
   }
+
+  /* Add utility for top safe area padding */
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
