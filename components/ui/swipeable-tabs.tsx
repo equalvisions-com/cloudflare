@@ -104,7 +104,7 @@ export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 20, // Increase default duration for slower animation
+  animationDuration = 20, // Reduced from 400 to 20 for faster animations
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
@@ -195,7 +195,6 @@ export function SwipeableTabs({
           containScroll: 'trimSnaps',
           duration: animationDuration,
           axis: 'x',
-          dragFree: false,
         }, 
     [
       AutoHeight(),
@@ -210,51 +209,30 @@ export function SwipeableTabs({
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
 
-    const disableSwipeInteractions = (e: Event) => {
-      // No need to prevent all interactions, just let the preventDrag handler work
-      // and leave all regular interactions (clicks, input, etc.) functioning normally
-    };
-
-    if (!isMobile) {
-      // Don't disable pointer events at all on desktop
-      viewportElement.style.pointerEvents = '';
-      viewportElement.style.touchAction = 'none'; // Only prevent touch-based swiping
-    } else {
-      viewportElement.style.pointerEvents = '';
-      viewportElement.style.touchAction = 'pan-y pinch-zoom';
-    }
-
-    return () => {};
-  }, [emblaApi, isMobile]);
-
-  // Disable swiping on desktop
-  useEffect(() => {
-    if (!emblaApi) return;
-
-    const viewportElement = emblaApi.rootNode();
-    if (!viewportElement) return;
-
-    const preventDrag = (e: Event) => {
+    const disableAllInteractions = (e: Event) => {
       if (!isMobile) {
-        // Completely prevent drag initiation on desktop
-        const internalEngine = (emblaApi as any).internalEngine?.();
-        if (internalEngine && internalEngine.dragHandler) {
-          // Force pointer to be considered "up" to prevent drag initiation
-          internalEngine.dragHandler.pointerDown = () => false;
-        }
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
 
-    // Add listener only on desktop
     if (!isMobile) {
-      viewportElement.addEventListener('mousedown', preventDrag, { capture: true });
-      viewportElement.addEventListener('touchstart', preventDrag, { capture: true });
+      // Only disable pointer events on the viewport/container but not the content
+      // Remove complete disabling of interactions
+      viewportElement.style.pointerEvents = 'none';
+      viewportElement.addEventListener('pointerdown', disableAllInteractions, { capture: true });
+      viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
+    } else {
+      viewportElement.style.pointerEvents = '';
+      viewportElement.style.touchAction = 'pan-y pinch-zoom';
+      viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
+      viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
     }
 
     return () => {
       if (viewportElement) {
-        viewportElement.removeEventListener('mousedown', preventDrag, { capture: true });
-        viewportElement.removeEventListener('touchstart', preventDrag, { capture: true });
+        viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
+        viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
       }
     };
   }, [emblaApi, isMobile]);
@@ -682,7 +660,10 @@ export function SwipeableTabs({
 
       {/* Carousel container is now visible and holds the actual content */}
       <div 
-        className="w-full overflow-hidden embla__swipeable_tabs"
+        className={cn(
+          "w-full overflow-hidden embla__swipeable_tabs",
+          !isMobile && "pointer-events-none" // Disable pointer events on carousel container only
+        )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
@@ -693,7 +674,9 @@ export function SwipeableTabs({
       >
         <div className="flex items-start"
           style={{
-            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined
+            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
+            willChange: 'transform',
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
           }}
         > 
           {tabs.map((tab, index) => {
@@ -718,6 +701,8 @@ export function SwipeableTabs({
                   // Hide inactive tabs instantly during interaction
                   opacity: !isActive && isInteracting ? 0 : 1,
                   transition: 'opacity 0s',
+                  // Make slide content interactive even on desktop
+                  pointerEvents: isActive ? 'auto' : 'none'
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
