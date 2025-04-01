@@ -28,14 +28,13 @@ interface PostTabsWrapperProps {
   mediaType?: string;
 }
 
-// Define props for FeedTabContent including isActive
+// Define props for FeedTabContent (removed isActive)
 interface FeedTabContentProps {
   postTitle: string;
   feedUrl: string;
   rssData: PostTabsWrapperProps['rssData'];
   featuredImg?: string;
   mediaType?: string;
-  isActive: boolean; // Add isActive prop
 }
 
 // Separated out as a standalone component
@@ -45,7 +44,6 @@ const FeedTabContent = React.memo(({
   rssData,
   featuredImg,
   mediaType,
-  isActive // Destructure isActive prop
 }: FeedTabContentProps) => {
   if (!rssData) {
     return (
@@ -63,7 +61,6 @@ const FeedTabContent = React.memo(({
       initialData={rssData}
       featuredImg={featuredImg}
       mediaType={mediaType}
-      isActive={isActive} // Pass isActive down to RSSFeedClient
     />
   );
 });
@@ -78,18 +75,16 @@ export function PostTabsWrapper({
 }: PostTabsWrapperProps) {
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
-    // Dynamic tab label based on mediaType
     {
       id: 'feed',
       label: mediaType === 'podcast' ? 'Episodes' : mediaType === 'newsletter' ? 'Newsletters' : 'Feed',
-      component: ({ isActive }: { isActive: boolean }) => (
+      component: () => ( // Remove isActive parameter
         <FeedTabContent 
           postTitle={postTitle} 
           feedUrl={feedUrl} 
           rssData={rssData}
           featuredImg={featuredImg}
           mediaType={mediaType}
-          isActive={isActive} // Pass isActive from SwipeableTabs to FeedTabContent
         />
       )
     }

@@ -78,7 +78,6 @@ const ActivityTabContent = React.memo(({
   profileImage,
   activityData, 
   pageSize,
-  isActive
 }: { 
   userId: Id<"users">, 
   username: string,
@@ -86,7 +85,6 @@ const ActivityTabContent = React.memo(({
   profileImage?: string | null,
   activityData: FeedData | null, 
   pageSize: number,
-  isActive: boolean
 }) => {
   if (!activityData) {
     return (
@@ -105,7 +103,6 @@ const ActivityTabContent = React.memo(({
       initialData={activityData}
       pageSize={pageSize}
       apiEndpoint="/api/activity"
-      isActive={isActive}
     />
   );
 });
@@ -214,15 +211,14 @@ export function UserProfileTabs({
     {
       id: 'activity',
       label: 'Activity',
-      component: ({ isActive }: { isActive: boolean }) => (
+      component: () => (
         <ActivityTabContent 
           userId={userId} 
           username={username} 
           name={name}
           profileImage={profileImage}
           activityData={activityData} 
-          pageSize={pageSize} 
-          isActive={isActive}
+          pageSize={pageSize}
         />
       )
     },
@@ -230,7 +226,7 @@ export function UserProfileTabs({
     {
       id: 'likes',
       label: 'Likes',
-      component: ({ isActive }: { isActive: boolean }) => (
+      component: () => (
         <LikesTabContent 
           userId={userId}
           likesData={likesState.data} 
