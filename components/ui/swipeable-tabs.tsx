@@ -217,9 +217,13 @@ export function SwipeableTabs({
       const startX = touch.clientX;
       const startY = touch.clientY;
       
+      // Track drag direction
+      let isHorizontalDrag = false;
+      let hasDeterminedDirection = false;
+      
       const handleTouchMove = (e: TouchEvent) => {
         const internalEngine = (emblaApi as any).internalEngine?.();
-         if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
+        if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.() || e.touches.length === 0) {
            return;
         }
         
@@ -227,10 +231,22 @@ export function SwipeableTabs({
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Let touch-action CSS handle prevention primarily.
-        // We only prevented default here to stop browser back/forward.
-        // This might be too aggressive for inner vertical scrolling.
-        // If issues persist, we might need to revisit touch-action styles.
+        // Determine scroll direction early - only do this once per gesture
+        if (!hasDeterminedDirection) {
+          if (deltaX > 10 || deltaY > 10) { // Wait for significant movement
+            isHorizontalDrag = deltaX > deltaY;
+            hasDeterminedDirection = true;
+          }
+        }
+        
+        // Only prevent default for horizontal movement AND only after we've determined direction
+        if (hasDeterminedDirection && isHorizontalDrag) {
+          e.preventDefault();
+          return false; // Stop propagation for horizontal drags
+        }
+        
+        // For vertical scrolls, ensure they're handled naturally
+        return true;
       };
       
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -246,10 +262,13 @@ export function SwipeableTabs({
     // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
       const internalEngine = (emblaApi as any).internalEngine?.();
-       if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
-         return;
+      if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.() || Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        // Don't interfere with vertical scrolling
+        return;
       }
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && internalEngine.dragHandler.pointerDown()) {
+      
+      // Only prevent for significant horizontal movement
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
         e.preventDefault();
       }
     };
@@ -268,6 +287,39 @@ export function SwipeableTabs({
       }
     };
   }, [emblaApi]);
+
+  // Modify drag sensitivity and behavior based on virtuoso detection  
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    // Check if the active tab contains a virtuoso component
+    const detectVirtuoso = () => {
+      const currentSlide = slideRefs.current[selectedTab];
+      if (!currentSlide) return false;
+      
+      // Look for Virtuoso element either directly or nested
+      return !!currentSlide.querySelector('[data-virtuoso-scroller], [data-test-id="virtuoso-scroller"]');
+    };
+    
+    // When using Virtuoso, optimize drag handling
+    if (detectVirtuoso()) {
+      // Virtuoso needs more freedom for vertical scrolling
+      // So we'll make horizontal dragging threshold higher
+      const engine = (emblaApi as any).internalEngine?.();
+      if (engine?.options) {
+        // Store original values to restore
+        const originalDragFree = engine.options.get().dragFree;
+        
+        // Increase drag threshold to avoid interfering with Virtuoso's vertical scroll
+        engine.options.set({ dragFree: false });
+        
+        // Restore original settings when cleanup
+        return () => {
+          engine.options.set({ dragFree: originalDragFree });
+        };
+      }
+    }
+  }, [emblaApi, selectedTab]);
 
   // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
@@ -564,7 +616,9 @@ export function SwipeableTabs({
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
-          WebkitBackfaceVisibility: 'hidden'
+          WebkitBackfaceVisibility: 'hidden',
+          touchAction: 'pan-y', // Allow vertical scrolling natively
+          overscrollBehavior: 'contain' // Prevent scroll chaining
         }}
       >
         <div className="flex items-start"
@@ -594,8 +648,8 @@ export function SwipeableTabs({
             }
 
             return (
-            <div 
-              key={`carousel-${tab.id}`} 
+              <div 
+                key={`carousel-${tab.id}`} 
                 className="min-w-0 flex-[0_0_100%] transform-gpu" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
                 aria-hidden={!isActive}
@@ -603,6 +657,7 @@ export function SwipeableTabs({
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
+                  touchAction: 'pan-y', // Allow vertical scrolling in tab content
                   // Simple toggle with no transition
                   opacity: calculatedOpacity,
                   transition: 'opacity 0s' // Ensure opacity change is always instant
@@ -610,7 +665,7 @@ export function SwipeableTabs({
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
                 {renderTab(isActive)}
-            </div>
+              </div>
             );
           })}
         </div>
