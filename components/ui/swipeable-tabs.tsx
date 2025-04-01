@@ -227,10 +227,10 @@ export function SwipeableTabs({
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Only prevent default if horizontal movement is greater than vertical
-        if (deltaX > deltaY) {
-          e.preventDefault();
-        }
+        // Let touch-action CSS handle prevention primarily.
+        // We only prevented default here to stop browser back/forward.
+        // This might be too aggressive for inner vertical scrolling.
+        // If issues persist, we might need to revisit touch-action styles.
       };
       
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
