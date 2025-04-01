@@ -39,6 +39,9 @@ const TabHeaders = React.memo(({
   return (
     <div 
       className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b pt-safe-top"
+      style={{
+        willChange: 'top'
+      }}
     >
       
       {tabs.map((tab, index) => (
