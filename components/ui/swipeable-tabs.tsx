@@ -123,7 +123,8 @@ export function SwipeableTabs({
 
   // In SwipeableTabs component, add a new state for tracking drag
   const [isDragging, setIsDragging] = useState(false);
-  const nextSlideRef = useRef<number | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false); // NEW: Track animation state
+  const previousSelectedTabRef = useRef<number>(defaultTabIndex); // Track previous tab
   
   // Function to restore scroll position - MOVED UP to avoid hoisting issues
   const restoreScrollPosition = useCallback((index: number) => {
@@ -276,7 +277,6 @@ export function SwipeableTabs({
     if (!activeSlideNode) return;
 
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isInTransition = false;
     let delayedReInitTimeout: ReturnType<typeof setTimeout> | null = null;
     
     // Pre-measure slide heights to avoid layout shifts during animation
@@ -293,7 +293,7 @@ export function SwipeableTabs({
     
     // Function to track transition state
     const onTransitionStart = () => {
-      isInTransition = true;
+      setIsAnimating(true); // Set component state
       
       // Apply fixed height to container during animation
       const emblaContainer = emblaApi.containerNode();
@@ -311,7 +311,7 @@ export function SwipeableTabs({
     };
     
     const onTransitionEnd = () => {
-      isInTransition = false;
+      setIsAnimating(false); // Clear component state
       
       // After transition completes, let AutoHeight take over again
       const emblaContainer = emblaApi.containerNode();
@@ -362,7 +362,7 @@ export function SwipeableTabs({
         window.requestAnimationFrame(() => {
           if (emblaApi) {
             // If in transition, delay reInit
-            if (isInTransition) {
+            if (isAnimating) { // Use component state
               // If animating, delay reInit until animation completes with a much longer buffer
               if (delayedReInitTimeout) {
                 clearTimeout(delayedReInitTimeout);
@@ -405,6 +405,8 @@ export function SwipeableTabs({
         observerRef.current?.disconnect();
         // Track that we're dragging
         setIsDragging(true);
+        // Store the current tab as previous *before* potential drag/select
+        previousSelectedTabRef.current = emblaApi.selectedScrollSnap();
         
         // Record scroll positions of all tabs while hidden to ensure they're preserved
         tabs.forEach((_, index) => {
@@ -421,7 +423,6 @@ export function SwipeableTabs({
 
         // End dragging state
         setIsDragging(false);
-        nextSlideRef.current = null;
         
         // Get the target tab that will become visible
         const targetTabIndex = emblaApi.selectedScrollSnap();
@@ -488,6 +489,9 @@ export function SwipeableTabs({
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
+        // Store previous tab index BEFORE updating state
+        previousSelectedTabRef.current = selectedTab;
+        
         // Save current scroll position
         if (!isRestoringScrollRef.current) {
           scrollPositionsRef.current[selectedTab] = window.scrollY;
@@ -571,10 +575,23 @@ export function SwipeableTabs({
           {tabs.map((tab, index) => {
             const isActive = index === selectedTab;
             // Determine if this is the slide we're transitioning to
-            const isNextSlide = isDragging && nextSlideRef.current === index;
+            const wasActive = index === previousSelectedTabRef.current;
             
             // Use the memoized renderer for this tab
             const renderTab = memoizedTabRenderers[index];
+
+            // Determine opacity based on drag and animation state
+            let calculatedOpacity = 1;
+            if (isDragging) {
+              // During drag, only the *source* tab is visible
+              calculatedOpacity = wasActive ? 1 : 0;
+            } else if (isAnimating) {
+              // During animation *after* drag, hide the source, show the destination
+              calculatedOpacity = isActive ? 1 : 0;
+            } else {
+              // When idle, only the active tab is visible
+              calculatedOpacity = isActive ? 1 : 0;
+            }
 
             return (
             <div 
@@ -587,7 +604,8 @@ export function SwipeableTabs({
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Simple toggle with no transition
-                  opacity: isDragging && !isActive ? 0 : 1
+                  opacity: calculatedOpacity,
+                  transition: 'opacity 0s' // Ensure opacity change is always instant
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
