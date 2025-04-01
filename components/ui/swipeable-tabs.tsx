@@ -303,19 +303,18 @@ export function SwipeableTabs({
     
     // When using Virtuoso, optimize drag handling
     if (detectVirtuoso()) {
-      // Virtuoso needs more freedom for vertical scrolling
-      // So we'll make horizontal dragging threshold higher
-      const engine = (emblaApi as any).internalEngine?.();
-      if (engine?.options) {
-        // Store original values to restore
-        const originalDragFree = engine.options.get().dragFree;
+      // For tabs with Virtuoso, we'll just modify the container styles
+      // to better handle scrolling in virtualized lists
+      const containerEl = emblaApi.rootNode();
+      if (containerEl) {
+        // Add higher threshold for detecting horizontal swipes with Virtuoso
+        containerEl.style.touchAction = 'pan-y';
+        // Add custom attribute for debugging
+        containerEl.setAttribute('data-has-virtuoso', 'true');
         
-        // Increase drag threshold to avoid interfering with Virtuoso's vertical scroll
-        engine.options.set({ dragFree: false });
-        
-        // Restore original settings when cleanup
         return () => {
-          engine.options.set({ dragFree: originalDragFree });
+          // Clean up when component unmounts or tab changes
+          containerEl.removeAttribute('data-has-virtuoso');
         };
       }
     }
