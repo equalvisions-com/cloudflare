@@ -37,7 +37,12 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
+    <div 
+      className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b"
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)' // Add safe area padding
+      }}
+    >
       
       {tabs.map((tab, index) => (
         <button
