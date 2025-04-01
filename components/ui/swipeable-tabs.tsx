@@ -104,7 +104,7 @@ export function SwipeableTabs({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 400, // Increase default duration for slower animation
+  animationDuration = 20, // Increase default duration for slower animation
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);

@@ -7,7 +7,8 @@ import {
   Mail,
   User,
   MessageCircle,
-  Users
+  Users,
+  Bookmark
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -59,6 +60,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
       { href: "/chat", icon: MessageCircle, label: "Chat" },
+      { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     ];
     
     // Add profile link based on authentication status
