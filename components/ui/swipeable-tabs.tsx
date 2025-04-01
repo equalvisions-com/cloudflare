@@ -109,6 +109,7 @@ export function SwipeableTabs({
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -155,17 +156,85 @@ export function SwipeableTabs({
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const tabHeightsRef = useRef<Record<number, number>>({});
-  const [emblaRef, emblaApi] = useEmblaCarousel({ 
-    loop: false,
-    skipSnaps: false,
-    startIndex: defaultTabIndex,
-    align: 'start',
-    containScroll: 'trimSnaps',
-    dragFree: false,
-    duration: animationDuration,
-    dragThreshold: 2, // Lowered from 5 to 2 for easier swipe triggering
-    axis: 'x', // Explicitly set horizontal axis
-  }, [AutoHeight(), WheelGesturesPlugin()]); 
+  
+  // Add effect to check screen size and update isMobile state
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Check initially
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    isMobile 
+      ? { 
+          loop: false,
+          skipSnaps: false,
+          startIndex: defaultTabIndex,
+          align: 'start',
+          containScroll: 'trimSnaps',
+          dragFree: false,
+          duration: animationDuration,
+          dragThreshold: 2,
+          axis: 'x',
+        }
+      : {
+          loop: false,
+          skipSnaps: false,
+          startIndex: defaultTabIndex,
+          align: 'start',
+          containScroll: 'trimSnaps',
+          duration: animationDuration,
+          axis: 'x',
+        }, 
+    [
+      AutoHeight(),
+      ...(isMobile ? [WheelGesturesPlugin()] : [])
+    ]
+  ); 
+
+  // Disable all touch and pointer events on desktop
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const viewportElement = emblaApi.rootNode();
+    if (!viewportElement) return;
+
+    const disableAllInteractions = (e: Event) => {
+      if (!isMobile) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    if (!isMobile) {
+      viewportElement.style.pointerEvents = 'none';
+      viewportElement.style.touchAction = 'none';
+      viewportElement.addEventListener('pointerdown', disableAllInteractions, { capture: true });
+      viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
+    } else {
+      viewportElement.style.pointerEvents = '';
+      viewportElement.style.touchAction = 'pan-y pinch-zoom';
+      viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
+      viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
+    }
+
+    return () => {
+      if (viewportElement) {
+        viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
+        viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
+      }
+    };
+  }, [emblaApi, isMobile]);
 
   // Save scroll position when user scrolls
   useEffect(() => {
@@ -590,12 +659,16 @@ export function SwipeableTabs({
 
       {/* Carousel container is now visible and holds the actual content */}
       <div 
-        className="w-full overflow-hidden embla__swipeable_tabs" // Make container visible, remove h-0
+        className={cn(
+          "w-full overflow-hidden embla__swipeable_tabs",
+          !isMobile && "pointer-events-none" // Disable pointer events on desktop
+        )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
-          WebkitBackfaceVisibility: 'hidden'
+          WebkitBackfaceVisibility: 'hidden',
+          touchAction: isMobile ? 'pan-y pinch-zoom' : 'none' // Adjust touch action based on device
         }}
       >
         <div className="flex items-start"
