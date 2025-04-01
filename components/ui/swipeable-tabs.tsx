@@ -37,12 +37,7 @@ const TabHeaders = React.memo(({
   }, [selectedTab]);
 
   return (
-    <div 
-      className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b pt-safe-top"
-      style={{
-        willChange: 'top'
-      }}
-    >
+    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-50 border-b">
       
       {tabs.map((tab, index) => (
         <button
@@ -187,10 +182,10 @@ export function SwipeableTabs({
           startIndex: defaultTabIndex,
           align: 'start',
           containScroll: 'trimSnaps',
-          dragFree: false, // Changed back to false for snappier navigation
+          dragFree: false,
           duration: animationDuration,
-          dragThreshold: 1,
-          axis: 'x'
+          dragThreshold: 2,
+          axis: 'x',
         }
       : {
           loop: false,
@@ -673,19 +668,12 @@ export function SwipeableTabs({
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          WebkitTransform: 'translate3d(0,0,0)',
-          WebkitOverflowScrolling: 'touch',
           touchAction: isMobile ? 'pan-y pinch-zoom' : 'none' // Adjust touch action based on device
         }}
       >
-        <div 
-          className="flex items-start"
+        <div className="flex items-start"
           style={{
-            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
-            willChange: 'transform',
-            WebkitTransform: 'translate3d(0,0,0)',
-            WebkitBackfaceVisibility: 'hidden',
-            transition: 'transform 0.2s cubic-bezier(0.1, 0, 0.3, 1)'
+            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined
           }}
         > 
           {tabs.map((tab, index) => {
@@ -704,12 +692,12 @@ export function SwipeableTabs({
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{
-                  willChange: 'transform, opacity',
+                  willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Hide inactive tabs instantly during interaction
                   opacity: !isActive && isInteracting ? 0 : 1,
-                  transition: 'transform 0.2s cubic-bezier(0.1, 0, 0.3, 1)'
+                  transition: 'opacity 0s',
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}

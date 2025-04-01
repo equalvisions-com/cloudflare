@@ -123,11 +123,6 @@
       }
     }
   }
-
-  /* Add utility for top safe area padding */
-  .pt-safe-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
@@ -222,11 +217,7 @@
   }
   body {
     margin: 0;
-    /* Apply safe area padding with fallbacks */
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
+    padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
   }
