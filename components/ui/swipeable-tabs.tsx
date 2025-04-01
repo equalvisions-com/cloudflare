@@ -115,6 +115,12 @@ export function SwipeableTabs({
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
   
+  // Flag to indicate if the current selection change is from an instant jump (click)
+  const isInstantJumpRef = useRef(false);
+  
+  // State to track user interaction (dragging)
+  const [isInteracting, setIsInteracting] = useState(false);
+  
   // Ref to track the last tab change to prevent duplicate events
   const lastTabChangeRef = useRef<{ index: number; time: number }>({ 
     index: defaultTabIndex, 
@@ -155,9 +161,9 @@ export function SwipeableTabs({
     align: 'start',
     containScroll: 'trimSnaps',
     dragFree: false,
-    duration: 300, // Increased for smoother animation
+    duration: animationDuration, // Use prop for animation duration
     dragThreshold: 5, // Lowered threshold for easier swiping
-  }, [AutoHeight()]); // Re-add AutoHeight plugin
+  }, [AutoHeight(), WheelGesturesPlugin()]); // Re-add AutoHeight plugin, remove animationDuration from here
 
   // Save scroll position when user scrolls
   useEffect(() => {
@@ -296,7 +302,7 @@ export function SwipeableTabs({
         setTimeout(() => {
           if (emblaContainer) {
             // First, add a smooth transition for height
-            emblaContainer.style.transition = 'height 150ms ease-out';
+            emblaContainer.style.transition = 'height 200ms ease-out';
             
             // Get the next tab's height
             const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
@@ -313,7 +319,7 @@ export function SwipeableTabs({
                   // Remeasure heights
                   measureSlideHeights();
                 }
-              }, 150); // Match the transition duration
+              }, 200); // Match the increased transition duration
             } else {
               // Fallback if height not available
               emblaContainer.style.height = '';
@@ -417,26 +423,6 @@ export function SwipeableTabs({
     // Only depends on emblaApi itself, enableObserver has its own logic to find the right node
   }, [emblaApi]);
 
-  // Function to restore scroll position
-  const restoreScrollPosition = useCallback((index: number) => {
-    // Set flag to prevent scroll events during restoration
-    isRestoringScrollRef.current = true;
-    
-    // Get saved position (default to 0 if not set)
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
-    
-    // Use requestAnimationFrame for better timing
-    requestAnimationFrame(() => {
-      // Set scroll position
-      window.scrollTo(0, savedPosition);
-      
-      // Reset flag after a short delay
-      setTimeout(() => {
-        isRestoringScrollRef.current = false;
-      }, 100);
-    });
-  }, []);
-
   // Function to handle tab change with debouncing
   const handleTabChangeWithDebounce = useCallback((index: number) => {
     // Skip if it's the same tab or if the change happened too recently (within 300ms)
@@ -457,6 +443,24 @@ export function SwipeableTabs({
     }
   }, [onTabChange, selectedTab]);
   
+  // Function to restore scroll position (always async)
+  const restoreScrollPosition = useCallback((index: number) => {
+    // Set flag to prevent scroll events during restoration
+    isRestoringScrollRef.current = true;
+    
+    // Get saved position (default to 0 if not set)
+    const savedPosition = scrollPositionsRef.current[index] ?? 0;
+    
+    // Always use requestAnimationFrame for smoothness
+    requestAnimationFrame(() => {
+      window.scrollTo(0, savedPosition);
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isRestoringScrollRef.current = false;
+      }, 100);
+    });
+  }, []);
+
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -465,19 +469,24 @@ export function SwipeableTabs({
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
-        // Save current scroll position
+        // Always save previous scroll position before state changes
         if (!isRestoringScrollRef.current) {
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
+
+        // Call restoreScrollPosition - it runs async via requestAnimationFrame
+        restoreScrollPosition(index); 
+
+        // Check if it was an instant jump and reset flag if so
+        if (isInstantJumpRef.current) {
+          isInstantJumpRef.current = false;
+        }
         
-        // Update selected tab
+        // Update state
         setSelectedTab(index);
-        
-        // Handle tab change with debounce
         handleTabChangeWithDebounce(index);
-        
-        // Restore scroll position
-        restoreScrollPosition(index);
+
+        // NO scroll restoration here
       }
     };
     
@@ -486,31 +495,23 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]);
+  // Dependencies updated: remove restoreScrollPosition, keep others
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce]); 
 
   // Handle tab click
   const handleTabClick = useCallback(
     (index: number) => {
       if (!emblaApi || index === selectedTab) return;
-      
-      // Save current scroll position
-      if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
-      }
-      
-      // Use scrollTo with immediate=true to skip animation
+
+      // Signal that the next 'select' event is from an instant jump
+      isInstantJumpRef.current = true; 
+
+      // Jump instantly
       emblaApi.scrollTo(index, true);
-      
-      // Update selected tab
-      setSelectedTab(index);
-      
-      // Handle tab change with debounce
-      handleTabChangeWithDebounce(index);
-      
-      // Restore scroll position
-      restoreScrollPosition(index);
+
+      // No scroll saving/restoring/reInit needed here
     },
-    [emblaApi, selectedTab, restoreScrollPosition, handleTabChangeWithDebounce]
+    [emblaApi, selectedTab] // Simplified dependencies
   );
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
@@ -518,6 +519,39 @@ export function SwipeableTabs({
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
   }, [defaultTabIndex]);
+
+  // Add effect to track interaction state, linked to animation completion
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    // No need to clear timeouts anymore
+    // const clearInteractionTimeout = () => { ... };
+
+    const handlePointerDown = () => {
+      // clearInteractionTimeout(); -- REMOVED
+      setIsInteracting(true);
+    };
+
+    // REMOVED scheduleInteractionEnd function
+    // const scheduleInteractionEnd = () => { ... };
+
+    // Set interacting to false ONLY when the animation settles
+    const handleSettle = () => {
+      setIsInteracting(false);
+    };
+
+    emblaApi.on('pointerDown', handlePointerDown);
+    // No longer need to listen to pointerUp for this logic
+    // emblaApi.on('pointerUp', scheduleInteractionEnd);
+    emblaApi.on('settle', handleSettle); // Use settle event
+
+    return () => {
+      // clearInteractionTimeout(); -- REMOVED
+      emblaApi.off('pointerDown', handlePointerDown);
+      // emblaApi.off('pointerUp', scheduleInteractionEnd);
+      emblaApi.off('settle', handleSettle);
+    };
+  }, [emblaApi]);
 
   return (
     <div 
@@ -557,10 +591,13 @@ export function SwipeableTabs({
                 className="min-w-0 flex-[0_0_100%] transform-gpu" 
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
-                style={{ 
+                style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
-                  WebkitBackfaceVisibility: 'hidden'
+                  WebkitBackfaceVisibility: 'hidden',
+                  // Hide inactive tabs instantly during interaction
+                  opacity: !isActive && isInteracting ? 0 : 1,
+                  transition: 'opacity 0s',
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
