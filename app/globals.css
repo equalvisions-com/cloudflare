@@ -214,41 +214,19 @@
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
-    /* Add viewport-fit=cover meta tag support */
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    background-color: hsl(var(--background));
   }
   body {
     margin: 0;
-    padding: 0;
+    /* Apply safe area padding with fallbacks */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    /* Add safe area insets with fallbacks */
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   }
+  /* Remove all main styling related to height */
 
-  /* Add safe area support for main container */
-  main {
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    padding: max(16px, env(safe-area-inset-top, 16px))
-             max(16px, env(safe-area-inset-right, 16px))
-             max(16px, env(safe-area-inset-bottom, 16px))
-             max(16px, env(safe-area-inset-left, 16px));
-    background-color: hsl(var(--background));
-    /* Ensure content is within safe area */
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    position: relative;
-    overflow-x: hidden;
-  }
 }
 
 @layer base {
