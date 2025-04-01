@@ -131,12 +131,9 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
     {
       id: 'discover',
       label: 'Discover',
-      // Pass the component type, wrapping it if needed to pass props + isActive
-      component: ({ isActive }: { isActive: boolean }) => (
+      component: () => (
         <FeaturedFeedWrapper 
           initialData={featuredData as any /* Adjust typing */} 
-          // You might need to pass isActive down further into FeaturedFeedClient 
-          // isActive={isActive} 
         />
       )
     },
@@ -144,12 +141,10 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
     {
       id: 'following',
       label: 'Following',
-      // Pass the component type, wrapping it to include isActive
-      component: ({ isActive }: { isActive: boolean }) => (
+      component: () => (
         <RSSEntriesClient 
           initialData={initialData as any /* Adjust typing */} 
           pageSize={pageSize} 
-          isActive={isActive} // Pass isActive prop
         />
       )
     }
