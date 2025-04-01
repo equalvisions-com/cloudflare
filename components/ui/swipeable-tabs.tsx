@@ -195,6 +195,7 @@ export function SwipeableTabs({
           containScroll: 'trimSnaps',
           duration: animationDuration,
           axis: 'x',
+          dragFree: false,
         }, 
     [
       AutoHeight(),
@@ -209,29 +210,51 @@ export function SwipeableTabs({
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
 
-    const disableAllInteractions = (e: Event) => {
-      if (!isMobile) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+    const disableSwipeInteractions = (e: Event) => {
+      // No need to prevent all interactions, just let the preventDrag handler work
+      // and leave all regular interactions (clicks, input, etc.) functioning normally
     };
 
     if (!isMobile) {
-      viewportElement.style.pointerEvents = 'none';
-      viewportElement.style.touchAction = 'none';
-      viewportElement.addEventListener('pointerdown', disableAllInteractions, { capture: true });
-      viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
+      // Don't disable pointer events at all on desktop
+      viewportElement.style.pointerEvents = '';
+      viewportElement.style.touchAction = 'none'; // Only prevent touch-based swiping
     } else {
       viewportElement.style.pointerEvents = '';
       viewportElement.style.touchAction = 'pan-y pinch-zoom';
-      viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
-      viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
+    }
+
+    return () => {};
+  }, [emblaApi, isMobile]);
+
+  // Disable swiping on desktop
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const viewportElement = emblaApi.rootNode();
+    if (!viewportElement) return;
+
+    const preventDrag = (e: Event) => {
+      if (!isMobile) {
+        // Completely prevent drag initiation on desktop
+        const internalEngine = (emblaApi as any).internalEngine?.();
+        if (internalEngine && internalEngine.dragHandler) {
+          // Force pointer to be considered "up" to prevent drag initiation
+          internalEngine.dragHandler.pointerDown = () => false;
+        }
+      }
+    };
+
+    // Add listener only on desktop
+    if (!isMobile) {
+      viewportElement.addEventListener('mousedown', preventDrag, { capture: true });
+      viewportElement.addEventListener('touchstart', preventDrag, { capture: true });
     }
 
     return () => {
       if (viewportElement) {
-        viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
-        viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
+        viewportElement.removeEventListener('mousedown', preventDrag, { capture: true });
+        viewportElement.removeEventListener('touchstart', preventDrag, { capture: true });
       }
     };
   }, [emblaApi, isMobile]);
@@ -659,10 +682,7 @@ export function SwipeableTabs({
 
       {/* Carousel container is now visible and holds the actual content */}
       <div 
-        className={cn(
-          "w-full overflow-hidden embla__swipeable_tabs",
-          !isMobile && "pointer-events-none" // Disable pointer events on desktop
-        )}
+        className="w-full overflow-hidden embla__swipeable_tabs"
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
