@@ -5,6 +5,7 @@ import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
+import { UserMenuClient } from '../user-menu/UserMenuClient';
 
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
@@ -152,6 +153,9 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
 
   return (
     <div className="w-full">
+      <div className="flex justify-start items-start px-4 pt-4 sm:block md:hidden">
+        <UserMenuClient />
+      </div>
       <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
     </div>
   );
