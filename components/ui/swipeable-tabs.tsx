@@ -10,7 +10,7 @@ interface SwipeableTabsProps {
   tabs: {
     id: string;
     label: string;
-    component: React.ComponentType<{ isActive: boolean }>; // Expect a component type
+    component: React.ComponentType; // No longer expects isActive prop
   }[];
   defaultTabIndex?: number;
   className?: string;
@@ -131,9 +131,9 @@ export function SwipeableTabs({
   const memoizedTabRenderers = useMemo(() => {
     return tabs.map((tab) => {
       // This function is stable across renders
-      const TabRenderer = (isActive: boolean) => {
+      const TabRenderer = () => { // Removed isActive parameter
         const TabComponent = tab.component;
-        return <TabComponent isActive={isActive} />;
+        return <TabComponent />; // Removed isActive prop
       };
       // Add display name to satisfy the linter
       TabRenderer.displayName = `TabRenderer_${tab.id}`;
@@ -601,7 +601,7 @@ export function SwipeableTabs({
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
-                {renderTab(isActive)}
+                {renderTab()}
               </div>
             );
           })}
