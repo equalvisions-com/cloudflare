@@ -155,7 +155,8 @@ export function SwipeableTabs({
     align: 'start',
     containScroll: 'trimSnaps',
     dragFree: false,
-    duration: 20, // Fast but smooth scroll like CategorySliderWrapper
+    duration: 300, // Increased for smoother animation
+    dragThreshold: 5, // Lowered threshold for easier swiping
   }, [AutoHeight()]); // Re-add AutoHeight plugin
 
   // Save scroll position when user scrolls
