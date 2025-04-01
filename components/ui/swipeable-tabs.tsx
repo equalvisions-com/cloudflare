@@ -461,6 +461,23 @@ export function SwipeableTabs({
     });
   }, []);
 
+  // Handle tab click
+  const handleTabClick = useCallback(
+    (index: number) => {
+      if (!emblaApi || index === selectedTab) return;
+
+      // Save current scroll position before jumping
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+
+      // Signal that the next 'select' event is from an instant jump
+      isInstantJumpRef.current = true; 
+
+      // Jump instantly
+      emblaApi.scrollTo(index, true);
+    },
+    [emblaApi, selectedTab]
+  );
+
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
@@ -469,15 +486,15 @@ export function SwipeableTabs({
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
-        // Always save previous scroll position before state changes
-        if (!isRestoringScrollRef.current) {
+        // For non-instant jumps (swipes), save the scroll position
+        if (!isInstantJumpRef.current && !isRestoringScrollRef.current) {
           scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
 
         // Call restoreScrollPosition - it runs async via requestAnimationFrame
         restoreScrollPosition(index); 
 
-        // Check if it was an instant jump and reset flag if so
+        // Reset instant jump flag after restoration starts
         if (isInstantJumpRef.current) {
           isInstantJumpRef.current = false;
         }
@@ -485,8 +502,6 @@ export function SwipeableTabs({
         // Update state
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
-
-        // NO scroll restoration here
       }
     };
     
@@ -495,24 +510,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  // Dependencies updated: remove restoreScrollPosition, keep others
   }, [emblaApi, selectedTab, handleTabChangeWithDebounce]); 
-
-  // Handle tab click
-  const handleTabClick = useCallback(
-    (index: number) => {
-      if (!emblaApi || index === selectedTab) return;
-
-      // Signal that the next 'select' event is from an instant jump
-      isInstantJumpRef.current = true; 
-
-      // Jump instantly
-      emblaApi.scrollTo(index, true);
-
-      // No scroll saving/restoring/reInit needed here
-    },
-    [emblaApi, selectedTab] // Simplified dependencies
-  );
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
