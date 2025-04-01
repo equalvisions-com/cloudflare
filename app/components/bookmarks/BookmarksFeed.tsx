@@ -315,13 +315,14 @@ interface BookmarksFeedProps {
     entryMetrics: Record<string, InteractionStates>;
   } | null;
   pageSize?: number;
+  isSearchResults?: boolean;
 }
 
 /**
  * Client component that displays bookmarks feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksFeedProps) {
+export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResults = false }: BookmarksFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(
     initialData?.bookmarks || []
@@ -360,8 +361,8 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksF
 
   // Function to load more bookmarks
   const loadMoreBookmarks = useCallback(async () => {
-    if (isLoading || !hasMore) {
-      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}`);
+    if (isLoading || !hasMore || isSearchResults) {
+      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}, isSearchResults=${isSearchResults}`);
       return;
     }
 
@@ -404,7 +405,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksF
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMore, currentSkip, userId, pageSize, bookmarks.length]);
+  }, [isLoading, hasMore, currentSkip, userId, pageSize, bookmarks.length, isSearchResults]);
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {
@@ -450,7 +451,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksF
       <Virtuoso
         useWindowScroll
         data={bookmarks}
-        endReached={loadMoreBookmarks}
+        endReached={isSearchResults ? undefined : loadMoreBookmarks}
         overscan={20}
         itemContent={(index, bookmark) => (
           <BookmarkCard 
@@ -462,7 +463,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30 }: BookmarksF
         )}
         components={{
           Footer: () => 
-            isLoading && hasMore ? (
+            isLoading && hasMore && !isSearchResults ? (
               <div ref={loadMoreRef} className="text-center py-4">Loading more bookmarks...</div>
             ) : <div ref={loadMoreRef} className="h-0" />
         }}

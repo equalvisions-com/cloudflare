@@ -11,6 +11,7 @@ import { getUserProfile } from "@/components/user-menu/UserMenuServer";
 import { BookmarksContent } from "./BookmarksContent";
 import { getBookmarksData } from "@/app/actions/bookmarkActions";
 import { cache } from "react";
+import { BookmarksHeader } from "./BookmarksHeader";
 
 export const metadata = {
   title: "Your Bookmarks | Grasper",
@@ -78,7 +79,7 @@ export default async function BookmarksPage() {
       useCardStyle={true}
       containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
     >
-                    <div className="flex items-center justify-center h-[45px] border-b text-base font-extrabold tracking-tight">Bookmarks</div>
+      <BookmarksHeader />
 
       <BookmarksContent 
         isAuthenticated={isAuthenticated} 
