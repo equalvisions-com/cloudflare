@@ -108,6 +108,7 @@ export function SwipeableTabs({
   onTabChange,
 }: SwipeableTabsProps) {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -161,9 +162,10 @@ export function SwipeableTabs({
     align: 'start',
     containScroll: 'trimSnaps',
     dragFree: false,
-    duration: animationDuration, // Use prop for animation duration
-    dragThreshold: 5, // Lowered threshold for easier swiping
-  }, [AutoHeight(), WheelGesturesPlugin()]); // Re-add AutoHeight plugin, remove animationDuration from here
+    duration: animationDuration,
+    dragThreshold: 2, // Lowered from 5 to 2 for easier swipe triggering
+    axis: 'x', // Explicitly set horizontal axis
+  }, [AutoHeight(), WheelGesturesPlugin()]); 
 
   // Save scroll position when user scrolls
   useEffect(() => {
@@ -551,6 +553,30 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
+  // Update transition state handling
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const handleTransitionStart = () => {
+      setIsTransitioning(true);
+    };
+
+    const handleTransitionEnd = () => {
+      // Add a small delay to ensure smooth transition
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 50);
+    };
+
+    emblaApi.on('settle', handleTransitionEnd);
+    emblaApi.on('select', handleTransitionStart);
+
+    return () => {
+      emblaApi.off('settle', handleTransitionEnd);
+      emblaApi.off('select', handleTransitionStart);
+    };
+  }, [emblaApi]);
+
   return (
     <div 
       className={cn('w-full', className)}
@@ -586,7 +612,10 @@ export function SwipeableTabs({
             return (
               <div 
                 key={`carousel-${tab.id}`} 
-                className="min-w-0 flex-[0_0_100%] transform-gpu" 
+                className={cn(
+                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
+                  isTransitioning && "transitioning"
+                )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{

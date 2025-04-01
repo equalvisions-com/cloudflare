@@ -252,16 +252,55 @@
   opacity: 0;
 }
 
-/* Override default disabled opacity for all elements in the chat interface */
-.disabled-full-opacity button:disabled,
-.disabled-full-opacity input:disabled,
-.disabled-full-opacity textarea:disabled {
-  opacity: 1 !important;
+/* Hide scrollbar during tab transitions */
+.embla__swipeable_tabs {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.embla__swipeable_tabs::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Show scrollbar for vertical scrolling only when not transitioning */
+.embla__swipeable_tabs .embla-slide {
+  scrollbar-width: auto;
+  -ms-overflow-style: auto;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar {
+  width: 6px;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+/* When transitioning, hide the scrollbar */
+.embla__swipeable_tabs .embla-slide.transitioning {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.embla__swipeable_tabs .embla-slide.transitioning::-webkit-scrollbar {
+  display: none !important;
 }
 
 .embla-slide:not(.opacity-0) {
   transition: opacity 50ms;
   opacity: 1;
+}
+
+/* Override default disabled opacity for all elements in the chat interface */
+.disabled-full-opacity button:disabled,
+.disabled-full-opacity input:disabled,
+.disabled-full-opacity textarea:disabled {
+  opacity: 1 !important;
 }
 
 /* Sidebar styles */
