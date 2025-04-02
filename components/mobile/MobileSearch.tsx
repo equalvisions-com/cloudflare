@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarSearch } from "@/components/search/SidebarSearch";
+import { usePathname } from "next/navigation";
 
 interface MobileSearchProps {
   className?: string;
@@ -12,6 +13,7 @@ interface MobileSearchProps {
 export function MobileSearch({ className }: MobileSearchProps) {
   const [isSearching, setIsSearching] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   const toggleSearch = () => {
     setIsSearching(!isSearching);
@@ -29,26 +31,26 @@ export function MobileSearch({ className }: MobileSearchProps) {
     }
   }, [isSearching]);
 
-  // Close search when user scrolls
+  // Close search when pathname changes (navigation occurs)
   useEffect(() => {
-    const handleScroll = () => {
-      if (isSearching) {
-        setIsSearching(false);
-      }
-    };
+    if (isSearching) {
+      setIsSearching(false);
+    }
+  }, [pathname]);
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [isSearching]);
+  // Custom handler for SidebarSearch to close MobileSearch on search execution
+  const handleSearch = (query: string) => {
+    if (isSearching) {
+      setIsSearching(false);
+    }
+  };
 
   if (isSearching) {
     return (
-      <div className="fixed inset-x-0 top-0 z-50 bg-background flex items-center mt-2">
+      <div className="absolute inset-x-0 top-0 z-50 bg-background flex items-center mt-2">
         <div className="flex-1 mx-4 flex items-center">
           <div className="relative w-full" ref={searchContainerRef}>
-            <SidebarSearch className="w-full" hideClearButton={true} />
+            <SidebarSearch className="w-full" hideClearButton={true} onSearch={handleSearch} />
             <button
               onClick={toggleSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
