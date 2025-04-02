@@ -6,7 +6,7 @@ import {
   Podcast,
   Mail,
   User,
-  MessageCircle,
+  Search,
   Users,
   Bookmark
 } from "lucide-react";
@@ -40,7 +40,7 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   >
     <item.icon 
       size={22} 
-      strokeWidth={2}
+      strokeWidth={2.25}
     />
     <span className="sr-only">{item.label}</span>
   </Link>
@@ -57,9 +57,9 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { href: "/", icon: Home, label: "Home" },
+      { href: "/chat", icon: Search, label: "Search" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-      { href: "/chat", icon: MessageCircle, label: "Chat" },
       { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     ];
     

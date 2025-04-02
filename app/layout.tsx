@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
@@ -9,16 +8,7 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
-
-const inter = Inter({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { GeistSans } from 'geist/font/sans';
 
 export const metadata: Metadata = {
   title: "Convex + Next.js + Convex Auth",
@@ -46,14 +36,14 @@ export default async function RootLayout({
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
+          className={`${GeistSans.className} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
                   <div className="">
-                    <div className="flex justify-end hidden">
+                    <div className="flex justify-start mx-4 pt-2 sm:block md:hidden">
                       <UserMenuServer />
                     </div>
                     {children}

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import { BackButton } from "@/components/ui/BackButton";
 import { BookmarkSearchButton } from "@/components/ui/BookmarkSearchButton";
 import { Input } from "@/components/ui/input";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -39,36 +38,40 @@ export function BookmarksHeader() {
     <div className="flex items-center h-[45px] border-b">
       {isSearching ? (
         <>
-          <div className="flex-1 mx-2 flex items-center">
+          <div className="flex-1 mx-4 flex items-center">
             <div className="relative w-full">
+              <Search 
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" 
+                strokeWidth={2.5} 
+              />
               <Input
                 type="text"
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 onKeyDown={handleSearch}
-                placeholder="Search bookmarks..."
-                className="pl-3 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border"
+                placeholder="Search Bookmarks..."
+                className="pl-10 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
                 autoFocus
               />
+              <button
+                onClick={toggleSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+                aria-label="Close search"
+              >
+                <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
+              </button>
             </div>
           </div>
-          <button
-            onClick={toggleSearch}
-            className={cn(
-              "inline-flex items-center justify-center rounded-full p-2 text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none mr-2"
-            )}
-            aria-label="Close search"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </>
       ) : (
         <>
-          <BackButton className="ml-2" />
+          <div className="w-10"></div> {/* Spacer with fixed width */}
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
             Bookmarks
           </div>
-          <BookmarkSearchButton className="mr-2" onClick={toggleSearch} />
+          <div className="w-10 flex justify-end pr-4">
+            <BookmarkSearchButton onClick={toggleSearch} />
+          </div>
         </>
       )}
     </div>

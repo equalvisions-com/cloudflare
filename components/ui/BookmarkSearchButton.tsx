@@ -12,13 +12,13 @@ export function BookmarkSearchButton({ className, ...props }: BookmarkSearchButt
   return (
     <button 
       className={cn(
-        "inline-flex items-center justify-center rounded-full p-2 text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none", 
+        "inline-flex items-center justify-center focus:outline-none", 
         className
       )}
       aria-label="Search bookmarks"
       {...props}
     >
-      <Search className="h-4 w-4" />
+      <Search className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
     </button>
   );
 } 
