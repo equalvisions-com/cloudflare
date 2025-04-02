@@ -51,17 +51,17 @@ export default async function RootLayout({
                         <UserMenuServer />
                       </div>
                       <div className="flex justify-center font-medium">
-                        <Twitter className="h-6 w-6 fill-[#1DA1F2] stroke-[#1DA1F2]" />
+                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
                       </div>
                       <div className="flex justify-end">
                         <Link href={isAuthenticated ? "/chat" : "/signin"}>
                           {isAuthenticated ? (
-                            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0">
+                            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0 shadow-none">
                               <Sparkles className="h-4 w-4" />
                               <span className="sr-only">Ask AI</span>
                             </Button>
                           ) : (
-                            <Button variant="secondary" size="sm" className="rounded-full font-semibold">
+                            <Button variant="secondary" size="sm" className="rounded-full font-semibold shadow-none">
                               Sign in
                             </Button>
                           )}
