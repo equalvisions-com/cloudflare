@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PersonIcon } from "@radix-ui/react-icons";
+import { Settings } from "lucide-react";
 import { useUserMenuState } from "./useUserMenuState";
 import Image from "next/image";
 
@@ -48,8 +48,8 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage }: User
               />
             </div>
           ) : (
-            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0">
-              <PersonIcon className="h-5 w-5" />
+            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0 shadow-none">
+              <Settings className="h-5 w-5" />
               <span className="sr-only">Toggle user menu</span>
             </Button>
           )}

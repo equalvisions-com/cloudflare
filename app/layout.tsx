@@ -9,6 +9,9 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { GeistSans } from 'geist/font/sans';
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Twitter } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Convex + Next.js + Convex Auth",
@@ -43,8 +46,27 @@ export default async function RootLayout({
               <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
                   <div className="">
-                    <div className="flex justify-start mx-4 pt-2 sm:block md:hidden">
-                      <UserMenuServer />
+                    <div className="grid grid-cols-3 items-center mx-4 pt-2 sm:block md:hidden">
+                      <div className="flex justify-start">
+                        <UserMenuServer />
+                      </div>
+                      <div className="flex justify-center font-medium">
+                        <Twitter className="h-6 w-6 fill-[#1DA1F2] stroke-[#1DA1F2]" />
+                      </div>
+                      <div className="flex justify-end">
+                        <Link href={isAuthenticated ? "/chat" : "/signin"}>
+                          {isAuthenticated ? (
+                            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0">
+                              <Sparkles className="h-4 w-4" />
+                              <span className="sr-only">Ask AI</span>
+                            </Button>
+                          ) : (
+                            <Button variant="secondary" size="sm" className="rounded-full font-semibold">
+                              Sign in
+                            </Button>
+                          )}
+                        </Link>
+                      </div>
                     </div>
                     {children}
                   </div>
