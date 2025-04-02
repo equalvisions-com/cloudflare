@@ -57,7 +57,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { href: "/", icon: Home, label: "Home" },
-      { href: "/chat", icon: Search, label: "Search" },
+      { href: "/", icon: Search, label: "Search" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
       { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },

@@ -10,8 +10,8 @@ import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { GeistSans } from 'geist/font/sans';
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Twitter } from "lucide-react";
+import { Twitter } from "lucide-react";
+import { MobileSearch } from "@/components/mobile/MobileSearch";
 
 export const metadata: Metadata = {
   title: "Convex + Next.js + Convex Auth",
@@ -46,7 +46,7 @@ export default async function RootLayout({
               <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
                   <div className="">
-                    <div className="grid grid-cols-3 items-center mx-4 pt-2 sm:block md:hidden">
+                    <div className="grid grid-cols-3 items-center mx-4 mt-2 z-50 sm:block md:hidden">
                       <div className="flex justify-start">
                         <UserMenuServer />
                       </div>
@@ -54,18 +54,12 @@ export default async function RootLayout({
                         <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
                       </div>
                       <div className="flex justify-end">
-                        <Link href={isAuthenticated ? "/chat" : "/signin"}>
-                          {isAuthenticated ? (
-                            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0 shadow-none">
-                              <Sparkles className="h-4 w-4" />
-                              <span className="sr-only">Ask AI</span>
-                            </Button>
-                          ) : (
-                            <Button variant="secondary" size="sm" className="rounded-full font-semibold shadow-none">
-                              Sign in
-                            </Button>
-                          )}
+                        <Link href={isAuthenticated ? "/chat" : "/signin"} className={!isAuthenticated ? "" : "hidden"}>
+                          <button className="bg-secondary rounded-full text-sm font-semibold px-4 py-1.5 mr-2">
+                            Sign in
+                          </button>
                         </Link>
+                        <MobileSearch />
                       </div>
                     </div>
                     {children}

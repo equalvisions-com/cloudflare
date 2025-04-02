@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 interface SidebarSearchProps {
   className?: string;
   onSearch?: (query: string) => void;
+  hideClearButton?: boolean;
 }
 
 // Store search info in sessionStorage for cross-page persistence
@@ -36,7 +37,8 @@ const storeSearchQuery = (query: string, mediaType?: string) => {
 
 export function SidebarSearch({
   className = "",
-  onSearch
+  onSearch,
+  hideClearButton
 }: SidebarSearchProps) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -192,7 +194,7 @@ export function SidebarSearch({
               }}
               onKeyDown={handleKeyDown}
             />
-            {query && (
+            {query && !hideClearButton && (
               <button
                 type="button"
                 onClick={clearSearch}

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users, Bookmark } from "lucide-react";
+import { Home, Search,Podcast, User, Mail, MessageCircle, Bell, LogIn, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
@@ -62,6 +62,11 @@ function Sidebar() {
         href: "/",
         label: "Home",
         icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2.5} />,
+      },
+      {
+        href: "/search",
+        label: "Search",
+        icon: <Search className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/search") ? 3 : 2.5} />,
       },
       {
         href: "/newsletters",
