@@ -6,8 +6,6 @@ import {
   Podcast,
   Mail,
   User,
-  Search,
-  Users,
   Bookmark
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,7 +55,6 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { href: "/", icon: Home, label: "Home" },
-      { href: "/", icon: Search, label: "Search" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
       { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },

@@ -42,8 +42,8 @@ export default async function RootLayout({
           className={`${GeistSans.className} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
-            <ThemeProvider attribute="class">
-              <AudioProvider>
+          <ThemeProvider attribute="class" defaultTheme="dark">
+                          <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
                   <div className="">
                     <div className="grid grid-cols-3 items-center mx-4 mt-2 z-50 sm:block md:hidden">
