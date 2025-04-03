@@ -54,17 +54,27 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
             </Button>
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
+        <DropdownMenuContent align="end" className="ml-4">
+          {isAuthenticated ? (
+            <>
+               <DropdownMenuItem asChild>
+                <a href="/notifications" className="cursor-pointer">Alerts</a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={`/@${displayName}`} className="cursor-pointer">Profile</a>
+              </DropdownMenuItem>
+           
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem onClick={handleSignIn}>Sign in</DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="flex items-center gap-2 py-0 font-normal">
             <ThemeToggleWithErrorBoundary />
           </DropdownMenuLabel>
-          {!isAuthenticated ? (
-            <DropdownMenuItem onClick={handleSignIn}>Sign in</DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
