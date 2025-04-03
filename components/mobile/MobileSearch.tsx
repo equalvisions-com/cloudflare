@@ -47,7 +47,7 @@ export function MobileSearch({ className }: MobileSearchProps) {
 
   if (isSearching) {
     return (
-      <div className="absolute inset-x-0 top-0 z-50 bg-background flex items-center mt-2">
+      <div className="absolute inset-x-0 top-0 z-50 bg-background flex items-center mt-4">
         <div className="flex-1 mx-4 flex items-center">
           <div className="relative w-full" ref={searchContainerRef}>
             <SidebarSearch className="w-full" hideClearButton={true} onSearch={handleSearch} />
