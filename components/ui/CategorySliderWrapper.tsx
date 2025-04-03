@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 type SearchTab = 'posts' | 'entries';
 
@@ -92,6 +94,9 @@ export function CategorySliderWrapper({
   mediaType,
   className,
 }: CategorySliderWrapperProps) {
+  // Get user profile data from context
+  const { displayName, isBoarded, profileImage } = useSidebar();
+  
   // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -480,21 +485,32 @@ export function CategorySliderWrapper({
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b">
-        {/* Search input */}
+        {/* Search input with user menu */}
         <form 
           role="search"
           onSubmit={handleSearchSubmit} 
-          className="px-4 pt-4 pb-2 mb-1"
+          className="px-4 pt-2 pb-2 mb-1 flex items-center gap-3"
         >
-          <SearchInput
-            name="search"
-            value={pendingSearchQuery}
-            onChange={handleSearchChange}
-            onKeyDown={handleKeyDown}
-            onClear={handleSearchClear}
-            placeholder={`Search ${displayMediaType}...`}
-            aria-label={`Search ${displayMediaType}`}
-          />
+          {/* User Menu added to the left of search input */}
+          <div className="flex-shrink-0">
+            <UserMenuClientWithErrorBoundary 
+              initialDisplayName={displayName}
+              initialProfileImage={profileImage}
+              isBoarded={isBoarded}
+            />
+          </div>
+          
+          <div className="flex-1">
+            <SearchInput
+              name="search"
+              value={pendingSearchQuery}
+              onChange={handleSearchChange}
+              onKeyDown={handleKeyDown}
+              onClear={handleSearchClear}
+              placeholder={`Search ${displayMediaType}...`}
+              aria-label={`Search ${displayMediaType}`}
+            />
+          </div>
         </form>
 
         {searchQuery ? (

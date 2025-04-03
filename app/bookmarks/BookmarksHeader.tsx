@@ -38,7 +38,7 @@ export function BookmarksHeader() {
   };
 
   return (
-    <div className="flex items-center border-b p-4">
+    <div className="flex items-center border-b px-4 py-2">
       {isSearching ? (
         <div className="flex-1 flex items-center">
           <div className="relative w-full mt-[-4px]">

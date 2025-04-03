@@ -166,7 +166,7 @@ export function FeedTabsContainer({
   return (
     <div className="w-full">
 
-<div className="grid grid-cols-3 items-center mx-4 mt-4 z-50 sm:block md:hidden">
+<div className="grid grid-cols-3 items-center px-4 mt-2 z-50 sm:block md:hidden">
 <div>
         <UserMenuClientWithErrorBoundary 
           initialDisplayName={displayName}

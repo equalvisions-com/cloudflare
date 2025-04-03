@@ -779,7 +779,7 @@ export function ChatPage() {
       className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[552px] disabled-full-opacity"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 border-b flex items-center justify-between p-4">
+      <div className="flex-shrink-0 border-b flex items-center justify-between px-4 py-2">
         <div style={{ width: '32px' }} className="flex items-center justify-center">
           <UserMenuClientWithErrorBoundary 
             initialDisplayName={displayName}
