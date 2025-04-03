@@ -184,7 +184,7 @@ export function FeedTabsContainer({
                       </div>
                       <div className="flex justify-end">
                         <Link href={isAuthenticated ? "/chat" : "/signin"} className={!isAuthenticated ? "" : "hidden"}>
-                          <button className="bg-secondary rounded-full text-sm font-semibold px-4 py-1.5 mr-2">
+                          <button className="bg-secondary rounded-full text-sm font-semibold px-3 py-1.5 mr-2 text-muted-foreground shadow-none">
                             Sign in
                           </button>
                         </Link>
