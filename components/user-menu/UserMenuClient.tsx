@@ -29,7 +29,7 @@ export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
   );
 }
 
-export function UserMenuClient({ initialDisplayName, initialProfileImage }: UserMenuClientProps) {
+export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoarded }: UserMenuClientProps) {
   const { displayName, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
     useUserMenuState(initialDisplayName, initialProfileImage);
 

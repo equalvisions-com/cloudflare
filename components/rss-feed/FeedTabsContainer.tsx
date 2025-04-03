@@ -5,6 +5,11 @@ import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
+import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
+import { Twitter } from "lucide-react";
+import Link from 'next/link';
+import { MobileSearch } from '@/components/mobile/MobileSearch';
+
 
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
@@ -70,6 +75,11 @@ interface FeedTabsContainerProps {
     totalEntries: number;
   } | null;
   pageSize?: number;
+  // User info props
+  displayName?: string;
+  isBoarded?: boolean;
+  profileImage?: string;
+  isAuthenticated?: boolean;
 }
 
 // Memoized component for the "Following" tab content - REMOVED as we pass component directly
@@ -124,7 +134,15 @@ const DiscoverTabContent = React.memo(({
 DiscoverTabContent.displayName = 'DiscoverTabContent';
 */
 
-export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: FeedTabsContainerProps) {
+export function FeedTabsContainer({ 
+  initialData, 
+  featuredData, 
+  pageSize = 30,
+  displayName = "Guest",
+  isBoarded = false,
+  profileImage,
+  isAuthenticated = false
+}: FeedTabsContainerProps) {
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
     // Discover tab - first in order
@@ -152,6 +170,28 @@ export function FeedTabsContainer({ initialData, featuredData, pageSize = 30 }: 
 
   return (
     <div className="w-full">
+
+<div className="grid grid-cols-3 items-center mx-4 mt-2 z-50 sm:block md:hidden">
+<div>
+        <UserMenuClientWithErrorBoundary 
+          initialDisplayName={displayName}
+          isBoarded={isBoarded} 
+          initialProfileImage={profileImage}
+        />
+      </div>
+                      <div className="flex justify-center font-medium">
+                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
+                      </div>
+                      <div className="flex justify-end">
+                        <Link href={isAuthenticated ? "/chat" : "/signin"} className={!isAuthenticated ? "" : "hidden"}>
+                          <button className="bg-secondary rounded-full text-sm font-semibold px-4 py-1.5 mr-2">
+                            Sign in
+                          </button>
+                        </Link>
+                        <MobileSearch />
+                      </div>
+</div>
+     
       <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
     </div>
   );

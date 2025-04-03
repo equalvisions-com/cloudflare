@@ -66,9 +66,9 @@ export function MobileSearch({ className }: MobileSearchProps) {
 
   return (
     <Button 
-      variant="secondary" 
+      variant="ghost" 
       size="icon" 
-      className="rounded-full h-8 w-8 p-0 shadow-none" 
+      className="rounded-full h-8 w-8 p-0 shadow-none border text-muted-foreground" 
       onClick={toggleSearch}
     >
       <Search className="h-4 w-4" />

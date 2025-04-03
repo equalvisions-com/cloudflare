@@ -8,10 +8,18 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
-import { GeistSans } from 'geist/font/sans';
-import Link from "next/link";
-import { Twitter } from "lucide-react";
-import { MobileSearch } from "@/components/mobile/MobileSearch";
+import { Inter, JetBrains_Mono } from "next/font/google";
+
+
+const inter = Inter({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Convex + Next.js + Convex Auth",
@@ -39,28 +47,16 @@ export default async function RootLayout({
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${GeistSans.className} antialiased no-overscroll`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
           <ThemeProvider attribute="class" defaultTheme="dark">
                           <AudioProvider>
                 <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
                   <div className="">
-                    <div className="grid grid-cols-3 items-center mx-4 mt-2 z-50 sm:block md:hidden">
-                      <div className="flex justify-start">
+                   
+                      <div className="hidden">
                         <UserMenuServer />
-                      </div>
-                      <div className="flex justify-center font-medium">
-                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
-                      </div>
-                      <div className="flex justify-end">
-                        <Link href={isAuthenticated ? "/chat" : "/signin"} className={!isAuthenticated ? "" : "hidden"}>
-                          <button className="bg-secondary rounded-full text-sm font-semibold px-4 py-1.5 mr-2">
-                            Sign in
-                          </button>
-                        </Link>
-                        <MobileSearch />
-                      </div>
                     </div>
                     {children}
                   </div>
