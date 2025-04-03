@@ -66,12 +66,12 @@ export function MobileSearch({ className }: MobileSearchProps) {
 
   return (
     <Button 
-      variant="ghost" 
+      variant="secondary" 
       size="icon" 
-      className="rounded-full h-8 w-8 p-0 shadow-none border text-muted-foreground" 
+      className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground" 
       onClick={toggleSearch}
     >
-      <Search className="h-4 w-4" />
+      <Search className="h-4 w-4" strokeWidth={2.5} />
       <span className="sr-only">Search</span>
     </Button>
   );

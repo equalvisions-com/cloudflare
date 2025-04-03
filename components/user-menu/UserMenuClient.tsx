@@ -49,7 +49,7 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
             </div>
           ) : (
             <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground">
-              <Settings className="h-5 w-5" />
+              <Settings className="h-5 w-5" strokeWidth={2.25} />
               <span className="sr-only">Toggle user menu</span>
             </Button>
           )}
