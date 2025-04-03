@@ -34,8 +34,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get user profile information
-  const { displayName, isAuthenticated } = await getUserProfile();
+  // Get all user profile information
+  const { displayName, isAuthenticated, isBoarded, profileImage, userId } = await getUserProfile();
 
   return (
     <ConvexAuthNextjsServerProvider>
@@ -50,13 +50,19 @@ export default async function RootLayout({
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
-          <ThemeProvider attribute="class" defaultTheme="dark">
-                          <AudioProvider>
-                <SidebarProvider isAuthenticated={isAuthenticated} username={displayName}>
+            <ThemeProvider attribute="class" defaultTheme="dark">
+              <AudioProvider>
+                <SidebarProvider 
+                  isAuthenticated={isAuthenticated} 
+                  username={displayName}
+                  displayName={displayName}
+                  isBoarded={isBoarded}
+                  profileImage={profileImage}
+                  userId={userId}
+                >
                   <div className="">
-                   
-                      <div className="hidden">
-                        <UserMenuServer />
+                    <div className="hidden">
+                      <UserMenuServer />
                     </div>
                     {children}
                   </div>

@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ButtonHTMLAttributes } from "react";
+import { Button } from "@/components/ui/button";
 
 interface BookmarkSearchButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
@@ -10,15 +11,19 @@ interface BookmarkSearchButtonProps extends ButtonHTMLAttributes<HTMLButtonEleme
 
 export function BookmarkSearchButton({ className, ...props }: BookmarkSearchButtonProps) {
   return (
-    <button 
+    <Button 
+      variant="secondary" 
+      size="icon" 
       className={cn(
-        "inline-flex items-center justify-center focus:outline-none", 
+        "rounded-full p-0 shadow-none text-muted-foreground",
         className
       )}
       aria-label="Search bookmarks"
+      style={{ width: '32px', height: '32px', minHeight: '32px', minWidth: '32px' }}
       {...props}
     >
-      <Search className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
-    </button>
+      <Search className="h-4 w-4" strokeWidth={2.5} />
+      <span className="sr-only">Search</span>
+    </Button>
   );
-} 
+}

@@ -6,9 +6,9 @@ import { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmar
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface BookmarksContentProps {
-  isAuthenticated: boolean;
   userId: Id<"users"> | null;
   initialData: {
     bookmarks: BookmarkItem[];
@@ -19,7 +19,8 @@ interface BookmarksContentProps {
   } | null;
 }
 
-export const BookmarksContent = ({ isAuthenticated, userId, initialData }: BookmarksContentProps) => {
+export const BookmarksContent = ({ userId, initialData }: BookmarksContentProps) => {
+  const { isAuthenticated } = useSidebar();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q");
   

@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings } from "lucide-react";
+import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { useUserMenuState } from "./useUserMenuState";
 import Image from "next/image";
 
@@ -48,8 +48,12 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
               />
             </div>
           ) : (
-            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground">
-              <Settings className="h-5 w-5" strokeWidth={2.25} />
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none" 
+            >
+              <User className="h-5 w-5" strokeWidth={2.5} />
               <span className="sr-only">Toggle user menu</span>
             </Button>
           )}
@@ -58,21 +62,39 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
           {isAuthenticated ? (
             <>
                <DropdownMenuItem asChild>
-                <a href="/notifications" className="cursor-pointer">Alerts</a>
+                <a href="/notifications" className="cursor-pointer flex items-center">
+                  <Bell className="mr-1 h-4 w-4" />
+                  Alerts
+                </a>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <a href={`/@${displayName}`} className="cursor-pointer">Profile</a>
+                <a href="/settings" className="cursor-pointer flex items-center">
+                  <Settings className="mr-1 h-4 w-4" />
+                  Settings
+                </a>
               </DropdownMenuItem>
-           
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut} className="flex items-center">
+                <LogOut className="mr-1 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
             </>
           ) : (
-            <DropdownMenuItem onClick={handleSignIn}>Sign in</DropdownMenuItem>
+            <>
+              <DropdownMenuItem onClick={handleSignIn} className="flex items-center">
+                <UserPlus className="mr-1 h-4 w-4" />
+                Sign up
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignIn} className="flex items-center">
+                <LogIn className="mr-1 h-4 w-4" />
+                Sign in
+              </DropdownMenuItem>
+            </>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="flex items-center gap-2 py-0 font-normal">
+          <DropdownMenuLabel className="flex items-center px-0 gap-2 py-0 font-normal">
             <ThemeToggleWithErrorBoundary />
           </DropdownMenuLabel>
         </DropdownMenuContent>

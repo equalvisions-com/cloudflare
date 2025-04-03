@@ -6,8 +6,11 @@ import { Input } from "@/components/ui/input";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 export function BookmarksHeader() {
+  const { displayName, isBoarded, profileImage } = useSidebar();
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const router = useRouter();
@@ -35,41 +38,45 @@ export function BookmarksHeader() {
   };
 
   return (
-    <div className="flex items-center h-[45px] border-b">
+    <div className="flex items-center border-b p-4">
       {isSearching ? (
-        <>
-          <div className="flex-1 mx-4 flex items-center">
-            <div className="relative w-full">
-              <Search 
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" 
-                strokeWidth={2.5} 
-              />
-              <Input
-                type="text"
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                onKeyDown={handleSearch}
-                placeholder="Search Bookmarks..."
-                className="pl-10 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
-                autoFocus
-              />
-              <button
-                onClick={toggleSearch}
-                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
-                aria-label="Close search"
-              >
-                <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
-              </button>
-            </div>
+        <div className="flex-1 flex items-center">
+          <div className="relative w-full mt-[-4px]">
+            <Search 
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" 
+              strokeWidth={2.5} 
+            />
+            <Input
+              type="text"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={handleSearch}
+              placeholder="Search Bookmarks..."
+              className="pl-10 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
+              autoFocus
+            />
+            <button
+              onClick={toggleSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+              aria-label="Close search"
+            >
+              <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
+            </button>
           </div>
-        </>
+        </div>
       ) : (
         <>
-          <div className="w-10"></div> {/* Spacer with fixed width */}
+          <div className="w-10 flex items-start justify-start">
+            <UserMenuClientWithErrorBoundary 
+              initialDisplayName={displayName}
+              initialProfileImage={profileImage}
+              isBoarded={isBoarded}
+            />
+          </div>
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
             Bookmarks
           </div>
-          <div className="w-10 flex justify-end pr-4">
+          <div className="w-10 flex justify-end">
             <BookmarkSearchButton onClick={toggleSearch} />
           </div>
         </>

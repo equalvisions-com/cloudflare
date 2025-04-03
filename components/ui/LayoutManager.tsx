@@ -4,7 +4,6 @@ import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { FeedTabsContainerClientWrapper } from "@/components/rss-feed/FeedTabsContainerClientWrapper";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
-import { getUserProfile } from "@/components/user-menu/UserMenuServer";
 
 /**
  * Server component that manages the overall layout for the homepage
@@ -12,24 +11,18 @@ import { getUserProfile } from "@/components/user-menu/UserMenuServer";
  */
 export async function LayoutManager() {
   // Pre-fetch initial data in parallel for better performance
-  const [rssData, featuredData, userProfile] = await Promise.all([
+  const [rssData, featuredData] = await Promise.all([
     getInitialEntries(),
-    getFeaturedEntries(),
-    getUserProfile()
+    getFeaturedEntries()
   ]);
   
-  const { displayName, isBoarded, profileImage, isAuthenticated } = userProfile;
-  
-  // Prepare the feed content
+  // Prepare the feed content - no need to pass user profile props
+  // as they're available from the context provider
   const mainContent = (
     <FeedTabsContainerClientWrapper
       initialData={rssData}
       featuredData={featuredData}
       pageSize={30}
-      displayName={displayName}
-      isBoarded={isBoarded}
-      profileImage={profileImage}
-      isAuthenticated={isAuthenticated}
     />
   );
   

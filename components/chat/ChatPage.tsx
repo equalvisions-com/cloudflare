@@ -28,6 +28,8 @@ import {
   SquarePen,
 } from "lucide-react";
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
@@ -68,6 +70,9 @@ function useTouchActiveState() {
 }
 
 export function ChatPage() {
+  // Get user profile data from context
+  const { displayName, isBoarded, profileImage } = useSidebar();
+  
   // State for managing messages and input
   const {
     messages,
@@ -774,18 +779,25 @@ export function ChatPage() {
       className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[552px] disabled-full-opacity"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 border-b flex items-center justify-between px-4" style={{ height: '45px' }}>
-        <div style={{ width: '32px' }}></div>
-        <span className="font-medium leading-none flex items-center">Chat <span className="ml-1.5 text-xs leading-none font-medium px-1.5 py-1 rounded bg-green-500/20 text-green-500 ml-1">beta</span></span>
+      <div className="flex-shrink-0 border-b flex items-center justify-between p-4">
+        <div style={{ width: '32px' }} className="flex items-center justify-center">
+          <UserMenuClientWithErrorBoundary 
+            initialDisplayName={displayName}
+            initialProfileImage={profileImage}
+            isBoarded={isBoarded}
+          />
+        </div>
+        <span className="text-base font-extrabold tracking-tight flex items-center">Chat <span className="ml-1.5 text-xs leading-none font-medium px-1.5 py-1 rounded bg-green-500/20 text-green-500 ml-1">v1</span></span>
         <Button
-          variant="ghost"
+          variant="secondary" 
           size="icon"
           onClick={resetChat}
-          className="h-8 w-8 rounded-full hover:bg-transparent disabled:opacity-100"
+          className="rounded-full w-[32px] h-[32px] p-0 shadow-none text-muted-foreground"
+          style={{ width: '32px', height: '32px', minHeight: '32px', minWidth: '32px' }}
           title="Reset Chat"
           disabled={isLoading || messages.length === 0}
         >
-          <SquarePen className="h-4 w-4 text-primary" />
+          <SquarePen className="h-4 w-4" strokeWidth={2.5} />
           <span className="sr-only">Reset Chat</span>
         </Button>
       </div>

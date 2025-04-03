@@ -97,10 +97,6 @@ interface FeedTabsContainerClientWrapperProps {
   initialData: InitialData | null;
   featuredData?: FeaturedData | null;
   pageSize: number;
-  displayName?: string;
-  isBoarded?: boolean;
-  profileImage?: string;
-  isAuthenticated?: boolean;
 }
 
 /**
@@ -110,11 +106,7 @@ interface FeedTabsContainerClientWrapperProps {
 export function FeedTabsContainerClientWrapper({ 
   initialData, 
   featuredData, 
-  pageSize,
-  displayName,
-  isBoarded,
-  profileImage,
-  isAuthenticated
+  pageSize
 }: FeedTabsContainerClientWrapperProps) {
   return (
     <Suspense fallback={null}>
@@ -123,10 +115,6 @@ export function FeedTabsContainerClientWrapper({
           initialData={initialData}
           featuredData={featuredData}
           pageSize={pageSize}
-          displayName={displayName}
-          isBoarded={isBoarded}
-          profileImage={profileImage}
-          isAuthenticated={isAuthenticated}
         />
       </ReactErrorBoundary>
     </Suspense>

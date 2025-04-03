@@ -2,13 +2,26 @@ import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
-export function useUserMenuState(initialDisplayName: string = "Guest", initialProfileImage?: string) {
+export function useUserMenuState(initialDisplayName?: string, initialProfileImage?: string) {
   const { signOut } = useAuthActions();
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
-  const [displayName, setDisplayName] = useState(initialDisplayName);
-  const [profileImage, setProfileImage] = useState(initialProfileImage);
+  const { isAuthenticated: contextAuthenticated } = useConvexAuth();
+  
+  // Get values from context if available
+  const sidebarContext = useSidebar();
+  
+  // Use context values if available, otherwise fall back to props
+  const [displayName, setDisplayName] = useState(
+    sidebarContext.displayName || initialDisplayName || "Guest"
+  );
+  const [profileImage, setProfileImage] = useState(
+    sidebarContext.profileImage || initialProfileImage
+  );
+  
+  // Use authenticated state from context when available
+  const isAuthenticated = contextAuthenticated;
 
   const handleSignOut = async () => {
     try {

@@ -9,6 +9,7 @@ import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
 import { Twitter } from "lucide-react";
 import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 
 // Define the RSSItem interface based on the database schema
@@ -75,11 +76,6 @@ interface FeedTabsContainerProps {
     totalEntries: number;
   } | null;
   pageSize?: number;
-  // User info props
-  displayName?: string;
-  isBoarded?: boolean;
-  profileImage?: string;
-  isAuthenticated?: boolean;
 }
 
 // Memoized component for the "Following" tab content - REMOVED as we pass component directly
@@ -137,12 +133,11 @@ DiscoverTabContent.displayName = 'DiscoverTabContent';
 export function FeedTabsContainer({ 
   initialData, 
   featuredData, 
-  pageSize = 30,
-  displayName = "Guest",
-  isBoarded = false,
-  profileImage,
-  isAuthenticated = false
+  pageSize = 30
 }: FeedTabsContainerProps) {
+  // Get user data from context
+  const { displayName, isBoarded, profileImage, isAuthenticated } = useSidebar();
+  
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
     // Discover tab - first in order
