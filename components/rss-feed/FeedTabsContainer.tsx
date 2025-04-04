@@ -166,7 +166,7 @@ export function FeedTabsContainer({
   return (
     <div className="w-full">
 
-<div className="grid grid-cols-3 items-center px-4 mt-2 z-50 sm:block md:hidden">
+<div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
 <div>
         <UserMenuClientWithErrorBoundary 
           initialDisplayName={displayName}
@@ -178,12 +178,15 @@ export function FeedTabsContainer({
                         <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
                       </div>
                       <div className="flex justify-end">
-                        <Link href={isAuthenticated ? "/chat" : "/signin"} className={!isAuthenticated ? "" : "hidden"}>
-                          <button className="bg-secondary rounded-full text-sm font-semibold px-3 py-1.5 mr-2 text-muted-foreground shadow-none">
-                            Sign in
-                          </button>
-                        </Link>
-                        <MobileSearch />
+                        {!isAuthenticated ? (
+                          <Link href="/signin">
+                            <button className="bg-primary rounded-full text-sm font-semibold px-3 py-1.5 text-primary-foreground border-none shadow-none">
+                              Sign in
+                            </button>
+                          </Link>
+                        ) : (
+                          <MobileSearch />
+                        )}
                       </div>
 </div>
      

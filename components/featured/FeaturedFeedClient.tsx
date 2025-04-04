@@ -120,7 +120,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
     <article>
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {postMetadata.featuredImg && postUrl && (
             <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
@@ -140,12 +140,12 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full mt-[-3px]">
+            <div className="w-full">
               {postMetadata.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                      <h3 className="text-sm font-bold text-primary leading-tight">
+                      <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {postMetadata.title}
                       </h3>
                     </Link>
@@ -163,7 +163,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                 </div>
               )}
               {postMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                   {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
