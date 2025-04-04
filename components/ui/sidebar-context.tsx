@@ -10,6 +10,7 @@ interface SidebarContextType {
   isBoarded: boolean;
   profileImage?: string;
   userId?: Id<"users"> | null;
+  pendingFriendRequestCount: number;
 }
 
 const SidebarContext = createContext<SidebarContextType>({
@@ -18,7 +19,8 @@ const SidebarContext = createContext<SidebarContextType>({
   displayName: "Guest",
   isBoarded: false,
   profileImage: undefined,
-  userId: null
+  userId: null,
+  pendingFriendRequestCount: 0
 });
 
 export const useSidebar = () => useContext(SidebarContext);
@@ -30,7 +32,8 @@ export function SidebarProvider({
   displayName = "Guest",
   isBoarded = false,
   profileImage,
-  userId
+  userId,
+  pendingFriendRequestCount = 0
 }: {
   children: React.ReactNode;
   isAuthenticated: boolean;
@@ -39,6 +42,7 @@ export function SidebarProvider({
   isBoarded?: boolean;
   profileImage?: string;
   userId?: Id<"users"> | null;
+  pendingFriendRequestCount?: number;
 }) {
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(
@@ -48,9 +52,10 @@ export function SidebarProvider({
       displayName, 
       isBoarded, 
       profileImage,
-      userId 
+      userId,
+      pendingFriendRequestCount
     }),
-    [isAuthenticated, username, displayName, isBoarded, profileImage, userId]
+    [isAuthenticated, username, displayName, isBoarded, profileImage, userId, pendingFriendRequestCount]
   );
 
   return (

@@ -793,4 +793,39 @@ export const friendRequests = query({
       cursor: friendships.continueCursor,
     };
   },
+});
+
+// Query to get the count of pending friend requests for the *authenticated* user
+export const getMyPendingFriendRequestCount = query({
+  args: {}, // No arguments needed, uses authenticated user context
+  handler: async (ctx) => {
+    // Use the getAuthUserId helper which handles finding the correct user ID
+    const userId = await getAuthUserId(ctx);
+
+    // If no user ID, user is not logged in or not found, so no pending requests
+    if (userId === null) {
+      return 0;
+    }
+    
+    // First check pending requests where user is the requestee (recipient)
+    const pendingRequestsAsRecipient = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", (q) =>
+        q.eq("requesteeId", userId).eq("status", "pending")
+      )
+      .collect();
+    
+    // Check for "requested" status as well (in case a different term is used)
+    const requestedRequests = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", (q) =>
+        q.eq("requesteeId", userId).eq("status", "requested")
+      )
+      .collect();
+    
+    // Count both pending and requested status requests
+    const totalPendingRequests = pendingRequestsAsRecipient.length + requestedRequests.length;
+    
+    return totalPendingRequests;
+  },
 }); 

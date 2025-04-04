@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import { BackButton } from "@/app/components/ui/back-button";
 
 export function BookmarksHeader() {
-  const { displayName, isBoarded, profileImage } = useSidebar();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const router = useRouter();
@@ -67,11 +68,17 @@ export function BookmarksHeader() {
       ) : (
         <>
           <div className="w-10 flex items-start justify-start">
-            <UserMenuClientWithErrorBoundary 
-              initialDisplayName={displayName}
-              initialProfileImage={profileImage}
-              isBoarded={isBoarded}
-            />
+            <div className="md:hidden">
+              <UserMenuClientWithErrorBoundary 
+                initialDisplayName={displayName}
+                initialProfileImage={profileImage}
+                isBoarded={isBoarded}
+                pendingFriendRequestCount={pendingFriendRequestCount}
+              />
+            </div>
+            <div className="hidden md:block h-[32px]">
+              <BackButton />
+            </div>
           </div>
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
             Bookmarks

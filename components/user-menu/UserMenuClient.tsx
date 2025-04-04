@@ -19,6 +19,7 @@ interface UserMenuClientProps {
   initialDisplayName?: string;
   initialProfileImage?: string;
   isBoarded?: boolean;
+  pendingFriendRequestCount?: number;
 }
 
 export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
@@ -29,7 +30,12 @@ export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
   );
 }
 
-export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoarded }: UserMenuClientProps) {
+export function UserMenuClient({ 
+  initialDisplayName, 
+  initialProfileImage, 
+  isBoarded,
+  pendingFriendRequestCount = 0
+}: UserMenuClientProps) {
   const { displayName, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
     useUserMenuState(initialDisplayName, initialProfileImage);
 
@@ -37,26 +43,31 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
     <div className="flex items-center gap-2 text-sm font-medium">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          {profileImage ? (
-            <div className="cursor-pointer h-8 w-8 overflow-hidden rounded-full">
-              <Image 
-                src={profileImage} 
-                alt={displayName} 
-                width={32}
-                height={32}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : (
-            <Button 
-              variant="secondary" 
-              size="icon" 
-              className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none" 
-            >
-              <User className="h-5 w-5" strokeWidth={2.5} />
-              <span className="sr-only">Toggle user menu</span>
-            </Button>
-          )}
+          <div className="relative cursor-pointer">
+            {pendingFriendRequestCount > 0 && (
+              <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
+            )}
+            {profileImage ? (
+              <div className="h-8 w-8 overflow-hidden rounded-full">
+                <Image 
+                  src={profileImage} 
+                  alt={displayName} 
+                  width={32}
+                  height={32}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : (
+              <Button 
+                variant="secondary" 
+                size="icon" 
+                className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none" 
+              >
+                <User className="h-5 w-5" strokeWidth={2.5} />
+                <span className="sr-only">Toggle user menu</span>
+              </Button>
+            )}
+          </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="ml-4">
           {isAuthenticated ? (
@@ -65,6 +76,11 @@ export function UserMenuClient({ initialDisplayName, initialProfileImage, isBoar
                 <a href="/notifications" className="cursor-pointer flex items-center">
                   <Bell className="mr-1 h-4 w-4" />
                   Alerts
+                  {pendingFriendRequestCount > 0 && (
+                    <span className="bg-primary text-primary-foreground text-xs rounded-full px-2 py-0.5 ml-2">
+                      {pendingFriendRequestCount}
+                    </span>
+                  )}
                 </a>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

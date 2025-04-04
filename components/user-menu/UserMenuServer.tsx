@@ -12,6 +12,7 @@ export async function getUserProfile() {
   let isBoarded = false;
   let userId: Id<"users"> | null = null;
   let profileImage: string | undefined = undefined;
+  let pendingFriendRequestCount = 0;
 
   try {
     const token = await convexAuthNextjsToken();
@@ -23,21 +24,34 @@ export async function getUserProfile() {
         isBoarded = profile.isBoarded ?? false;
         userId = profile.userId;
         profileImage = profile.profileImage;
+
+        // Fetch pending friend request count if authenticated
+        try {
+          pendingFriendRequestCount = await fetchQuery(api.friends.getMyPendingFriendRequestCount, {}, { token });
+        } catch (countError) {
+          console.error("Error fetching pending friend requests:", countError);
+          // Continue with default count of 0
+        }
       }
     }
   } catch (error) {
     console.error("Error fetching profile:", error);
   }
 
-  return { displayName, isAuthenticated, isBoarded, userId, profileImage };
+  return { displayName, isAuthenticated, isBoarded, userId, profileImage, pendingFriendRequestCount };
 }
 
 export async function UserMenuServer() {
-  const { displayName, isBoarded, profileImage } = await getUserProfile();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = await getUserProfile();
 
   return (
     <Suspense fallback={<UserMenuFallback />}>
-      <UserMenuClientWrapper displayName={displayName} isBoarded={isBoarded} profileImage={profileImage} />
+      <UserMenuClientWrapper 
+        displayName={displayName} 
+        isBoarded={isBoarded} 
+        profileImage={profileImage}
+        pendingFriendRequestCount={pendingFriendRequestCount}
+      />
     </Suspense>
   );
 }
@@ -55,11 +69,18 @@ function UserMenuFallback() {
 function UserMenuClientWrapper({ 
   displayName, 
   isBoarded, 
-  profileImage 
+  profileImage,
+  pendingFriendRequestCount
 }: { 
   displayName: string; 
   isBoarded: boolean;
   profileImage?: string;
+  pendingFriendRequestCount?: number;
 }) {
-  return <UserMenuClient initialDisplayName={displayName} isBoarded={isBoarded} initialProfileImage={profileImage} />;
+  return <UserMenuClient 
+    initialDisplayName={displayName} 
+    isBoarded={isBoarded} 
+    initialProfileImage={profileImage}
+    pendingFriendRequestCount={pendingFriendRequestCount}
+  />;
 }

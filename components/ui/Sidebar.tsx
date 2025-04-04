@@ -9,11 +9,13 @@ import { usePathname } from "next/navigation";
 import { useMemo, memo } from "react";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import { Badge } from "@/components/ui/badge";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
+  badgeContent?: number | string;
 }
 
 /**
@@ -32,12 +34,19 @@ const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link href={item.href} className="w-full" prefetch={true}>
     <Button
       variant="ghost"
-      className={`w-full justify-start gap-2 px-3 py-1 rounded-lg ${
+      className={`w-full justify-start gap-2 px-3 py-1 rounded-lg flex items-center ${
         isActive ? "text-base font-bold leading-none" : ""
       }`}
     >
-      {item.icon}
-      <span className="text-base">{item.label}</span>
+      <div className="flex items-center gap-2 flex-grow">
+        {item.icon}
+        <span className="text-base">{item.label}</span>
+      </div>
+      {item.badgeContent !== undefined && item.badgeContent !== 0 && (
+        <Badge variant="default" className="ml-auto h-5 px-1.5 text-xs leading-none rounded-full shadow-none">
+          {item.badgeContent}
+        </Badge>
+      )}
     </Button>
   </Link>
 ));
@@ -48,7 +57,7 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, username } = useSidebar();
+  const { isAuthenticated, username, pendingFriendRequestCount } = useSidebar();
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -88,6 +97,7 @@ function Sidebar() {
         href: "/notifications",
         label: "Alerts",
         icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2.5} />,
+        badgeContent: pendingFriendRequestCount
       });
     }
 
@@ -110,7 +120,7 @@ function Sidebar() {
     );
 
     return items;
-  }, [isRouteActive, isAuthenticated, username]);
+  }, [isRouteActive, isAuthenticated, username, pendingFriendRequestCount]);
 
   return (
     <Card className="sticky top-6 h-fit shadow-none hidden md:block border-none md:basis-[25%] md:w-[142.95px] ml-auto">

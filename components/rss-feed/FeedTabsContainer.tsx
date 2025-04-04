@@ -136,7 +136,7 @@ export function FeedTabsContainer({
   pageSize = 30
 }: FeedTabsContainerProps) {
   // Get user data from context
-  const { displayName, isBoarded, profileImage, isAuthenticated } = useSidebar();
+  const { displayName, isBoarded, profileImage, isAuthenticated, pendingFriendRequestCount } = useSidebar();
   
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
@@ -172,6 +172,7 @@ export function FeedTabsContainer({
           initialDisplayName={displayName}
           isBoarded={isBoarded} 
           initialProfileImage={profileImage}
+          pendingFriendRequestCount={pendingFriendRequestCount}
         />
       </div>
                       <div className="flex justify-center font-medium">

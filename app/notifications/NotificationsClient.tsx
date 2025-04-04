@@ -93,25 +93,19 @@ export default function NotificationsClient() {
   const [acceptingIds, setAcceptingIds] = useState<Set<string>>(new Set());
   const [decliningIds, setDecliningIds] = useState<Set<string>>(new Set());
   
+  // If data is not available yet, simply return null to let the wrapper handle loading state
   if (!data) {
-    return (
-      <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-6">Notifications</h1>
-        <div className="p-4">Loading notifications...</div>
-      </div>
-    );
+    return null;
   }
   
   const { user, notifications } = data;
   
   if (!user) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="p-8 rounded-lg bg-muted/50 text-center">
-          <UserIcon className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Sign in to view notifications</h2>
-          <p className="text-muted-foreground">You need to be signed in to view your notifications.</p>
-        </div>
+      <div className="p-8 rounded-lg bg-muted/50 text-center">
+        <UserIcon className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Sign in to view notifications</h2>
+        <p className="text-muted-foreground">You need to be signed in to view your notifications.</p>
       </div>
     );
   }
@@ -183,9 +177,7 @@ export default function NotificationsClient() {
   };
   
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-6">Notifications</h1>
-      
+    <>
       {notifications.length === 0 ? (
         <div className="p-8 rounded-lg bg-muted/50 text-center">
           <div className="mx-auto h-10 w-10 text-muted-foreground mb-4 flex items-center justify-center">
@@ -249,7 +241,7 @@ export default function NotificationsClient() {
                           size="icon" 
                           onClick={() => handleDeclineRequest(notification.friendship._id)}
                           disabled={isLoading}
-                          className="rounded-full bg-muted/50 hover:bg-muted"
+                          className="rounded-full bg-muted/50 hover:bg-muted shadow-none"
                         >
                           <XIcon className="h-4 w-4" />
                         </Button>
@@ -258,7 +250,7 @@ export default function NotificationsClient() {
                           size="icon" 
                           onClick={() => handleAcceptRequest(notification.friendship._id)}
                           disabled={isLoading}
-                          className="rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+                          className="rounded-full bg-primary/10 hover:bg-primary/20 text-primary shadow-none"
                         >
                           <CheckIcon className="h-4 w-4" />
                         </Button>
@@ -269,7 +261,7 @@ export default function NotificationsClient() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="rounded-full"
+                            className="rounded-full shadow-none"
                             disabled={isLoading}
                           >
                             Friends
@@ -293,6 +285,6 @@ export default function NotificationsClient() {
           })}
         </div>
       )}
-    </div>
+    </>
   );
 } 

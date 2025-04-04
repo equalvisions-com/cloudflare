@@ -35,7 +35,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Get all user profile information
-  const { displayName, isAuthenticated, isBoarded, profileImage, userId } = await getUserProfile();
+  const { displayName, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await getUserProfile();
 
   return (
     <ConvexAuthNextjsServerProvider>
@@ -59,6 +59,7 @@ export default async function RootLayout({
                   isBoarded={isBoarded}
                   profileImage={profileImage}
                   userId={userId}
+                  pendingFriendRequestCount={pendingFriendRequestCount}
                 >
                   <div className="">
                     <div className="hidden">
