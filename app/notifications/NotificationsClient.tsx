@@ -15,6 +15,7 @@ import { useMutation } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 // Define types for our notifications
 interface FriendshipData {
@@ -81,6 +82,7 @@ const formatTimestamp = (timestamp: number): string => {
 
 export default function NotificationsClient() {
   const { toast } = useToast();
+  const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
   
   // Get notifications data in a single query
   const data = useQuery(api.friends.getNotifications) as NotificationsData | undefined;
@@ -117,6 +119,7 @@ export default function NotificationsClient() {
       toast({
         description: "Friend request accepted",
       });
+      updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
     } catch (error) {
       console.error("Failed to accept friend request:", error);
       toast({
@@ -139,6 +142,7 @@ export default function NotificationsClient() {
       toast({
         description: "Friend request declined",
       });
+      updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
     } catch (error) {
       console.error("Failed to decline friend request:", error);
       toast({

@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 import { MenuButton } from "@/components/ui/friend-menu-button";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 // Lazy load the EditProfileModal component
 const EditProfileModal = lazy(() => import("./EditProfileModal").then(mod => ({ default: mod.EditProfileModal })));
@@ -37,6 +38,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
 
   // Only fetch viewer if authenticated and we need it
   const needsViewerQuery = isAuthenticated && 
@@ -101,6 +103,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         ...currentStatus,
         status: "accepted",
       });
+      updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
     } catch (error) {
       console.error("Failed to accept friend request:", error);
     } finally {
@@ -122,6 +125,11 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         direction: null,
         friendshipId: null,
       });
+      
+      // If we're declining a pending request, decrement the count
+      if (currentStatus.status === "pending" && currentStatus.direction === "received") {
+        updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
+      }
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
