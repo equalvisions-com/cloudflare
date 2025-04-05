@@ -182,7 +182,7 @@ export function SwipeableTabs({
           startIndex: defaultTabIndex,
           align: 'start',
           containScroll: 'trimSnaps',
-          dragFree: false,
+          dragFree: true,
           duration: animationDuration,
           dragThreshold: 2,
           axis: 'x',
