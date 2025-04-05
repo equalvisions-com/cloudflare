@@ -48,7 +48,7 @@ export function UserMenuClient({
               <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
             )}
             {profileImage ? (
-              <div className="h-8 w-8 overflow-hidden rounded-full">
+              <div className="h-9 w-9 overflow-hidden rounded-full">
                 <Image 
                   src={profileImage} 
                   alt={displayName} 

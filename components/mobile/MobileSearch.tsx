@@ -56,7 +56,7 @@ export function MobileSearch({ className }: MobileSearchProps) {
               className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
               aria-label="Close search"
             >
-              <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
+              <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.25} />
             </button>
           </div>
         </div>
@@ -68,10 +68,10 @@ export function MobileSearch({ className }: MobileSearchProps) {
     <Button 
       variant="secondary" 
       size="icon" 
-      className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground" 
+      className="rounded-full h-9 w-9 p-0 shadow-none text-muted-foreground" 
       onClick={toggleSearch}
     >
-      <Search className="h-4 w-4" strokeWidth={2.5} />
+      <Search style={{ width: '18px', height: '18px' }} strokeWidth={2.25} />
       <span className="sr-only">Search</span>
     </Button>
   );
