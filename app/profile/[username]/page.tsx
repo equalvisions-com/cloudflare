@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileImage } from "@/components/profile/ProfileImage";
@@ -10,6 +10,7 @@ import { FriendButton } from "@/components/profile/FriendButton";
 import { FriendsList } from "@/components/profile/FriendsList";
 import { FollowingList } from "@/components/profile/FollowingList";
 import { Id } from "@/convex/_generated/dataModel";
+import { AiButton } from "@/app/components/ui/ai-button";
 
 // Define FriendshipStatus type to match what FriendButton expects
 type FriendshipStatus = {
@@ -169,60 +170,65 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     : null;
   
   return (
-    <ProfileLayoutManager>
-      <div>
+    <>
+      <ProfileLayoutManager>
         <div>
-          <div className="max-w-4xl mx-auto p-4">
-            <div className="flex flex-col items-start">
-              <div className="flex w-full items-start justify-between">
-                <ProfileImage 
-                  profileImage={profile.profileImage} 
-                  username={normalizedUsername}
-                  size="lg"
-                  className="mb-4"
-                />
-                <FriendButton
-                  username={normalizedUsername}
-                  userId={profile.userId}
-                  profileData={{
-                    name: profile.name,
-                    bio: profile.bio,
-                    profileImage: profile.profileImage,
-                    username: normalizedUsername
-                  }}
-                  initialFriendshipStatus={friendshipStatus}
-                />
-              </div>
-              <div className="text-left">
-                <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
-                <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>
-                {profile.bio && (
-                  <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>
-                )}
-                <div className="flex gap-4">
-                  <FollowingList 
-                    username={normalizedUsername} 
-                    initialCount={followingCount}
-                    initialFollowing={initialFollowing}
+          <div>
+            <div className="max-w-4xl mx-auto p-4">
+              <div className="flex flex-col items-start">
+                <div className="flex w-full items-start justify-between">
+                  <ProfileImage 
+                    profileImage={profile.profileImage} 
+                    username={normalizedUsername}
+                    size="lg"
+                    className="mb-4"
                   />
-                   <FriendsList 
-                    username={normalizedUsername} 
-                    initialCount={friendCount}
-                    initialFriends={initialFriends}
+                  <FriendButton
+                    username={normalizedUsername}
+                    userId={profile.userId}
+                    profileData={{
+                      name: profile.name,
+                      bio: profile.bio,
+                      profileImage: profile.profileImage,
+                      username: normalizedUsername
+                    }}
+                    initialFriendshipStatus={friendshipStatus}
                   />
+                </div>
+                <div className="text-left">
+                  <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
+                  <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>
+                  {profile.bio && (
+                    <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>
+                  )}
+                  <div className="flex gap-4">
+                    <FollowingList 
+                      username={normalizedUsername} 
+                      initialCount={followingCount}
+                      initialFollowing={initialFollowing}
+                    />
+                     <FriendsList 
+                      username={normalizedUsername} 
+                      initialCount={friendCount}
+                      initialFriends={initialFriends}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+            
+            <ProfileActivityData 
+              userId={profile.userId} 
+              username={normalizedUsername}
+              name={profile.name || normalizedUsername}
+              profileImage={profile.profileImage}
+            />
           </div>
-          
-          <ProfileActivityData 
-            userId={profile.userId} 
-            username={normalizedUsername}
-            name={profile.name || normalizedUsername}
-            profileImage={profile.profileImage}
-          />
         </div>
-      </div>
-    </ProfileLayoutManager>
+      </ProfileLayoutManager>
+      <Suspense fallback={null}>
+        <AiButton />
+      </Suspense>
+    </>
   );
 }

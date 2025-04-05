@@ -95,7 +95,7 @@ export function CategorySliderWrapper({
   className,
 }: CategorySliderWrapperProps) {
   // Get user profile data from context
-  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
   
   // State for selected category and search
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('featured');
@@ -491,17 +491,22 @@ export function CategorySliderWrapper({
           onSubmit={handleSearchSubmit} 
           className="px-4 pt-2 pb-2 mb-1 flex items-start gap-3.5"
         >
-          {/* User Menu added to the left of search input */}
-          <div className="flex-shrink-0 md:hidden">
-            <UserMenuClientWithErrorBoundary 
-              initialDisplayName={displayName}
-              initialProfileImage={profileImage}
-              isBoarded={isBoarded}
-              pendingFriendRequestCount={pendingFriendRequestCount}
-            />
-          </div>
+          {/* User Menu added to the left of search input, only if authenticated */}
+          {isAuthenticated && (
+            <div className="flex-shrink-0 md:hidden">
+              <UserMenuClientWithErrorBoundary 
+                initialDisplayName={displayName}
+                initialProfileImage={profileImage}
+                isBoarded={isBoarded}
+                pendingFriendRequestCount={pendingFriendRequestCount}
+              />
+            </div>
+          )}
           
-          <div className="flex-1 md:flex-none md:w-full">
+          <div className={cn(
+            "md:flex-none md:w-full",
+            isAuthenticated ? "flex-1" : "w-full" // Full width if not authenticated
+          )}>
             <SearchInput
               name="search"
               value={pendingSearchQuery}

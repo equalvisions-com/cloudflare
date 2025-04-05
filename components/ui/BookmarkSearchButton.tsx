@@ -19,10 +19,10 @@ export function BookmarkSearchButton({ className, ...props }: BookmarkSearchButt
         className
       )}
       aria-label="Search bookmarks"
-      style={{ width: '32px', height: '32px', minHeight: '32px', minWidth: '32px' }}
+      style={{ width: '36px', height: '36px', minHeight: '36px', minWidth: '36px' }}
       {...props}
     >
-      <Search className="h-4 w-4" strokeWidth={2.5} />
+      <Search style={{ width: '18px', height: '18px' }} strokeWidth={2.25} />
       <span className="sr-only">Search</span>
     </Button>
   );

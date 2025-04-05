@@ -3,7 +3,7 @@ import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostLayoutManager } from "@/components/postpage/PostLayoutManager";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { getInitialEntries } from "@/components/postpage/RSSFeed";
 import Image from "next/image";
 import { FollowButton } from "@/components/follow-button/FollowButton";
@@ -14,6 +14,7 @@ import { PostTabsWrapperWithErrorBoundary } from "@/components/postpage/PostTabs
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { SearchButton } from "@/components/ui/search-button";
 import { MenuButton } from "@/components/ui/menu-button";
+import { AiButton } from "@/app/components/ui/ai-button";
 
 
 interface PostPageProps {
@@ -210,21 +211,26 @@ export default async function PostPage({ params }: PostPageProps) {
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
   return (
-    <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostHeader post={post} followState={followState} rssData={rssData} />
-      {rssData ? (
-        <PostTabsWrapperWithErrorBoundary
-          postTitle={post.title}
-          feedUrl={post.feedUrl}
-          rssData={rssData}
-          featuredImg={post.featuredImg}
-          mediaType={post.mediaType}
-        />
-      ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          Unable to load feed data. Please try again later.
-        </div>
-      )}
-    </PostLayoutManager>
+    <>
+      <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
+        <PostHeader post={post} followState={followState} rssData={rssData} />
+        {rssData ? (
+          <PostTabsWrapperWithErrorBoundary
+            postTitle={post.title}
+            feedUrl={post.feedUrl}
+            rssData={rssData}
+            featuredImg={post.featuredImg}
+            mediaType={post.mediaType}
+          />
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            Unable to load feed data. Please try again later.
+          </div>
+        )}
+      </PostLayoutManager>
+      <Suspense fallback={null}>
+        <AiButton />
+      </Suspense>
+    </>
   );
 }

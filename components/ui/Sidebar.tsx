@@ -94,9 +94,9 @@ function Sidebar() {
       });
       
       items.push({
-        href: "/notifications",
+        href: "/alerts",
         label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/notifications") ? 3 : 2.5} />,
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/alerts") ? 3 : 2.5} />,
         badgeContent: pendingFriendRequestCount
       });
     }

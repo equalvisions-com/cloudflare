@@ -168,26 +168,26 @@ export function FeedTabsContainer({
 
 <div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
 <div>
-        <UserMenuClientWithErrorBoundary 
-          initialDisplayName={displayName}
-          isBoarded={isBoarded} 
-          initialProfileImage={profileImage}
-          pendingFriendRequestCount={pendingFriendRequestCount}
-        />
+        {isAuthenticated ? (
+          <UserMenuClientWithErrorBoundary 
+            initialDisplayName={displayName}
+            isBoarded={isBoarded} 
+            initialProfileImage={profileImage}
+            pendingFriendRequestCount={pendingFriendRequestCount}
+          />
+        ) : (
+          <Link href="/signin">
+            <button className="bg-primary rounded-full text-sm font-semibold px-3 py-2 text-primary-foreground border-none shadow-none">
+              Sign in
+            </button>
+          </Link>
+        )}
       </div>
                       <div className="flex justify-center font-medium">
                         <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
                       </div>
                       <div className="flex justify-end">
-                        {!isAuthenticated ? (
-                          <Link href="/signin">
-                            <button className="bg-primary rounded-full text-sm font-semibold px-3 py-1.5 text-primary-foreground border-none shadow-none">
-                              Sign in
-                            </button>
-                          </Link>
-                        ) : (
-                          <MobileSearch />
-                        )}
+                        <MobileSearch />
                       </div>
 </div>
      

@@ -42,7 +42,7 @@ export function BookmarksHeader() {
     <div className="flex items-center border-b px-4 py-2">
       {isSearching ? (
         <div className="flex-1 flex items-center">
-          <div className="relative w-full mt-[-4px]">
+          <div className="relative w-full">
             <Search 
               className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" 
               strokeWidth={2.5} 
@@ -76,7 +76,7 @@ export function BookmarksHeader() {
                 pendingFriendRequestCount={pendingFriendRequestCount}
               />
             </div>
-            <div className="hidden md:block h-[32px]">
+            <div className="hidden md:block h-[36px]">
               <BackButton />
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { BackButton } from '@/app/components/ui/back-button';
+import { AddFriendButton } from '@/app/components/ui/add-friend-button';
 
 /**
  * Header component for the notifications page
@@ -17,7 +18,7 @@ const NotificationsHeader = () => {
   return (
     <div className="w-full border-b py-2">
       <div className="container mx-auto flex items-center px-4">
-        <div className="flex-shrink-0 mr-3 h-[32px]">
+        <div className="flex-shrink-0 mr-3 h-[36px]">
           <div className="hidden md:block">
             <BackButton />
           </div>
@@ -33,8 +34,8 @@ const NotificationsHeader = () => {
         <div className="flex-1 text-center">
           <h1 className="text-base font-extrabold tracking-tight">Alerts</h1>
         </div>
-        <div className="flex-shrink-0 w-8">
-          {/* Empty div for balancing the layout */}
+        <div className="flex-shrink-0 w-9">
+          <AddFriendButton />
         </div>
       </div>
     </div>

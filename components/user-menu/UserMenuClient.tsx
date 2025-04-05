@@ -73,7 +73,7 @@ export function UserMenuClient({
           {isAuthenticated ? (
             <>
                <DropdownMenuItem asChild>
-                <a href="/notifications" className="cursor-pointer flex items-center">
+                <a href="/alerts" className="cursor-pointer flex items-center">
                   <Bell className="mr-1 h-4 w-4" />
                   Alerts
                   {pendingFriendRequestCount > 0 && (

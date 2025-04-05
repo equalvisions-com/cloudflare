@@ -9,6 +9,7 @@ import { FeaturedPostsWidget } from '@/components/widgets/FeaturedPostsWidget';
 import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsWidgetSkeleton';
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import NotificationsClientWrapper from './NotificationsClientWrapper';
+import { AiButton } from "@/app/components/ui/ai-button";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -39,12 +40,17 @@ export default function NotificationsPage() {
   );
 
   return (
-    <StandardSidebarLayout
-      rightSidebar={rightSidebar}
-      useCardStyle={true}
-      containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
-    >
-      <NotificationsClientWrapper />
-    </StandardSidebarLayout>
+    <>
+      <StandardSidebarLayout
+        rightSidebar={rightSidebar}
+        useCardStyle={true}
+        containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+      >
+        <NotificationsClientWrapper />
+      </StandardSidebarLayout>
+      <Suspense fallback={null}>
+        <AiButton />
+      </Suspense>
+    </>
   );
 }
