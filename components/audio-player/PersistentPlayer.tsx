@@ -30,7 +30,12 @@ export function PersistentPlayer() {
   };
 
   return (
-    <div className="fixed left-0 right-0 bg-background border-t shadow-lg z-50 bottom-0">
+    <div 
+      className="fixed left-0 right-0 bg-background border-t shadow-lg z-[60] md:bottom-0 bottom-[64px]"
+      style={{ 
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
+    >
       <div className="container mx-0 px-0 md:mx-auto">
         <div className="flex items-start gap-3">
           {/* Image */}

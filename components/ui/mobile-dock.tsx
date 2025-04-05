@@ -29,7 +29,7 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
   <Link 
     href={item.href} 
     className={cn(
-      "flex flex-col items-center justify-center px-2 relative",
+      "flex flex-col items-center justify-center px-2 pb-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
       isActive 
         ? "text-primary" 
@@ -58,8 +58,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       { href: "/", icon: Home, label: "Home" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-      { href: "/chat", icon: MessageCircle, label: "AI Chat" },
       { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
+      { href: "/chat", icon: MessageCircle, label: "AI Chat" },
     ];
     
     // Add profile link based on authentication status
@@ -88,11 +88,11 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       )}
       style={{ 
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        height: "60px"
+        height: "64px"
       }}
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around w-full h-[60px]">
+      <div className="flex items-center justify-around w-full h-[64px] pt-2">
         {navItems.map((item) => (
           <NavItem 
             key={item.href} 
