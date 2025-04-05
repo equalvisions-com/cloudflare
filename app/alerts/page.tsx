@@ -9,7 +9,6 @@ import { FeaturedPostsWidget } from '@/components/widgets/FeaturedPostsWidget';
 import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsWidgetSkeleton';
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import NotificationsClientWrapper from './NotificationsClientWrapper';
-import { AiButton } from "@/app/components/ui/ai-button";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -48,7 +47,6 @@ export default function NotificationsPage() {
       >
         <NotificationsClientWrapper />
       </StandardSidebarLayout>
-      <AiButton />
     </>
   );
 }
