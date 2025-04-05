@@ -9,7 +9,6 @@ import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWid
 import { Suspense } from "react";
 import { BookmarksHeader } from "./BookmarksHeader";
 import { BookmarksContentWrapper } from "./BookmarksContentWrapper";
-import { AiButton } from "@/app/components/ui/ai-button";
 
 export const metadata = {
   title: "Your Bookmarks | Grasper",
@@ -43,20 +42,15 @@ export default async function BookmarksPage() {
   );
 
   return (
-    <>
-      <StandardSidebarLayout
-        rightSidebar={rightSidebar}
-        useCardStyle={true}
-        containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
-      >
-        <BookmarksHeader />
+    <StandardSidebarLayout
+      rightSidebar={rightSidebar}
+      useCardStyle={true}
+      containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+    >
+      <BookmarksHeader />
 
-        {/* BookmarksContentWrapper will get userId from context */}
-        <BookmarksContentWrapper />
-      </StandardSidebarLayout>
-      <Suspense fallback={null}>
-        <AiButton />
-      </Suspense>
-    </>
+      {/* BookmarksContentWrapper will get userId from context */}
+      <BookmarksContentWrapper />
+    </StandardSidebarLayout>
   );
 }

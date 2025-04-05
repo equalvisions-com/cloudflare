@@ -1,7 +1,5 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 import { Metadata } from "next";
-import { AiButton } from "@/app/components/ui/ai-button";
-import { Suspense } from "react";
 
 // Add preload hints for critical resources and proper metadata
 export const metadata: Metadata = {
@@ -18,12 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return (
-    <>
-      <LayoutManager />
-      <Suspense fallback={null}>
-        <AiButton />
-      </Suspense>
-    </>
-  );
+  return <LayoutManager />;
 }
