@@ -9,7 +9,6 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import ViewportFix from '@/components/utils/ViewportFix';
 
 
 const inter = Inter({
@@ -50,7 +49,6 @@ export default async function RootLayout({
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-svh`}
         >
-          <ViewportFix />
           <ConvexClientProvider>
             <ThemeProvider attribute="class" defaultTheme="dark">
               <AudioProvider>
