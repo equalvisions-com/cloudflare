@@ -82,7 +82,11 @@ function Sidebar() {
         label: "Podcasts",
         icon: <Podcast className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/podcasts") ? 2.75 : 2.5 } />,
       },
-    
+      {
+        href: "/chat",
+        label: "Ask AI",
+        icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2.5} />,
+      },
     ];
 
     // Only add alerts link if user is authenticated
