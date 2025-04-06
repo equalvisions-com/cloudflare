@@ -58,9 +58,13 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       { href: "/", icon: Home, label: "Home" },
       { href: "/newsletters", icon: Mail, label: "Newsletters" },
       { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-      { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
       { href: "/chat", icon: MessageCircle, label: "AI Chat" },
     ];
+    
+    // Add bookmarks only if authenticated
+    if (isAuthenticated) {
+      items.push({ href: "/bookmarks", icon: Bookmark, label: "Bookmarks" });
+    }
     
     // Add profile link based on authentication status
     items.push(

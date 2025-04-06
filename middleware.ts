@@ -29,6 +29,11 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/");
     }
     
+    // Redirect from onboarding page if user is already onboarded or not authenticated
+    if (isOnboardingPage(request) && (!isAuthenticated || isBoarded)) {
+      return nextjsMiddlewareRedirect(request, "/");
+    }
+    
     if (isProtectedRoute(request) && !isAuthenticated) {
       return nextjsMiddlewareRedirect(request, "/signin");
     }
