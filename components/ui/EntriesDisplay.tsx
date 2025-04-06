@@ -175,8 +175,8 @@ export function EntriesDisplay({
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && entries.length > 0 && isMetricsLoading)) {
     return (
-      <div className={cn("flex justify-center items-center py-12", className)}>
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className={cn("flex justify-center items-center py-10", className)}>
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -210,7 +210,9 @@ export function EntriesDisplay({
         components={{
           Footer: () => 
             isLoading && hasMore ? (
-              <div className="text-center py-4">Loading more entries...</div>
+              <div className="text-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              </div>
             ) : <div className="h-0" />
         }}
       />

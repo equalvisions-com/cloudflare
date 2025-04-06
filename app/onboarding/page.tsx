@@ -443,8 +443,8 @@ export default function OnboardingPage() {
                 </div>
               </ScrollArea>
             ) : (
-              <div className="flex justify-center items-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <div className="flex justify-center items-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             )}
 

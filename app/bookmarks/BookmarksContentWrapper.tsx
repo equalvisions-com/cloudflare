@@ -45,8 +45,8 @@ export function BookmarksContentWrapper() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }

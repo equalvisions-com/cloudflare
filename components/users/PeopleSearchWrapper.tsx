@@ -164,8 +164,8 @@ export function PeopleSearchWrapper() {
       
       {/* Loading state when search is in progress but query has not been set yet */}
       {isSearching && !searchQuery && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       )}
       

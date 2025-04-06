@@ -13,7 +13,7 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Podcast, Mail } from "lucide-react";
+import { Podcast, Mail, Loader2 } from "lucide-react";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
@@ -345,7 +345,9 @@ const FeedContent = React.memo(({
         components={{
           Footer: () => 
             isLoading && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+              <div ref={loadMoreRef} className="text-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              </div>
             ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />

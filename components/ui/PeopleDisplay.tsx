@@ -120,8 +120,8 @@ export function PeopleDisplay({
   // Initial loading state
   if (isInitialLoad && (!usersResult || !usersResult.users)) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex justify-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -154,8 +154,8 @@ export function PeopleDisplay({
           Footer: () => (
             <div ref={loadMoreRef} className="py-4 text-center">
               {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="flex items-center justify-center gap-2 py-10">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : hasMore ? (
                 <div className="h-8" />

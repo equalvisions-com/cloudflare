@@ -268,7 +268,7 @@ const ActivityCard = React.memo(({
     <article className="">
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-start gap-4 mb-4 h-full">
           {/* Featured Image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
             <Link 
@@ -551,8 +551,8 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -561,7 +561,7 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
   if (activities.length === 0 && !isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No likes found for this user.</p>
+        <p>No likes </p>
       </div>
     );
   }
@@ -584,7 +584,9 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
         components={{
           Footer: () => 
             isLoading && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-4">Loading more entries...</div>
+              <div ref={loadMoreRef} className="text-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              </div>
             ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />

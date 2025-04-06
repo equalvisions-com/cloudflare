@@ -1502,9 +1502,8 @@ export function UserActivityFeed({
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading activity...</span>
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -1889,9 +1888,8 @@ export function UserActivityFeed({
           Footer: () => (
             <div className="py-4 text-center">
               {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-4">
+                <div className="flex items-center justify-center gap-2 py-10">
                   <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Loading more...</span>
                 </div>
               ) : hasMore ? (
                 <div className="h-8" />

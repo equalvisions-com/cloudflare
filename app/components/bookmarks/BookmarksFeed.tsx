@@ -431,8 +431,8 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   // Loading state - only show for initial load
   if (isLoading && isInitialLoad) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -464,7 +464,9 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
         components={{
           Footer: () => 
             isLoading && hasMore && !isSearchResults ? (
-              <div ref={loadMoreRef} className="text-center py-4">Loading more bookmarks...</div>
+              <div ref={loadMoreRef} className="text-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              </div>
             ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
