@@ -43,7 +43,7 @@ export default function NotificationsPage() {
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={true}
-        containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+        containerClass="container gap-0 flex flex-col md:flex-row min-h-mobile-screen md:gap-6 p-0 md:px-0"
       >
         <NotificationsClientWrapper />
       </StandardSidebarLayout>
