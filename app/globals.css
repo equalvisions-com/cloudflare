@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Add custom viewport height variable utility classes */
+.vh-fix {
+  height: 100vh; /* Fallback */
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+.h-screen-fix {
+  height: 100vh; /* Fallback */
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+.min-h-screen-fix {
+  min-height: 100vh; /* Fallback */
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+.max-h-screen-fix {
+  max-height: 100vh; /* Fallback */
+  max-height: calc(var(--vh, 1vh) * 100);
+}
+
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
