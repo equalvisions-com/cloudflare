@@ -7,12 +7,6 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
-
-    .h-svh {
-      height: 100svh;
-    }
-
-  
   
   .no-overscroll {
     overscroll-behavior: none;
@@ -224,7 +218,6 @@
     min-height: 100%;
     width: 100%;
     position: relative;
-    -webkit-overflow-scrolling: touch;
   }
   body {
     margin: 0;
@@ -236,11 +229,9 @@
     min-height: 100%;
     width: 100%;
     position: relative;
-    display: flex;
-    flex-direction: column;
   }
+  /* Remove all main styling related to height */
 }
-
 
 
 @layer base {
