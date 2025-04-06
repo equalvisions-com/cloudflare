@@ -118,28 +118,52 @@ export function PostsDisplay({
   useEffect(() => {
     if (isInitialLoad && postsResult) {
       const newPosts = postsResult.posts as Post[];
+      
+      // Initialize posts with authenticated state but without follow state yet
       const postsWithAuth = newPosts.map(post => ({
         ...post,
         isAuthenticated,
-        isFollowing: followStates && Array.isArray(followStates) 
-          ? followStates.some(id => id.toString() === post._id.toString())
-          : false
       }));
+      
       setPosts(postsWithAuth);
       setNextCursor(postsResult.nextCursor);
       setIsInitialLoad(false);
     }
-  }, [isInitialLoad, postsResult, isAuthenticated, followStates]);
+  }, [isInitialLoad, postsResult, isAuthenticated]);
 
   // Update follow states when they load
   useEffect(() => {
-    if (followStates && Array.isArray(followStates)) {
+    if (followStates && Array.isArray(followStates) && posts.length > 0) {
+      // Map postIds to their respective follow states
+      const followStateMap = new Map();
+      
+      // For each post ID we queried, get its corresponding follow state
+      posts.forEach((post, index) => {
+        if (index < followStates.length) {
+          followStateMap.set(post._id.toString(), followStates[index]);
+        }
+      });
+      
+      // Update posts with their follow states
       setPosts(currentPosts => 
-        currentPosts.map(post => ({
-          ...post,
-          isAuthenticated,
-          isFollowing: followStates.some(id => id.toString() === post._id.toString())
-        }))
+        currentPosts.map(post => {
+          const postIdStr = post._id.toString();
+          // If we have a follow state for this post, use it, otherwise keep the current value
+          const isFollowing = followStateMap.has(postIdStr) 
+            ? followStateMap.get(postIdStr) 
+            : post.isFollowing;
+          
+          // Only update if the follow state actually changed
+          if (post.isFollowing === isFollowing) {
+            return post;
+          }
+          
+          return {
+            ...post,
+            isAuthenticated,
+            isFollowing
+          };
+        })
       );
     }
   }, [followStates, isAuthenticated]);
@@ -147,17 +171,20 @@ export function PostsDisplay({
   // Load more posts when bottom is reached
   useEffect(() => {
     if (inView && nextCursor && !isInitialLoad && postsResult) {
-      const newPosts = (postsResult.posts as Post[]).map(post => ({
-        ...post,
-        isAuthenticated,
-        isFollowing: followStates && Array.isArray(followStates) 
-          ? followStates.some(id => id.toString() === post._id.toString())
-          : false
-      }));
-      setPosts(prev => [...prev, ...newPosts]);
+      const newPosts = postsResult.posts as Post[];
+      
+      // Add new posts with authentication but no follow state yet
+      setPosts(prev => [
+        ...prev,
+        ...newPosts.map(post => ({
+          ...post,
+          isAuthenticated,
+        }))
+      ]);
+      
       setNextCursor(postsResult.nextCursor);
     }
-  }, [inView, nextCursor, isInitialLoad, postsResult, isAuthenticated, followStates]);
+  }, [inView, nextCursor, isInitialLoad, postsResult, isAuthenticated]);
 
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
@@ -207,6 +234,10 @@ const PostCard = memo(({ post }: { post: Post }) => {
     return () => window.removeEventListener('resize', checkTitleHeight);
   }, []);
 
+  // Generate a unique key for the follow button based on post ID and follow state
+  // This ensures the button re-renders when follow state changes
+  const followButtonKey = `follow-${post._id}-${post.isFollowing ? 'following' : 'follow'}`;
+  
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
       <CardContent className="p-4 h-[116px]">
@@ -240,6 +271,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     initialIsFollowing={post.isFollowing ?? false}
                     isAuthenticated={post.isAuthenticated}
                     className="px-2 h-[23px] text-xs font-semibold"
+                    key={followButtonKey}
                   />
                 </div>
               )}

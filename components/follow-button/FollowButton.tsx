@@ -61,8 +61,8 @@ export function FollowButton({
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
       dedupingInterval: 60000,
-      revalidateIfStale: false,
-      revalidateOnMount: false,
+      revalidateIfStale: true,
+      revalidateOnMount: true,
       keepPreviousData: true,
     }
   );
@@ -72,8 +72,14 @@ export function FollowButton({
     if (!isLoaded && (data || initialIsFollowing !== undefined)) {
       setIsLoaded(true);
     }
-  }, [data, initialIsFollowing, isLoaded]);
+    
+    // Force revalidation with the server if initialIsFollowing is provided
+    if (isAuthenticated && initialIsFollowing !== undefined && data?.isFollowing !== initialIsFollowing) {
+      mutate();
+    }
+  }, [data, initialIsFollowing, isLoaded, isAuthenticated, mutate]);
 
+  // Make sure we use the most accurate state available
   const isFollowing = data?.isFollowing ?? initialIsFollowing;
 
   const handleClick = async () => {
