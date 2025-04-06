@@ -262,7 +262,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex min-h-mobile-screen w-full container my-auto mx-auto">
+    <div className="flex min-h-screen w-full container my-auto mx-auto">
       <div className="w-full max-w-[600px] mx-auto flex flex-col my-auto gap-4 pb-8">
         <div className="space-y-1 mb-2">
           <h2 className="font-semibold text-2xl tracking-tight">

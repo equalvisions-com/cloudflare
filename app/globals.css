@@ -2,17 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Viewport height fix for mobile browsers */
-:root {
-  --vh: 1vh;
-}
-
-/* Use the custom property for viewport heights */
-.h-screen {
-  height: 100vh; /* Fallback for browsers that don't support CSS variables */
-  height: calc(var(--vh, 1vh) * 100);
-}
-
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
@@ -133,19 +122,6 @@
         transform: translateZ(0) !important;
       }
     }
-  }
-
-  /* When you need to use vh units, use this class instead */
-  .h-mobile-screen {
-    height: calc(var(--vh, 1vh) * 100);
-  }
-  
-  .min-h-mobile-screen {
-    min-height: calc(var(--vh, 1vh) * 100);
-  }
-  
-  .max-h-mobile-screen {
-    max-height: calc(var(--vh, 1vh) * 100);
   }
 }
 

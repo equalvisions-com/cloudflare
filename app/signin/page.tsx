@@ -23,7 +23,7 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
 
   return (
-    <div className="flex min-h-mobile-screen w-full container my-auto mx-auto">
+    <div className="flex min-h-screen w-full container my-auto mx-auto">
       <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8">
         {step === "signIn" && (
           <>

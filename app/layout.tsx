@@ -8,7 +8,6 @@ import { AudioProvider } from "@/components/audio-player/AudioContext";
 import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
-import { ViewportFix } from "./components/ui/viewport-fix";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 
@@ -62,7 +61,6 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <ViewportFix />
                   <div className="">
                     <div className="hidden">
                       <UserMenuServer />
