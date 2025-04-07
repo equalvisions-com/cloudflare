@@ -4,8 +4,11 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { PeopleDisplay } from '@/components/ui/PeopleDisplay';
 import { SearchInput } from '@/components/ui/search-input';
 import { Users, Loader2 } from 'lucide-react';
+import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 export function PeopleSearchWrapper() {
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
   // State for search query
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
@@ -138,16 +141,26 @@ export function PeopleSearchWrapper() {
   return (
     <div className="space-y-0">
       {/* Search input */}
-      <div className="sticky top-0 z-10 bg-background border-b p-4">
-        <form onSubmit={handleSearchSubmit} className="relative">
-          <SearchInput
-            value={pendingSearchQuery}
-            onChange={handleSearchChange}
-            onKeyDown={handleKeyDown}
-            onClear={handleSearchClear}
-            placeholder="Search for people..."
-            className="w-full"
-          />
+      <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
+        <form onSubmit={handleSearchSubmit} className="relative flex items-center gap-3.5">
+          <div className="flex-shrink-0 md:hidden">
+            <UserMenuClientWithErrorBoundary
+              initialDisplayName={displayName}
+              initialProfileImage={profileImage}
+              isBoarded={isBoarded}
+              pendingFriendRequestCount={pendingFriendRequestCount}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <SearchInput
+              value={pendingSearchQuery}
+              onChange={handleSearchChange}
+              onKeyDown={handleKeyDown}
+              onClear={handleSearchClear}
+              placeholder="Search for people..."
+              className="w-full"
+            />
+          </div>
         </form>
       </div>
       

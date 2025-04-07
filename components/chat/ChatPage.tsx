@@ -30,6 +30,7 @@ import {
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
+import { BackButton } from '@/app/components/ui/back-button';
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
@@ -776,28 +777,35 @@ export function ChatPage() {
   return (
     <div 
       ref={mainContainerRef} 
-      className="border-0 md:border-x w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[552px] disabled-full-opacity"
+      className="border-0 w-full flex flex-col md:relative fixed inset-0 h-[calc(100dvh_-_65px)] md:h-[100dvh] overflow-hidden sm:max-w-100vw md:max-w-[552px] disabled-full-opacity"
     >
       {/* Top bar */}
       <div className="flex-shrink-0 border-b flex items-center justify-between px-4 py-2">
-        <div style={{ width: '32px' }} className="flex items-center justify-center">
-          <UserMenuClientWithErrorBoundary 
-            initialDisplayName={displayName}
-            initialProfileImage={profileImage}
-            isBoarded={isBoarded}
-          />
+        <div style={{ width: '36px' }} className="flex items-start justify-start">
+          <div className="hidden md:block">
+            <BackButton />
+          </div>
+          {isBoarded && (
+            <div className="md:hidden">
+              <UserMenuClientWithErrorBoundary 
+                initialDisplayName={displayName}
+                initialProfileImage={profileImage}
+                isBoarded={isBoarded}
+              />
+            </div>
+          )}
         </div>
         <span className="text-base font-extrabold tracking-tight flex items-center">Chat <span className="ml-1.5 text-xs leading-none font-medium px-1.5 py-1 rounded bg-green-500/20 text-green-500 ml-1">v1</span></span>
         <Button
           variant="secondary" 
           size="icon"
           onClick={resetChat}
-          className="rounded-full w-[32px] h-[32px] p-0 shadow-none text-muted-foreground"
-          style={{ width: '32px', height: '32px', minHeight: '32px', minWidth: '32px' }}
+          className="rounded-full w-[36px] h-[36px] p-0 shadow-none text-muted-foreground md:hover:bg-transparent md:bg-transparent md:text-muted-foreground md:hover:text-muted-foreground md:rounded-none md:mr-[-0.5rem]"
+          style={{ width: '36px', height: '36px', minHeight: '32px', minWidth: '32px' }}
           title="Reset Chat"
           disabled={isLoading || messages.length === 0}
         >
-          <SquarePen className="h-4 w-4" strokeWidth={2.5} />
+          <SquarePen className="!h-[18px] !w-[18px]" strokeWidth={2.25} />
           <span className="sr-only">Reset Chat</span>
         </Button>
       </div>
