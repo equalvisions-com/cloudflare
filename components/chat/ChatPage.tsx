@@ -72,7 +72,7 @@ function useTouchActiveState() {
 
 export function ChatPage() {
   // Get user profile data from context
-  const { displayName, isBoarded, profileImage } = useSidebar();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
   
   // State for managing messages and input
   const {
@@ -791,6 +791,7 @@ export function ChatPage() {
                 initialDisplayName={displayName}
                 initialProfileImage={profileImage}
                 isBoarded={isBoarded}
+                pendingFriendRequestCount={pendingFriendRequestCount}
               />
             </div>
           )}
