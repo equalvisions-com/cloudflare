@@ -35,18 +35,23 @@ const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
     <Button
       variant="ghost"
       className={`w-full justify-start gap-2 px-3 py-1 rounded-lg flex items-center ${
-        isActive ? "text-base font-bold leading-none" : ""
+        isActive ? "text-base font-extrabold flex leading-none tracking-tight" : ""
       }`}
     >
-      <div className="flex items-center gap-2 flex-grow">
-        {item.icon}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          {item.icon}
+          {item.badgeContent !== undefined && item.badgeContent !== 0 && (
+            <Badge 
+              variant="default" 
+              className="absolute -top-[6px] -right-1 h-3.5 w-auto hover:!opacity-100 p-0 text-[9px] p-1 leading-none font-extrabold flex items-center justify-center rounded-full shadow-none"
+            >
+              {item.badgeContent}
+            </Badge>
+          )}
+        </div>
         <span className="text-base">{item.label}</span>
       </div>
-      {item.badgeContent !== undefined && item.badgeContent !== 0 && (
-        <Badge variant="default" className="ml-auto h-5 px-1.5 text-xs leading-none rounded-full shadow-none">
-          {item.badgeContent}
-        </Badge>
-      )}
     </Button>
   </Link>
 ));

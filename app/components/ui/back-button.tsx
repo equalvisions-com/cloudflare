@@ -11,7 +11,7 @@ export function BackButton({ href = '/', className = '' }: BackButtonProps) {
     <Button 
       variant="ghost" 
       asChild 
-      className={`!h-[36px] !w-[36px] hover:bg-transparent hover:opacity-100 !m-0 relative ${className}`}
+      className={`!h-[36px] !w-[36px] hover:bg-transparent hover:opacity-100  md:hover:text-muted-foreground !m-0 relative ${className}`}
     >
       <Link href={href} className="flex items-center justify-center w-full h-full text-muted-foreground !ml-[-0.5rem]">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.25" stroke="currentColor" className="!h-[18px] !w-[18px]">
