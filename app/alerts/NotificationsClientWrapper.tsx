@@ -18,7 +18,7 @@ const NotificationsHeader = () => {
   return (
     <div className="w-full border-b py-2">
       <div className="container mx-auto flex items-center px-4">
-        <div className="flex-shrink-0 mr-3 h-[36px]">
+        <div className="flex-shrink-0 mr-3 h-[36px] w-9">
           <div className="hidden md:block">
             <BackButton />
           </div>
@@ -34,7 +34,7 @@ const NotificationsHeader = () => {
         <div className="flex-1 text-center">
           <h1 className="text-base font-extrabold tracking-tight">Alerts</h1>
         </div>
-        <div className="flex-shrink-0 w-9">
+        <div className="flex-shrink-0 w-9 sm:mr-0 md:mr-[-0.5rem]">
           <AddFriendButton />
         </div>
       </div>

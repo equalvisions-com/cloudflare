@@ -15,7 +15,8 @@ export function AddFriendButton({ className, ...props }: AddFriendButtonProps) {
         variant="secondary"
         size="icon"
         className={cn(
-          "rounded-full p-0 shadow-none text-muted-foreground",
+          "p-0 shadow-none text-muted-foreground rounded-full",
+          "md:hover:bg-transparent md:bg-transparent md:text-muted-foreground md:hover:text-muted-foreground md:rounded-none",
           className
         )}
         aria-label="Find friends"
