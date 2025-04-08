@@ -30,6 +30,7 @@ interface FriendshipData {
   friendId?: Id<"users">;
 }
 
+
 interface ProfileData {
   _id: Id<"users">;
   userId: Id<"users">;
