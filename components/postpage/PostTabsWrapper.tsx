@@ -60,7 +60,7 @@ const FeedTabContent = React.memo(({
   if (searchQuery && rssData.entries.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No results found for "{searchQuery}"</p>
+        <p>No results found for &ldquo;{searchQuery}&rdquo;</p>
         <p className="text-sm mt-2">Try a different search term or clear your search.</p>
       </div>
     );
