@@ -62,7 +62,7 @@ export function PeopleDisplay({
   // Store users and pagination state
   const [users, setUsers] = useState<UserProfile[]>(initialUsers);
   const [nextCursor, setNextCursor] = useState<Id<"users"> | undefined>(undefined);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(initialUsers.length === 0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const { isAuthenticated } = useConvexAuth();
@@ -73,20 +73,22 @@ export function PeopleDisplay({
   // Query for users - search results
   const usersResult = useQuery(
     api.users.searchUsers,
-    { query: searchQuery || " ", cursor: nextCursor, limit: 10 }
+    searchQuery ? { query: searchQuery, cursor: nextCursor, limit: 10 } : "skip"
   );
 
   // Reset state when search query changes
   useEffect(() => {
-    setUsers([]);
-    setNextCursor(undefined);
-    setIsInitialLoad(true);
-    setHasMore(true);
+    if (searchQuery) {
+      setUsers([]);
+      setNextCursor(undefined);
+      setIsInitialLoad(true);
+      setHasMore(true);
+    }
   }, [searchQuery]);
 
   // Load users when results come in
   useEffect(() => {
-    if (usersResult && isInitialLoad) {
+    if (usersResult && isInitialLoad && searchQuery) {
       if (usersResult.users && usersResult.users.length > 0) {
         setUsers(usersResult.users);
         setNextCursor(usersResult.nextCursor || undefined);
@@ -95,17 +97,17 @@ export function PeopleDisplay({
       setIsInitialLoad(false);
       setIsLoading(false);
     }
-  }, [usersResult, isInitialLoad]);
+  }, [usersResult, isInitialLoad, searchQuery]);
 
   // Function to load more users
   const loadMore = useCallback(() => {
-    if (!hasMore || isLoading || !nextCursor) return;
+    if (!hasMore || isLoading || !nextCursor || !searchQuery) return;
     setIsLoading(true);
-  }, [hasMore, isLoading, nextCursor]);
+  }, [hasMore, isLoading, nextCursor, searchQuery]);
 
   // Load more users when needed
   useEffect(() => {
-    if (usersResult && isLoading && !isInitialLoad) {
+    if (usersResult && isLoading && !isInitialLoad && searchQuery) {
       if (usersResult.users && usersResult.users.length > 0) {
         setUsers(prev => [...prev, ...usersResult.users]);
         setNextCursor(usersResult.nextCursor || undefined);
@@ -115,10 +117,10 @@ export function PeopleDisplay({
       }
       setIsLoading(false);
     }
-  }, [usersResult, isLoading, isInitialLoad]);
-
-  // Initial loading state
-  if (isInitialLoad && (!usersResult || !usersResult.users)) {
+  }, [usersResult, isLoading, isInitialLoad, searchQuery]);
+  
+  // Initial loading state for search queries
+  if (isInitialLoad && searchQuery && (!usersResult || !usersResult.users)) {
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -160,9 +162,7 @@ export function PeopleDisplay({
               ) : hasMore ? (
                 <div className="h-8" />
               ) : (
-                <div className="text-muted-foreground text-sm py-2">
-                  {users.length > 0 ? 'No more people to load' : 'No people found'}
-                </div>
+                <div className="h-8" />
               )}
             </div>
           )
@@ -173,86 +173,57 @@ export function PeopleDisplay({
 }
 
 // User card component - memoized with proper props comparison
-const UserCard = memo(({ user }: { user: UserProfile }) => {
+export const UserCard = memo(({ user }: { user: UserProfile }) => {
   // Default SVG profile image
   const defaultProfileImage = "data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E";
-  const [descriptionLines, setDescriptionLines] = useState(2);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    const checkTitleHeight = () => {
-      if (titleRef.current) {
-        const styles = window.getComputedStyle(titleRef.current);
-        const lineHeight = styles.lineHeight;
-        const titleHeight = titleRef.current.offsetHeight;
-        const fontSize = parseInt(styles.fontSize);
-        
-        // Calculate approximate number of lines (using fontSize as fallback if lineHeight is 'normal')
-        const effectiveLineHeight = lineHeight === 'normal' ? fontSize * 1.2 : parseInt(lineHeight);
-        const numberOfLines = Math.round(titleHeight / effectiveLineHeight);
-        
-        // If title is single line, show 3 lines of description, else show 2
-        setDescriptionLines(numberOfLines === 1 ? 3 : 2);
-      }
-    };
-
-    checkTitleHeight();
-    // Add resize listener to handle window size changes
-    window.addEventListener('resize', checkTitleHeight);
-    return () => window.removeEventListener('resize', checkTitleHeight);
-  }, []);
   
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
-      <CardContent className="p-4 h-[116px]">
+      <CardContent className="p-4">
         <div className="flex items-start gap-4">
-          <Link href={`/@${user.username}`}>
-            <div className="flex-shrink-0 w-[82px] h-[82px]">
-              <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+          <Link href={`/@${user.username}`} prefetch={false}>
+            <div className="flex-shrink-0 w-16 h-16">
+              <AspectRatio ratio={1/1} className="overflow-hidden rounded-full">
                 <Image
                   src={user.profileImage || defaultProfileImage}
                   alt={user.name || user.username}
                   fill
-                  sizes="82px"
                   className="object-cover"
                 />
               </AspectRatio>
             </div>
           </Link>
           <div className="flex-1 min-w-0 space-y-2 pt-0">
-            <div className="flex justify-between items-start gap-4 mt-[-4px]">
-              <Link href={`/@${user.username}`} className="block flex-1">
-                <h3 ref={titleRef} className="text-lg font-semibold leading-tight line-clamp-2 mt-[2px]">
+            <div className="flex justify-between items-start gap-4">
+              <Link href={`/@${user.username}`} className="block flex-1" prefetch={false}>
+                <h3 className="text-base font-bold leading-tight line-clamp-1">
                   {user.name || user.username}
-                  {user.name && (
-                    <span className="text-muted-foreground text-sm font-normal ml-2">
-                      @{user.username}
-                    </span>
-                  )}
                 </h3>
+                <div className="text-muted-foreground text-xs font-normal">
+                  @{user.username}
+                </div>
               </Link>
               <div className="flex-shrink-0">
-                <SimpleFriendButton 
-                  username={user.username}
-                  userId={user.userId}
-                  profileData={{
-                    username: user.username,
-                    name: user.name,
-                    bio: user.bio,
-                    profileImage: user.profileImage
-                  }}
-                  initialFriendshipStatus={user.friendshipStatus}
-                  className="bg-primary text-primary-foreground shadow-none py-2 rounded-full px-2 h-[25px] text-xs"
-                  pendingClassName="bg-muted/50 text-muted-foreground"
-                  friendsClassName="bg-primary/5 text-primary/90"
-                />
+                {(!user.friendshipStatus || user.friendshipStatus.status !== "self") && (
+                  <SimpleFriendButton 
+                    username={user.username}
+                    userId={user.userId}
+                    profileData={{
+                      username: user.username,
+                      name: user.name,
+                      bio: user.bio,
+                      profileImage: user.profileImage
+                    }}
+                    initialFriendshipStatus={user.friendshipStatus}
+                    className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none"
+                    pendingClassName="bg-secondary text-secondary-foreground"
+                    friendsClassName="bg-secondary text-secondary-foreground"
+                  />
+                )}
               </div>
             </div>
-            <Link href={`/@${user.username}`} className="block !mt-[3px]">
-              <p className={cn(
-                "text-sm text-muted-foreground",
-                descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"
-              )}>
+            <Link href={`/@${user.username}`} className="block !mt-[5px]" prefetch={false}>
+              <p className="text-sm text-muted-foreground line-clamp-1">
                 {user.bio || ''}
               </p>
             </Link>

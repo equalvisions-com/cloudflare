@@ -1,11 +1,35 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { PeopleDisplay } from '@/components/ui/PeopleDisplay';
 import { SearchInput } from '@/components/ui/search-input';
 import { Users, Loader2 } from 'lucide-react';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+
+// Component to display random users
+const RandomPeopleDisplay = memo(() => {
+  const randomUsersResult = useQuery(api.users.getRandomUsers, { limit: 10 });
+  
+  if (!randomUsersResult || !randomUsersResult.users) {
+    return (
+      <div className="flex justify-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+  
+  return (
+    <PeopleDisplay 
+      initialUsers={randomUsersResult.users}
+      className=""
+    />
+  );
+});
+
+RandomPeopleDisplay.displayName = 'RandomPeopleDisplay';
 
 export function PeopleSearchWrapper() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
@@ -13,9 +37,6 @@ export function PeopleSearchWrapper() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
-  
-  // Debounce timeout ref
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   
   // Check for search query in sessionStorage on mount
   useEffect(() => {
@@ -47,15 +68,10 @@ export function PeopleSearchWrapper() {
     const value = e.target.value;
     setPendingSearchQuery(value);
     
-    // Only set searching if we have a value
-    if (value.trim()) {
-      setIsSearching(true);
-    } else {
-      // If search is cleared, immediately update searchQuery and reset state
-      if (searchQuery) {
-        setSearchQuery('');
-        setIsSearching(false);
-      }
+    // If search is cleared, immediately reset state
+    if (!value.trim() && searchQuery) {
+      setSearchQuery('');
+      setIsSearching(false);
     }
   }, [searchQuery]);
 
@@ -65,12 +81,6 @@ export function PeopleSearchWrapper() {
     setPendingSearchQuery('');
     setSearchQuery('');
     setIsSearching(false);
-    
-    // Clear any pending debounce
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-      debounceTimeout.current = null;
-    }
   }, []);
 
   // Handle search submission
@@ -80,12 +90,6 @@ export function PeopleSearchWrapper() {
     // Hide keyboard by blurring active element
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
-    }
-    
-    // Clear any pending debounce
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-      debounceTimeout.current = null;
     }
     
     // If we have a query, set it
@@ -111,33 +115,6 @@ export function PeopleSearchWrapper() {
     }
   }, [handleSearchClear, pendingSearchQuery]);
 
-  // Effect to auto-search after debounce (only for non-empty queries)
-  useEffect(() => {
-    // Clear any existing timeout
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-    
-    // Don't debounce if no query or query is same as current
-    if (!pendingSearchQuery.trim() || pendingSearchQuery === searchQuery) {
-      return;
-    }
-    
-    // Set new timeout for debounced search
-    debounceTimeout.current = setTimeout(() => {
-      if (pendingSearchQuery.trim()) {
-        setSearchQuery(pendingSearchQuery);
-      }
-    }, 500);
-    
-    // Cleanup on unmount
-    return () => {
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
-    };
-  }, [pendingSearchQuery, searchQuery]);
-
   return (
     <div className="space-y-0">
       {/* Search input */}
@@ -157,21 +134,17 @@ export function PeopleSearchWrapper() {
               onChange={handleSearchChange}
               onKeyDown={handleKeyDown}
               onClear={handleSearchClear}
-              placeholder="Search for people..."
+              placeholder="Search Users..."
               className="w-full"
             />
           </div>
         </form>
       </div>
       
-      {/* Display empty state when no search is active */}
+      {/* Display random users when no search is active */}
       {!isSearching && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Users className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-          <h3 className="text-xl font-semibold mb-2">Find People</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            Search for people by their username, name, or bio to connect with them
-          </p>
+        <div>
+          <RandomPeopleDisplay />
         </div>
       )}
       
@@ -186,7 +159,7 @@ export function PeopleSearchWrapper() {
       {searchQuery && (
         <PeopleDisplay 
           searchQuery={searchQuery}
-          className="mt-2"
+          className=""
         />
       )}
     </div>

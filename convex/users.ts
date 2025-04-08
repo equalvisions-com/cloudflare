@@ -888,3 +888,112 @@ export const searchUsers = query({
   },
 });
 
+export const getRandomUsers = query({
+  args: { 
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const { limit = 10 } = args;
+    
+    // Get current authenticated user (optional)
+    let currentUserId = null;
+    try {
+      currentUserId = await getAuthUserId(ctx);
+    } catch (e) {
+      // Not authenticated, continue as guest
+    }
+    
+    // Get all users
+    const allUsers = await ctx.db
+      .query("users")
+      .collect();
+
+    // Skip if we don't have users
+    if (allUsers.length === 0) {
+      return { users: [], hasMore: false, nextCursor: null };
+    }
+    
+    // Filter out users without usernames and anonymous users
+    const validUsers = allUsers.filter(user => {
+      return user.username && !user.isAnonymous && user.isBoarded === true;
+    });
+    
+    // Shuffle the users array (Fisher-Yates algorithm)
+    for (let i = validUsers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [validUsers[i], validUsers[j]] = [validUsers[j], validUsers[i]];
+    }
+    
+    // Get the limited number of users
+    const randomUsers = validUsers.slice(0, limit);
+    
+    // Process users to get friendship status and format result
+    const formattedUsers = await Promise.all(
+      randomUsers.map(async (user) => {
+        // Get friendship status if authenticated
+        let friendshipStatus = null;
+        if (currentUserId && currentUserId.toString() !== user._id.toString()) {
+          const friendship = await ctx.db
+            .query("friends")
+            .withIndex("by_users")
+            .filter(q =>
+              q.or(
+                q.and(
+                  q.eq(q.field("requesterId"), currentUserId),
+                  q.eq(q.field("requesteeId"), user._id)
+                ),
+                q.and(
+                  q.eq(q.field("requesterId"), user._id),
+                  q.eq(q.field("requesteeId"), currentUserId)
+                )
+              )
+            )
+            .first();
+
+          if (friendship) {
+            const isSender = friendship.requesterId.toString() === currentUserId.toString();
+            friendshipStatus = {
+              exists: true,
+              status: friendship.status,
+              direction: isSender ? "sent" : "received",
+              friendshipId: friendship._id
+            };
+          } else {
+            friendshipStatus = {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            };
+          }
+        } else if (currentUserId && currentUserId.toString() === user._id.toString()) {
+          friendshipStatus = {
+            exists: true, 
+            status: "self",
+            direction: null,
+            friendshipId: null
+          };
+        }
+        
+        return {
+          userId: user._id,
+          username: user.username || "Guest",
+          name: user.name,
+          bio: user.bio || "",
+          profileImage: user.profileImage || user.image,
+          isAuthenticated: !!currentUserId,
+          friendshipStatus
+        };
+      })
+    );
+    
+    console.log(`Random users query returned ${formattedUsers.length} results`);
+    
+    return {
+      users: formattedUsers,
+      hasMore: false,
+      nextCursor: null
+    };
+  },
+});
+

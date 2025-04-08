@@ -38,10 +38,10 @@ export function SimpleFriendButton({
   userId, 
   profileData, 
   initialFriendshipStatus,
-  className = "rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none",
+  className = "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none",
   loadingClassName = "",
-  pendingClassName = "bg-muted",
-  friendsClassName = "bg-primary/10" 
+  pendingClassName = "bg-secondary text-secondary-foreground",
+  friendsClassName = "bg-secondary text-secondary-foreground" 
 }: SimpleFriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
@@ -78,14 +78,16 @@ export function SimpleFriendButton({
     
     setIsActionLoading(true);
     try {
-      await sendRequest({ requesteeId: userId });
-      // Optimistically update UI
-      setCurrentStatus({
-        exists: true,
-        status: "pending",
-        direction: "sent",
-        friendshipId: null,
-      });
+      const result = await sendRequest({ requesteeId: userId });
+      if (result) {
+        // Optimistically update UI with the returned friendship ID
+        setCurrentStatus({
+          exists: true,
+          status: "pending",
+          direction: "sent",
+          friendshipId: result,
+        });
+      }
     } catch (error) {
       console.error("Failed to send friend request:", error);
     } finally {
@@ -137,9 +139,9 @@ export function SimpleFriendButton({
   if (currentStatus?.status === "self" && isAuthenticated) {
     return (
       <Button 
-        variant="outline" 
+        variant="secondary" 
         size="sm" 
-        className={cn(className)}
+        className={cn(className, "border-0 shadow-none")}
       >
         Your Profile
       </Button>
@@ -150,12 +152,12 @@ export function SimpleFriendButton({
   if (isLoading) {
     return (
       <Button 
-        variant="outline" 
+        variant="secondary" 
         size="sm" 
         disabled 
-        className={cn(className, loadingClassName)}
+        className={cn(className, loadingClassName, "border-0 shadow-none")}
       >
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
         Loading
       </Button>
     );
@@ -165,9 +167,9 @@ export function SimpleFriendButton({
   if (!isAuthenticated) {
     return (
       <Button 
-        variant="outline" 
+        variant="default" 
         size="sm" 
-        className={cn(className)}
+        className={cn(className, "border-0 shadow-none")}
         title="Sign in to add as friend"
       >
         Add Friend
@@ -180,9 +182,9 @@ export function SimpleFriendButton({
     // Not friends - show add button
     return (
       <Button 
-        variant="outline" 
+        variant="default" 
         size="sm" 
-        className={cn(className)}
+        className={cn(className, "border-0 shadow-none")}
         onClick={handleAddFriend}
       >
         Add Friend
@@ -193,24 +195,24 @@ export function SimpleFriendButton({
       // Pending request sent by current user
       return (
         <Button 
-          variant="outline" 
+          variant="secondary" 
           size="sm" 
-          className={cn(className, pendingClassName)}
+          className={cn(className, pendingClassName, "border-0 shadow-none")}
           onClick={handleUnfriend}
         >
-          Cancel Request
+          Pending
         </Button>
       );
     } else {
       // Pending request received - show accept button
       return (
         <Button 
-          variant="outline" 
+          variant="secondary" 
           size="sm" 
-          className={cn(className, friendsClassName)}
+          className={cn(className, friendsClassName, "border-0 shadow-none")}
           onClick={handleAcceptFriend}
         >
-          Accept Request
+          Accept
         </Button>
       );
     }
@@ -218,9 +220,9 @@ export function SimpleFriendButton({
     // Already friends - show friends status with unfriend option
     return (
       <Button 
-        variant="outline" 
+        variant="secondary" 
         size="sm" 
-        className={cn(className, friendsClassName)}
+        className={cn(className, friendsClassName, "border-0 shadow-none")}
         onClick={handleUnfriend}
       >
         Friends
@@ -231,9 +233,9 @@ export function SimpleFriendButton({
   // Fallback for any other unhandled state
   return (
     <Button 
-      variant="outline" 
+      variant="default" 
       size="sm" 
-      className={cn(className)}
+      className={cn(className, "border-0 shadow-none")}
       onClick={handleAddFriend}
     >
       Add Friend

@@ -50,7 +50,7 @@ export default async function RootLayout({
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
         >
           <ConvexClientProvider>
-            <ThemeProvider attribute="class" defaultTheme="dark">
+            <ThemeProvider attribute="class">
               <AudioProvider>
                 <SidebarProvider 
                   isAuthenticated={isAuthenticated} 

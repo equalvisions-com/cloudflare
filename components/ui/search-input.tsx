@@ -1,5 +1,5 @@
 import { Input } from "@/components/ui/input";
-import { Search, XCircle } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
 
@@ -31,7 +31,7 @@ export function SearchInput({
           onClick={onClear}
           className="absolute right-3 top-1/2 -translate-y-1/2"
         >
-          <XCircle className="h-4 w-4 text-muted-foreground hover:text-foreground mr-1" />
+          <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.5} />
         </button>
       )}
       <Input
