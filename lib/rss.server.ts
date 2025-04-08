@@ -79,22 +79,6 @@ const parser = new XMLParser({
 
 // Removed direct PlanetScale connection since we now use the connection manager
 
-// Handle process termination
-process.on('exit', () => {
-  logger.info('Process exit: Application shutting down');
-});
-
-// Handle graceful shutdown for SIGINT and SIGTERM
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: Application shutting down');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: Application shutting down');
-  process.exit(0);
-});
-
 // Add error handling for database operations
 // Use the new read/write functions based on the operation type
 const executeQuery = async <T = Record<string, unknown>>(
