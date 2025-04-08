@@ -12,7 +12,6 @@ import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/n
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { SearchButton } from "@/components/ui/search-button";
 import { MenuButton } from "@/components/ui/menu-button";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
@@ -182,7 +181,6 @@ function PostContent({ post, followState, rssData }: {
         )}
         <div className="flex items-center gap-2">
           <MenuButton />
-          <SearchButton />
           <FollowButton
             postId={post._id}
             feedUrl={post.feedUrl}
