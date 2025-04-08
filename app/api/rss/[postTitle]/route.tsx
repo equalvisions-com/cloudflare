@@ -7,7 +7,7 @@ import type { RSSItem } from "@/lib/rss";
 import { executeRead } from '@/lib/database';
 import type { RSSEntryRow } from '@/lib/types';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 // Define interface for the joined query result

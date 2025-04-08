@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { getReadConnection } from '@/lib/database';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 // Define interfaces for our data types

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeRead } from "@/lib/database";
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 /**

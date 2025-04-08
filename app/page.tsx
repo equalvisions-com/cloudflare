@@ -1,7 +1,7 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 import { Metadata } from "next";
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // Add preload hints for critical resources and proper metadata
 export const metadata: Metadata = {

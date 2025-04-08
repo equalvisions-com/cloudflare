@@ -8,7 +8,7 @@ import { Suspense } from "react";
 import { cache } from "react";
 import { Id } from "@/convex/_generated/dataModel";
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 interface CategoryPageProps {
   params: Promise<{ categorySlug: string }>;

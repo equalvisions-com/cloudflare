@@ -4,7 +4,7 @@ import { executeRead } from '@/lib/database';
 import { refreshExistingFeeds } from '@/lib/rss.server';
 import type { RSSEntryRow } from '@/lib/types';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 // Define interface for the joined query result
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Execute count query
       const countResult = await executeRead(countQuery, [...postTitles]);
       totalEntries = Number((countResult.rows[0] as { total: number }).total);
-      console.log(`🔢 API: Found ${totalEntries} total entries across all requested feeds (from database)`);
+      console.log(`�� API: Found ${totalEntries} total entries across all requested feeds (from database)`);
     } else {
       // Use the cached total entries value
       totalEntries = cachedTotalEntries;

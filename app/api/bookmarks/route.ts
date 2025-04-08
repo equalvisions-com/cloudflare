@@ -3,7 +3,7 @@ import { getBookmarksData } from '@/app/actions/bookmarkActions';
 import { Id } from '@/convex/_generated/dataModel';
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 export async function GET(request: NextRequest) {

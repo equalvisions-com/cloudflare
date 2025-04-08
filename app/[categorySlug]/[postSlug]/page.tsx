@@ -16,7 +16,7 @@ import { MenuButton } from "@/components/ui/menu-button";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 interface PostPageProps {
   params: Promise<{

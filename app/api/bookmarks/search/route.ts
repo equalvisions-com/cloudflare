@@ -6,7 +6,7 @@ import { executeRead } from "@/lib/database";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 
 export async function GET(request: NextRequest) {
