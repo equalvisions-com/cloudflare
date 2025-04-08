@@ -18,6 +18,8 @@ import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRSSKey } from '@/lib/rss';
 
+export const runtime = 'edge';
+
 // Define step types for onboarding
 type OnboardingStep = 'profile' | 'follow';
 

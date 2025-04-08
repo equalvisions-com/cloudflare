@@ -4,6 +4,9 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { getRSSEntries } from "@/lib/rss.server";
 
+export const runtime = 'nodejs';
+
+
 export async function POST(request: NextRequest) {
   try {
     const { feedUrl, postTitle, mediaType } = await request.json();

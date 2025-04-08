@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeRead } from "@/lib/database";
 
+export const runtime = 'nodejs';
+
+
 /**
  * API route to fetch entry details from PlanetScale by GUIDs
  * This allows us to get the complete entry data for activity items

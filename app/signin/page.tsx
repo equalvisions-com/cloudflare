@@ -10,6 +10,8 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
+export const runtime = 'edge';
+
 type AuthStep = 
   | "signIn" 
   | "signUp" 

@@ -2,6 +2,8 @@ import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { CategorySliderWrapper } from "@/components/ui/CategorySliderWrapper";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 
+export const runtime = 'edge';
+
 export default function NewslettersPage() {
   return (
     <StandardSidebarLayout

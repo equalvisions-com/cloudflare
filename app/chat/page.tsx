@@ -11,6 +11,8 @@ import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsW
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import { Suspense } from 'react';
 
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: 'Chat',
   description: 'Chat with our AI assistant',

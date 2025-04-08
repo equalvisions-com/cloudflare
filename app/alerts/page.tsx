@@ -10,6 +10,8 @@ import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsW
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import NotificationsClientWrapper from './NotificationsClientWrapper';
 
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: "Notifications",
   description: "View your friend requests and other notifications",

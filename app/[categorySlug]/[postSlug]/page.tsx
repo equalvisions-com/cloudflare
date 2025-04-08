@@ -16,6 +16,8 @@ import { MenuButton } from "@/components/ui/menu-button";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
 
+export const runtime = 'nodejs';
+
 interface PostPageProps {
   params: Promise<{
     categorySlug: string;

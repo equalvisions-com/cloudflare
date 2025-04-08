@@ -10,6 +10,8 @@ import { Suspense } from "react";
 import { BookmarksHeader } from "./BookmarksHeader";
 import { BookmarksContentWrapper } from "./BookmarksContentWrapper";
 
+export const runtime = 'edge';
+
 export const metadata = {
   title: "Your Bookmarks | Grasper",
   description: "View all your saved bookmarks in one place",

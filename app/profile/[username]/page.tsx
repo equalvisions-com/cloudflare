@@ -11,6 +11,8 @@ import { FriendsList } from "@/components/profile/FriendsList";
 import { FollowingList } from "@/components/profile/FollowingList";
 import { Id } from "@/convex/_generated/dataModel";
 
+export const runtime = 'edge';
+
 // Define FriendshipStatus type to match what FriendButton expects
 type FriendshipStatus = {
   exists: boolean;

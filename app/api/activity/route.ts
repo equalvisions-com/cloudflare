@@ -4,6 +4,9 @@ import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 
+export const runtime = 'nodejs';
+
+
 // Import types from UserActivityFeed
 type ActivityItem = {
   type: "like" | "comment" | "retweet";
