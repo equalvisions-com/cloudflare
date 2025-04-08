@@ -45,7 +45,7 @@ export default function GlobalError({
                 <h1 className="text-3xl font-bold tracking-tight">Connection Lost</h1>
 
                 <p className="text-muted-foreground text-lg">
-                  It seems you're offline or having connection issues. Please check your internet connection and try again.
+                  It seems you&apos;re offline or having connection issues. Please check your internet connection and try again.
                 </p>
               </div>
 
