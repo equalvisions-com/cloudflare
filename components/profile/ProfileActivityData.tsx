@@ -85,8 +85,12 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     
     if (guids.length > 0) {
       try {
-        console.log(`📡 Fetching entries from PlanetScale`);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
+        const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`;
+        console.log(`📡 Fetching entries from PlanetScale using URL: ${apiUrl}`);
+        console.log(`📡 NEXT_PUBLIC_APP_URL is ${process.env.NEXT_PUBLIC_APP_URL ? 'defined' : 'undefined'}`);
+        console.log(`📡 Sending guids: ${JSON.stringify(guids)}`);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ guids }),
@@ -242,8 +246,12 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
     
     if (guids.length > 0) {
       try {
-        console.log(`📡 Fetching entries from PlanetScale`);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
+        const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`;
+        console.log(`📡 Fetching entries from PlanetScale using URL: ${apiUrl}`);
+        console.log(`📡 NEXT_PUBLIC_APP_URL is ${process.env.NEXT_PUBLIC_APP_URL ? 'defined' : 'undefined'}`);
+        console.log(`📡 Sending guids: ${JSON.stringify(guids)}`);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ guids }),

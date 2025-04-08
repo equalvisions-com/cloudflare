@@ -79,8 +79,6 @@ const parser = new XMLParser({
 
 // Removed direct PlanetScale connection since we now use the connection manager
 
-// Remove process event handlers for Edge compatibility
-
 // Add error handling for database operations
 // Use the new read/write functions based on the operation type
 const executeQuery = async <T = Record<string, unknown>>(

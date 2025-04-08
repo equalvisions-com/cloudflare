@@ -1,13 +1,22 @@
 // lib/redis.ts
 import { Redis } from '@upstash/redis';
+import { XMLParser } from 'fast-xml-parser';
 import orderBy from 'lodash/orderBy';
 import { cache } from 'react';
-import { edgeParser } from './edge-xml-parser';
 
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   automaticDeserialization: true,
+});
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  parseAttributeValue: true,
+  trimValues: true,
+  parseTagValue: false,
+  isArray: (tagName) => tagName === "item",
 });
 
 function cleanHtmlContent(html?: string): string {
@@ -77,7 +86,7 @@ async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
     if (!response.ok) throw new Error(`Failed to fetch RSS feed: ${response.statusText}`);
 
     const xml = await response.text();
-    const result = edgeParser.parse(xml);
+    const result = parser.parse(xml);
     const channel = result.rss?.channel;
     if (!channel) throw new Error('Invalid RSS feed format');
 

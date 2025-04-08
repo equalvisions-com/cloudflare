@@ -1527,8 +1527,39 @@ export function UserActivityFeed({
   }, index: number) => {
     const entryDetail = entryDetails[group.entryGuid];
     
+    // Debug logging to check entry details
+    console.log(`Debug [${index}]: Rendering group for entryGuid ${group.entryGuid}`);
+    console.log(`Debug [${index}]: Entry details exists: ${Boolean(entryDetail)}`);
+    
     if (!entryDetail) {
-      return null;
+      console.error(`Missing entry details for guid: ${group.entryGuid}`, { 
+        availableGuids: Object.keys(entryDetails),
+        activity: group.firstActivity
+      });
+      
+      // Instead of returning null, display a fallback card
+      return (
+        <div className="p-4 border border-red-200 rounded-lg mb-4 bg-red-50">
+          <div className="text-sm text-red-500 font-medium">Missing entry details</div>
+          <div className="text-xs text-gray-500 mt-1">
+            Activity Type: {group.firstActivity.type}
+          </div>
+          <div className="text-xs text-gray-500">
+            Entry GUID: {group.entryGuid}
+          </div>
+          <div className="text-xs text-gray-500">
+            Feed URL: {group.firstActivity.feedUrl}
+          </div>
+          <div className="text-xs text-gray-500">
+            Timestamp: {new Date(group.firstActivity.timestamp).toLocaleString()}
+          </div>
+          {group.firstActivity.title && (
+            <div className="text-xs text-gray-700 font-medium mt-2">
+              Title: {group.firstActivity.title}
+            </div>
+          )}
+        </div>
+      );
     }
     
     // Get metrics for this entry
