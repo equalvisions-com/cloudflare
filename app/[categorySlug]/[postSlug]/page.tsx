@@ -10,17 +10,19 @@ import { FollowButton } from "@/components/follow-button/FollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { PostTabsWrapperWithErrorBoundary } from "@/components/postpage/PostTabsWrapper";
+import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { SearchButton } from "@/components/ui/search-button";
 import { MenuButton } from "@/components/ui/menu-button";
-
+import { BackButton } from "@/app/components/ui/back-button";
+import { PostSearchHeader } from "./PostHeaderClient";
 
 interface PostPageProps {
   params: Promise<{
     categorySlug: string;
     postSlug: string;
   }>;
+  searchParams?: { q?: string };
 }
 
 // Extend the Convex Post type with our additional fields
@@ -52,7 +54,7 @@ interface PageData {
 }
 
 // Optimize data fetching with aggressive caching
-const getPageData = cache(async (categorySlug: string, postSlug: string): Promise<PageData | null> => {
+const getPageData = cache(async (categorySlug: string, postSlug: string, searchQuery?: string): Promise<PageData | null> => {
   try {
     // First get the post data - we need this for everything else
     const post = await fetchQuery(api.posts.getBySlug, { 
@@ -77,7 +79,8 @@ const getPageData = cache(async (categorySlug: string, postSlug: string): Promis
       getInitialEntries(
         post.title,
         post.feedUrl,
-        post.mediaType
+        post.mediaType,
+        searchQuery
       ),
 
       // Get follow states for related posts if they exist
@@ -154,8 +157,8 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
   }
 }
 
-// Simplified PostHeader component without Suspense
-function PostHeader({ post, followState, rssData }: { 
+// Simplified PostContent component for detailed feed info
+function PostContent({ post, followState, rssData }: { 
   post: Post; 
   followState: { isAuthenticated: boolean; isFollowing: boolean };
   rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
@@ -202,23 +205,30 @@ function PostHeader({ post, followState, rssData }: {
 }
 
 // Main page component with optimized data fetching
-export default async function PostPage({ params }: PostPageProps) {
+export default async function PostPage({ params, searchParams }: PostPageProps) {
   const { categorySlug, postSlug } = await params;
-  const pageData = await getPageData(categorySlug, postSlug);
+  const searchQuery = searchParams?.q;
+  const pageData = await getPageData(categorySlug, postSlug, searchQuery);
   
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
+  // Generate a unique key for the TabsWrapper to force remount when search changes
+  const tabsKey = `tabs-${searchQuery || 'all'}`;
+
   return (
     <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostHeader post={post} followState={followState} rssData={rssData} />
+      <PostSearchHeader title={post.title} />
+      <PostContent post={post} followState={followState} rssData={rssData} />
       {rssData ? (
-        <PostTabsWrapperWithErrorBoundary
+        <PostTabsWrapper
+          key={tabsKey}
           postTitle={post.title}
           feedUrl={post.feedUrl}
           rssData={rssData}
           featuredImg={post.featuredImg}
           mediaType={post.mediaType}
+          searchQuery={searchQuery}
         />
       ) : (
         <div className="text-center py-8 text-muted-foreground">

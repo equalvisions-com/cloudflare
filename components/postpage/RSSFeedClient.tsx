@@ -385,6 +385,7 @@ interface RSSFeedClientProps {
     entries: RSSEntryWithData[];
     totalEntries: number;
     hasMore: boolean;
+    searchQuery?: string;
   };
   pageSize?: number;
   featuredImg?: string;
@@ -409,14 +410,18 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       console.log('📋 Initial data received in client:', {
         entriesCount: initialData.entries?.length || 0,
         hasMore: initialData.hasMore,
-        totalEntries: initialData.totalEntries
+        totalEntries: initialData.totalEntries,
+        searchQuery: initialData.searchQuery
       });
       
-      // Initialize state with initial data
+      // Always reset state completely when initialData changes (including when search changes)
+      // This ensures pagination works correctly after search state changes
       setAllEntriesState(initialData.entries || []);
+      setCurrentPage(1);
       setHasMoreState(initialData.hasMore || false);
+      setIsLoading(false);
     }
-  }, [initialData]);
+  }, [initialData, initialData.searchQuery]); // Add searchQuery as a dependency to react to search changes
   
   const loadMoreEntries = useCallback(async () => {
     if (!isActive || isLoading || !hasMoreState) {
@@ -441,6 +446,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       
       if (mediaType) {
         baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
+      }
+      
+      // Pass search query if it exists
+      if (initialData.searchQuery) {
+        baseUrl.searchParams.set('q', encodeURIComponent(initialData.searchQuery));
+        console.log(`🔍 Including search query: ${initialData.searchQuery}`);
       }
       
       console.log(`📡 Fetching page ${nextPage} from API`);

@@ -77,6 +77,20 @@ function Sidebar() {
         label: "Home",
         icon: <Home className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/") ? 3 : 2.5} />,
       },
+    ];
+
+    // Add alerts as second item if user is authenticated
+    if (isAuthenticated) {
+      items.push({
+        href: "/alerts",
+        label: "Alerts",
+        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/alerts") ? 3 : 2.5} />,
+        badgeContent: pendingFriendRequestCount
+      });
+    }
+
+    // Add remaining navigation items
+    items.push(
       {
         href: "/newsletters",
         label: "Newsletters",
@@ -91,22 +105,15 @@ function Sidebar() {
         href: "/chat",
         label: "Ask AI",
         icon: <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/chat") ? 3 : 2.5} />,
-      },
-    ];
+      }
+    );
 
-    // Only add alerts link if user is authenticated
+    // Add bookmarks if user is authenticated
     if (isAuthenticated) {
       items.push({
         href: "/bookmarks",
         label: "Bookmarks",
         icon: <Bookmark className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/bookmarks") ? 3 : 2.5} />,
-      });
-      
-      items.push({
-        href: "/alerts",
-        label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={isRouteActive("/alerts") ? 3 : 2.5} />,
-        badgeContent: pendingFriendRequestCount
       });
     }
 

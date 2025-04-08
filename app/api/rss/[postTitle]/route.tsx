@@ -35,12 +35,14 @@ export async function GET(
     const mediaType = searchParams.get('mediaType');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
+    // Get search query if it exists
+    const searchQuery = searchParams.get('q');
     // Get cached total entries from query params if available
     const cachedTotalEntries = searchParams.get('totalEntries')
       ? parseInt(searchParams.get('totalEntries') || '0', 10)
       : null;
 
-    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}`);
+    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}${searchQuery ? `, search="${searchQuery}"` : ''}`);
 
     if (!feedUrl) {
       console.error('❌ API: Feed URL is required');
@@ -63,14 +65,32 @@ export async function GET(
     const offset = (page - 1) * pageSize;
     
     // Build the SQL query to fetch entries for this specific feed
-    const entriesQuery = `
-      SELECT e.*, f.title as feed_title, f.feed_url
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE f.title = ?
-      ORDER BY e.pub_date DESC
-      LIMIT ? OFFSET ?
-    `;
+    let entriesQuery: string;
+    let queryParams: any[];
+    
+    if (searchQuery) {
+      // Query with search filter
+      entriesQuery = `
+        SELECT e.*, f.title as feed_title, f.feed_url
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title = ? AND (e.title LIKE ? OR e.description LIKE ?)
+        ORDER BY e.pub_date DESC
+        LIMIT ? OFFSET ?
+      `;
+      queryParams = [decodedTitle, `%${searchQuery}%`, `%${searchQuery}%`, pageSize, offset];
+    } else {
+      // Regular query without search
+      entriesQuery = `
+        SELECT e.*, f.title as feed_title, f.feed_url
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title = ?
+        ORDER BY e.pub_date DESC
+        LIMIT ? OFFSET ?
+      `;
+      queryParams = [decodedTitle, pageSize, offset];
+    }
     
     // Measure query execution time
     const queryStartTime = performance.now();
@@ -80,17 +100,32 @@ export async function GET(
     
     if (cachedTotalEntries === null) {
       // Only perform the count query if we don't have a cached value
-      console.log(`🔢 API: Fetching total entries count for ${decodedTitle}`);
-      const countQuery = `
-        SELECT COUNT(e.id) as total
-        FROM rss_entries e
-        JOIN rss_feeds f ON e.feed_id = f.id
-        WHERE f.title = ?
-      `;
+      console.log(`🔢 API: Fetching total entries count for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''}`);
       
-      const countResult = await executeRead(countQuery, [decodedTitle]);
+      let countQuery: string;
+      let countParams: any[];
+      
+      if (searchQuery) {
+        countQuery = `
+          SELECT COUNT(e.id) as total
+          FROM rss_entries e
+          JOIN rss_feeds f ON e.feed_id = f.id
+          WHERE f.title = ? AND (e.title LIKE ? OR e.description LIKE ?)
+        `;
+        countParams = [decodedTitle, `%${searchQuery}%`, `%${searchQuery}%`];
+      } else {
+        countQuery = `
+          SELECT COUNT(e.id) as total
+          FROM rss_entries e
+          JOIN rss_feeds f ON e.feed_id = f.id
+          WHERE f.title = ?
+        `;
+        countParams = [decodedTitle];
+      }
+      
+      const countResult = await executeRead(countQuery, countParams);
       totalEntries = Number((countResult.rows[0] as { total: number }).total);
-      console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle} (from database)`);
+      console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (from database)`);
     } else {
       // Use the cached value
       totalEntries = cachedTotalEntries;
@@ -98,10 +133,7 @@ export async function GET(
     }
     
     // Execute entries query
-    const entriesResult = await executeRead(
-      entriesQuery, 
-      [decodedTitle, pageSize, offset]
-    );
+    const entriesResult = await executeRead(entriesQuery, queryParams);
     
     // Log query execution time
     const queryEndTime = performance.now();
@@ -114,11 +146,12 @@ export async function GET(
     console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
     if (!entries || entries.length === 0) {
-      console.log(`⚠️ API: No entries found for ${decodedTitle}`);
+      console.log(`⚠️ API: No entries found for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''}`);
       return NextResponse.json({ 
         entries: [], 
         totalEntries: 0,
-        hasMore: false 
+        hasMore: false,
+        searchQuery: searchQuery || undefined
       });
     }
     
@@ -141,7 +174,7 @@ export async function GET(
       ? totalEntries > (offset + entries.length + 2) 
       : totalEntries > (offset + entries.length);
     
-    console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle} (total: ${totalEntries}, hasMore: ${hasMore})`);
+    console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (total: ${totalEntries}, hasMore: ${hasMore})`);
 
     // Get auth token for Convex queries
     const token = await convexAuthNextjsToken().catch(() => null);
@@ -171,7 +204,8 @@ export async function GET(
     return NextResponse.json({
       entries: entriesWithPublicData,
       totalEntries: totalEntries,
-      hasMore: hasMore
+      hasMore: hasMore,
+      searchQuery: searchQuery || undefined
     }, {
       headers
     });

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
+import React from 'react';
 import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
 import type { RSSItem } from "@/lib/rss";
 
@@ -26,6 +25,7 @@ interface PostTabsWrapperProps {
   } | null;
   featuredImg?: string;
   mediaType?: string;
+  searchQuery?: string;
 }
 
 // Define props for FeedTabContent (removed isActive)
@@ -35,6 +35,7 @@ interface FeedTabContentProps {
   rssData: PostTabsWrapperProps['rssData'];
   featuredImg?: string;
   mediaType?: string;
+  searchQuery?: string;
 }
 
 // Separated out as a standalone component
@@ -44,6 +45,7 @@ const FeedTabContent = React.memo(({
   rssData,
   featuredImg,
   mediaType,
+  searchQuery
 }: FeedTabContentProps) => {
   if (!rssData) {
     return (
@@ -54,8 +56,19 @@ const FeedTabContent = React.memo(({
     );
   }
 
+  // Show no results message when searching
+  if (searchQuery && rssData.entries.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No results found for "{searchQuery}"</p>
+        <p className="text-sm mt-2">Try a different search term or clear your search.</p>
+      </div>
+    );
+  }
+
   return (
     <RSSFeedClient
+      key={`feed-client-${searchQuery || 'all'}`}
       postTitle={postTitle}
       feedUrl={feedUrl}
       initialData={rssData}
@@ -71,32 +84,22 @@ export function PostTabsWrapper({
   feedUrl, 
   rssData, 
   featuredImg, 
-  mediaType 
+  mediaType,
+  searchQuery
 }: PostTabsWrapperProps) {
-  // Memoize the tabs configuration to prevent unnecessary re-creation
-  const tabs = useMemo(() => [
-    {
-      id: 'feed',
-      label: mediaType === 'podcast' ? 'Episodes' : mediaType === 'newsletter' ? 'Newsletters' : 'Feed',
-      component: () => ( // Remove isActive parameter
-        <FeedTabContent 
-          postTitle={postTitle} 
-          feedUrl={feedUrl} 
-          rssData={rssData}
-          featuredImg={featuredImg}
-          mediaType={mediaType}
-        />
-      )
-    }
-  ], [postTitle, feedUrl, rssData, featuredImg, mediaType]);
-
+  const contentKey = `feed-content-${searchQuery || 'all'}`;
+  
   return (
     <div className="w-full">
-      <SwipeableTabs tabs={tabs} />
+      <FeedTabContent 
+        key={contentKey}
+        postTitle={postTitle} 
+        feedUrl={feedUrl} 
+        rssData={rssData}
+        featuredImg={featuredImg}
+        mediaType={mediaType}
+        searchQuery={searchQuery}
+      />
     </div>
   );
-}
-
-// Use React.memo for the entire component to prevent unnecessary re-renders
-export const PostTabsWrapperWithErrorBoundary = React.memo(PostTabsWrapper);
-PostTabsWrapperWithErrorBoundary.displayName = 'PostTabsWrapperWithErrorBoundary'; 
+} 
