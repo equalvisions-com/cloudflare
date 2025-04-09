@@ -45,7 +45,7 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual, user-scalable=no"/>
           <style dangerouslySetInnerHTML={{
             __html: `
               :root {
@@ -68,7 +68,6 @@ export default async function RootLayout({
                   width: 100%;
                   overflow-y: auto;
                   -webkit-overflow-scrolling: touch;
-                  padding-bottom: env(safe-area-inset-bottom, 0px);
                 }
               }
             `
@@ -90,14 +89,14 @@ export default async function RootLayout({
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
                   <ViewportHandler />
-                  <div id="main-content-container" className="flex flex-col overflow-y-auto h-full safe-area-inset-top">
+                  <div id="main-content-container" className="flex flex-col overflow-y-auto h-full">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
                     {children}
                   </div>
                   <PersistentPlayer />
-                  <MobileDock className="safe-area-inset-bottom" />
+                  <MobileDock />
                 </SidebarProvider>
               </AudioProvider>
             </ThemeProvider>

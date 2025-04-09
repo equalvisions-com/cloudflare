@@ -23,20 +23,6 @@ export function ViewportHandler() {
         
         document.documentElement.style.setProperty("--vh", `${vh}px`);
         
-        // Handle safe area insets for notched devices
-        const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat-safe-area-inset-bottom') || '0');
-        if (safeAreaBottom === 0) {
-          // If CSS var is not set, try to detect and set it
-          try {
-            // This only works if viewport-fit=cover is set in the meta tag
-            const bottomInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)') || '0');
-            document.documentElement.style.setProperty('--sat-safe-area-inset-bottom', `${bottomInset}px`);
-          } catch (e) {
-            // Fallback if env() is not supported
-            document.documentElement.style.setProperty('--sat-safe-area-inset-bottom', '0px');
-          }
-        }
-        
         // For iOS Chrome specifically
         if (isChrome) {
           // Ensure the body fills the available space

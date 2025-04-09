@@ -92,7 +92,7 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       )}
       style={{ 
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        height: "calc(64px + env(safe-area-inset-bottom, 0px))"
+        height: "64px"
       }}
       aria-label="Mobile navigation"
     >
