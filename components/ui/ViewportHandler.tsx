@@ -8,90 +8,86 @@ import { useEffect } from "react";
  */
 export function ViewportHandler() {
   useEffect(() => {
-    // Check if this is iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isChrome = /CriOS/.test(navigator.userAgent);
-    
+    // Check if we're on iOS Chrome
+    const isIOSChrome = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                         /CriOS/.test(navigator.userAgent);
+
     // Function to update viewport height variable
     const setViewportHeight = () => {
-      if (isIOS) {
-        // iOS needs special handling
-        const windowHeight = window.innerHeight;
-        const visualHeight = window.visualViewport ? window.visualViewport.height : windowHeight;
-        const height = Math.min(windowHeight, visualHeight); 
-        const vh = height * 0.01;
-        
-        document.documentElement.style.setProperty("--vh", `${vh}px`);
-        
-        // For iOS Chrome specifically
-        if (isChrome) {
-          // Ensure the body fills the available space
-          document.documentElement.style.height = `${height}px`;
-          document.body.style.height = `${height}px`;
-        }
-      } else {
-        // Standard approach for other browsers
+      // Set a small timeout to ensure we get the final height after any UI elements appear/disappear
+      setTimeout(() => {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty("--vh", `${vh}px`);
-      }
-    };
-    
-    // iOS Chrome tends to have issues with scroll position after resize
-    const resetScroll = () => {
-      if (isIOS && isChrome) {
-        // Force the page to scroll to top and then back to where it was
-        const scrollY = window.scrollY;
-        window.scrollTo(0, 0);
-        setTimeout(() => window.scrollTo(0, scrollY), 50);
-      }
+        
+        // Force body to fill screen
+        document.body.style.height = `${window.innerHeight}px`;
+        
+        // Handle iOS Chrome specifically with more aggressive fixes
+        if (isIOSChrome) {
+          document.documentElement.style.height = `${window.innerHeight}px`;
+          
+          // Override any safe area insets that might be causing the gap
+          document.documentElement.style.paddingBottom = '0px';
+          document.body.style.paddingBottom = '0px';
+          
+          // Apply position: fixed to body when in iOS Chrome
+          document.body.style.position = 'fixed';
+          document.body.style.width = '100%';
+          document.body.style.overflowY = 'auto';
+          // Use type assertion for non-standard webkit property
+          (document.body.style as any)['-webkit-overflow-scrolling'] = 'touch';
+        }
+      }, 100);
     };
 
     // Initial call
     setViewportHeight();
-    
-    // Set up event listeners
+
+    // Set up event listeners for various scenarios that might change viewport
     window.addEventListener("resize", setViewportHeight);
-    window.addEventListener("orientationchange", () => {
-      setViewportHeight();
-      // On orientation change, need to wait for UI to settle
-      setTimeout(setViewportHeight, 100);
-      setTimeout(setViewportHeight, 500);
-    });
+    window.addEventListener("orientationchange", setViewportHeight);
     
-    if (isIOS) {
-      // iOS specific handlers
+    // Add more aggressive event listeners for iOS Chrome
+    if (isIOSChrome) {
+      // Touch events to recalculate on every interaction
+      document.addEventListener("touchstart", setViewportHeight, { passive: true });
+      document.addEventListener("touchmove", setViewportHeight, { passive: true });
+      document.addEventListener("touchend", setViewportHeight, { passive: true });
+    } else {
+      // Standard events for other browsers
       window.addEventListener("scroll", setViewportHeight);
-      window.addEventListener("touchmove", setViewportHeight);
-      window.addEventListener("touchend", setViewportHeight);
-      
-      // iOS Chrome often needs some time after events to settle
-      if (isChrome) {
-        window.addEventListener("scroll", resetScroll, { passive: true });
-        // Set height multiple times to account for delayed toolbar animations
-        setInterval(setViewportHeight, 500);
-      }
     }
     
-    // Visual Viewport API (modern solution)
+    // iOS Safari specific event for when the toolbar hides/shows
     if (typeof window !== "undefined" && "visualViewport" in window) {
       window.visualViewport?.addEventListener("resize", setViewportHeight);
       window.visualViewport?.addEventListener("scroll", setViewportHeight);
     }
 
+    // Special handling for iOS Chrome which can have UI elements that collapse/expand
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // When tab becomes visible again, recalculate height
+        setViewportHeight();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
-      // Clean up event listeners
+      // Clean up all event listeners
       window.removeEventListener("resize", setViewportHeight);
       window.removeEventListener("orientationchange", setViewportHeight);
       
-      if (isIOS) {
+      if (isIOSChrome) {
+        document.removeEventListener("touchstart", setViewportHeight);
+        document.removeEventListener("touchmove", setViewportHeight);
+        document.removeEventListener("touchend", setViewportHeight);
+      } else {
         window.removeEventListener("scroll", setViewportHeight);
-        window.removeEventListener("touchmove", setViewportHeight);
-        window.removeEventListener("touchend", setViewportHeight);
-        
-        if (isChrome) {
-          window.removeEventListener("scroll", resetScroll);
-        }
       }
+      
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       
       if (typeof window !== "undefined" && "visualViewport" in window) {
         window.visualViewport?.removeEventListener("resize", setViewportHeight);
@@ -100,5 +96,5 @@ export function ViewportHandler() {
     };
   }, []);
 
-  return null;
+  return null; // Render nothing, just handle the effects
 } 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
+import "./ios-chrome-fixes.css";
 import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
@@ -10,6 +11,8 @@ import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { ViewportHandler } from "@/components/ui/ViewportHandler";
+import { SafeAreaHandler } from "@/components/ui/SafeAreaHandler";
+import { IOSDetector } from "@/components/ui/IOSDetector";
 
 
 const inter = Inter({
@@ -45,7 +48,7 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual, user-scalable=no"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
           <style dangerouslySetInnerHTML={{
             __html: `
               :root {
@@ -56,17 +59,13 @@ export default async function RootLayout({
                   height: 100dvh;
                 }
               }
+              /* Fix for iOS Chrome bottom bar */
               @supports (-webkit-touch-callout: none) {
-                body, html {
-                  height: -webkit-fill-available;
+                body {
+                  height: 100%;
                   position: fixed;
                   width: 100%;
-                  overflow: hidden;
-                }
-                #main-content-container {
-                  height: 100%;
-                  width: 100%;
-                  overflow-y: auto;
+                  overflow: auto;
                   -webkit-overflow-scrolling: touch;
                 }
               }
@@ -74,7 +73,7 @@ export default async function RootLayout({
           }} />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll fixed inset-0 w-full`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-screen ios-chrome-fix`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -88,8 +87,10 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
+                  <IOSDetector />
                   <ViewportHandler />
-                  <div id="main-content-container" className="flex flex-col overflow-y-auto h-full">
+                  <SafeAreaHandler />
+                  <div className="min-h-screen flex flex-col ios-chrome-fix">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>

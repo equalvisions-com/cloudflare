@@ -1,0 +1,46 @@
+/* iOS Chrome Viewport Fixes */
+
+/* Fix for the white bar at the bottom in iOS Chrome */
+@supports (-webkit-touch-callout: none) {
+  /* When detected as iOS Chrome, apply these fixes */
+  html.ios-chrome {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  
+  html.ios-chrome body {
+    height: 100% !important;
+    position: fixed !important;
+    width: 100% !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  
+  /* Fix for bottom-positioned elements */
+  html.ios-chrome .fixed-bottom {
+    bottom: 0 !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  
+  /* Override any safe area insets */
+  html.ios-chrome * {
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+  }
+  
+  /* Make sure viewport fills the entire screen */
+  html.ios-chrome .min-h-screen,
+  html.ios-chrome .h-screen {
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+}
+
+/* Specific fix for MobileDock to ensure it sits at the bottom */
+.mobile-dock {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  bottom: 0 !important;
+} 

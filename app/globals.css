@@ -128,35 +128,29 @@
   .h-screen {
     height: 100vh; /* Fallback */
     height: calc(var(--vh, 1vh) * 100);
+    height: 100dvh; /* Dynamic viewport height */
   }
   
   .min-h-screen {
     min-height: 100vh; /* Fallback */
     min-height: calc(var(--vh, 1vh) * 100);
+    min-height: 100dvh; /* Dynamic viewport height */
+    /* Remove bottom safe area insets in iOS Chrome */
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
   }
   
-  @supports (height: 100dvh) {
-    .h-screen {
-      height: 100dvh;
-    }
-    
-    .min-h-screen {
-      min-height: 100dvh;
-    }
-  }
-  
-  /* iOS Chrome specific fix for bottom bar */
-  @supports (-webkit-touch-callout: none) and (not (translate: none)) {
-    body {
-      height: -webkit-fill-available;
-    }
-    
-    .h-screen {
-      height: -webkit-fill-available;
-    }
-    
-    .min-h-screen {
-      min-height: -webkit-fill-available;
+  /* iOS Chrome specific fixes */
+  @supports (-webkit-touch-callout: none) {
+    .ios-chrome-fix {
+      /* Force full height and disable safe areas */
+      height: 100% !important;
+      min-height: 100% !important;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+      /* Override any safe area insets */
+      padding-bottom: 0 !important; 
+      margin-bottom: 0 !important;
     }
   }
 }
