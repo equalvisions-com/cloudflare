@@ -224,7 +224,7 @@ export function SwipeableTabs({
       viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
     } else {
       viewportElement.style.pointerEvents = '';
-      viewportElement.style.touchAction = 'pan-y';
+      viewportElement.style.touchAction = 'pan-y pinch-zoom';
       viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
       viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
     }
@@ -282,8 +282,7 @@ export function SwipeableTabs({
         const deltaY = Math.abs(touch.clientY - startY);
         
         // Only prevent default if horizontal movement is greater than vertical
-        // And ONLY when horizontal movement is significant (>10px)
-        if (deltaX > deltaY && deltaX > 10) {
+        if (deltaX > deltaY) {
           e.preventDefault();
         }
       };
@@ -670,14 +669,16 @@ export function SwipeableTabs({
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: isMobile ? 'pan-y' : 'none' // Adjust touch action based on device
+          touchAction: 'pan-y pinch-zoom', // Always allow vertical scrolling
+          overscrollBehavior: 'contain' // Prevent pull-to-refresh while allowing scrolling
         }}
       >
         <div className="flex items-start"
           style={{
             minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
             willChange: 'transform',
-            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none',
+            touchAction: 'pan-y pinch-zoom' // Allow vertical scrolling on the slides container
           }}
         > 
           {tabs.map((tab, index) => {
@@ -691,20 +692,19 @@ export function SwipeableTabs({
                 key={`carousel-${tab.id}`} 
                 className={cn(
                   "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
-                  isTransitioning && "transitioning",
-                  isActive && "embla-slide-active"
+                  isTransitioning && "transitioning"
                 )}
-                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
-                aria-hidden={!isActive} // Add aria-hidden for accessibility
+                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
+                aria-hidden={index !== selectedTab}
                 style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
-                  // Hide inactive tabs instantly during interaction
-                  opacity: !isActive && isInteracting ? 0 : 1,
+                  opacity: index !== selectedTab && isInteracting ? 0 : 1,
                   transition: 'opacity 0s',
-                  // Make slide content interactive even on desktop
-                  pointerEvents: isActive ? 'auto' : 'none'
+                  pointerEvents: index === selectedTab ? 'auto' : 'none',
+                  touchAction: 'pan-y pinch-zoom', // Allow vertical scrolling on individual slides
+                  overscrollBehavior: 'contain' // Prevent pull-to-refresh while allowing scrolling
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}

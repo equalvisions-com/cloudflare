@@ -3,30 +3,25 @@
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
   /* No transition for immediate height changes */
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
 .embla-slides-container {
   display: flex;
   align-items: flex-start;
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Ensure each slide takes full width */
+/* Ensure each slide takes full width and allows scrolling */
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
-  -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
-}
-
-/* Ensure content within slides can be scrolled vertically */
-.embla-slide > div {
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+  height: auto;
   overflow-y: auto;
-  height: 100%;
-  touch-action: pan-y;
-}
-
-/* Specific rules for active slide to ensure scrolling works */
-.embla-slide-active {
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain;
 } 
