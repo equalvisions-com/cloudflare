@@ -50,7 +50,7 @@ export default async function BookmarksPage() {
       <BookmarksHeader />
 
       {/* BookmarksContentWrapper will get userId from context */}
-      <BookmarksContentWrapper />
+     <div className="sm:pb-[119px] md:pb-[56px]"><BookmarksContentWrapper /></div>
     </StandardSidebarLayout>
   );
 }

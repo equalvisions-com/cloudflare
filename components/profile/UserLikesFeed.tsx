@@ -187,7 +187,7 @@ const useFormattedTimestamp = (pubDate?: string) => {
     // For future dates (more than 1 minute ahead), show 'in X'
     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : ' ago';
+    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
@@ -208,7 +208,7 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
   
   const type = mediaType.toLowerCase();
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
       {type === 'podcast' && <Podcast className="h-3 w-3" />}
       {type === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
       {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
@@ -268,7 +268,7 @@ const ActivityCard = React.memo(({
     <article className="">
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
-        <div className="flex items-start gap-4 mb-4 h-full">
+        <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
             <Link 
@@ -295,7 +295,7 @@ const ActivityCard = React.memo(({
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full mt-[-3px]">
+            <div className="w-full">
               <div className="flex items-start justify-between gap-2">
                 <Link 
                   href={entryDetails.category_slug && entryDetails.post_slug ? 
@@ -305,12 +305,12 @@ const ActivityCard = React.memo(({
                   target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
                   rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
                 >
-                  <h3 className="text-sm font-bold text-primary leading-tight">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
                   </h3>
                 </Link>
                 <span 
-                  className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                  className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                   title={entryDetails.pub_date ? 
                     format(new Date(entryDetails.pub_date), 'PPP p') : 
                     new Date(activity.timestamp).toLocaleString()

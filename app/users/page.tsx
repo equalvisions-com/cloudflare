@@ -8,7 +8,9 @@ export default function PeoplePage() {
     <StandardSidebarLayout
       rightSidebar={<RightSidebar showSearch={false} />}
     >
+        <div className="sm:pb-[119px] md:pb-[56px]">
         <PeopleSearchWrapper />
+        </div>
     </StandardSidebarLayout>
   );
 } 

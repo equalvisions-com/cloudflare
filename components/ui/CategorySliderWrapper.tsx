@@ -489,7 +489,7 @@ export function CategorySliderWrapper({
         <form 
           role="search"
           onSubmit={handleSearchSubmit} 
-          className="px-4 pt-2 pb-2 mb-1 flex items-start gap-3.5"
+          className="px-4 sm:pt-2 md:pt-4 pb-2 mb-1 flex items-start gap-3.5"
         >
           {/* User Menu added to the left of search input, only if authenticated */}
           {isAuthenticated && (

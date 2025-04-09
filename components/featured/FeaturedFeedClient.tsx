@@ -89,7 +89,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
     // For future dates (more than 1 minute ahead), show 'in X'
     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : ' ago';
+    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
@@ -155,7 +155,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                     </h3>
                   )}
                   <span 
-                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                     title={format(new Date(entry.pub_date), 'PPP p')}
                   >
                     {timestamp}

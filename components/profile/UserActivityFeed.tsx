@@ -498,15 +498,20 @@ export function ActivityDescription({ item, username, name, profileImage, timest
                     const diffInDays = Math.floor(diffInHours / 24);
                     const diffInMonths = Math.floor(diffInDays / 30);
                     
+                    // For future dates (more than 1 minute ahead), show 'in X'
+                    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                    const prefix = isFuture ? 'in ' : '';
+                    const suffix = isFuture ? '' : '';
+                    
                     // Format based on the time difference
                     if (diffInMinutes < 60) {
-                      return `${diffInMinutes}m`;
+                      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
                     } else if (diffInHours < 24) {
-                      return `${diffInHours}h`;
+                      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
                     } else if (diffInDays < 30) {
-                      return `${diffInDays}d`;
+                      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
                     } else {
-                      return `${diffInMonths}mo`;
+                      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
                     }
                   })()}
                 </div>
@@ -776,7 +781,7 @@ const ActivityCard = React.memo(({
     // For future dates (more than 1 minute ahead), show 'in X'
     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : ' ago';
+    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
@@ -937,7 +942,7 @@ const ActivityCard = React.memo(({
             
             {/* Title and Timestamp */}
             <div className="flex-grow">
-              <div className="w-full mt-[-3px]">
+              <div className="w-full">
                 <div className="flex items-start justify-between gap-2">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
@@ -947,12 +952,12 @@ const ActivityCard = React.memo(({
                     target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
                     rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-sm font-bold text-primary leading-tight">
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                     </h3>
                   </Link>
                   <span 
-                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                     title={entryDetail.pub_date ? 
                       format(new Date(entryDetail.pub_date), 'PPP p') : 
                       new Date(activity.timestamp).toLocaleString()
@@ -963,7 +968,7 @@ const ActivityCard = React.memo(({
                 </div>
                 {/* Use post_media_type if available, otherwise fallback to mediaType */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
@@ -1086,7 +1091,7 @@ const ActivityCard = React.memo(({
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
-            <div className="w-full mt-[-3px]">
+            <div className="w-full">
               <div className="flex items-start justify-between gap-2">
                 <Link 
                   href={entryDetail.category_slug && entryDetail.post_slug ? 
@@ -1096,12 +1101,12 @@ const ActivityCard = React.memo(({
                   target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
                   rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                 >
-                  <h3 className="text-sm font-bold text-primary leading-tight">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                   </h3>
                 </Link>
                 <span 
-                  className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                  className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                   title={entryDetail.pub_date ? 
                     format(new Date(entryDetail.pub_date), 'PPP p') : 
                     new Date(activity.timestamp).toLocaleString()
@@ -1112,7 +1117,7 @@ const ActivityCard = React.memo(({
               </div>
               {/* Use post_media_type if available, otherwise fallback to mediaType */}
               {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                   {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                     <Podcast className="h-3 w-3" />
                   }
@@ -1608,7 +1613,7 @@ export function UserActivityFeed({
             
             {/* Title and Timestamp */}
             <div className="flex-grow">
-              <div className="w-full mt-[-3px]">
+              <div className="w-full">
                 <div className="flex items-start justify-between gap-2">
                   <Link 
                     href={entryDetail.category_slug && entryDetail.post_slug ? 
@@ -1618,12 +1623,12 @@ export function UserActivityFeed({
                     target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
                     rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-sm font-bold text-primary leading-tight">
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                     </h3>
                   </Link>
                   <span 
-                    className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                     title={entryDetail.pub_date ? 
                       format(new Date(entryDetail.pub_date), 'PPP p') : 
                       new Date(group.firstActivity.timestamp).toLocaleString()
@@ -1662,7 +1667,7 @@ export function UserActivityFeed({
                       // For future dates (more than 1 minute ahead), show 'in X'
                       const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
                       const prefix = isFuture ? 'in ' : '';
-                      const suffix = isFuture ? '' : ' ago';
+                      const suffix = isFuture ? '' : '';
                       
                       // Format based on the time difference
                       if (diffInMinutes < 60) {
@@ -1679,7 +1684,7 @@ export function UserActivityFeed({
                 </div>
                 {/* Media type badge */}
                 {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                     {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
                       <Podcast className="h-3 w-3" />
                     }
@@ -1886,22 +1891,13 @@ export function UserActivityFeed({
         itemContent={(index, group) => renderActivityGroup(group, index)}
         components={{
           Footer: () => (
-            <div className="py-4 text-center">
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-10">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : hasMore ? (
-                <div className="h-8" />
-              ) : (
-                <div className="text-muted-foreground text-sm py-2">
-                  {activities.length > 0 ? 
-                    `Showing ${activities.length} of ${totalCount} activities` : 
-                    "No activities"
-                  }
-                </div>
-              )}
-            </div>
+            isLoading ? (
+              <div className="flex items-center justify-center gap-2 py-10">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : hasMore ? (
+              <div className="h-8" />
+            ) : null
           )
         }}
       />

@@ -215,12 +215,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             </div>
           </div>
           
+          <div className="sm:pb-[119px] md:pb-[56px]">
           <ProfileActivityData 
             userId={profile.userId} 
             username={normalizedUsername}
             name={profile.name || normalizedUsername}
             profileImage={profile.profileImage}
           />
+          </div>
         </div>
       </div>
     </ProfileLayoutManager>

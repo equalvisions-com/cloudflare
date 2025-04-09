@@ -8,7 +8,7 @@ export default function PodcastsPage() {
       rightSidebar={<RightSidebar showSearch={false} />}
     >
       <div className="space-y-6">
-        <CategorySliderWrapper mediaType="podcast" />
+      <div className="sm:pb-[119px] md:pb-[56px]"><CategorySliderWrapper mediaType="podcast" /></div>
       </div>
     </StandardSidebarLayout>
   );

@@ -8,7 +8,7 @@ export default function NewslettersPage() {
       rightSidebar={<RightSidebar showSearch={false} />}
     >
       <div className="space-y-6">
-        <CategorySliderWrapper mediaType="newsletter" />
+        <div className="sm:pb-[119px] md:pb-[56px]"><CategorySliderWrapper mediaType="newsletter" /></div>
       </div>
     </StandardSidebarLayout>
   );
