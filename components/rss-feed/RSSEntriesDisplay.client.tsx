@@ -446,6 +446,11 @@ function EntriesContentComponent({
         overscan={20}
         initialTopMostItemIndex={0}
         itemContent={renderItem}
+        style={{ touchAction: 'pan-y pinch-zoom', WebkitOverflowScrolling: 'touch' }}
+        scrollSeekConfiguration={{
+          enter: velocity => Math.abs(velocity) > 500,
+          exit: velocity => Math.abs(velocity) < 30
+        }}
         components={{
           Footer: () => 
             isPending && hasMore ? (

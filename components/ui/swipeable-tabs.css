@@ -5,6 +5,7 @@
   /* No transition for immediate height changes */
   touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
@@ -15,13 +16,10 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Ensure each slide takes full width and allows scrolling */
+/* Ensure each slide takes full width and handles touch properly */
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
   touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
-  height: auto;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 } 

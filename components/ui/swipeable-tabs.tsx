@@ -669,16 +669,14 @@ export function SwipeableTabs({
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: 'pan-y pinch-zoom', // Always allow vertical scrolling
-          overscrollBehavior: 'contain' // Prevent pull-to-refresh while allowing scrolling
+          touchAction: isMobile ? 'pan-y pinch-zoom' : 'none' // Adjust touch action based on device
         }}
       >
         <div className="flex items-start"
           style={{
             minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
             willChange: 'transform',
-            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none',
-            touchAction: 'pan-y pinch-zoom' // Allow vertical scrolling on the slides container
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
           }}
         > 
           {tabs.map((tab, index) => {
@@ -694,17 +692,17 @@ export function SwipeableTabs({
                   "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
                   isTransitioning && "transitioning"
                 )}
-                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
-                aria-hidden={index !== selectedTab}
+                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
+                aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
-                  opacity: index !== selectedTab && isInteracting ? 0 : 1,
+                  // Hide inactive tabs instantly during interaction
+                  opacity: !isActive && isInteracting ? 0 : 1,
                   transition: 'opacity 0s',
-                  pointerEvents: index === selectedTab ? 'auto' : 'none',
-                  touchAction: 'pan-y pinch-zoom', // Allow vertical scrolling on individual slides
-                  overscrollBehavior: 'contain' // Prevent pull-to-refresh while allowing scrolling
+                  // Make slide content interactive even on desktop
+                  pointerEvents: isActive ? 'auto' : 'none'
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}

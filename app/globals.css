@@ -256,8 +256,6 @@
 .embla__swipeable_tabs {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  touch-action: pan-y pinch-zoom !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
 .embla__swipeable_tabs::-webkit-scrollbar {
@@ -268,10 +266,6 @@
 .embla__swipeable_tabs .embla-slide {
   scrollbar-width: auto;
   -ms-overflow-style: auto;
-  touch-action: pan-y pinch-zoom !important;
-  -webkit-overflow-scrolling: touch !important;
-  height: auto !important;
-  overflow-y: auto !important;
 }
 
 .embla__swipeable_tabs .embla-slide::-webkit-scrollbar {
@@ -287,12 +281,10 @@
   border-radius: 4px;
 }
 
-/* When transitioning, hide the scrollbar but maintain scroll functionality */
+/* When transitioning, hide the scrollbar */
 .embla__swipeable_tabs .embla-slide.transitioning {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  touch-action: pan-y pinch-zoom !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
 .embla__swipeable_tabs .embla-slide.transitioning::-webkit-scrollbar {
