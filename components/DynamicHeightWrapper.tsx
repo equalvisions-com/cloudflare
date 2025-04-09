@@ -33,7 +33,7 @@ export default function DynamicHeightWrapper({ children }: DynamicHeightWrapperP
     <div 
       id="app-wrapper" 
       ref={wrapperRef} 
-      className="flex flex-col min-h-screen overflow-hidden"
+      className="flex flex-col min-h-screen overflow-y-auto"
     >
       {children}
     </div>

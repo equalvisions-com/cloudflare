@@ -16,7 +16,7 @@
   #app-wrapper {
     min-height: 100vh; /* fallback if JS disabled */
     height: 100vh;
-    overflow: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     position: relative;
