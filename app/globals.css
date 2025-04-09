@@ -12,6 +12,18 @@
     overscroll-behavior: none;
   }
 
+  /* App wrapper for fixing iOS Chrome viewport issues */
+  #app-wrapper {
+    min-height: 100vh; /* fallback if JS disabled */
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }

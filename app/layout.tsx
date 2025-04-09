@@ -9,6 +9,7 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import DynamicHeightWrapper from "@/components/DynamicHeightWrapper";
 
 
 const inter = Inter({
@@ -61,12 +62,12 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="">
+                  <DynamicHeightWrapper>
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
                     {children}
-                  </div>
+                  </DynamicHeightWrapper>
                   <PersistentPlayer />
                   <MobileDock />
                 </SidebarProvider>
