@@ -99,7 +99,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     // For future dates (more than 1 minute ahead), show 'in X'
     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : ' ago';
+    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
@@ -123,7 +123,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   return (
     <article>
       <div className="p-4">
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4">
           {featuredImg && (
             <div className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
@@ -141,13 +141,13 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
           )}
           
           <div className="flex-grow">
-            <div className="w-full mt-[-3px]">
+            <div className="w-full">
               {postTitle && (
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold text-primary leading-tight">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {postTitle}
                   </h3>
-                  <span className="text-sm leading-none text-muted-foreground flex-shrink-0"
+                  <span className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                     title={format(new Date(entry.pubDate), 'PPP p')}
                   >
                     {timestamp}
@@ -155,7 +155,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 </div>
               )}
               {mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg mt-[4px]">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                   {mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
                   {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
