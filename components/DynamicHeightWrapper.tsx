@@ -1,40 +1,34 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 interface DynamicHeightWrapperProps {
   children: React.ReactNode;
 }
 
 export default function DynamicHeightWrapper({ children }: DynamicHeightWrapperProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const setAppHeight = () => {
-      if (wrapperRef.current) {
-        wrapperRef.current.style.height = `${window.innerHeight}px`;
-      }
+    // Function to update CSS variable with current viewport height
+    const updateHeight = () => {
+      // Set a CSS variable with the viewport height
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     };
 
-    // Set height initially
-    setAppHeight();
+    // Initial update
+    updateHeight();
 
-    // Update height on resize and orientation change
-    window.addEventListener('resize', setAppHeight);
-    window.addEventListener('orientationchange', setAppHeight);
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateHeight);
+    window.addEventListener('orientationchange', updateHeight);
 
     return () => {
-      window.removeEventListener('resize', setAppHeight);
-      window.removeEventListener('orientationchange', setAppHeight);
+      window.removeEventListener('resize', updateHeight);
+      window.removeEventListener('orientationchange', updateHeight);
     };
   }, []);
 
   return (
-    <div 
-      id="app-wrapper" 
-      ref={wrapperRef} 
-      className="flex flex-col min-h-screen overflow-y-auto"
-    >
+    <div className="dynamic-height-container">
       {children}
     </div>
   );

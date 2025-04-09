@@ -24,6 +24,16 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Use CSS variable for viewport height to fix iOS Chrome issues */
+  .dynamic-height-container {
+    min-height: 100vh; /* fallback for browsers without CSS variable support */
+    min-height: calc(var(--vh, 1vh) * 100);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    width: 100%;
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
@@ -232,6 +242,10 @@
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
+    overflow-y: auto;
+    height: 100%;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
   /* Remove all main styling related to height */
 
