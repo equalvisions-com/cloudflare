@@ -15,4 +15,18 @@
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
+  -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+}
+
+/* Ensure content within slides can be scrolled vertically */
+.embla-slide > div {
+  overflow-y: auto;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+/* Specific rules for active slide to ensure scrolling works */
+.embla-slide-active {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
 } 

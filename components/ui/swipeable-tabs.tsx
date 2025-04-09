@@ -224,7 +224,7 @@ export function SwipeableTabs({
       viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
     } else {
       viewportElement.style.pointerEvents = '';
-      viewportElement.style.touchAction = 'pan-y pinch-zoom';
+      viewportElement.style.touchAction = 'pan-y';
       viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
       viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
     }
@@ -251,6 +251,78 @@ export function SwipeableTabs({
       window.removeEventListener('scroll', handleScroll);
     };
   }, [selectedTab]);
+
+  // Prevent browser back/forward navigation when interacting with the slider
+  useEffect(() => {
+    if (!emblaApi) return;
+    
+    const viewportElement = emblaApi.rootNode();
+    if (!viewportElement) return;
+    
+    // Prevent horizontal swipe navigation only when actually dragging
+    const preventNavigation = (e: TouchEvent) => {
+      // Check if the drag handler exists and pointer is down
+      const internalEngine = (emblaApi as any).internalEngine?.();
+      if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
+         return;
+      }
+
+      const touch = e.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+      
+      const handleTouchMove = (e: TouchEvent) => {
+        const internalEngine = (emblaApi as any).internalEngine?.();
+         if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
+           return;
+        }
+        
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - startX);
+        const deltaY = Math.abs(touch.clientY - startY);
+        
+        // Only prevent default if horizontal movement is greater than vertical
+        // And ONLY when horizontal movement is significant (>10px)
+        if (deltaX > deltaY && deltaX > 10) {
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      
+      const cleanup = () => {
+        document.removeEventListener('touchmove', handleTouchMove);
+      };
+      
+      document.addEventListener('touchend', cleanup, { once: true });
+      document.addEventListener('touchcancel', cleanup, { once: true });
+    };
+    
+    // Prevent mousewheel horizontal navigation (for trackpads)
+    const preventWheelNavigation = (e: WheelEvent) => {
+      const internalEngine = (emblaApi as any).internalEngine?.();
+       if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
+         return;
+      }
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && internalEngine.dragHandler.pointerDown()) {
+        e.preventDefault();
+      }
+    };
+    
+    // Add event listeners with passive: false to allow preventDefault
+    viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
+    // Conditionally add wheel listener if WheelGesturesPlugin is used
+    if (emblaApi.plugins()?.wheelGestures) {
+       viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
+    }
+
+    return () => {
+      viewportElement.removeEventListener('touchstart', preventNavigation);
+      if (emblaApi.plugins()?.wheelGestures) {
+         viewportElement.removeEventListener('wheel', preventWheelNavigation);
+      }
+    };
+  }, [emblaApi]);
 
   // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
@@ -598,7 +670,7 @@ export function SwipeableTabs({
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: isMobile ? 'pan-y pinch-zoom' : 'none' // Adjust touch action based on device
+          touchAction: isMobile ? 'pan-y' : 'none' // Adjust touch action based on device
         }}
       >
         <div className="flex items-start"
@@ -619,7 +691,8 @@ export function SwipeableTabs({
                 key={`carousel-${tab.id}`} 
                 className={cn(
                   "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
-                  isTransitioning && "transitioning"
+                  isTransitioning && "transitioning",
+                  isActive && "embla-slide-active"
                 )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
                 aria-hidden={!isActive} // Add aria-hidden for accessibility
