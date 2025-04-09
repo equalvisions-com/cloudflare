@@ -9,7 +9,7 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import DynamicHeightWrapper from "@/components/DynamicHeightWrapper";
+import { ViewportHandler } from "@/components/ui/ViewportHandler";
 
 
 const inter = Inter({
@@ -45,10 +45,22 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1"/>
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              :root {
+                --vh: 1vh;
+              }
+              @supports (height: 100dvh) {
+                body, html {
+                  height: 100dvh;
+                }
+              }
+            `
+          }} />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-screen`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -62,12 +74,13 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <DynamicHeightWrapper>
+                  <ViewportHandler />
+                  <div className="min-h-screen flex flex-col">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
                     {children}
-                  </DynamicHeightWrapper>
+                  </div>
                   <PersistentPlayer />
                   <MobileDock />
                 </SidebarProvider>

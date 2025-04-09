@@ -12,28 +12,6 @@
     overscroll-behavior: none;
   }
 
-  /* App wrapper for fixing iOS Chrome viewport issues */
-  #app-wrapper {
-    min-height: 100vh; /* fallback if JS disabled */
-    height: 100vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Use CSS variable for viewport height to fix iOS Chrome issues */
-  .dynamic-height-container {
-    min-height: 100vh; /* fallback for browsers without CSS variable support */
-    min-height: calc(var(--vh, 1vh) * 100);
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    width: 100%;
-  }
-
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
@@ -145,6 +123,19 @@
       }
     }
   }
+
+  /* iOS viewport height fix */
+  .h-screen {
+    height: 100vh; /* Fallback */
+    height: calc(var(--vh, 1vh) * 100);
+    height: 100dvh; /* Dynamic viewport height */
+  }
+  
+  .min-h-screen {
+    min-height: 100vh; /* Fallback */
+    min-height: calc(var(--vh, 1vh) * 100);
+    min-height: 100dvh; /* Dynamic viewport height */
+  }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
@@ -242,10 +233,6 @@
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
-    overflow-y: auto;
-    height: 100%;
-    width: 100%;
-    -webkit-overflow-scrolling: touch;
   }
   /* Remove all main styling related to height */
 
