@@ -12,7 +12,7 @@
   html, body {
     height: 100%;
     min-height: -webkit-fill-available;
-    overflow: hidden;
+    overflow: auto;
   }
   
   #root, #__next {

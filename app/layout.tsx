@@ -54,10 +54,10 @@ export default async function RootLayout({
                 // Then set the value in the --vh custom property to the root of the document
                 document.documentElement.style.setProperty('--vh', \`\${vh}px\`);
                 
-                // Also ensure body has correct height on iOS
-                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                // Don't set fixed height anymore to allow scrolling
+                /* if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
                   document.body.style.height = window.innerHeight + 'px';
-                }
+                } */
               }
               
               // Initial call
