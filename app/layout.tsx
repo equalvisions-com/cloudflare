@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import "./ios-chrome-fixes.css";
 import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
@@ -10,9 +9,6 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { ViewportHandler } from "@/components/ui/ViewportHandler";
-import { SafeAreaHandler } from "@/components/ui/SafeAreaHandler";
-import { IOSDetector } from "@/components/ui/IOSDetector";
 
 
 const inter = Inter({
@@ -46,34 +42,36 @@ export default async function RootLayout({
       {/* `suppressHydrationWarning` only affects the html tag,
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
-      <html lang="en" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning className="h-full">
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
-          <style dangerouslySetInnerHTML={{
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
+          <script dangerouslySetInnerHTML={{
             __html: `
-              :root {
-                --vh: 1vh;
-              }
-              @supports (height: 100dvh) {
-                body, html {
-                  height: 100dvh;
+              // Fix for iOS Chrome/Safari viewport height issues
+              function setViewportProperty() {
+                // First get the viewport height
+                let vh = window.innerHeight * 0.01;
+                // Then set the value in the --vh custom property to the root of the document
+                document.documentElement.style.setProperty('--vh', \`\${vh}px\`);
+                
+                // Also ensure body has correct height on iOS
+                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                  document.body.style.height = window.innerHeight + 'px';
                 }
               }
-              /* Fix for iOS Chrome bottom bar */
-              @supports (-webkit-touch-callout: none) {
-                body {
-                  height: 100%;
-                  position: fixed;
-                  width: 100%;
-                  overflow: auto;
-                  -webkit-overflow-scrolling: touch;
-                }
-              }
+              
+              // Initial call
+              setViewportProperty();
+              
+              // Re-calculate on resize and orientation change
+              window.addEventListener('resize', setViewportProperty);
+              window.addEventListener('orientationchange', setViewportProperty);
             `
           }} />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-screen ios-chrome-fix`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full flex flex-col`}
+          style={{ minHeight: '100vh' }}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -87,10 +85,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <IOSDetector />
-                  <ViewportHandler />
-                  <SafeAreaHandler />
-                  <div className="min-h-screen flex flex-col ios-chrome-fix">
+                  <div className="">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
