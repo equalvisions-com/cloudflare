@@ -202,40 +202,36 @@ export function SwipeableTabs({
     ]
   ); 
 
-  // Disable all touch and pointer events on desktop
+  // Disable all touch and pointer events on desktop - REVISED LOGIC
   useEffect(() => {
     if (!emblaApi) return;
 
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
 
-    const disableAllInteractions = (e: Event) => {
-      if (!isMobile) {
-        e.preventDefault();
-        e.stopPropagation();
+    // Function to prevent accidental swipes - keep this
+    const disableHorizontalSwipes = (e: Event) => {
+      if (!isMobile) { // Only prevent on desktop/iPad
+        // Check if the event target is within the scrollable content? Might be too complex.
+        // Let's keep preventing default for now, but remove pointer-events none.
+        // e.preventDefault(); // Revisit if still needed
+        // e.stopPropagation(); // Revisit if still needed
       }
     };
 
-    if (!isMobile) {
-      // Only disable pointer events on the viewport/container but not the content
-      // Remove complete disabling of interactions
-      viewportElement.style.pointerEvents = 'none';
-      viewportElement.addEventListener('pointerdown', disableAllInteractions, { capture: true });
-      viewportElement.addEventListener('touchstart', disableAllInteractions, { capture: true });
-    } else {
-      viewportElement.style.pointerEvents = '';
-      viewportElement.style.touchAction = 'pan-y pinch-zoom';
-      viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
-      viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
-    }
+    // ALWAYS allow vertical panning and pinch zoom on the container
+    viewportElement.style.touchAction = 'pan-y pinch-zoom';
+    
+    // REMOVE the logic that adds pointer-events: none and listeners based on isMobile
+    // The pointerEvents style on the slide itself will handle active/inactive state.
 
+    // Clean up touch-action if needed (though unlikely)
     return () => {
       if (viewportElement) {
-        viewportElement.removeEventListener('pointerdown', disableAllInteractions, { capture: true });
-        viewportElement.removeEventListener('touchstart', disableAllInteractions, { capture: true });
+        viewportElement.style.touchAction = ''; // Reset on cleanup
       }
     };
-  }, [emblaApi, isMobile]);
+  }, [emblaApi, isMobile]); // Keep isMobile dependency for potential future refinements
 
   // Save scroll position when user scrolls
   useEffect(() => {
@@ -661,15 +657,15 @@ export function SwipeableTabs({
       {/* Carousel container is now visible and holds the actual content */}
       <div 
         className={cn(
-          "w-full overflow-hidden embla__swipeable_tabs",
-          !isMobile && "pointer-events-none" // Disable pointer events on carousel container only
+          "w-full overflow-hidden embla__swipeable_tabs"
+          // REMOVE: !isMobile && "pointer-events-none" 
         )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: isMobile ? 'pan-y pinch-zoom' : 'none' // Adjust touch action based on device
+          touchAction: 'pan-y pinch-zoom' // APPLY CONSISTENTLY
         }}
       >
         <div className="flex items-start"
