@@ -45,7 +45,7 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual"/>
           <style dangerouslySetInnerHTML={{
             __html: `
               :root {
@@ -56,11 +56,26 @@ export default async function RootLayout({
                   height: 100dvh;
                 }
               }
+              @supports (-webkit-touch-callout: none) {
+                body, html {
+                  height: -webkit-fill-available;
+                  position: fixed;
+                  width: 100%;
+                  overflow: hidden;
+                }
+                #main-content-container {
+                  height: 100%;
+                  width: 100%;
+                  overflow-y: auto;
+                  -webkit-overflow-scrolling: touch;
+                  padding-bottom: env(safe-area-inset-bottom, 0px);
+                }
+              }
             `
           }} />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-screen`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll fixed inset-0 w-full`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -75,14 +90,14 @@ export default async function RootLayout({
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
                   <ViewportHandler />
-                  <div className="min-h-screen flex flex-col">
+                  <div id="main-content-container" className="flex flex-col overflow-y-auto h-full safe-area-inset-top">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
                     {children}
                   </div>
                   <PersistentPlayer />
-                  <MobileDock />
+                  <MobileDock className="safe-area-inset-bottom" />
                 </SidebarProvider>
               </AudioProvider>
             </ThemeProvider>

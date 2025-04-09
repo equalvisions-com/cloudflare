@@ -8,38 +8,104 @@ import { useEffect } from "react";
  */
 export function ViewportHandler() {
   useEffect(() => {
+    // Check if this is iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isChrome = /CriOS/.test(navigator.userAgent);
+    
     // Function to update viewport height variable
     const setViewportHeight = () => {
-      // Set a small timeout to ensure we get the final height after any UI elements appear/disappear
-      setTimeout(() => {
+      if (isIOS) {
+        // iOS needs special handling
+        const windowHeight = window.innerHeight;
+        const visualHeight = window.visualViewport ? window.visualViewport.height : windowHeight;
+        const height = Math.min(windowHeight, visualHeight); 
+        const vh = height * 0.01;
+        
+        document.documentElement.style.setProperty("--vh", `${vh}px`);
+        
+        // Handle safe area insets for notched devices
+        const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat-safe-area-inset-bottom') || '0');
+        if (safeAreaBottom === 0) {
+          // If CSS var is not set, try to detect and set it
+          try {
+            // This only works if viewport-fit=cover is set in the meta tag
+            const bottomInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)') || '0');
+            document.documentElement.style.setProperty('--sat-safe-area-inset-bottom', `${bottomInset}px`);
+          } catch (e) {
+            // Fallback if env() is not supported
+            document.documentElement.style.setProperty('--sat-safe-area-inset-bottom', '0px');
+          }
+        }
+        
+        // For iOS Chrome specifically
+        if (isChrome) {
+          // Ensure the body fills the available space
+          document.documentElement.style.height = `${height}px`;
+          document.body.style.height = `${height}px`;
+        }
+      } else {
+        // Standard approach for other browsers
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty("--vh", `${vh}px`);
-      }, 100);
+      }
+    };
+    
+    // iOS Chrome tends to have issues with scroll position after resize
+    const resetScroll = () => {
+      if (isIOS && isChrome) {
+        // Force the page to scroll to top and then back to where it was
+        const scrollY = window.scrollY;
+        window.scrollTo(0, 0);
+        setTimeout(() => window.scrollTo(0, scrollY), 50);
+      }
     };
 
     // Initial call
     setViewportHeight();
-
-    // Set up event listeners for various scenarios that might change viewport
-    window.addEventListener("resize", setViewportHeight);
-    window.addEventListener("orientationchange", setViewportHeight);
-    window.addEventListener("scroll", setViewportHeight);
-    window.addEventListener("touchmove", setViewportHeight);
-    window.addEventListener("touchend", setViewportHeight);
     
-    // iOS Safari specific event for when the toolbar hides/shows
+    // Set up event listeners
+    window.addEventListener("resize", setViewportHeight);
+    window.addEventListener("orientationchange", () => {
+      setViewportHeight();
+      // On orientation change, need to wait for UI to settle
+      setTimeout(setViewportHeight, 100);
+      setTimeout(setViewportHeight, 500);
+    });
+    
+    if (isIOS) {
+      // iOS specific handlers
+      window.addEventListener("scroll", setViewportHeight);
+      window.addEventListener("touchmove", setViewportHeight);
+      window.addEventListener("touchend", setViewportHeight);
+      
+      // iOS Chrome often needs some time after events to settle
+      if (isChrome) {
+        window.addEventListener("scroll", resetScroll, { passive: true });
+        // Set height multiple times to account for delayed toolbar animations
+        setInterval(setViewportHeight, 500);
+      }
+    }
+    
+    // Visual Viewport API (modern solution)
     if (typeof window !== "undefined" && "visualViewport" in window) {
       window.visualViewport?.addEventListener("resize", setViewportHeight);
       window.visualViewport?.addEventListener("scroll", setViewportHeight);
     }
 
     return () => {
-      // Clean up all event listeners
+      // Clean up event listeners
       window.removeEventListener("resize", setViewportHeight);
       window.removeEventListener("orientationchange", setViewportHeight);
-      window.removeEventListener("scroll", setViewportHeight);
-      window.removeEventListener("touchmove", setViewportHeight);
-      window.removeEventListener("touchend", setViewportHeight);
+      
+      if (isIOS) {
+        window.removeEventListener("scroll", setViewportHeight);
+        window.removeEventListener("touchmove", setViewportHeight);
+        window.removeEventListener("touchend", setViewportHeight);
+        
+        if (isChrome) {
+          window.removeEventListener("scroll", resetScroll);
+        }
+      }
       
       if (typeof window !== "undefined" && "visualViewport" in window) {
         window.visualViewport?.removeEventListener("resize", setViewportHeight);
@@ -48,5 +114,5 @@ export function ViewportHandler() {
     };
   }, []);
 
-  return null; // Render nothing, just handle the effects
+  return null;
 } 
