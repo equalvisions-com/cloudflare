@@ -342,11 +342,6 @@ const FeedContent = React.memo(({
             />
           );
         }}
-        style={{ touchAction: 'pan-y pinch-zoom', WebkitOverflowScrolling: 'touch' }}
-        scrollSeekConfiguration={{
-          enter: velocity => Math.abs(velocity) > 500,
-          exit: velocity => Math.abs(velocity) < 30
-        }}
         components={{
           Footer: () => 
             isLoading && hasMore ? (

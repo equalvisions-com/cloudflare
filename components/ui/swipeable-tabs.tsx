@@ -184,7 +184,7 @@ export function SwipeableTabs({
           containScroll: 'trimSnaps',
           dragFree: false,
           duration: animationDuration,
-          dragThreshold: 2,
+          dragThreshold: 20,
           axis: 'x',
         }
       : {
@@ -702,7 +702,9 @@ export function SwipeableTabs({
                   opacity: !isActive && isInteracting ? 0 : 1,
                   transition: 'opacity 0s',
                   // Make slide content interactive even on desktop
-                  pointerEvents: isActive ? 'auto' : 'none'
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  // Explicitly allow vertical panning on the slide itself
+                  touchAction: 'pan-y' 
                 }}
               >
                 {/* The renderer function is stable, only the isActive prop changes */}
