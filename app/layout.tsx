@@ -42,36 +42,12 @@ export default async function RootLayout({
       {/* `suppressHydrationWarning` only affects the html tag,
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
-      <html lang="en" suppressHydrationWarning className="h-full">
+      <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
-          <script dangerouslySetInnerHTML={{
-            __html: `
-              // Fix for iOS Chrome/Safari viewport height issues
-              function setViewportProperty() {
-                // First get the viewport height
-                let vh = window.innerHeight * 0.01;
-                // Then set the value in the --vh custom property to the root of the document
-                document.documentElement.style.setProperty('--vh', \`\${vh}px\`);
-                
-                // Don't set fixed height anymore to allow scrolling
-                /* if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-                  document.body.style.height = window.innerHeight + 'px';
-                } */
-              }
-              
-              // Initial call
-              setViewportProperty();
-              
-              // Re-calculate on resize and orientation change
-              window.addEventListener('resize', setViewportProperty);
-              window.addEventListener('orientationchange', setViewportProperty);
-            `
-          }} />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full flex flex-col`}
-          style={{ minHeight: '100vh' }}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">

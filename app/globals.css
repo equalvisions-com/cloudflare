@@ -2,27 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* iOS Safari/Chrome viewport fixes */
-:root {
-  --vh: 1vh;
-}
-
-/* Fix for iOS Chrome viewport issue */
-@supports (-webkit-touch-callout: none) {
-  html, body {
-    height: 100%;
-    min-height: -webkit-fill-available;
-    overflow: auto;
-  }
-  
-  #root, #__next {
-    height: 100%;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-  }
-}
-
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
@@ -225,6 +204,9 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
+}
+
+@layer base {
   * {
     @apply border-border;
     box-sizing: border-box;
@@ -232,22 +214,15 @@
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
-    height: 100%;
   }
   body {
     margin: 0;
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
-    min-height: 100vh; /* Fallback */
-    min-height: calc(var(--vh, 1vh) * 100); /* Use CSS variable for iOS */
   }
+  /* Remove all main styling related to height */
 
-  /* Use viewport units with the CSS variable */
-  .full-height {
-    height: 100vh; /* Fallback */
-    height: calc(var(--vh, 1vh) * 100);
-  }
 }
 
 @layer base {
