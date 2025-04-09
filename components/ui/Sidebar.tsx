@@ -10,6 +10,17 @@ import { useMemo, memo } from "react";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Settings, LogOut } from "lucide-react";
+import { ThemeToggleWithErrorBoundary } from "@/components/user-menu/ThemeToggle";
+import Image from "next/image";
 
 interface NavItem {
   href: string;
@@ -62,7 +73,13 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, username, pendingFriendRequestCount } = useSidebar();
+  const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount, isBoarded } = useSidebar();
+
+  // Handle sign out action
+  const handleSignOut = () => {
+    // This should be replaced with actual sign out logic
+    window.location.href = "/signout";
+  };
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -147,6 +164,61 @@ function Sidebar() {
               />
             ))}
           </div>
+          
+          {/* User menu for authenticated users */}
+          {isAuthenticated && (
+            <div className="flex flex-col gap-3 w-[142.95px] mt-[8px]">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-start gap-2 pl-[13.5px] cursor-pointer">
+                    <div className="relative">
+                      {profileImage ? (
+                        <div className="h-8 w-8 overflow-hidden rounded-full">
+                          <Image 
+                            src={profileImage} 
+                            alt={displayName || ""} 
+                            width={32}
+                            height={32}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <Button 
+                          variant="secondary" 
+                          size="icon" 
+                          className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none" 
+                        >
+                          <User className="h-5 w-5" strokeWidth={2.5} />
+                          <span className="sr-only">Toggle user menu</span>
+                        </Button>
+                      )}
+                    </div>
+                    <div className="mt-[-3px]">
+                      <div className="font-bold text-sm line-clamp-1">{displayName}</div>
+                      <div className="text-muted-foreground text-xs line-clamp-1">@{username}</div>
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="ml-4">
+                  <DropdownMenuItem asChild>
+                    <a href="/settings" className="cursor-pointer flex items-center">
+                      <Settings className="mr-1 h-4 w-4" />
+                      Settings
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center">
+                    <LogOut className="mr-1 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center px-0 gap-2 py-0 font-normal">
+                    <ThemeToggleWithErrorBoundary />
+                  </DropdownMenuLabel>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </nav>
       </CardContent>
     </Card>

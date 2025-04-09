@@ -4,7 +4,7 @@ import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
-export function useUserMenuState(initialDisplayName?: string, initialProfileImage?: string) {
+export function useUserMenuState(initialDisplayName?: string, initialProfileImage?: string, initialUsername?: string) {
   const { signOut } = useAuthActions();
   const router = useRouter();
   const { isAuthenticated: contextAuthenticated } = useConvexAuth();
@@ -15,6 +15,9 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
   // Use context values if available, otherwise fall back to props
   const [displayName, setDisplayName] = useState(
     sidebarContext.displayName || initialDisplayName || "Guest"
+  );
+  const [username, setUsername] = useState(
+    sidebarContext.username || initialUsername || "Guest"
   );
   const [profileImage, setProfileImage] = useState(
     sidebarContext.profileImage || initialProfileImage
@@ -28,6 +31,7 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
       await signOut();
       // Optimistically update the UI after sign-out
       setDisplayName("Guest");
+      setUsername("Guest");
       setProfileImage(undefined);
     } catch (error) {
       console.error("Failed to sign out:", error);
@@ -42,6 +46,7 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
   return {
     isAuthenticated,
     displayName,
+    username,
     profileImage,
     handleSignIn,
     handleSignOut,

@@ -17,6 +17,7 @@ import Image from "next/image";
 
 interface UserMenuClientProps {
   initialDisplayName?: string;
+  initialUsername?: string;
   initialProfileImage?: string;
   isBoarded?: boolean;
   pendingFriendRequestCount?: number;
@@ -32,12 +33,13 @@ export function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
 
 export function UserMenuClient({ 
   initialDisplayName, 
+  initialUsername,
   initialProfileImage, 
   isBoarded,
   pendingFriendRequestCount = 0
 }: UserMenuClientProps) {
-  const { displayName, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
-    useUserMenuState(initialDisplayName, initialProfileImage);
+  const { displayName, username, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
+    useUserMenuState(initialDisplayName, initialProfileImage, initialUsername);
 
   return (
     <div className="flex items-center gap-2 text-sm font-medium">

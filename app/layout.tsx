@@ -35,7 +35,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Get all user profile information
-  const { displayName, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await getUserProfile();
+  const { displayName, username, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await getUserProfile();
 
   return (
     <ConvexAuthNextjsServerProvider>
@@ -54,7 +54,7 @@ export default async function RootLayout({
               <AudioProvider>
                 <SidebarProvider 
                   isAuthenticated={isAuthenticated} 
-                  username={displayName}
+                  username={username}
                   displayName={displayName}
                   isBoarded={isBoarded}
                   profileImage={profileImage}
