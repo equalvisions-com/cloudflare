@@ -118,7 +118,7 @@ export function PeopleSearchWrapper() {
   return (
     <div className="space-y-0">
       {/* Search input */}
-      <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
+      <div className="sticky top-0 z-10 bg-background border-b px-4 py-2 md:py-4">
         <form onSubmit={handleSearchSubmit} className="relative flex items-center gap-3.5">
           <div className="flex-shrink-0 md:hidden">
             <UserMenuClientWithErrorBoundary

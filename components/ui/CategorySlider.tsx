@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { cn } from '@/lib/utils';
@@ -38,7 +38,7 @@ export const CategorySlider = React.memo(({
     containScroll: 'keepSnaps' as const,
     dragFree: true, // Allow free-form dragging
     skipSnaps: false,
-    duration: 10, // Longer duration for smoother animation
+    duration: 10, // Faster duration for smoother animation
     inViewThreshold: 0.7, // Helps with smoother snapping
     slidesToScroll: 1
   }), []);
@@ -54,6 +54,9 @@ export const CategorySlider = React.memo(({
     carouselOptions,
     [WheelGesturesPlugin(wheelPluginOptions)]
   );
+
+  // Add indicator animation state
+  const [isDragging, setIsDragging] = useState(false);
 
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
@@ -100,13 +103,28 @@ export const CategorySlider = React.memo(({
       }
     };
     
+    // Track dragging state
+    const handlePointerDown = () => {
+      setIsDragging(true);
+    };
+    
+    const handlePointerUp = () => {
+      setIsDragging(false);
+    };
+    
     // Add event listeners with passive: false to allow preventDefault
     viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
     viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
+    emblaApi.on('pointerDown', handlePointerDown);
+    emblaApi.on('pointerUp', handlePointerUp);
+    emblaApi.on('settle', handlePointerUp);
     
     return () => {
       viewportElement.removeEventListener('touchstart', preventNavigation);
       viewportElement.removeEventListener('wheel', preventWheelNavigation);
+      emblaApi.off('pointerDown', handlePointerDown);
+      emblaApi.off('pointerUp', handlePointerUp);
+      emblaApi.off('settle', handlePointerUp);
     };
   }, [emblaApi]);
 
@@ -196,26 +214,61 @@ export const CategorySlider = React.memo(({
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
-      <div className="overflow-hidden prevent-overscroll-navigation" ref={emblaRef}>
-        <div className="flex mx-4 gap-6">
-          {categories.map((category, index) => (
-            <button
-              key={category._id}
-              ref={(el) => { buttonRefs.current[index] = el; }}
-              className={cn(
-                "flex-none pb-[12px] transition-all duration-50 whitespace-nowrap relative font-bold text-sm capitalize",
-                "after:absolute after:bottom-0 after:left-0 after:w-full after:h-[.25rem] after:transition-all after:duration-200 after:rounded-full",
-                category._id === selectedCategoryId
-                  ? "text-primary after:bg-primary"
-                  : "text-muted-foreground hover:text-foreground after:bg-background after:opacity-0"
-              )}
-              onClick={() => handleCategoryClick(category._id)}
-              aria-selected={category._id === selectedCategoryId}
-              role="tab"
-            >
-              {category.name}
-            </button>
-          ))}
+      <div 
+        className="overflow-hidden prevent-overscroll-navigation" 
+        ref={emblaRef}
+        style={{
+          willChange: 'transform',
+          WebkitPerspective: '1000',
+          WebkitBackfaceVisibility: 'hidden',
+          touchAction: 'pan-y pinch-zoom'
+        }}
+      >
+        <div 
+          className="flex mx-4 gap-6 transform-gpu"
+          style={{
+            willChange: 'transform',
+            transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+          }}
+        >
+          {categories.map((category, index) => {
+            const isSelected = category._id === selectedCategoryId;
+            const isLastItem = index === categories.length - 1;
+            
+            return (
+              <button
+                key={category._id}
+                ref={(el) => { buttonRefs.current[index] = el; }}
+                className={cn(
+                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-bold text-sm capitalize transform-gpu",
+                  isSelected
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => handleCategoryClick(category._id)}
+                aria-selected={isSelected}
+                role="tab"
+                style={{
+                  transform: 'translate3d(0,0,0)',
+                  WebkitBackfaceVisibility: 'hidden',
+                  ...(isLastItem ? { marginRight: '1rem' } : {})
+                }}
+              >
+                {category.name}
+                <div 
+                  className={cn(
+                    "absolute bottom-0 left-0 w-full h-[0.25rem] rounded-full transition-opacity bg-primary",
+                    isSelected ? "opacity-100" : "opacity-0"
+                  )}
+                  style={{
+                    transform: isSelected ? 'scaleX(1)' : 'scaleX(0.5)',
+                    transformOrigin: 'center',
+                    transition: 'transform 0.2s ease, opacity 0.2s ease'
+                  }}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

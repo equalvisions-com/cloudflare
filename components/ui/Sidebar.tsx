@@ -167,10 +167,10 @@ function Sidebar() {
           
           {/* User menu for authenticated users */}
           {isAuthenticated && (
-            <div className="flex flex-col gap-3 w-[142.95px] mt-[8px]">
+            <div className="flex flex-col gap-3 w-[142.95px] mt-[-3px]">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-start gap-2 pl-[13.5px] cursor-pointer">
+                  <div className="flex items-start gap-2 cursor-pointer hover:bg-accent rounded-lg py-2 px-3 transition-colors">
                     <div className="relative">
                       {profileImage ? (
                         <div className="h-8 w-8 overflow-hidden rounded-full">
