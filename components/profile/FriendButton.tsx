@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 import { MenuButton } from "@/components/ui/friend-menu-button";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import { useRouter } from "next/navigation";
 
 // Lazy load the EditProfileModal component
 const EditProfileModal = lazy(() => import("./EditProfileModal").then(mod => ({ default: mod.EditProfileModal })));
@@ -39,6 +40,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
+  const router = useRouter();
 
   // Only fetch viewer if authenticated and we need it
   const needsViewerQuery = isAuthenticated && 
@@ -147,9 +149,9 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           friendshipDirection={null}
         />
         <Button 
-          variant="outline" 
+          variant="ghost" 
           size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/10"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-secondary text-secondary-foreground border-none"
           onClick={() => setIsEditModalOpen(true)}
         >
           Edit Profile
@@ -176,14 +178,14 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <MenuButton 
           userId={userId}
         />
-        <Button variant="outline" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none">
+        <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
           Loading
         </Button>
       </div>
     );
   }
 
-  // Not authenticated - show disabled button
+  // Not authenticated - show button that redirects to signin
   if (!isAuthenticated) {
     return (
       <div className="flex items-center gap-2">
@@ -191,10 +193,10 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           userId={userId}
         />
         <Button 
-          variant="outline" 
+          variant="ghost" 
           size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none"
-          title="Sign in to add as friend"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
+          onClick={() => router.push("/signin")}
         >
           Add Friend
         </Button>
@@ -214,9 +216,9 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           onUnfriend={handleUnfriend}
         />
         <Button 
-          variant="outline" 
+          variant="ghost" 
           size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
           onClick={handleAddFriend}
         >
           Add Friend
@@ -234,7 +236,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             friendshipDirection={currentStatus.direction}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none">
+          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none border-none">
             Pending
           </Button>
         </div>
@@ -250,7 +252,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             onAcceptFriend={handleAcceptFriend}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none">
+          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none border-none">
             Pending
           </Button>
         </div>
@@ -266,7 +268,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           friendshipDirection={currentStatus.direction}
           onUnfriend={handleUnfriend}
         />
-        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-semibold text-sm px-4 py-2 shadow-none">
+        <Button variant="ghost" size="sm" className="h-9 rounded-full bg-secondary text-secondary-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
           Friends
         </Button>
       </div>
@@ -279,7 +281,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       <MenuButton 
         userId={userId}
       />
-      <Button variant="outline" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none">
+      <Button variant="ghost" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
         Add Friend
       </Button>
     </div>
