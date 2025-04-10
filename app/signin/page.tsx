@@ -275,6 +275,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         formData.set("flow", "signUp");
+        formData.set("redirectTo", "/");
         
         const password = formData.get("password") as string;
         if (!validatePassword(password)) {
