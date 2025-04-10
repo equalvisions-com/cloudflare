@@ -997,3 +997,126 @@ export const getRandomUsers = query({
   },
 });
 
+export const deleteAccount = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get the authenticated user ID
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthenticated");
+    }
+    
+    // Find the user
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    
+    // Get the profile image key if it exists
+    const profileImageKey = user.profileImageKey;
+    
+    // 1. Delete user's likes
+    const likes = await ctx.db
+      .query("likes")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const like of likes) {
+      await ctx.db.delete(like._id);
+    }
+    
+    // 2. Delete user's bookmarks
+    const bookmarks = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const bookmark of bookmarks) {
+      await ctx.db.delete(bookmark._id);
+    }
+    
+    // 3. Delete user's retweets
+    const retweets = await ctx.db
+      .query("retweets")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const retweet of retweets) {
+      await ctx.db.delete(retweet._id);
+    }
+    
+    // 4. Delete user's comments and comment likes
+    const comments = await ctx.db
+      .query("comments")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const comment of comments) {
+      // Delete likes for this comment
+      const commentLikes = await ctx.db
+        .query("commentLikes")
+        .withIndex("by_comment", q => q.eq("commentId", comment._id))
+        .collect();
+      
+      for (const like of commentLikes) {
+        await ctx.db.delete(like._id);
+      }
+      
+      // Delete the comment itself
+      await ctx.db.delete(comment._id);
+    }
+    
+    // 5. Delete likes the user made on other comments
+    const userCommentLikes = await ctx.db
+      .query("commentLikes")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const like of userCommentLikes) {
+      await ctx.db.delete(like._id);
+    }
+    
+    // 6. Delete user's following data
+    const following = await ctx.db
+      .query("following")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const follow of following) {
+      await ctx.db.delete(follow._id);
+    }
+    
+    // 7. Delete user's friendship data (both as requester and requestee)
+    // Get friendships where user is the requester
+    const friendshipsAsRequester = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", q => q.eq("requesterId", userId))
+      .collect();
+    
+    for (const friendship of friendshipsAsRequester) {
+      await ctx.db.delete(friendship._id);
+    }
+    
+    // Get friendships where user is the requestee
+    const friendshipsAsRequestee = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", q => q.eq("requesteeId", userId))
+      .collect();
+    
+    for (const friendship of friendshipsAsRequestee) {
+      await ctx.db.delete(friendship._id);
+    }
+    
+    // 8. Delete the profile image from R2 if it exists
+    if (profileImageKey) {
+      // Schedule the deletion of the profile image
+      ctx.scheduler.runAfter(0, api.r2Cleanup.deleteR2Object, { key: profileImageKey });
+    }
+    
+    // 9. Finally, delete the user record itself
+    await ctx.db.delete(userId);
+    
+    return { success: true };
+  },
+});
+

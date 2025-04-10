@@ -53,7 +53,7 @@ export function BookmarksHeader() {
               onChange={(e) => setSearchValue(e.target.value)}
               onKeyDown={handleSearch}
               placeholder="Search Bookmarks..."
-              className="pl-10 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
+              className="pl-9 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
               autoFocus
             />
             <button

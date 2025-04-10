@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { useQuery } from "convex/react";
@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import React from "react";
+import { useAudio } from '@/components/audio-player/AudioContext';
+import { decode } from 'html-entities';
 
 // Add a cache duration constant - 5 minutes
 const RSS_CACHE_DURATION = 5 * 60 * 1000;
@@ -227,6 +229,22 @@ function TrendingItem({
   post: any; 
   rssEntry: RSSEntry 
 }) {
+  const { playTrack, currentTrack } = useAudio();
+  const isCurrentlyPlaying = currentTrack?.src === rssEntry.link;
+  
+  // Check both post.mediaType and rssEntry.mediaType
+  const isPodcast = 
+    (post.mediaType?.toLowerCase() === 'podcast') || 
+    (rssEntry.mediaType?.toLowerCase() === 'podcast');
+  
+  // Handle podcast playback
+  const handlePodcastClick = useCallback((e: React.MouseEvent) => {
+    if (isPodcast) {
+      e.preventDefault();
+      playTrack(rssEntry.link, decode(rssEntry.title), rssEntry.image || undefined);
+    }
+  }, [isPodcast, rssEntry.link, rssEntry.title, rssEntry.image, playTrack]);
+  
   return (
     <li className="flex flex-col space-y-2">
       <div className="flex items-center gap-2">
@@ -254,35 +272,61 @@ function TrendingItem({
       <div className="flex gap-3">
         {rssEntry.image ? (
           <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
-            <a 
-              href={rssEntry.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block h-full"
-            >
-              <AspectRatio ratio={1/1} className="bg-muted">
-                <Image 
-                  src={rssEntry.image} 
-                  alt={rssEntry.title}
-                  fill
-                  className="object-cover hover:opacity-90 transition-opacity"
-                  sizes="(max-width: 768px) 100vw, 40px"
-                />
-              </AspectRatio>
-            </a>
+            {isPodcast ? (
+              <div 
+                onClick={handlePodcastClick}
+                className={`block h-full cursor-pointer ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}
+              >
+                <AspectRatio ratio={1/1} className="bg-muted">
+                  <Image 
+                    src={rssEntry.image} 
+                    alt={rssEntry.title}
+                    fill
+                    className="object-cover hover:opacity-90 transition-opacity"
+                    sizes="(max-width: 768px) 100vw, 40px"
+                  />
+                </AspectRatio>
+              </div>
+            ) : (
+              <a 
+                href={rssEntry.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block h-full"
+              >
+                <AspectRatio ratio={1/1} className="bg-muted">
+                  <Image 
+                    src={rssEntry.image} 
+                    alt={rssEntry.title}
+                    fill
+                    className="object-cover hover:opacity-90 transition-opacity"
+                    sizes="(max-width: 768px) 100vw, 40px"
+                  />
+                </AspectRatio>
+              </a>
+            )}
           </div>
         ) : (
           // Use a placeholder icon or just leave empty space to maintain alignment
           <div className="flex-shrink-0 w-10 h-10 bg-muted/50 rounded-md"></div>
         )}
-        <a 
-          href={rssEntry.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm hover:text-primary flex items-center font-semibold flex-grow"
-        >
-          <span className="line-clamp-2">{rssEntry.title}</span>
-        </a>
+        {isPodcast ? (
+          <div 
+            onClick={handlePodcastClick}
+            className={`text-sm hover:text-primary flex items-center font-semibold flex-grow cursor-pointer ${isCurrentlyPlaying ? 'text-primary' : ''}`}
+          >
+            <span className="line-clamp-2">{rssEntry.title}</span>
+          </div>
+        ) : (
+          <a 
+            href={rssEntry.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm hover:text-primary flex items-center font-semibold flex-grow"
+          >
+            <span className="line-clamp-2">{rssEntry.title}</span>
+          </a>
+        )}
       </div>
     </li>
   );
