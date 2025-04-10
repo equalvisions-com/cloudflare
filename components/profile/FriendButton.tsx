@@ -149,7 +149,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/10"
           onClick={() => setIsEditModalOpen(true)}
         >
           Edit Profile
@@ -176,7 +176,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <MenuButton 
           userId={userId}
         />
-        <Button variant="outline" size="sm" disabled className="h-9 font-medium text-sm px-4 py-2 rounded-full shadow-none">
+        <Button variant="outline" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none">
           Loading
         </Button>
       </div>
@@ -193,7 +193,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none"
           title="Sign in to add as friend"
         >
           Add Friend
@@ -216,7 +216,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="outline" 
           size="sm" 
-          className="rounded-full h-9 font-medium text-sm px-4 py-2 shadow-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none"
           onClick={handleAddFriend}
         >
           Add Friend
@@ -234,7 +234,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             friendshipDirection={currentStatus.direction}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2 shadow-none">
+          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none">
             Pending
           </Button>
         </div>
@@ -250,7 +250,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             onAcceptFriend={handleAcceptFriend}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-medium text-sm px-4 py-2 shadow-none">
+          <Button variant="outline" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none">
             Pending
           </Button>
         </div>
@@ -266,7 +266,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           friendshipDirection={currentStatus.direction}
           onUnfriend={handleUnfriend}
         />
-        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-medium text-sm px-4 py-2 shadow-none">
+        <Button variant="outline" size="sm" className="h-9 rounded-full bg-primary/10 font-semibold text-sm px-4 py-2 shadow-none">
           Friends
         </Button>
       </div>
@@ -279,7 +279,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       <MenuButton 
         userId={userId}
       />
-      <Button variant="outline" size="sm" className="h-9 font-medium text-sm px-4 py-2 rounded-full shadow-none">
+      <Button variant="outline" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none">
         Add Friend
       </Button>
     </div>

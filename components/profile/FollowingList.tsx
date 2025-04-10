@@ -91,9 +91,9 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
       <DialogTrigger asChild>
         <Button 
           variant="link" 
-          className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none"
+          className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none hover:no-underline"
         >
-          <span>{count} Following</span>
+          <span className="leading-none font-bold mr-[1px]">{count}</span><span className="leading-none font-semibold"> Following</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

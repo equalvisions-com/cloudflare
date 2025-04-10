@@ -194,10 +194,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 />
               </div>
               <div className="text-left">
-                <h1 className="text-2xl font-bold mb-2 leading-tight">{profile.name || normalizedUsername}</h1>
-                <p className="text-sm mb-2 text-muted-foreground">@{normalizedUsername}</p>
+                <h1 className="text-2xl font-extrabold flex items-center leading-none tracking-tight">{profile.name || normalizedUsername}</h1>
+                <p className="text-sm leading-none mt-1 mb-2.5 text-muted-foreground font-medium">@{normalizedUsername}</p>
                 {profile.bio && (
-                  <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>
+                  <p className="text-sm text-muted-foreground mb-2.5">{profile.bio}</p>
                 )}
                 <div className="flex gap-4">
                   <FollowingList 
