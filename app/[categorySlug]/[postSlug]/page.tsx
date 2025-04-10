@@ -15,6 +15,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { MenuButton } from "@/components/ui/menu-button";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
+import { Podcast, Mail } from "lucide-react";
 
 interface PostPageProps {
   params: Promise<{
@@ -173,7 +174,7 @@ function PostContent({ post, followState, rssData }: {
                 alt={post.title}
                 fill
                 sizes="96px"
-                className="object-cover rounded-lg border"
+                className="object-cover rounded-lg"
                 priority
               />
             </AspectRatio>
@@ -190,8 +191,9 @@ function PostContent({ post, followState, rssData }: {
           />
         </div>
       </div>
-      <h1 className="text-2xl font-bold mb-2 leading-tight">{post.title}</h1>
-      <div className="text-sm mb-2 text-muted-foreground" dangerouslySetInnerHTML={{ __html: post.body }} />
+      <h1 className="text-2xl font-extrabold flex items-center leading-none tracking-tight">{post.title}</h1>
+      
+      <div className="text-sm mb-3 mt-2 text-muted-foreground" dangerouslySetInnerHTML={{ __html: post.body }} />
       <FollowerCount 
         followerCount={post.followerCount} 
         postId={post._id} 

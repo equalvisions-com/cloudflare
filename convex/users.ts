@@ -1107,13 +1107,67 @@ export const deleteAccount = mutation({
       await ctx.db.delete(friendship._id);
     }
     
-    // 8. Delete the profile image from R2 if it exists
+    // 8. Delete auth-related data
+    
+    // 8.1 Delete auth accounts
+    const authAccounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const account of authAccounts) {
+      // Delete any verification codes associated with this account first
+      const verificationCodes = await ctx.db
+        .query("authVerificationCodes")
+        .withIndex("accountId", q => q.eq("accountId", account._id))
+        .collect();
+      
+      for (const code of verificationCodes) {
+        await ctx.db.delete(code._id);
+      }
+      
+      // Delete the account
+      await ctx.db.delete(account._id);
+    }
+    
+    // 8.2 Delete auth sessions and related refresh tokens
+    const authSessions = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", q => q.eq("userId", userId))
+      .collect();
+    
+    for (const session of authSessions) {
+      // Delete refresh tokens for this session
+      const refreshTokens = await ctx.db
+        .query("authRefreshTokens")
+        .withIndex("sessionId", q => q.eq("sessionId", session._id))
+        .collect();
+      
+      for (const token of refreshTokens) {
+        await ctx.db.delete(token._id);
+      }
+      
+      // Delete session verifiers
+      const verifiers = await ctx.db
+        .query("authVerifiers")
+        .filter(q => q.eq(q.field("sessionId"), session._id))
+        .collect();
+      
+      for (const verifier of verifiers) {
+        await ctx.db.delete(verifier._id);
+      }
+      
+      // Delete the session
+      await ctx.db.delete(session._id);
+    }
+    
+    // 9. Delete the profile image from R2 if it exists
     if (profileImageKey) {
       // Schedule the deletion of the profile image
       ctx.scheduler.runAfter(0, api.r2Cleanup.deleteR2Object, { key: profileImageKey });
     }
     
-    // 9. Finally, delete the user record itself
+    // 10. Finally, delete the user record itself
     await ctx.db.delete(userId);
     
     return { success: true };

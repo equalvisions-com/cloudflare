@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, memo } from "react";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
@@ -21,6 +21,7 @@ import {
 import { Settings, LogOut } from "lucide-react";
 import { ThemeToggleWithErrorBoundary } from "@/components/user-menu/ThemeToggle";
 import Image from "next/image";
+import { useUserMenuState } from "@/components/user-menu/useUserMenuState";
 
 interface NavItem {
   href: string;
@@ -73,12 +74,14 @@ NavLink.displayName = 'NavLink';
  */
 function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount, isBoarded } = useSidebar();
+  const { handleSignOut } = useUserMenuState(displayName, profileImage, username);
 
-  // Handle sign out action
-  const handleSignOut = () => {
-    // This should be replaced with actual sign out logic
-    window.location.href = "/signout";
+  // Custom sign out handler with redirect
+  const handleSignOutWithRedirect = async () => {
+    await handleSignOut();
+    router.push('/');
   };
 
   // Memoize route matching logic
@@ -207,7 +210,7 @@ function Sidebar() {
                     </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center">
+                  <DropdownMenuItem onClick={handleSignOutWithRedirect} className="flex items-center">
                     <LogOut className="mr-1 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>

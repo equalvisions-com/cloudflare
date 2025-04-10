@@ -8,7 +8,33 @@ import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkel
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
-import { ProfileSettingsPage } from "@/components/settings/ProfileSettingsPage";
+import ProfileSettingsClientWrapper from "@/components/settings/ProfileSettingsClientWrapper";
+import { BackButton } from '@/app/components/ui/back-button';
+import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
+
+// Header component for the settings page
+const SettingsHeader = () => {  
+  return (
+    <div className="w-full border-b py-2">
+      <div className="container mx-auto flex items-center px-4">
+        <div className="flex-shrink-0 mr-3 h-[36px] w-9">
+          <div className="hidden md:block">
+            <BackButton />
+          </div>
+          <div className="md:hidden">
+            <UserMenuClientWithErrorBoundary />
+          </div>
+        </div>
+        <div className="flex-1 text-center">
+          <h1 className="text-base font-extrabold tracking-tight">Settings</h1>
+        </div>
+        <div className="flex-shrink-0 w-9 sm:mr-0 md:mr-[-0.5rem]">
+          {/* Empty div for symmetry */}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const metadata = {
   title: "Settings - Your Account",
@@ -44,9 +70,11 @@ export default function SettingsPage() {
       useCardStyle={true}
       containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
     >
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Settings</h1>
-        <ProfileSettingsPage />
+      <div>
+        <SettingsHeader />
+        <div className="p-4">
+          <ProfileSettingsClientWrapper />
+        </div>
       </div>
     </StandardSidebarLayout>
   );

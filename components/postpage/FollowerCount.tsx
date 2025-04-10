@@ -41,10 +41,8 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
-            <span className="group-hover:underline">
-              <span className="text-primary font-bold mr-[2px]">{followerCount}</span>{' '}
-              <span className="text-primary">Followers</span>
-            </span>
+              <span className="leading-none font-bold mr-[-3px]">{followerCount}</span>{' '}
+              <span className="leading-none font-semibold">{followerCount === 1 ? 'Follower' : 'Followers'}</span>
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
@@ -74,10 +72,8 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
       {totalEntries ? (
         <div className="flex items-center gap-1">
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
-            <span className="group-hover:underline">
-              <span className="text-primary font-bold mr-[2px]">{totalEntries}</span>{' '}
-              <span className="text-primary">{getContentLabel()}</span>
-            </span>
+              <span className="leading-none font-bold mr-[-3px]">{totalEntries}</span>{' '}
+              <span className="leading-none font-semibold">{getContentLabel()}</span>
           </Button>
         </div>
       ) : null}

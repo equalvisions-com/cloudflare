@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useMutation, useAction, useQuery } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Loader2, Upload, AlertTriangle } from "lucide-react";
+import { ThemeToggleWithErrorBoundary } from "@/components/user-menu/ThemeToggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,13 +22,26 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useToast } from "@/components/ui/use-toast";
+import { Doc } from "@/convex/_generated/dataModel";
+import { Id } from "@/convex/_generated/dataModel";
 
-export function ProfileSettingsPage() {
+// Define props type for ProfileSettingsPage
+type ProfileSettingsPageProps = {
+  userProfile: {
+    userId: Id<"users">;
+    username: string;
+    name: string | undefined;
+    bio: string | undefined;
+    profileImage: string | undefined;
+    rssKeys: string[];
+    isBoarded: boolean;
+  } | null;
+};
+
+export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
   const router = useRouter();
   const { signOut } = useAuthActions();
   const { toast } = useToast();
-  // Get the current user's profile
-  const userProfile = useQuery(api.users.getProfile, {});
   
   // Form state
   const [name, setName] = useState(userProfile?.name || "");
@@ -191,55 +205,20 @@ export function ProfileSettingsPage() {
     setProfileImageKey(null);
   };
 
-  // Handle reset
-  const handleReset = () => {
-    // Clean up any object URLs we created to avoid memory leaks
-    if (selectedFile && previewImage && previewImage.startsWith('blob:')) {
-      URL.revokeObjectURL(previewImage);
-    }
-    
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    
-    // Reset to initial state from user profile
-    if (userProfile) {
-      setName(userProfile.name || "");
-      setBio(userProfile.bio || "");
-      setPreviewImage(userProfile.profileImage || null);
-    }
-    setSelectedFile(null);
-    setProfileImageKey(null);
-  };
-
-  // Show loading state while fetching initial profile data
-  if (userProfile === undefined) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading Profile Settings</CardTitle>
-          <CardDescription>Please wait while we load your profile information.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex justify-center py-6">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
+  // No need for loading check here - handled by wrapper component
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
+    <div className="space-y-4">
+      <Card className="shadow-none">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="font-bold">Profile Settings</CardTitle>
           <CardDescription>
-            Update your personal profile information.
+            Update your personal profile information
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardContent>
-            <div className="grid gap-6">
+          <CardContent className="pt-4">
+            <div className="grid gap-4">
               <div className="grid grid-cols-4 items-start gap-4">
                 <div className="text-sm font-medium pt-2">Profile Image</div>
                 <div className="col-span-3">
@@ -250,7 +229,7 @@ export function ProfileSettingsPage() {
                       ref={fileInputRef}
                       accept="image/*"
                       onChange={handleFileChange}
-                      className="hidden"
+                      className="hidden shadow-none"
                     />
                     {previewImage && (
                       <div className="w-16 h-16 rounded-full overflow-hidden border">
@@ -266,15 +245,12 @@ export function ProfileSettingsPage() {
                       variant="outline" 
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isLoading}
-                      className="flex gap-2"
+                      className="flex gap-2 shadow-none"
                     >
                       <Upload className="h-4 w-4" />
                       Select Image
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Upload an image for your profile. Files will be uploaded when you save.
-                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -285,6 +261,7 @@ export function ProfileSettingsPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your display name"
+                    className="shadow-none"
                   />
                 </div>
               </div>
@@ -298,21 +275,14 @@ export function ProfileSettingsPage() {
                     placeholder="Tell others about yourself"
                     rows={4}
                     disabled={isLoading}
+                    className="shadow-none"
                   />
                 </div>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleReset} 
-              disabled={isLoading}
-            >
-              Reset
-            </Button>
-            <Button type="submit" disabled={isLoading}>
+          <CardFooter className="flex justify-end">
+            <Button type="submit" disabled={isLoading} className="shadow-none">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -326,25 +296,43 @@ export function ProfileSettingsPage() {
         </form>
       </Card>
 
-      {/* Delete Account Section */}
-      <Card className="border-destructive/20">
-        <CardHeader>
-          <CardTitle className="text-destructive">Delete Account</CardTitle>
+      {/* Theme Settings */}
+      <Card className="shadow-none">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="font-bold">Theme Settings</CardTitle>
           <CardDescription>
-            Permanently delete your account and all associated data.
+            Customize the appearance of the application
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <div className="text-sm font-medium">Color Mode</div>
+            <div className="col-span-3 flex items-start">
+              <ThemeToggleWithErrorBoundary />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delete Account Section */}
+      <Card className="shadow-none">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="font-bold">Delete Account</CardTitle>
+          <CardDescription>
+            Permanently delete your account and all associated data
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
           <p className="text-sm text-muted-foreground">
             This action is irreversible. Once you delete your account, all of your data will be permanently removed from our servers. This includes your profile, activity history, bookmarks, and any other associated data.
           </p>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex justify-end">
           <Button 
             variant="destructive" 
             onClick={() => setShowDeleteConfirm(true)}
             disabled={isDeleting}
-            className="flex gap-2"
+            className="flex gap-2 shadow-none"
           >
             {isDeleting ? (
               <>
@@ -352,10 +340,7 @@ export function ProfileSettingsPage() {
                 Deleting Account...
               </>
             ) : (
-              <>
-                <AlertTriangle className="h-4 w-4" />
-                Delete Account
-              </>
+              "Delete Account"
             )}
           </Button>
         </CardFooter>
@@ -384,13 +369,13 @@ export function ProfileSettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting} className="shadow-none">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 handleDeleteAccount();
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-none"
               disabled={isDeleting}
             >
               {isDeleting ? (
