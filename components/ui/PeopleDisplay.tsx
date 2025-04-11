@@ -199,7 +199,7 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
                 <h3 className="text-base font-bold leading-tight line-clamp-1">
                   {user.name || user.username}
                 </h3>
-                <div className="text-muted-foreground text-xs font-normal">
+                <div className="text-muted-foreground text-xs font-normal mt-[1px]">
                   @{user.username}
                 </div>
               </Link>
@@ -216,13 +216,13 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
                     }}
                     initialFriendshipStatus={user.friendshipStatus}
                     className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none"
-                    pendingClassName="bg-secondary text-secondary-foreground"
-                    friendsClassName="bg-secondary text-secondary-foreground"
+                    pendingClassName="bg-secondary text-muted-foreground"
+                    friendsClassName="bg-secondary text-muted-foreground"
                   />
                 )}
               </div>
             </div>
-            <Link href={`/@${user.username}`} className="block !mt-[5px]" prefetch={false}>
+            <Link href={`/@${user.username}`} className="block !mt-[5px] text-muted-foreground" prefetch={false}>
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {user.bio || ''}
               </p>

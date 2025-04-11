@@ -151,7 +151,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <Button 
           variant="ghost" 
           size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-secondary text-secondary-foreground border-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-secondary text-muted-foreground border-none"
           onClick={() => setIsEditModalOpen(true)}
         >
           Edit Profile
@@ -178,7 +178,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
         <MenuButton 
           userId={userId}
         />
-        <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
+        <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border !opacity-100 text-muted-foreground">
           Loading
         </Button>
       </div>
@@ -236,7 +236,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             friendshipDirection={currentStatus.direction}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none border-none">
+          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
             Pending
           </Button>
         </div>
@@ -252,7 +252,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
             onAcceptFriend={handleAcceptFriend}
             onUnfriend={handleUnfriend}
           />
-          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted font-semibold text-sm px-4 py-2 shadow-none border-none">
+          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
             Pending
           </Button>
         </div>
@@ -268,7 +268,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           friendshipDirection={currentStatus.direction}
           onUnfriend={handleUnfriend}
         />
-        <Button variant="ghost" size="sm" className="h-9 rounded-full bg-secondary text-secondary-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
+        <Button variant="ghost" size="sm" className="h-9 rounded-full bg-secondary text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
           Friends
         </Button>
       </div>

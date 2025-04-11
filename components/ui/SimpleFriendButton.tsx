@@ -38,10 +38,10 @@ export function SimpleFriendButton({
   userId, 
   profileData, 
   initialFriendshipStatus,
-  className = "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none",
+  className = "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none text-muted-foreground",
   loadingClassName = "",
-  pendingClassName = "bg-secondary text-secondary-foreground",
-  friendsClassName = "bg-secondary text-secondary-foreground" 
+  pendingClassName = "bg-secondary text-muted-foreground",
+  friendsClassName = "bg-secondary text-muted-foreground" 
 }: SimpleFriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
@@ -197,7 +197,7 @@ export function SimpleFriendButton({
         <Button 
           variant="secondary" 
           size="sm" 
-          className={cn(className, pendingClassName, "border-0 shadow-none")}
+          className={cn(className, pendingClassName, "border-0 shadow-none !text-muted-foreground")}
           onClick={handleUnfriend}
         >
           Pending
@@ -209,7 +209,7 @@ export function SimpleFriendButton({
         <Button 
           variant="secondary" 
           size="sm" 
-          className={cn(className, friendsClassName, "border-0 shadow-none")}
+          className={cn(className, friendsClassName, "border-0 shadow-none !text-muted-foreground")}
           onClick={handleAcceptFriend}
         >
           Accept
@@ -222,7 +222,7 @@ export function SimpleFriendButton({
       <Button 
         variant="secondary" 
         size="sm" 
-        className={cn(className, friendsClassName, "border-0 shadow-none")}
+        className={cn(className, friendsClassName, "border-0 shadow-none !text-muted-foreground")}
         onClick={handleUnfriend}
       >
         Friends
