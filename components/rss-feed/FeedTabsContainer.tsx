@@ -166,7 +166,7 @@ export function FeedTabsContainer({
   return (
     <div className="w-full">
 
-<div className="grid grid-cols-3 items-center pt-2 pb-2 z-50 sm:block md:hidden">
+<div className="grid grid-cols-3 items-center z-50 sm:block md:hidden">
 <div>
         {isAuthenticated ? (
           <UserMenuClientWithErrorBoundary 
