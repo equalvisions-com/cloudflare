@@ -16,8 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  // Define the desired container class, removing mx-auto and px-6
-  const fullWidthContainerClass = "container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0";
-
-  return <LayoutManager containerClass={fullWidthContainerClass} />;
+  return <LayoutManager />;
 }
