@@ -3,10 +3,10 @@
  */
 export const LAYOUT_CONSTANTS = {
   // Container classes - ensure flex layout for horizontal arrangement
-  CONTAINER_CLASS: "min-h-screen w-full flex flex-col md:flex-row gap-6 p-0 md:px-6",
+  CONTAINER_CLASS: "container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0",
   
   // Content area classes
-  MAIN_CONTENT_CLASS: "min-h-screen flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
+  MAIN_CONTENT_CLASS: "flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
   MAIN_CONTENT_WITH_CARD_STYLE: "flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
   
   // Sidebar classes
