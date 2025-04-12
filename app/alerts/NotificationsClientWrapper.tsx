@@ -73,9 +73,7 @@ export default function NotificationsClientWrapper() {
   return (
     <>
       <NotificationsHeader />
-      <div className="container p-4">
         <NotificationsClient />
-      </div>
     </>
   );
 } 

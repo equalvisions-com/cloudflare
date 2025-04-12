@@ -16,6 +16,7 @@ import { MenuButton } from "@/components/ui/menu-button";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { Podcast, Mail } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 interface PostPageProps {
   params: Promise<{
@@ -191,7 +192,10 @@ function PostContent({ post, followState, rssData }: {
           />
         </div>
       </div>
-      <h1 className="text-2xl font-extrabold flex items-center leading-none tracking-tight">{post.title}</h1>
+      <h1 className="text-2xl font-extrabold leading-none tracking-tight">
+        {post.title}
+        {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+      </h1>
       
       <div className="text-sm mb-3 mt-2 text-muted-foreground" dangerouslySetInnerHTML={{ __html: post.body }} />
       <FollowerCount 

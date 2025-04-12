@@ -216,8 +216,8 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
                     }}
                     initialFriendshipStatus={user.friendshipStatus}
                     className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none"
-                    pendingClassName="bg-secondary text-muted-foreground"
-                    friendsClassName="bg-secondary text-muted-foreground"
+                    pendingClassName="text-muted-foreground"
+                    friendsClassName="text-muted-foreground"
                   />
                 )}
               </div>

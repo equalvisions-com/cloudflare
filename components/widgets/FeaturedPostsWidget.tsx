@@ -195,9 +195,12 @@ function FeaturedPostItem({ post }: { post: any }) {
               </Link>
             </div>
             <Button
-              variant={isFollowing ? "secondary" : "default"}
+              variant={isFollowing ? "ghost" : "default"}
               onClick={handleFollowClick}
-              className={cn("rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold")}
+              className={cn(
+                "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold",
+                isFollowing && "text-muted-foreground border border-input"
+              )}
               style={{ opacity: 1 }}
             >
               {isFollowing ? "Following" : "Follow"}

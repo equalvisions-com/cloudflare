@@ -119,9 +119,13 @@ export function FollowButton({
 
   return (
     <Button
-      variant={isFollowing ? "secondary" : "default"}
+      variant={isFollowing ? "ghost" : "default"}
       onClick={handleClick}
-      className={cn("rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none", className)}
+      className={cn(
+        "rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none",
+        isFollowing && "text-muted-foreground border border-input",
+        className
+      )}
       style={{ opacity: 1 }}
     >
       {isFollowing ? "Following" : "Follow"}

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Ellipsis, UserCheck, UserPlus, UserX, Share } from "lucide-react";
+import { Ellipsis, Share } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -14,10 +14,6 @@ import { useToast } from "@/components/ui/use-toast";
 interface MenuButtonProps {
   onClick?: () => void;
   className?: string;
-  friendshipStatus?: string | null;
-  friendshipDirection?: string | null;
-  onAcceptFriend?: () => void;
-  onUnfriend?: () => void;
   userId?: Id<"users"> | null;
   profileUrl?: string;
 }
@@ -25,10 +21,6 @@ interface MenuButtonProps {
 export function MenuButton({ 
   onClick, 
   className,
-  friendshipStatus,
-  friendshipDirection,
-  onAcceptFriend,
-  onUnfriend,
   userId,
   profileUrl
 }: MenuButtonProps) {
@@ -76,31 +68,6 @@ export function MenuButton({
     }
   }, [profileUrl, toast, isSharing]);
 
-  // For self profile or when no status, show a dropdown with just the share option
-  if (friendshipStatus === "self" || !friendshipStatus || !userId) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="icon"
-            className={cn(
-              "rounded-full bg-[hsl(var(--background))] border shadow-none hover:bg-accent",
-              className
-            )}
-          >
-            <Ellipsis className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()} onClick={handleShareProfile} disabled={isSharing}>
-            <Share className="mr-2 h-4 w-4" />
-            Share Profile
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -115,30 +82,6 @@ export function MenuButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {friendshipStatus === "pending" && friendshipDirection === "received" && (
-          <>
-            <DropdownMenuItem onClick={onAcceptFriend}>
-              <UserCheck className="mr-2 h-4 w-4" />
-              Accept Request
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onUnfriend}>
-              <UserX className="mr-2 h-4 w-4" />
-              Decline Request
-            </DropdownMenuItem>
-          </>
-        )}
-        {friendshipStatus === "pending" && friendshipDirection === "sent" && (
-          <DropdownMenuItem onClick={onUnfriend}>
-            <UserX className="mr-2 h-4 w-4" />
-            Cancel Request
-          </DropdownMenuItem>
-        )}
-        {friendshipStatus === "accepted" && (
-          <DropdownMenuItem onClick={onUnfriend}>
-            <UserX className="mr-2 h-4 w-4" />
-            Unfriend
-          </DropdownMenuItem>
-        )}
         <DropdownMenuItem onSelect={(e) => e.preventDefault()} onClick={handleShareProfile} disabled={isSharing}>
           <Share className="mr-2 h-4 w-4" />
           Share Profile

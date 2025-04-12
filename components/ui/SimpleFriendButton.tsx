@@ -40,8 +40,8 @@ export function SimpleFriendButton({
   initialFriendshipStatus,
   className = "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none text-muted-foreground",
   loadingClassName = "",
-  pendingClassName = "bg-secondary text-muted-foreground",
-  friendsClassName = "bg-secondary text-muted-foreground" 
+  pendingClassName = "text-muted-foreground",
+  friendsClassName = "text-muted-foreground" 
 }: SimpleFriendButtonProps) {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
@@ -195,9 +195,9 @@ export function SimpleFriendButton({
       // Pending request sent by current user
       return (
         <Button 
-          variant="secondary" 
+          variant="ghost" 
           size="sm" 
-          className={cn(className, pendingClassName, "border-0 shadow-none !text-muted-foreground")}
+          className={cn(className, pendingClassName, "border border-input hover:text-accent-foreground")}
           onClick={handleUnfriend}
         >
           Pending
@@ -207,9 +207,9 @@ export function SimpleFriendButton({
       // Pending request received - show accept button
       return (
         <Button 
-          variant="secondary" 
+          variant="ghost" 
           size="sm" 
-          className={cn(className, friendsClassName, "border-0 shadow-none !text-muted-foreground")}
+          className={cn(className, friendsClassName, "border border-input hover:text-accent-foreground")}
           onClick={handleAcceptFriend}
         >
           Accept
@@ -220,9 +220,9 @@ export function SimpleFriendButton({
     // Already friends - show friends status with unfriend option
     return (
       <Button 
-        variant="secondary" 
+        variant="ghost" 
         size="sm" 
-        className={cn(className, friendsClassName, "border-0 shadow-none !text-muted-foreground")}
+        className={cn(className, friendsClassName, "border border-input hover:text-accent-foreground")}
         onClick={handleUnfriend}
       >
         Friends

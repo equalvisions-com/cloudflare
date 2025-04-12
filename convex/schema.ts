@@ -19,6 +19,7 @@ export default defineSchema({
     platform: v.string(),
     mediaType: v.string(),
     isFeatured: v.optional(v.boolean()),
+    verified: v.optional(v.boolean()),
   })
   .index("by_feedUrl", ["feedUrl"])
   .index("by_category", ["categorySlug"])

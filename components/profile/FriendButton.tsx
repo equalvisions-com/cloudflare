@@ -2,10 +2,16 @@
 
 import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserCheck, UserX, UserMinus } from "lucide-react";
 import { MenuButton } from "@/components/ui/friend-menu-button";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
@@ -145,13 +151,11 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       <div className="flex items-center gap-2">
         <MenuButton 
           userId={userId}
-          friendshipStatus="self"
-          friendshipDirection={null}
         />
         <Button 
           variant="ghost" 
           size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-secondary text-muted-foreground border-none"
+          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground"
           onClick={() => setIsEditModalOpen(true)}
         >
           Edit Profile
@@ -211,9 +215,6 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       <div className="flex items-center gap-2">
         <MenuButton 
           userId={userId}
-          friendshipStatus={currentStatus?.status}
-          friendshipDirection={currentStatus?.direction}
-          onUnfriend={handleUnfriend}
         />
         <Button 
           variant="ghost" 
@@ -227,50 +228,83 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
     );
   } else if (currentStatus.status === "pending") {
     if (currentStatus.direction === "sent") {
-      // Pending request sent by current user - simple pending button
+      // Pending request sent by current user - show cancel option in dropdown
       return (
         <div className="flex items-center gap-2">
           <MenuButton 
             userId={userId}
-            friendshipStatus={currentStatus.status}
-            friendshipDirection={currentStatus.direction}
-            onUnfriend={handleUnfriend}
           />
-          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
-            Pending
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+                Pending
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-red-500"
+                onClick={handleUnfriend}
+              >
+                <UserX className="mr-2 h-4 w-4" />
+                Cancel Request
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       );
     } else {
-      // Pending request received - show pending button with accept/decline in menu
+      // Pending request received - show accept/decline options in menu
       return (
         <div className="flex items-center gap-2">
           <MenuButton 
             userId={userId}
-            friendshipStatus={currentStatus.status}
-            friendshipDirection={currentStatus.direction}
-            onAcceptFriend={handleAcceptFriend}
-            onUnfriend={handleUnfriend}
           />
-          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-muted text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
-            Pending
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+                Pending
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleAcceptFriend}>
+                <UserCheck className="mr-2 h-4 w-4" />
+                Accept Request
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-500"
+                onClick={handleUnfriend}
+              >
+                <UserX className="mr-2 h-4 w-4" />
+                Decline Request
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       );
     }
   } else if (currentStatus.status === "accepted") {
-    // Already friends - show friends status and unfriend option in menu
+    // Already friends - show unfriend option in dropdown
     return (
       <div className="flex items-center gap-2">
         <MenuButton 
           userId={userId}
-          friendshipStatus={currentStatus.status}
-          friendshipDirection={currentStatus.direction}
-          onUnfriend={handleUnfriend}
         />
-        <Button variant="ghost" size="sm" className="h-9 rounded-full bg-secondary text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border-none">
-          Friends
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+              Friends
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              className="text-red-500"
+              onClick={handleUnfriend}
+            >
+              <UserMinus className="mr-2 h-4 w-4" />
+              Remove Friend
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     );
   }

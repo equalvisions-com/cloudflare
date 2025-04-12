@@ -49,37 +49,6 @@ interface NotificationsData {
   notifications: NotificationItem[];
 }
 
-// Format timestamp to human-readable format (e.g., "2 hrs ago")
-const formatTimestamp = (timestamp: number): string => {
-  const now = Date.now();
-  const diff = now - timestamp;
-  
-  // Convert milliseconds to different time units
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  const weeks = Math.floor(days / 7);
-  const months = Math.floor(days / 30);
-  
-  if (seconds < 60) {
-    return 'just now';
-  } else if (minutes < 60) {
-    return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ago`;
-  } else if (hours < 24) {
-    return `${hours} ${hours === 1 ? 'hr' : 'hrs'} ago`;
-  } else if (days < 7) {
-    return `${days}d ago`;
-  } else if (weeks < 4) {
-    return `${weeks}w ago`;
-  } else if (months < 12) {
-    return `${months}m ago`;
-  } else {
-    // For anything older than a year, just show the date
-    return new Date(timestamp).toLocaleDateString();
-  }
-};
-
 export default function NotificationsClient() {
   const { toast } = useToast();
   const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
@@ -191,7 +160,7 @@ export default function NotificationsClient() {
           <p className="text-muted-foreground">You have no new notifications.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="">
           {notifications.map((notification) => {
             // We know notifications is not null here, and we're mapping through valid elements
             const isAccepting = acceptingIds.has(notification.friendship._id);
@@ -200,7 +169,7 @@ export default function NotificationsClient() {
             const profileUrl = `/@${notification.profile.username}`;
             
             return (
-              <div key={notification.friendship._id} className="flex items-center justify-between p-4 rounded-lg border">
+              <div key={notification.friendship._id} className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-3">
                   <Link href={profileUrl} className="block">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
@@ -216,12 +185,12 @@ export default function NotificationsClient() {
                     </div>
                   </Link>
                   <div>
-                    <Link href={profileUrl} className="hover:underline">
-                      <p className="font-medium">
+                    <Link href={profileUrl} className="hover:none">
+                      <p className="font-bold text-sm">
                         {notification.profile.name || notification.profile.username}
                       </p>
                     </Link>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {notification.friendship.type === "friend_request" && 
                         "Sent you a friend request"}
                       {notification.friendship.type === "friend_accepted" && 
@@ -232,57 +201,51 @@ export default function NotificationsClient() {
                   </div>
                 </div>
                 
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-xs text-muted-foreground">
-                    {formatTimestamp(notification.friendship.updatedAt || notification.friendship.createdAt)}
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {notification.friendship.type === "friend_request" ? (
-                      <>
+                <div className="flex items-center gap-2">
+                  {notification.friendship.type === "friend_request" ? (
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleAcceptRequest(notification.friendship._id)}
+                        disabled={isLoading}
+                        className="rounded-full bg-muted/90 hover:bg-muted shadow-none"
+                      >
+                        <CheckIcon className="h-4 w-4" strokeWidth={2.25} />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleDeclineRequest(notification.friendship._id)}
+                        disabled={isLoading}
+                        className="rounded-full bg-muted/90 hover:bg-muted shadow-none"
+                      >
+                        <XIcon className="h-4 w-4" strokeWidth={2.25} />
+                      </Button>
+                    </>
+                  ) : notification.friendship.status === "accepted" ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDeclineRequest(notification.friendship._id)}
+                          variant="outline" 
+                          size="sm" 
+                          className="rounded-full shadow-none font-semibold text-sm"
                           disabled={isLoading}
-                          className="rounded-full bg-muted/50 hover:bg-muted shadow-none"
                         >
-                          <XIcon className="h-4 w-4" />
+                          Friends
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleAcceptRequest(notification.friendship._id)}
-                          disabled={isLoading}
-                          className="rounded-full bg-primary/10 hover:bg-primary/20 text-primary shadow-none"
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => handleRemoveFriend(notification.friendship._id)}
+                          className="text-red-500 focus:text-red-500 focus:bg-red-50"
                         >
-                          <CheckIcon className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : notification.friendship.status === "accepted" ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="rounded-full shadow-none"
-                            disabled={isLoading}
-                          >
-                            Friends
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem 
-                            onClick={() => handleRemoveFriend(notification.friendship._id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <XIcon className="mr-2 h-4 w-4" />
-                            Remove friend
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : null}
-                  </div>
+                          <XIcon className="mr-2 h-4 w-4" />
+                          Remove friend
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
               </div>
             );
