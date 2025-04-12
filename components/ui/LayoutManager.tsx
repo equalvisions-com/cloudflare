@@ -5,11 +5,16 @@ import { FeedTabsContainerClientWrapper } from "@/components/rss-feed/FeedTabsCo
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
 
+// Define props interface
+interface LayoutManagerProps {
+  containerClass?: string; // Make containerClass optional
+}
+
 /**
  * Server component that manages the overall layout for the homepage
  * Uses StandardSidebarLayout for consistent layout across the application
  */
-export async function LayoutManager() {
+export async function LayoutManager({ containerClass }: LayoutManagerProps) { // Destructure the prop
   // Pre-fetch initial data in parallel for better performance
   const [rssData, featuredData] = await Promise.all([
     getInitialEntries(),
@@ -35,7 +40,8 @@ export async function LayoutManager() {
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={false}
-        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
+        // Use the passed prop or fallback to the default constant
+        containerClass={containerClass ?? LAYOUT_CONSTANTS.CONTAINER_CLASS}
       >
         {mainContent}
       </StandardSidebarLayout>
