@@ -29,7 +29,7 @@ export function StandardSidebarLayout({
   // Use provided classes or defaults from constants
   const finalContainerClass = containerClass || LAYOUT_CONSTANTS.CONTAINER_CLASS;
   const finalMainContentClass = mainContentClass || 
-    (useCardStyle ? LAYOUT_CONSTANTS.MAIN_CONTENT_WITH_CARD_STYLE : LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS);
+    (useCardStyle ? LAYOUT_CONSTANTS.MAIN_CONTENT_WITH_CARD_STYLE : LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS) + " flex flex-col";
   const finalRightSidebarClass = rightSidebarClass || LAYOUT_CONSTANTS.RIGHT_SIDEBAR_CLASS;
 
   // Ensure the container has flex layout classes
