@@ -498,61 +498,64 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto flex flex-col">
-          <DrawerHeader className="px-4 pb-2 text-center flex-shrink-0">
-            <DrawerTitle>Comments</DrawerTitle>
-          </DrawerHeader>
-          
-          {/* Comments list with ScrollArea */}
-          <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full px-4" scrollHideDelay={0} type="always">
-              <div className="mt-2 pb-4">
-                {commentHierarchy.length > 0 ? (
-                  commentHierarchy.map(comment => renderComment(comment))
-                ) : (
-                  <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-          
-          {/* Comment input - stays at bottom */}
-          <div className="flex-shrink-0 border-t border-border p-4 bg-background">
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Textarea
-                  placeholder={replyToComment 
-                    ? `Reply to ${replyToComment.username}...`
-                    : "Add a comment..."}
-                  value={comment}
-                  onChange={(e) => {
-                    // Limit to 500 characters
-                    const newValue = e.target.value.slice(0, 500);
-                    setComment(newValue);
-                  }}
-                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
-                  maxLength={500}
-                  rows={1}
-                />
-                <Button 
-                  onClick={handleSubmit} 
-                  disabled={!comment.trim() || isSubmitting}
-                >
-                  {isSubmitting ? "Posting..." : "Post"}
-                </Button>
-              </div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                {replyToComment && (
-                  <button 
-                    onClick={cancelReply}
-                    className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+          <div className="flex flex-col h-full">
+            <DrawerHeader className="px-4 pb-2 text-center">
+              <DrawerTitle>Comments</DrawerTitle>
+            </DrawerHeader>
+            
+            {/* Main content container */}
+            <div className="flex-1 overflow-hidden relative">
+              {/* Comments list with ScrollArea */}
+              <ScrollArea className="absolute inset-0 px-4 pb-[140px]" scrollHideDelay={0} type="always">
+                <div className="mt-2">
+                  {commentHierarchy.length > 0 ? (
+                    commentHierarchy.map(comment => renderComment(comment))
+                  ) : (
+                    <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+            
+            {/* Comment input - stays at bottom */}
+            <div className="sticky bottom-0 left-0 right-0 border-t border-border p-4 bg-background mt-auto">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder={replyToComment 
+                      ? `Reply to ${replyToComment.username}...`
+                      : "Add a comment..."}
+                    value={comment}
+                    onChange={(e) => {
+                      // Limit to 500 characters
+                      const newValue = e.target.value.slice(0, 500);
+                      setComment(newValue);
+                    }}
+                    className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
+                    maxLength={500}
+                    rows={1}
+                  />
+                  <Button 
+                    onClick={handleSubmit} 
+                    disabled={!comment.trim() || isSubmitting}
                   >
-                    <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
-                    Cancel Reply
-                  </button>
-                )}
-                <div className={`${replyToComment ? '' : 'w-full'} text-right`}>
-                  {comment.length}/500 characters
+                    {isSubmitting ? "Posting..." : "Post"}
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  {replyToComment && (
+                    <button 
+                      onClick={cancelReply}
+                      className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
+                      Cancel Reply
+                    </button>
+                  )}
+                  <div className={`${replyToComment ? '' : 'w-full'} text-right`}>
+                    {comment.length}/500 characters
+                  </div>
                 </div>
               </div>
             </div>
