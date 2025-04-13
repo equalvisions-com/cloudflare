@@ -3,17 +3,19 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { MessageCircle, X, ChevronDown } from "lucide-react";
+import { MessageCircle, X, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Textarea } from "@/components/ui/textarea";
 import { Id } from "@/convex/_generated/dataModel";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from "@/components/ui/drawer";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -23,6 +25,7 @@ import {
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import Link from 'next/link';
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -90,6 +93,8 @@ export function CommentSectionClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   // State to track which comment is being replied to
   const [replyToComment, setReplyToComment] = useState<CommentFromAPI | null>(null);
+  // Track which comments have expanded replies
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   
   // Track refs for like counts
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
@@ -196,10 +201,6 @@ export function CommentSectionClient({
       }
     }
   }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting]);
-  
-  const toggleComments = () => {
-    setIsOpen(!isOpen);
-  };
   
   // Function to handle initiating a reply to a comment
   const handleReply = (comment: CommentFromAPI) => {
@@ -315,10 +316,24 @@ export function CommentSectionClient({
     }
   };
   
+  // Toggle reply visibility for a comment
+  const toggleRepliesVisibility = (commentId: string) => {
+    setExpandedReplies(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
+  
   // Render a single comment with its replies
   const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
     const hasReplies = 'replies' in comment && comment.replies.length > 0;
     const isDeleted = deletedComments.has(comment._id.toString());
+    const areRepliesExpanded = expandedReplies.has(comment._id.toString());
     
     // Check if this comment belongs to the current user
     const isCommentFromCurrentUser = isAuthenticated && viewer && 
@@ -336,6 +351,9 @@ export function CommentSectionClient({
       comment.username ||        // Fallback to username in comment
       'Anonymous';               // Last resort fallback
     
+    // Get username for profile link
+    const username = comment.username || (comment.user?.username || '');
+    
     // Handle comment deletion
     const handleDeleteComment = async () => {
       await deleteComment(comment._id);
@@ -347,18 +365,34 @@ export function CommentSectionClient({
     }
     
     return (
-      <div key={comment._id} className={`${isReply ? 'ml-6 mt-2' : ''} border-t border-border`}>
-        <div className="flex items-start gap-4 py-4 pl-4">
-          <ProfileImage 
-            profileImage={profileImageUrl}
-            username={comment.username}
-            size="md-lg"
-            className="flex-shrink-0"
-          />
+      <div key={comment._id} className={`${isReply ? '' : 'border-t border-border'}`}>
+        <div className={`flex items-start gap-4 ${isReply ? 'pb-4' : 'py-4 pl-4'}`}>
+          {username ? (
+            <Link href={`/@${username}`} className="flex-shrink-0">
+              <ProfileImage 
+                profileImage={profileImageUrl}
+                username={comment.username}
+                size="md-lg"
+              />
+            </Link>
+          ) : (
+            <ProfileImage 
+              profileImage={profileImageUrl}
+              username={comment.username}
+              size="md-lg"
+              className="flex-shrink-0"
+            />
+          )}
           <div className="flex-1 flex">
             <div className="flex-1">
               <div className="flex items-center mb-1">
-                <span className="text-sm font-bold leading-none">{displayName}</span>
+                {username ? (
+                  <Link href={`/@${username}`} className="text-sm font-bold leading-none hover:underline">
+                    {displayName}
+                  </Link>
+                ) : (
+                  <span className="text-sm font-bold leading-none">{displayName}</span>
+                )}
               </div>
               <p className="text-sm">{comment.content}</p>
               
@@ -379,16 +413,25 @@ export function CommentSectionClient({
                 
                 {/* Reply button - only show on top-level comments, not replies */}
                 {!isReply && (
-                  <div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="px-0 h-5 text-xs hover:bg-transparent text-muted-foreground" 
-                      onClick={() => handleReply(comment)}
-                    >
-                      Reply
-                    </Button>
-                  </div>
+                  <button 
+                    onClick={() => handleReply(comment)}
+                    className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
+                  >
+                    Reply
+                  </button>
+                )}
+                
+                {/* View/Hide Replies button - only show if comment has replies */}
+                {!isReply && hasReplies && (
+                  <button 
+                    onClick={() => toggleRepliesVisibility(comment._id.toString())}
+                    className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
+                  >
+                    {areRepliesExpanded 
+                      ? "Hide Replies" 
+                      : `View Replies (${(comment as CommentWithReplies).replies.length})`
+                    }
+                  </button>
                 )}
               </div>
             </div>
@@ -428,9 +471,9 @@ export function CommentSectionClient({
           </div>
         </div>
         
-        {/* Display replies if this is a top-level comment with replies */}
-        {hasReplies && (
-          <div className="ml-8 border-l-2 pl-3 border-muted">
+        {/* Display replies if this is a top-level comment with replies and replies are expanded */}
+        {hasReplies && areRepliesExpanded && (
+          <div style={{ paddingLeft: '44px' }}>
             {(comment as CommentWithReplies).replies.map(reply => 
               renderComment(reply, true)
             )}
@@ -445,25 +488,25 @@ export function CommentSectionClient({
   
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
-        onClick={toggleComments}
-      >
-        <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
-        <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
-      </Button>
-      
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-h-[65vh] sm:max-h-[50vh] w-[calc(100%-2rem)] sm:w-full rounded-2xl sm:rounded-lg">
-          <DialogHeader>
-            <DialogTitle>Comments ({commentCount})</DialogTitle>
-          </DialogHeader>
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
+          >
+            <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
+            <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
+          </Button>
+        </DrawerTrigger>
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+          <DrawerHeader className="px-4 pb-2">
+            <DrawerTitle className="text-base font-extrabold leading-none tracking-tight text-center">Comments</DrawerTitle>
+          </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
-          <ScrollArea className="h-[calc(65vh-180px)] sm:h-[calc(50vh-180px)] pr-4" scrollHideDelay={0} type="always">
-            <div className="mt-4">
+          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+            <div className="mt-2">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
               ) : (
@@ -473,7 +516,7 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border">
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
@@ -486,7 +529,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0"
+                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
                   rows={1}
                 />
@@ -494,15 +537,18 @@ export function CommentSectionClient({
                   onClick={handleSubmit} 
                   disabled={!comment.trim() || isSubmitting}
                 >
-                  {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
+                  {isSubmitting ? "Posting..." : "Post"}
                 </Button>
               </div>
               <div className="flex justify-between items-center text-xs text-muted-foreground">
                 {replyToComment && (
-                  <Button variant="ghost" size="sm" className="h-5 p-0 text-xs" onClick={cancelReply}>
-                    <X className="h-3 w-3 mr-1" />
-                    Cancel reply
-                  </Button>
+                  <button 
+                    onClick={cancelReply}
+                    className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
+                    Cancel Reply
+                  </button>
                 )}
                 <div className={`${replyToComment ? '' : 'w-full'} text-right`}>
                   {comment.length}/500 characters
@@ -510,8 +556,8 @@ export function CommentSectionClient({
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 } 
