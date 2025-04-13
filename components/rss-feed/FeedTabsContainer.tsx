@@ -10,6 +10,7 @@ import { Twitter } from "lucide-react";
 import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
 import { useSidebar } from '@/components/ui/sidebar-context';
+import { SignInButton } from "@/components/ui/SignInButton";
 
 
 // Define the RSSItem interface based on the database schema
@@ -166,7 +167,7 @@ export function FeedTabsContainer({
   return (
     <div className="w-full">
 
-<div className="grid grid-cols-3 items-center z-50 sm:block md:hidden">
+<div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
 <div>
         {isAuthenticated ? (
           <UserMenuClientWithErrorBoundary 
@@ -176,11 +177,7 @@ export function FeedTabsContainer({
             pendingFriendRequestCount={pendingFriendRequestCount}
           />
         ) : (
-          <Link href="/signin">
-            <button className="bg-primary rounded-full text-sm font-semibold px-3 py-2 text-primary-foreground border-none shadow-none">
-              Sign in
-            </button>
-          </Link>
+          <SignInButton />
         )}
       </div>
                       <div className="flex justify-center font-medium">

@@ -4,7 +4,6 @@ import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { FeedTabsContainerClientWrapper } from "@/components/rss-feed/FeedTabsContainerClientWrapper";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
-import { Suspense } from 'react';
 
 /**
  * Server component that manages the overall layout for the homepage
@@ -27,14 +26,8 @@ export async function LayoutManager() {
     />
   );
   
-  // Prepare the right sidebar with the same structure as PostLayoutManager
-  const rightSidebar = (
-    <div className="sticky top-6">
-      <div className="flex flex-col gap-6">
-        <RightSidebar />
-      </div>
-    </div>
-  );
+  // Prepare the right sidebar
+  const rightSidebar = <RightSidebar />;
   
   // Use the standardized layout with mobile header
   return (
@@ -42,7 +35,7 @@ export async function LayoutManager() {
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={false}
-        containerClass={`gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0`}
+        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
       >
         {mainContent}
       </StandardSidebarLayout>

@@ -8,6 +8,7 @@ import { X, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/app/components/ui/back-button";
 import { PostSearchButton } from "@/components/ui/PostSearchButton";
+import { SignInButton } from "@/components/ui/SignInButton";
 
 export function PostHeaderUserMenu() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
@@ -30,6 +31,7 @@ export function PostSearchHeader({ title }: { title: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isAuthenticated } = useSidebar();
 
   const toggleSearch = () => {
     if (isSearching) {
@@ -103,18 +105,22 @@ export function PostSearchHeader({ title }: { title: string }) {
         </div>
       ) : (
         <div className="flex items-center justify-between px-4">
-          <div className="w-10 flex items-start justify-start">
+          <div className={`${isAuthenticated ? "w-10" : "w-20"} flex items-start justify-start`}>
             <div className="hidden md:block">
               <BackButton />
             </div>
             <div className="md:hidden">
-              <PostHeaderUserMenu />
+              {isAuthenticated ? (
+                <PostHeaderUserMenu />
+              ) : (
+                <SignInButton />
+              )}
             </div>
           </div>
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
             {title}
           </div>
-          <div className="w-10 flex justify-end">
+          <div className={`${isAuthenticated ? "w-10" : "w-20"} flex justify-end`}>
             <PostSearchButton onClick={toggleSearch} title={title} />
           </div>
         </div>
