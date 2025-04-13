@@ -109,8 +109,6 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
-  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for the Textarea
-  
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -488,17 +486,6 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
-  // Function to handle focus on the textarea
-  const handleTextareaFocus = () => {
-    // Delay slightly to allow keyboard animation to start
-    setTimeout(() => {
-      textareaRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest' // Scrolls the minimum amount to bring the element into view
-      });
-    }, 150); // Adjust delay if needed
-  };
-  
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
@@ -528,29 +515,35 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-border px-4 pb-6">
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
-                  ref={textareaRef} // Assign the ref
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
                   value={comment}
                   onChange={(e) => {
+                    // Limit to 500 characters
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  onFocus={handleTextareaFocus} // Add the onFocus handler
-                  className="resize-none h-9 py-2 min-h-0 text-base"
+                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
                   maxLength={500}
                   rows={1}
+                  style={{ fontSize: '16px' }}  // Prevents iOS zoom
+                  onFocus={(e) => {
+                    // Prevent scrolling to top on focus
+                    e.preventDefault();
+                    const currentScrollPos = window.scrollY;
+                    setTimeout(() => window.scrollTo(0, currentScrollPos), 0);
+                  }}
                 />
                 <Button 
                   onClick={handleSubmit} 
                   disabled={!comment.trim() || isSubmitting}
                 >
-                  {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
+                  {isSubmitting ? "Posting..." : "Post"}
                 </Button>
               </div>
               <div className="flex justify-between items-center text-xs text-muted-foreground">
