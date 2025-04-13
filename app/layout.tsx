@@ -44,7 +44,28 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+          {/* Add additional iOS-specific meta tags */}
+          <meta name="apple-mobile-web-app-capable" content="yes"/>
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+          {/* Script to prevent zooming on iOS */}
+          <script dangerouslySetInnerHTML={{
+            __html: `
+              // Prevent zooming on iOS when focusing on inputs
+              document.addEventListener('gesturestart', function(e) {
+                e.preventDefault();
+                document.body.style.zoom = 1;
+              });
+              
+              // Lock scroll position on input focus
+              document.addEventListener('focus', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }, true);
+            `
+          }} />
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full flex flex-col`}

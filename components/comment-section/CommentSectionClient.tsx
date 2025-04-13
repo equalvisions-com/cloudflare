@@ -486,9 +486,56 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
+  // Add useEffect to manage drawer behavior
+  useEffect(() => {
+    // Only run this effect when the drawer is open
+    if (!isOpen) return;
+    
+    // Create a handler to prevent default touch events that might cause zooming
+    const preventZoom = (e: TouchEvent) => {
+      // Prevent pinch-zoom
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+    
+    // Create a handler to prevent drawer closing when interacting with inputs
+    const stopPropagation = (e: Event) => {
+      e.stopPropagation();
+    };
+    
+    // Find input elements within the drawer
+    const inputElements = document.querySelectorAll('.drawer-content-wrapper input, .drawer-content-wrapper textarea, .drawer-content-wrapper button');
+    
+    // Add event listeners to each input element
+    inputElements.forEach(el => {
+      el.addEventListener('click', stopPropagation);
+      el.addEventListener('touchstart', stopPropagation);
+      el.addEventListener('focus', stopPropagation);
+    });
+    
+    // Add global touch event handler to prevent zooming
+    document.addEventListener('touchmove', preventZoom, { passive: false });
+    
+    // Cleanup function to remove event listeners
+    return () => {
+      inputElements.forEach(el => {
+        el.removeEventListener('click', stopPropagation);
+        el.removeEventListener('touchstart', stopPropagation);
+        el.removeEventListener('focus', stopPropagation);
+      });
+      
+      document.removeEventListener('touchmove', preventZoom);
+    };
+  }, [isOpen]);
+  
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer 
+        open={isOpen} 
+        onOpenChange={setIsOpen}
+        shouldScaleBackground={false}
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -498,7 +545,9 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent 
+          className="h-[75vh] w-full max-w-[550px] mx-auto drawer-content-wrapper"
+        >
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
@@ -529,19 +578,17 @@ export function CommentSectionClient({
                     setComment(newValue);
                   }}
                   onFocus={(e) => {
-                    // Prevent scrolling to view on focus
+                    // More aggressive focus handling
                     e.preventDefault();
-                    // Small timeout to ensure drawer stays open
-                    setTimeout(() => {
-                      if (document.activeElement instanceof HTMLElement) {
-                        document.activeElement.scrollIntoView(false);
-                      }
-                    }, 50);
+                    e.stopPropagation();
                   }}
-                  className="resize-none h-9 py-2 min-h-0 scroll-m-0"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  className="resize-none h-9 py-2 min-h-0 scroll-m-0 text-base"
                   maxLength={500}
                   rows={1}
-                  onClick={(e) => e.stopPropagation()}
                 />
                 <Button 
                   onClick={(e) => {
