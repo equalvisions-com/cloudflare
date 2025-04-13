@@ -530,7 +530,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
                   maxLength={500}
                   rows={1}
                 />
