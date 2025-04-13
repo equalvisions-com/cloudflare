@@ -35,6 +35,7 @@ export type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean;
 };
 
 // Type for interaction states
@@ -150,6 +151,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
                 entry.post_media_type = post.mediaType;
                 entry.category_slug = post.categorySlug;
                 entry.post_slug = post.postSlug;
+                entry.verified = post.verified;
               }
             }
           }

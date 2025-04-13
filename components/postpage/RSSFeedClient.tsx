@@ -15,6 +15,7 @@ import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { Podcast, Mail, Loader2 } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -45,6 +46,7 @@ interface RSSEntryProps {
   featuredImg?: string;
   postTitle?: string;
   mediaType?: string;
+  verified?: boolean;
 }
 
 interface APIRSSEntry {
@@ -64,7 +66,7 @@ interface APIRSSEntry {
   };
 }
 
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType }: RSSEntryProps) => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified }: RSSEntryProps): JSX.Element => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -146,6 +148,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {postTitle}
+                    {verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                   </h3>
                   <span className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                     title={format(new Date(entry.pubDate), 'PPP p')}
@@ -312,6 +315,7 @@ interface FeedContentProps {
   featuredImg?: string;
   postTitle?: string;
   mediaType?: string;
+  verified?: boolean;
 }
 
 // Memoize the FeedContent component to prevent unnecessary re-renders
@@ -323,7 +327,8 @@ const FeedContent = React.memo(function FeedContent({
   loadMore,
   featuredImg,
   postTitle,
-  mediaType
+  mediaType,
+  verified
 }: FeedContentProps) {
   // Render each entry
   const renderItem = useCallback((index: number) => {
@@ -337,9 +342,10 @@ const FeedContent = React.memo(function FeedContent({
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}
+        verified={verified}
       />
     );
-  }, [entries, featuredImg, postTitle, mediaType]);
+  }, [entries, featuredImg, postTitle, mediaType, verified]);
 
   return (
     <div className="space-y-0">
@@ -391,9 +397,10 @@ interface RSSFeedClientProps {
   featuredImg?: string;
   mediaType?: string;
   isActive?: boolean;
+  verified?: boolean;
 }
 
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true }: RSSFeedClientProps) {
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [fetchError, setFetchError] = useState<Error | null>(null);
   const ITEMS_PER_REQUEST = pageSize;
@@ -600,6 +607,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}
+        verified={verified}
       />
     </div>
   );

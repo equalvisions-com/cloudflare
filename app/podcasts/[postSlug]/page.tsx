@@ -243,6 +243,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
           featuredImg={post.featuredImg}
           mediaType={post.mediaType}
           searchQuery={searchQuery}
+          verified={post.verified}
         />
       ) : (
         <div className="text-center py-8 text-muted-foreground">

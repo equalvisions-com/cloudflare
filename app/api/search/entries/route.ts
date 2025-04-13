@@ -74,21 +74,16 @@ export async function GET(request: NextRequest) {
 
     // Map post metadata to entries
     const entriesWithMetadata = entryRows.slice(0, ENTRIES_PER_PAGE).map(entry => {
-      const postMetadata = postMetadataMap.get(entry.feed_title) || {
-        title: entry.feed_title,
-        featuredImg: undefined,
-        mediaType: undefined,
-        categorySlug: undefined,
-        postSlug: undefined
-      };
+      const postMetadata = postMetadataMap.get(entry.feed_title);
       
       return {
         ...entry,
-        post_title: postMetadata.title,
-        post_featured_img: postMetadata.featuredImg,
-        post_media_type: postMetadata.mediaType,
-        category_slug: postMetadata.categorySlug,
-        post_slug: postMetadata.postSlug
+        post_title: postMetadata?.title || entry.feed_title,
+        post_featured_img: postMetadata?.featuredImg,
+        post_media_type: postMetadata?.mediaType,
+        category_slug: postMetadata?.categorySlug,
+        post_slug: postMetadata?.postSlug,
+        verified: postMetadata?.verified
       };
     });
 

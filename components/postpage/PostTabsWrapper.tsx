@@ -26,6 +26,7 @@ interface PostTabsWrapperProps {
   featuredImg?: string;
   mediaType?: string;
   searchQuery?: string;
+  verified?: boolean;
 }
 
 // Define props for FeedTabContent (removed isActive)
@@ -36,6 +37,7 @@ interface FeedTabContentProps {
   featuredImg?: string;
   mediaType?: string;
   searchQuery?: string;
+  verified?: boolean;
 }
 
 // Separated out as a standalone component
@@ -45,7 +47,8 @@ const FeedTabContent = React.memo(({
   rssData,
   featuredImg,
   mediaType,
-  searchQuery
+  searchQuery,
+  verified
 }: FeedTabContentProps) => {
   if (!rssData) {
     return (
@@ -74,6 +77,7 @@ const FeedTabContent = React.memo(({
       initialData={rssData}
       featuredImg={featuredImg}
       mediaType={mediaType}
+      verified={verified}
     />
   );
 });
@@ -85,7 +89,8 @@ export function PostTabsWrapper({
   rssData, 
   featuredImg, 
   mediaType,
-  searchQuery
+  searchQuery,
+  verified
 }: PostTabsWrapperProps) {
   const contentKey = `feed-content-${searchQuery || 'all'}`;
   
@@ -99,6 +104,7 @@ export function PostTabsWrapper({
         featuredImg={featuredImg}
         mediaType={mediaType}
         searchQuery={searchQuery}
+        verified={verified}
       />
     </div>
   );

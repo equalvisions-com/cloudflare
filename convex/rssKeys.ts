@@ -49,7 +49,8 @@ export const getUserRSSKeysWithPosts = query({
         mediaType: post.mediaType,
         postSlug: post.postSlug,
         categorySlug: post.categorySlug,
-        feedUrl: post.feedUrl
+        feedUrl: post.feedUrl,
+        verified: post.verified
       }))
     };
   },

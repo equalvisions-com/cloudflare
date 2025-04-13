@@ -86,7 +86,10 @@ function Sidebar() {
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
-    return (route: string) => pathname === route;
+    return (route: string) => {
+      if (route === '/') return pathname === route;
+      return pathname === route || pathname.startsWith(route + '/');
+    };
   }, [pathname]);
 
   // Define navigation items with active state based on current path

@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { FollowButton } from '@/components/follow-button/FollowButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Define the shape of a post from the database
 export interface Post {
@@ -36,6 +37,7 @@ export interface Post {
   // Follow state fields
   isFollowing?: boolean;
   isAuthenticated?: boolean;
+  verified?: boolean;
 }
 
 interface PostsDisplayProps {
@@ -260,7 +262,10 @@ const PostCard = memo(({ post }: { post: Post }) => {
           <div className="flex-1 min-w-0 space-y-2 pt-0">
             <div className="flex justify-between items-start gap-4 mt-[-4px]">
               <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : ''}/${post.postSlug}`} className="block flex-1">
-                <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
+                <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">
+                  {post.title}
+                  {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                </h3>
               </Link>
               {post.feedUrl && (
                 <div className="flex-shrink-0">

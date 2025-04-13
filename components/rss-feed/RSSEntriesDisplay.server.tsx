@@ -161,7 +161,8 @@ export const getInitialEntries = cache(async () => {
         featuredImg: post.featuredImg,
         mediaType: post.mediaType,
         postSlug: post.postSlug,
-        categorySlug: post.categorySlug
+        categorySlug: post.categorySlug,
+        verified: post.verified
       }])
     );
     
@@ -252,12 +253,16 @@ export const getInitialEntries = cache(async () => {
       const entriesWithPublicData = mappedEntries.map((entry: RSSItem, index: number) => {
         // Create a safe fallback for post metadata
         const feedUrl = entry.feedUrl;
+        // Retrieve the full metadata including verified status
+        const postMetadata = postMetadataMap.get(feedUrl);
+        
         const fallbackMetadata = {
           title: entry.feedTitle || entry.title || '',
           featuredImg: entry.image as string || '',
           mediaType: 'article',
           postSlug: '',
-          categorySlug: ''
+          categorySlug: '',
+          verified: false // Default verified to false in fallback
         };
         
         return {
@@ -267,7 +272,8 @@ export const getInitialEntries = cache(async () => {
             comments: { count: 0 },
             retweets: { isRetweeted: false, count: 0 }
           },
-          postMetadata: postMetadataMap.get(feedUrl) || fallbackMetadata
+          // Use the retrieved metadata or the fallback
+          postMetadata: postMetadata || fallbackMetadata 
         };
       });
 

@@ -17,6 +17,7 @@ import { Podcast, Mail, Loader2 } from "lucide-react";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Interface for post metadata
 interface PostMetadata {
@@ -25,6 +26,7 @@ interface PostMetadata {
   mediaType?: string;
   postSlug: string;
   categorySlug: string;
+  verified?: boolean;
 }
 
 // Interface for entry with data
@@ -153,11 +155,13 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {postMetadata.title}
+                        {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                       </h3>
                     </Link>
                   ) : (
                     <h3 className="text-sm font-bold text-primary leading-tight">
                       {postMetadata.title}
+                      {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   )}
                   <span 

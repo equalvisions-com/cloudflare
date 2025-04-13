@@ -20,6 +20,7 @@ import { api } from '@/convex/_generated/api';
 import { Virtuoso } from 'react-virtuoso';
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { decode } from 'html-entities';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -39,6 +40,7 @@ interface RSSEntry {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean;
 }
 
 interface EntriesDisplayProps {
@@ -320,11 +322,13 @@ const EntryCard = React.memo(({ entry, interactions }: {
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {entry.post_title || entry.title}
+                        {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                       </h3>
                     </Link>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entry.post_title || entry.title}
+                      {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   )}
                   <span 

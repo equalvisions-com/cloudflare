@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { formatRSSKey } from "@/lib/rss";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 interface FeaturedPostsWidgetProps {
   className?: string;
@@ -122,7 +123,7 @@ export function FeaturedPostsWidget({ className = "" }: FeaturedPostsWidgetProps
 }
 
 // Featured post item component with optimized follow button
-function FeaturedPostItem({ post }: { post: any }) {
+function FeaturedPostItem({ post }: { post: any & { verified?: boolean } }) {
   const router = useRouter();
   const [isFollowing, setIsFollowing] = useState(post.isFollowing || false);
   const [isAuthenticated] = useState(post.isAuthenticated);
@@ -185,13 +186,14 @@ function FeaturedPostItem({ post }: { post: any }) {
           </div>
         )}
         <div className="flex flex-grow min-h-[40px] items-center">
-          <div className="flex justify-between items-center gap-2 w-full">
+          <div className="flex justify-between items-center gap-1.25 w-full">
             <div className="flex-grow">
               <Link 
                 href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} 
-                className="text-sm hover:text-primary hover:no-underline font-semibold block line-clamp-2 max-h-[2.5rem] overflow-hidden"
+                className="text-sm hover:text-primary hover:no-underline font-semibold line-clamp-2 overflow-hidden"
               >
                 {post.title}
+                {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
               </Link>
             </div>
             <Button

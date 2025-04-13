@@ -167,7 +167,8 @@ export const getBatchedWidgetData = query({
       feedUrl: post.feedUrl,
       categorySlug: post.categorySlug,
       postSlug: post.postSlug,
-      mediaType: post.mediaType
+      mediaType: post.mediaType,
+      verified: post.verified
     }));
     
     // Return both datasets

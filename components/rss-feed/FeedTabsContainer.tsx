@@ -35,6 +35,7 @@ interface PostMetadata {
   mediaType?: string;
   postSlug: string;
   categorySlug: string;
+  verified?: boolean;
 }
 
 // Define the interfaces that match the expected types in the child components
@@ -61,6 +62,7 @@ interface RSSEntryWithData {
     mediaType?: string;
     categorySlug?: string;
     postSlug?: string;
+    verified?: boolean;
   };
 }
 

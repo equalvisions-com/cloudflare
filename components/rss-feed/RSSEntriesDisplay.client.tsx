@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Add a consistent logging utility
 const logger = {
@@ -67,6 +68,7 @@ interface RSSEntryWithData {
     mediaType?: string;
     categorySlug?: string;
     postSlug?: string;
+    verified?: boolean;
   };
 }
 
@@ -135,7 +137,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
       featuredImg: postMetadata?.featuredImg || entry.image || '',
       mediaType: postMetadata?.mediaType || 'article',
       categorySlug: postMetadata?.categorySlug || '',
-      postSlug: postMetadata?.postSlug || ''
+      postSlug: postMetadata?.postSlug || '',
+      verified: postMetadata?.verified || false
     };
   }, [postMetadata, entry]);
 
@@ -188,11 +191,13 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                     <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {safePostMetadata.title}
+                        {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                       </h3>
                     </Link>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {safePostMetadata.title}
+                      {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   )}
                   <span 
@@ -618,7 +623,8 @@ export function RSSEntriesClient({
                 featuredImg: entry.image || '',
                 mediaType: entry.mediaType || 'article',
                 categorySlug: '',
-                postSlug: ''
+                postSlug: '',
+                verified: false // Default verified to false
               }
             } as RSSEntryWithData;
           }
@@ -675,9 +681,9 @@ export function RSSEntriesClient({
   
   // Create a map for post metadata lookups
   const postMetadataMap = useMemo(() => {
-    if (!combinedData || !combinedData.postMetadata) return new Map();
-    
-    return new Map(
+    if (!combinedData || !combinedData.postMetadata) return new Map<string, InternalPostMetadata>();
+
+    return new Map<string, InternalPostMetadata>(
       combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
     );
   }, [combinedData]);
@@ -733,4 +739,14 @@ export function RSSEntriesClient({
       />
     </div>
   );
+}
+
+// Interface for post metadata used within the component
+interface InternalPostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  categorySlug?: string;
+  postSlug?: string;
+  verified?: boolean;
 } 

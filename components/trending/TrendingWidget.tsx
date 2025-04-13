@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import React from "react";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { decode } from 'html-entities';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Add a cache duration constant - 5 minutes
 const RSS_CACHE_DURATION = 5 * 60 * 1000;
@@ -226,7 +227,7 @@ function TrendingItem({
   post, 
   rssEntry 
 }: { 
-  post: any; 
+  post: any & { verified?: boolean };
   rssEntry: RSSEntry 
 }) {
   const { playTrack, currentTrack } = useAudio();
@@ -266,6 +267,7 @@ function TrendingItem({
           className="text-xs font-bold hover:underline flex-grow line-clamp-1"
         >
           {post.title}
+          {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
         </Link>
       </div>
       

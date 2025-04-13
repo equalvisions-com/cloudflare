@@ -131,7 +131,8 @@ export const getFeedDataWithMetrics = query({
           featuredImg: post.featuredImg,
           mediaType: post.mediaType,
           postSlug: post.postSlug,
-          categorySlug: post.categorySlug
+          categorySlug: post.categorySlug,
+          verified: post.verified
         }
       ])
     );
