@@ -489,19 +489,18 @@ export function CommentSectionClient({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
-          >
-            <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
-            <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
-          </Button>
-        </DrawerTrigger>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+          onClick={() => setIsOpen(true)}
+        >
+          <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
+          <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
+        </Button>
         <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
-          <DrawerHeader className="px-4 pb-2">
-            <DrawerTitle className="text-base font-extrabold leading-none tracking-tight text-center">Comments</DrawerTitle>
+          <DrawerHeader className="px-4 pb-2 text-center">
+            <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
