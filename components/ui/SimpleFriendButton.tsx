@@ -137,15 +137,7 @@ export function SimpleFriendButton({
 
   // Show "Your Profile" button on own profile
   if (currentStatus?.status === "self" && isAuthenticated) {
-    return (
-      <Button 
-        variant="secondary" 
-        size="sm" 
-        className={cn(className, "border-0 shadow-none")}
-      >
-        Your Profile
-      </Button>
-    );
+    return null; // Don't display any button for own profile
   }
 
   // Loading state

@@ -1,18 +1,23 @@
 "use client";
 
-import { Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from "@/components/ui/drawer";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProfileImage } from "@/components/profile/ProfileImage";
+import { SimpleFriendButton } from "@/components/ui/SimpleFriendButton";
+import { Loader2 } from "lucide-react";
+import Link from "next/link";
 
 interface Props {
   followerCount: number;
@@ -38,37 +43,62 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
 
   return (
     <div className="max-w-4xl mt-2 text-sm flex items-center gap-4">
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerTrigger asChild>
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
               <span className="leading-none font-bold mr-[-3px]">{followerCount}</span>{' '}
               <span className="leading-none font-semibold">{followerCount === 1 ? 'Follower' : 'Followers'}</span>
           </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Followers</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[300px] overflow-y-auto pr-4">
-            <div className="space-y-2">
-              {followers === undefined ? (
-                <div className="text-sm text-muted-foreground">Loading...</div>
-              ) : followers.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No followers yet</div>
-              ) : (
-                followers.map((follower) => (
-                  <div key={follower.userId} className="flex items-center gap-2 py-2">
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <span className="text-sm font-medium">@{follower.username}</span>
+        </DrawerTrigger>
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+          <DrawerHeader className="px-4 pb-4 border-b border-border">
+            <DrawerTitle className="text-base font-extrabold leading-none tracking-tight text-center">Followers</DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+            <div>
+              <div className="space-y-0">
+                {followers === undefined ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ))
-              )}
+                ) : followers.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-4">No followers yet</div>
+                ) : (
+                  followers.map((follower) => (
+                    <div key={follower.userId} className="flex items-center gap-3 p-4 border-b border-border">
+                      <Link href={`/@${follower.username}`} className="flex-shrink-0">
+                        <ProfileImage
+                          profileImage={follower.profileImage}
+                          username={follower.username}
+                          size="md-lg"
+                        />
+                      </Link>
+                      <div className="flex flex-col flex-1">
+                        <Link href={`/@${follower.username}`}>
+                          <span className="text-sm font-bold">{follower.name || follower.username}</span>
+                        </Link>
+                        <Link href={`/@${follower.username}`} className="mt-[-4px]">
+                          <span className="text-xs text-muted-foreground">@{follower.username}</span>
+                        </Link>
+                      </div>
+                      <SimpleFriendButton
+                        username={follower.username}
+                        userId={follower.userId}
+                        profileData={{
+                          username: follower.username,
+                          name: follower.name,
+                          profileImage: follower.profileImage
+                        }}
+                        className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold"
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
       {totalEntries ? (
         <div className="flex items-center gap-1">
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
