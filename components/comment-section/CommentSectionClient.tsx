@@ -515,7 +515,7 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
+          <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-border px-4 pb-6">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
@@ -528,15 +528,29 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  onFocus={(e) => {
+                    // Prevent scrolling to view on focus
+                    e.preventDefault();
+                    // Small timeout to ensure drawer stays open
+                    setTimeout(() => {
+                      if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.scrollIntoView(false);
+                      }
+                    }, 50);
+                  }}
+                  className="resize-none h-9 py-2 min-h-0 scroll-m-0"
                   maxLength={500}
                   rows={1}
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <Button 
-                  onClick={handleSubmit} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSubmit();
+                  }} 
                   disabled={!comment.trim() || isSubmitting}
                 >
-                  {isSubmitting ? "Posting..." : "Post"}
+                  {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
                 </Button>
               </div>
               <div className="flex justify-between items-center text-xs text-muted-foreground">
