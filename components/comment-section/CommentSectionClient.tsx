@@ -488,7 +488,12 @@ export function CommentSectionClient({
   
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer 
+        open={isOpen} 
+        onOpenChange={setIsOpen}
+        modal={true}
+        snapPoints={[100]}
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -538,6 +543,8 @@ export function CommentSectionClient({
                         const newValue = e.target.value.slice(0, 500);
                         setComment(newValue);
                       }}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
                       className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
                       maxLength={500}
                       rows={1}
