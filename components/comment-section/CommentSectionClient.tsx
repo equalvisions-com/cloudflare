@@ -498,24 +498,26 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto flex flex-col">
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
-          {/* Comments list with ScrollArea */}
-          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
-            <div className="mt-2">
-              {commentHierarchy.length > 0 ? (
-                commentHierarchy.map(comment => renderComment(comment))
-              ) : (
-                <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
-              )}
-            </div>
-          </ScrollArea>
+          {/* Comments list with ScrollArea - make it flexible to take available space */}
+          <div className="flex-1 overflow-hidden">
+            <ScrollArea className="h-[calc(100%)] px-4" scrollHideDelay={0} type="always">
+              <div className="mt-2 pb-4">
+                {commentHierarchy.length > 0 ? (
+                  commentHierarchy.map(comment => renderComment(comment))
+                ) : (
+                  <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
           
-          {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
+          {/* Comment input - position at bottom with sticky */}
+          <div className="sticky bottom-0 bg-background border-t border-border px-4 py-3 mt-auto">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
