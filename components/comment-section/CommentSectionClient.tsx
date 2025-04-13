@@ -109,8 +109,6 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -331,37 +329,6 @@ export function CommentSectionClient({
     });
   };
   
-  // Effect to handle Virtual Keyboard API for mobile scroll prevention
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const handleFocus = () => {
-      if ('virtualKeyboard' in navigator) {
-        (navigator.virtualKeyboard as any).overlaysContent = true;
-      }
-    };
-
-    const handleBlur = () => {
-      if ('virtualKeyboard' in navigator) {
-        (navigator.virtualKeyboard as any).overlaysContent = false;
-      }
-    };
-
-    textarea.addEventListener('focus', handleFocus);
-    textarea.addEventListener('blur', handleBlur);
-
-    // Cleanup function
-    return () => {
-      textarea.removeEventListener('focus', handleFocus);
-      textarea.removeEventListener('blur', handleBlur);
-      // Ensure overlaysContent is reset if component unmounts while focused
-      if ('virtualKeyboard' in navigator && document.activeElement === textarea) {
-        (navigator.virtualKeyboard as any).overlaysContent = false;
-      }
-    };
-  }, []); // Empty dependency array ensures this runs once on mount
-  
   // Render a single comment with its replies
   const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
     const hasReplies = 'replies' in comment && comment.replies.length > 0;
@@ -552,7 +519,6 @@ export function CommentSectionClient({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
-                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -562,7 +528,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0"
+                  className="resize-none h-9 py-2 min-h-0 text-base"
                   maxLength={500}
                   rows={1}
                 />
@@ -570,7 +536,7 @@ export function CommentSectionClient({
                   onClick={handleSubmit} 
                   disabled={!comment.trim() || isSubmitting}
                 >
-                  {isSubmitting ? "Posting..." : "Post"}
+                  {isSubmitting ? "Posting..." : (replyToComment ? "Reply" : "Post")}
                 </Button>
               </div>
               <div className="flex justify-between items-center text-xs text-muted-foreground">
