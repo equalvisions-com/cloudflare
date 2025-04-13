@@ -109,6 +109,8 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
+  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for the Textarea
+  
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -486,6 +488,17 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
+  // Function to handle focus on the textarea
+  const handleTextareaFocus = () => {
+    // Delay slightly to allow keyboard animation to start
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest' // Scrolls the minimum amount to bring the element into view
+      });
+    }, 150); // Adjust delay if needed
+  };
+  
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
@@ -519,15 +532,16 @@ export function CommentSectionClient({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
+                  ref={textareaRef} // Assign the ref
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
                   value={comment}
                   onChange={(e) => {
-                    // Limit to 500 characters
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
+                  onFocus={handleTextareaFocus} // Add the onFocus handler
                   className="resize-none h-9 py-2 min-h-0 text-base"
                   maxLength={500}
                   rows={1}
