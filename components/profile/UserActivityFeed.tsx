@@ -917,12 +917,22 @@ const ActivityCard = React.memo(({
               {(entryDetail.post_featured_img || entryDetail.image) && (
                 <div className="w-12 h-12 relative z-10">
                   <Link 
-                    href={entryDetail.category_slug && entryDetail.post_slug ? 
-                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                      entryDetail.link}
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
                     className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
                   >
                     <AspectRatio ratio={1}>
                       <Image
@@ -945,12 +955,22 @@ const ActivityCard = React.memo(({
               <div className="w-full">
                 <div className="flex items-start justify-between gap-2">
                   <Link 
-                    href={entryDetail.category_slug && entryDetail.post_slug ? 
-                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                      entryDetail.link}
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
                     className="hover:opacity-80 transition-opacity"
-                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
                   >
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
@@ -1067,12 +1087,22 @@ const ActivityCard = React.memo(({
           {(entryDetail.post_featured_img || entryDetail.image) && (
             <div className="flex-shrink-0 w-12 h-12">
               <Link 
-                href={entryDetail.category_slug && entryDetail.post_slug ? 
-                  `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                href={entryDetail.post_slug ? 
+                  (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                    `/newsletters/${entryDetail.post_slug}` : 
+                    entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                      `/podcasts/${entryDetail.post_slug}` : 
+                      entryDetail.category_slug ? 
+                        `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                        entryDetail.link) : 
                   entryDetail.link}
                 className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                              entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                             entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                  ? "" : "noopener noreferrer"}
               >
                 <AspectRatio ratio={1}>
                   <Image
@@ -1094,13 +1124,23 @@ const ActivityCard = React.memo(({
             <div className="w-full">
               <div className="flex items-start justify-between gap-2">
                 <Link 
-                  href={entryDetail.category_slug && entryDetail.post_slug ? 
-                    `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                    entryDetail.link}
-                  className="hover:opacity-80 transition-opacity"
-                  target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                  rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
-                >
+                  href={entryDetail.post_slug ? 
+                    (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                      `/newsletters/${entryDetail.post_slug}` : 
+                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                        `/podcasts/${entryDetail.post_slug}` : 
+                        entryDetail.category_slug ? 
+                          `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                          entryDetail.link) : 
+                        entryDetail.link}
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
+                  >
                   <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                   </h3>
@@ -1588,12 +1628,22 @@ export function UserActivityFeed({
               {(entryDetail.post_featured_img || entryDetail.image) && (
                 <div className="w-12 h-12 relative z-10">
                   <Link 
-                    href={entryDetail.category_slug && entryDetail.post_slug ? 
-                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                      entryDetail.link}
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
                     className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
                   >
                     <AspectRatio ratio={1}>
                       <Image
@@ -1616,12 +1666,22 @@ export function UserActivityFeed({
               <div className="w-full">
                 <div className="flex items-start justify-between gap-2">
                   <Link 
-                    href={entryDetail.category_slug && entryDetail.post_slug ? 
-                      `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                      entryDetail.link}
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
                     className="hover:opacity-80 transition-opacity"
-                    target={entryDetail.category_slug && entryDetail.post_slug ? "_self" : "_blank"}
-                    rel={entryDetail.category_slug && entryDetail.post_slug ? "" : "noopener noreferrer"}
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
                   >
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}

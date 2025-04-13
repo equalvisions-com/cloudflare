@@ -146,12 +146,18 @@ const BookmarkCard = React.memo(({
           {/* Featured Image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
             <Link 
-              href={entryDetails.category_slug && entryDetails.post_slug ? 
-                `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+              href={entryDetails.post_slug ? 
+                (entryDetails.post_media_type === 'newsletter' ? 
+                  `/newsletters/${entryDetails.post_slug}` : 
+                  entryDetails.post_media_type === 'podcast' ? 
+                    `/podcasts/${entryDetails.post_slug}` : 
+                    entryDetails.category_slug ? 
+                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                      entryDetails.link) : 
                 entryDetails.link}
               className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-              target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-              rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+              target={entryDetails.post_slug ? "_self" : "_blank"}
+              rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
             >
               <AspectRatio ratio={1}>
                 <Image
@@ -172,12 +178,18 @@ const BookmarkCard = React.memo(({
             <div className="w-full">
               <div className="flex items-start justify-between gap-2">
                 <Link 
-                  href={entryDetails.category_slug && entryDetails.post_slug ? 
-                    `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                  href={entryDetails.post_slug ? 
+                    (entryDetails.post_media_type === 'newsletter' ? 
+                      `/newsletters/${entryDetails.post_slug}` : 
+                      entryDetails.post_media_type === 'podcast' ? 
+                        `/podcasts/${entryDetails.post_slug}` : 
+                        entryDetails.category_slug ? 
+                          `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                          entryDetails.link) : 
                     entryDetails.link}
                   className="hover:opacity-80 transition-opacity"
-                  target={entryDetails.category_slug && entryDetails.post_slug ? "_self" : "_blank"}
-                  rel={entryDetails.category_slug && entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  target={entryDetails.post_slug ? "_self" : "_blank"}
+                  rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
                 >
                   <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                     {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}

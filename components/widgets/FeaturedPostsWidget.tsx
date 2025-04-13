@@ -171,7 +171,7 @@ function FeaturedPostItem({ post }: { post: any }) {
       <div className="flex gap-3">
         {post.featuredImg && (
           <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
-            <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+            <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}>
               <AspectRatio ratio={1/1} className="bg-muted">
                 <Image 
                   src={post.featuredImg} 
@@ -188,7 +188,7 @@ function FeaturedPostItem({ post }: { post: any }) {
           <div className="flex justify-between items-center gap-2 w-full">
             <div className="flex-grow">
               <Link 
-                href={`/${post.categorySlug}/${post.postSlug}`} 
+                href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} 
                 className="text-sm hover:text-primary hover:no-underline font-semibold block line-clamp-2 max-h-[2.5rem] overflow-hidden"
               >
                 {post.title}

@@ -243,7 +243,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
       <CardContent className="p-4 h-[116px]">
         <div className="flex items-start gap-4">
           {post.featuredImg && (
-            <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+            <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : ''}/${post.postSlug}`}>
               <div className="flex-shrink-0 w-[82px] h-[82px]">
                 <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
                   <Image
@@ -259,7 +259,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
           )}
           <div className="flex-1 min-w-0 space-y-2 pt-0">
             <div className="flex justify-between items-start gap-4 mt-[-4px]">
-              <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block flex-1">
+              <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : ''}/${post.postSlug}`} className="block flex-1">
                 <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
               </Link>
               {post.feedUrl && (
@@ -276,7 +276,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                 </div>
               )}
             </div>
-            <Link href={`/${post.categorySlug}/${post.postSlug}`} className="block !mt-[3px]">
+            <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : ''}/${post.postSlug}`} className="block !mt-[3px]">
               <p className={cn(
                 "text-sm text-muted-foreground",
                 descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"

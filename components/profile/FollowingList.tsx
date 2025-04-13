@@ -110,7 +110,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
               {followingItems.map((item: FollowingWithPost) => (
                 <div key={item.following._id.toString()} className="p-2 hover:bg-accent rounded-md">
                   <Link 
-                    href={`/${item.post.categorySlug}/${item.post.postSlug}`} 
+                    href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`} 
                     className="flex items-center gap-2"
                     onClick={() => setOpen(false)}
                   >

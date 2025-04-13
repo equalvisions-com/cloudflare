@@ -1,7 +1,7 @@
 "use client";
 
 import { Id } from "@/convex/_generated/dataModel";
-import { BookmarksFeed } from "@/app/components/bookmarks/BookmarksFeed";
+import { BookmarksFeed } from "@/components/bookmarks/BookmarksFeed";
 import { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";

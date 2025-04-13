@@ -2,24 +2,40 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-export const getBySlug = query({
+// Function to get all posts for a specific media type
+export const getPostsByMediaType = query({
   args: {
-    categorySlug: v.string(),
+    mediaType: v.string(),
+  },
+  handler: async (ctx, { mediaType }) => {
+    const posts = await ctx.db
+      .query("posts")
+      .filter((q) => q.eq(q.field("mediaType"), mediaType))
+      .collect();
+    
+    return posts;
+  },
+});
+
+// Function for media type-based routing
+export const getByMediaTypeAndSlug = query({
+  args: {
+    mediaType: v.string(),
     postSlug: v.string(),
   },
-  handler: async (ctx, { categorySlug, postSlug }) => {
+  handler: async (ctx, { mediaType, postSlug }) => {
     const post = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("categorySlug"), categorySlug))
+      .filter((q) => q.eq(q.field("mediaType"), mediaType))
       .filter((q) => q.eq(q.field("postSlug"), postSlug))
       .first();
     
     if (!post) return null;
 
-    // Get related posts from same category (excluding current post)
+    // Get related posts from same media type (excluding current post)
     const relatedPosts = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("categorySlug"), categorySlug))
+      .filter((q) => q.eq(q.field("mediaType"), mediaType))
       .filter((q) => q.neq(q.field("postSlug"), postSlug))
       .order("desc")
       .take(5);
@@ -42,20 +58,6 @@ export const getBySlug = query({
       })),
       followerCount
     };
-  },
-});
-
-export const getPostsByCategory = query({
-  args: {
-    categorySlug: v.string(),
-  },
-  handler: async (ctx, { categorySlug }) => {
-    const posts = await ctx.db
-      .query("posts")
-      .filter((q) => q.eq(q.field("categorySlug"), categorySlug))
-      .collect();
-    
-    return posts;
   },
 });
 

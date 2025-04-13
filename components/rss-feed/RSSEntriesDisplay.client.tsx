@@ -140,8 +140,14 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   }, [postMetadata, entry]);
 
   // Generate post URL
-  const postUrl = safePostMetadata.categorySlug && safePostMetadata.postSlug 
-    ? `/${safePostMetadata.categorySlug}/${safePostMetadata.postSlug}`
+  const postUrl = safePostMetadata.postSlug
+    ? safePostMetadata.mediaType === 'newsletter'
+      ? `/newsletters/${safePostMetadata.postSlug}`
+      : safePostMetadata.mediaType === 'podcast'
+        ? `/podcasts/${safePostMetadata.postSlug}`
+        : safePostMetadata.categorySlug 
+          ? `/${safePostMetadata.categorySlug}/${safePostMetadata.postSlug}`
+          : null
     : null;
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {

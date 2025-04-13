@@ -9,7 +9,7 @@ import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
 import ProfileSettingsClientWrapper from "@/components/settings/ProfileSettingsClientWrapper";
-import { BackButton } from '@/app/components/ui/back-button';
+import { BackButton } from '@/components/back-button';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 
 // Header component for the settings page

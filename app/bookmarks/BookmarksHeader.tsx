@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { BackButton } from "@/app/components/ui/back-button";
+import { BackButton } from "@/components/back-button";
 
 export function BookmarksHeader() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();

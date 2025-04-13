@@ -30,7 +30,7 @@ import {
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
-import { BackButton } from '@/app/components/ui/back-button';
+import { BackButton } from '@/components/back-button';
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {

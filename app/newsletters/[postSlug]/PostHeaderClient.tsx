@@ -6,7 +6,7 @@ import { useSidebar } from "@/components/ui/sidebar-context";
 import { Input } from "@/components/ui/input";
 import { X, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BackButton } from "@/app/components/ui/back-button";
+import { BackButton } from "@/components/back-button";
 import { PostSearchButton } from "@/components/ui/PostSearchButton";
 import { SignInButton } from "@/components/ui/SignInButton";
 

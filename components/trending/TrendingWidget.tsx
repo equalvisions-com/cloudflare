@@ -262,7 +262,7 @@ function TrendingItem({
           </div>
         )}
         <Link 
-          href={`/${post.categorySlug}/${post.postSlug}`}
+          href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}
           className="text-xs font-bold hover:underline flex-grow line-clamp-1"
         >
           {post.title}

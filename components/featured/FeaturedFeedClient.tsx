@@ -104,8 +104,14 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
   }, [entry.pub_date]);
 
   // Generate post URL if we have category and post slugs
-  const postUrl = postMetadata.categorySlug && postMetadata.postSlug 
-    ? `/${postMetadata.categorySlug}/${postMetadata.postSlug}`
+  const postUrl = postMetadata.postSlug
+    ? postMetadata.mediaType === 'newsletter'
+      ? `/newsletters/${postMetadata.postSlug}`
+      : postMetadata.mediaType === 'podcast'
+        ? `/podcasts/${postMetadata.postSlug}`
+        : postMetadata.categorySlug 
+          ? `/${postMetadata.categorySlug}/${postMetadata.postSlug}`
+          : null
     : null;
 
   // Handle podcast playback

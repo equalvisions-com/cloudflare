@@ -10,6 +10,7 @@ export interface RelatedPost {
   featuredImg?: string;
   postSlug: string;
   categorySlug: string;
+  mediaType: string;
   _id: Id<"posts">;
   feedUrl: string;
 }
@@ -42,7 +43,7 @@ export const RelatedPostsCard = memo(function RelatedPostsCard({ posts, followSt
               <div key={post._id} className="flex items-center gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   {post.featuredImg && (
-                    <Link href={`/${post.categorySlug}/${post.postSlug}`}>
+                    <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}>
                       <div className="relative w-9 h-9 shrink-0">
                         <Image
                           src={post.featuredImg}
@@ -60,7 +61,7 @@ export const RelatedPostsCard = memo(function RelatedPostsCard({ posts, followSt
                   )}
                   <div className="min-w-0 flex-1">
                     <Link
-                      href={`/${post.categorySlug}/${post.postSlug}`}
+                      href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}
                       className="text-sm font-medium hover:underline line-clamp-2"
                     >
                       {post.title}

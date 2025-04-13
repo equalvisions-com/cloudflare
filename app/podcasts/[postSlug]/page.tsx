@@ -13,14 +13,13 @@ import { Doc, Id } from "@/convex/_generated/dataModel";
 import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { MenuButton } from "@/components/ui/menu-button";
-import { BackButton } from "@/app/components/ui/back-button";
+import { BackButton } from "@/components/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { Podcast, Mail } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 interface PostPageProps {
   params: Promise<{
-    categorySlug: string;
     postSlug: string;
   }>;
   searchParams?: { q?: string };
@@ -55,11 +54,11 @@ interface PageData {
 }
 
 // Optimize data fetching with aggressive caching
-const getPageData = cache(async (categorySlug: string, postSlug: string, searchQuery?: string): Promise<PageData | null> => {
+const getPageData = cache(async (postSlug: string, searchQuery?: string): Promise<PageData | null> => {
   try {
     // First get the post data - we need this for everything else
-    const post = await fetchQuery(api.posts.getBySlug, { 
-      categorySlug, 
+    const post = await fetchQuery(api.posts.getByMediaTypeAndSlug, { 
+      mediaType: "podcast", 
       postSlug 
     }) as Post;
 
@@ -124,16 +123,27 @@ const getPageData = cache(async (categorySlug: string, postSlug: string, searchQ
 });
 
 // Get just the post data for metadata - reuse the same cache
-const getPostData = cache(async (categorySlug: string, postSlug: string): Promise<Post | null> => {
-  const pageData = await getPageData(categorySlug, postSlug);
+const getPostData = cache(async (postSlug: string): Promise<Post | null> => {
+  const pageData = await getPageData(postSlug);
   return pageData?.post || null;
 });
+
+// Generate static params for all podcast posts
+export async function generateStaticParams() {
+  const posts = await fetchQuery(api.posts.getPostsByMediaType, {
+    mediaType: "podcast",
+  });
+  
+  return posts.map((post: Doc<"posts">) => ({
+    postSlug: post.postSlug,
+  }));
+}
 
 // Generate metadata using cached post data
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
-    const { categorySlug, postSlug } = await params;
-    const post = await getPostData(categorySlug, postSlug);
+    const { postSlug } = await params;
+    const post = await getPostData(postSlug);
     if (!post) return { title: "Post Not Found" };
 
     const apiUrl = `/api/rss/${encodeURIComponent(post.title)}?feedUrl=${encodeURIComponent(post.feedUrl)}`;
@@ -210,9 +220,9 @@ function PostContent({ post, followState, rssData }: {
 
 // Main page component with optimized data fetching
 export default async function PostPage({ params, searchParams }: PostPageProps) {
-  const { categorySlug, postSlug } = await params;
+  const { postSlug } = await params;
   const searchQuery = searchParams?.q;
-  const pageData = await getPageData(categorySlug, postSlug, searchQuery);
+  const pageData = await getPageData(postSlug, searchQuery);
   
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
@@ -241,4 +251,4 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
       )}
     </PostLayoutManager>
   );
-}
+} 
