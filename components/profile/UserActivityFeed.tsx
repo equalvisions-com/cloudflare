@@ -22,6 +22,7 @@ import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { Textarea } from "@/components/ui/textarea";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 
 // Types for activity items
@@ -56,6 +57,7 @@ type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean; // Add verified field
 };
 
 // Comment type based on the schema
@@ -972,8 +974,9 @@ const ActivityCard = React.memo(({
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   </Link>
                   <span 
@@ -1141,8 +1144,9 @@ const ActivityCard = React.memo(({
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
                   >
-                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                     {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                    {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                   </h3>
                 </Link>
                 <span 
@@ -1683,8 +1687,9 @@ export function UserActivityFeed({
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   </Link>
                   <span 

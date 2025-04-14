@@ -39,6 +39,7 @@ type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean;
 };
 
 // Define types for our props

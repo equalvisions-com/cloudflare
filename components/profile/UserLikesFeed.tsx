@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Types for activity items
 type ActivityItem = {
@@ -49,6 +50,7 @@ type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean; // Add verified field
 };
 
 // Define the shape of interaction states for batch metrics
@@ -321,8 +323,9 @@ const ActivityCard = React.memo(({
                                                  entryDetails.post_media_type === 'podcast' || entryDetails.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
                 >
-                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                     {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                    {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                   </h3>
                 </Link>
                 <span 

@@ -45,6 +45,7 @@ type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean;
 };
 
 // Type for Convex post
@@ -110,7 +111,8 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
                   post_featured_img: postMetadata[guid].post_featured_img,
                   post_media_type: postMetadata[guid].post_media_type,
                   category_slug: postMetadata[guid].category_slug,
-                  post_slug: postMetadata[guid].post_slug
+                  post_slug: postMetadata[guid].post_slug,
+                  verified: postMetadata[guid].verified,
                 };
                 
                 // Only keep metadata fields that actually have values
@@ -179,6 +181,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
                 entry.post_media_type = post.mediaType;
                 entry.category_slug = post.categorySlug;
                 entry.post_slug = slug;
+                entry.verified = post.verified;
               }
             }
           }
@@ -267,7 +270,8 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
                   post_featured_img: postMetadata[guid].post_featured_img,
                   post_media_type: postMetadata[guid].post_media_type,
                   category_slug: postMetadata[guid].category_slug,
-                  post_slug: postMetadata[guid].post_slug
+                  post_slug: postMetadata[guid].post_slug,
+                  verified: postMetadata[guid].verified,
                 };
                 
                 // Only keep metadata fields that actually have values
@@ -336,6 +340,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
                 entry.post_media_type = post.mediaType;
                 entry.category_slug = post.categorySlug;
                 entry.post_slug = slug;
+                entry.verified = post.verified;
               }
             }
           }

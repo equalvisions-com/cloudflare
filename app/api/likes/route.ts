@@ -35,6 +35,7 @@ type RSSEntry = {
   post_media_type?: string;
   category_slug?: string;
   post_slug?: string;
+  verified?: boolean;
 };
 
 // Define the shape of interaction states for batch metrics
@@ -153,6 +154,7 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
             entry.post_media_type = post.mediaType;
             entry.category_slug = post.categorySlug;
             entry.post_slug = slug;
+            entry.verified = post.verified;
           }
         }
       }

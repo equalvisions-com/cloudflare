@@ -146,7 +146,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
             <div className="w-full">
               {postTitle && (
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                     {postTitle}
                     {verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                   </h3>

@@ -524,6 +524,7 @@ export const getProfileActivityData = query({
       post_media_type: string;
       category_slug: string;
       post_slug: string;
+      verified?: boolean;
     }> = {};
     for (const activity of activities) {
       const post = posts.find(p => p?.feedUrl === activity.feedUrl);
@@ -533,7 +534,8 @@ export const getProfileActivityData = query({
           post_featured_img: post.featuredImg,
           post_media_type: post.mediaType,
           category_slug: post.categorySlug,
-          post_slug: post.postSlug
+          post_slug: post.postSlug,
+          verified: post.verified ?? false,
         };
       }
     }
@@ -635,6 +637,7 @@ export const getProfileLikesData = query({
       post_media_type: string;
       category_slug: string;
       post_slug: string;
+      verified?: boolean;
     }> = {};
     for (const activity of activities) {
       const post = posts.find(p => p?.feedUrl === activity.feedUrl);
@@ -644,7 +647,8 @@ export const getProfileLikesData = query({
           post_featured_img: post.featuredImg,
           post_media_type: post.mediaType,
           category_slug: post.categorySlug,
-          post_slug: post.postSlug
+          post_slug: post.postSlug,
+          verified: post.verified ?? false,
         };
       }
     }
