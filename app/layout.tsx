@@ -44,7 +44,7 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full flex flex-col`}
