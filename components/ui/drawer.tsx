@@ -7,13 +7,33 @@ import { cn } from "@/lib/utils"
 
 const Drawer = ({
   shouldScaleBackground = true,
+  open,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    {...props}
-  />
-)
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  // Apply scroll lock when the drawer is open
+  React.useEffect(() => {
+    if (open) {
+      // Store the original body styles
+      const originalOverflow = document.body.style.overflow;
+      // Apply scroll lock
+      document.body.style.overflow = 'hidden';
+      
+      // Cleanup function
+      return () => {
+        // Only reset if we're unmounting and drawer was open
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [open]);
+
+  return (
+    <DrawerPrimitive.Root
+      shouldScaleBackground={shouldScaleBackground}
+      open={open}
+      {...props}
+    />
+  );
+}
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger
@@ -37,38 +57,22 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => {
-  React.useEffect(() => {
-    // Lock scroll on the body when drawer is open
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      // Restore scroll when drawer is closed
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-    };
-  }, []);
-
-  return (
-    <DrawerPortal>
-      <DrawerOverlay />
-      <DrawerPrimitive.Content
-        ref={ref}
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
-          className
-        )}
-        {...props}
-      >
-        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-        {children}
-      </DrawerPrimitive.Content>
-    </DrawerPortal>
-  );
-})
+>(({ className, children, ...props }, ref) => (
+  <DrawerPortal>
+    <DrawerOverlay />
+    <DrawerPrimitive.Content
+      ref={ref}
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
+        className
+      )}
+      {...props}
+    >
+      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      {children}
+    </DrawerPrimitive.Content>
+  </DrawerPortal>
+))
 DrawerContent.displayName = "DrawerContent"
 
 const DrawerHeader = ({
