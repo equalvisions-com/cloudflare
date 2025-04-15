@@ -61,7 +61,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="pb-[calc(var(--mobile-dock-height)+env(safe-area-inset-bottom))] md:pb-0">
+                  <div className="">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
