@@ -214,12 +214,19 @@
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
+    height: 100%;
+    min-height: -webkit-fill-available;
   }
   body {
     margin: 0;
     padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
+    height: 100%;
+    min-height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
   }
   /* Remove all main styling related to height */
 

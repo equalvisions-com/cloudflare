@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { SignInButton } from "@/components/ui/SignInButton";
+import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 
 
 // Define the RSSItem interface based on the database schema
@@ -148,9 +149,11 @@ export function FeedTabsContainer({
       id: 'discover',
       label: 'Discover',
       component: () => (
-        <FeaturedFeedWrapper 
-          initialData={featuredData as any /* Adjust typing */} 
-        />
+        <div className="pb-[calc(64px+env(safe-area-inset-bottom,0px))]">
+          <FeaturedFeedWrapper 
+            initialData={featuredData as any /* Adjust typing */} 
+          />
+        </div>
       )
     },
     // Following tab (renamed from Discover) - shows RSS feed content
@@ -158,10 +161,12 @@ export function FeedTabsContainer({
       id: 'following',
       label: 'Following',
       component: () => (
-        <RSSEntriesClient 
-          initialData={initialData as any /* Adjust typing */} 
-          pageSize={pageSize} 
-        />
+        <div className="pb-[calc(64px+env(safe-area-inset-bottom,0px))]">
+          <RSSEntriesClient 
+            initialData={initialData as any /* Adjust typing */} 
+            pageSize={pageSize} 
+          />
+        </div>
       )
     }
   ], [initialData, featuredData, pageSize]);
