@@ -35,7 +35,7 @@ export async function LayoutManager() {
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={false}
-        containerClass={`container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0`}
+        containerClass={`gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0`}
       >
         {mainContent}
       </StandardSidebarLayout>
