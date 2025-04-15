@@ -112,12 +112,20 @@ export function CommentSectionClient({
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
-    
+
+    // Scroll lock: prevent background scroll when drawer is open
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
+      document.body.style.overflow = '';
     };
-  }, []);
+  }, [isOpen]);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -498,7 +506,7 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent className="h-[75dvh] w-full max-w-[550px] mx-auto">
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
