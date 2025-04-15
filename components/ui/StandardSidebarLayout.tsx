@@ -45,7 +45,7 @@ export function StandardSidebarLayout({
       </div>
       
       {/* Main content area with error boundary */}
-      <main className={finalMainContentClass + " flex-1 flex flex-col"}>
+      <main className={finalMainContentClass + " flex-1 flex flex-col min-h-0"}>
         <ErrorBoundary>
             {children}
         </ErrorBoundary>
