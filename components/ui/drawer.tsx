@@ -7,33 +7,13 @@ import { cn } from "@/lib/utils"
 
 const Drawer = ({
   shouldScaleBackground = true,
-  open,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  // Apply scroll lock when the drawer is open
-  React.useEffect(() => {
-    if (open) {
-      // Store the original body styles
-      const originalOverflow = document.body.style.overflow;
-      // Apply scroll lock
-      document.body.style.overflow = 'hidden';
-      
-      // Cleanup function
-      return () => {
-        // Only reset if we're unmounting and drawer was open
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [open]);
-
-  return (
-    <DrawerPrimitive.Root
-      shouldScaleBackground={shouldScaleBackground}
-      open={open}
-      {...props}
-    />
-  );
-}
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
+  <DrawerPrimitive.Root
+    shouldScaleBackground={shouldScaleBackground}
+    {...props}
+  />
+)
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger

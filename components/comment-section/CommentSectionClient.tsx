@@ -96,6 +96,9 @@ export function CommentSectionClient({
   // Track which comments have expanded replies
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   
+  // Reference to the textarea element for auto-resize
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
   // Track refs for like counts
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
   
@@ -108,9 +111,6 @@ export function CommentSectionClient({
   
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
-  
-  // Add a ref for the textarea
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   useEffect(() => {
     // Set mounted flag to true
@@ -489,41 +489,14 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
-  // Add this useEffect to handle textarea auto-growing
+  // Auto-resize textarea when content changes
   useEffect(() => {
-    // Function to handle textarea height adjustment
-    const adjustHeight = () => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      
+    if (textareaRef.current) {
       // Reset height to auto to correctly calculate the new height
-      textarea.style.height = 'auto';
-      // Set to scrollHeight to expand the textarea to fit content
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    };
-    
-    // Call immediately and when content changes
-    adjustHeight();
-    
-    // Prevent scrolling to the top when textarea is focused on mobile
-    const preventScroll = (e: Event) => {
-      // Stop propagation to prevent the drawer's content from scrolling
-      e.stopPropagation();
-    };
-    
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.addEventListener('focus', preventScroll);
-      // Adjust height when text changes
-      textarea.addEventListener('input', adjustHeight);
+      textareaRef.current.style.height = 'auto';
+      // Set the height to the scrollHeight to expand based on content
+      textareaRef.current.style.height = `${Math.min(100, textareaRef.current.scrollHeight)}px`;
     }
-    
-    return () => {
-      if (textarea) {
-        textarea.removeEventListener('focus', preventScroll);
-        textarea.removeEventListener('input', adjustHeight);
-      }
-    };
   }, [comment]);
   
   return (
@@ -538,13 +511,13 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
-          <DrawerHeader className="px-4 pb-2 text-center">
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto flex flex-col max-h-[75vh]">
+          <DrawerHeader className="px-4 pb-2 text-center flex-shrink-0">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
-          <ScrollArea className="flex-1 h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+          <ScrollArea className="flex-1 overflow-auto" scrollHideDelay={0} type="always">
             <div className="mt-2">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
@@ -554,12 +527,11 @@ export function CommentSectionClient({
             </div>
           </ScrollArea>
           
-          {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background">
+          {/* Comment input - stays at bottom, even with keyboard open */}
+          <div className="sticky bottom-0 bg-background border-t border-border p-4 mobile-input-fix ios-keyboard-fix">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
-                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -569,11 +541,10 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="text-base resize-none py-2 min-h-[36px] overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
                   rows={1}
-                  onClick={(e) => e.stopPropagation()} // Prevent propagation to avoid scroll issues
-                  style={{ overflowY: 'hidden' }} // Prevent scrollbar from appearing
+                  ref={textareaRef}
                 />
                 <Button 
                   onClick={handleSubmit} 

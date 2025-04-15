@@ -12,6 +12,27 @@
     overscroll-behavior: none;
   }
 
+  /* Mobile input fixes */
+  .mobile-input-fix {
+    /* Ensures content is not obscured by the keyboard on iOS */
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Prevents page zoom on focus in iOS */
+    touch-action: manipulation;
+  }
+  
+  /* Fix for mobile keyboards pushing fixed elements */
+  @supports (-webkit-touch-callout: none) {
+    /* iOS specific fixes */
+    .ios-keyboard-fix {
+      /* Prevents content from being pushed up */
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+      /* Support for iOS safe areas */
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
