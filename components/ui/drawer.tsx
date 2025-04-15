@@ -24,8 +24,6 @@ const Drawer = ({
     };
 
     if (props.open) {
-      // Always clean up before applying new lock
-      cleanup();
       // Save scroll position and lock
       const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
@@ -38,7 +36,10 @@ const Drawer = ({
       // Restore on close
       cleanup();
     }
-    return cleanup;
+    return () => {
+      // Always clean up on unmount
+      cleanup();
+    };
   }, [props.open]);
 
   return (
