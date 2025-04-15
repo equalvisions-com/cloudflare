@@ -29,13 +29,13 @@ export async function LayoutManager() {
   // Prepare the right sidebar
   const rightSidebar = <RightSidebar />;
   
-  // Use the standardized layout with mobile header
+  // Use the standardized layout with mobile header, matching post page layout style
   return (
     <>
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={false}
-        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
+        containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
       >
         {mainContent}
       </StandardSidebarLayout>
