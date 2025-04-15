@@ -38,14 +38,14 @@ export function StandardSidebarLayout({
     : `${finalContainerClass} flex flex-col md:flex-row`;
 
   return (
-    <div className={containerWithFlex}>
+    <div className={containerWithFlex + " bg-background"}>
       {/* Left navigation sidebar (hidden on mobile) */}
       <div className={LAYOUT_CONSTANTS.LEFT_SIDEBAR_WRAPPER_CLASS}>
         <SidebarWithErrorBoundary />
       </div>
       
       {/* Main content area with error boundary */}
-      <main className={finalMainContentClass}>
+      <main className={finalMainContentClass + " flex-1 flex flex-col"}>
         <ErrorBoundary>
             {children}
         </ErrorBoundary>
