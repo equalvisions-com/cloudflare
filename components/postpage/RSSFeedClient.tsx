@@ -47,6 +47,7 @@ interface RSSEntryProps {
   postTitle?: string;
   mediaType?: string;
   verified?: boolean;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }
 
 interface APIRSSEntry {
@@ -66,7 +67,7 @@ interface APIRSSEntry {
   };
 }
 
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified }: RSSEntryProps): JSX.Element => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer }: RSSEntryProps): JSX.Element => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -121,6 +122,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
       playTrack(entry.link, decode(entry.title), entry.image);
     }
   }, [mediaType, entry.link, entry.title, entry.image, playTrack]);
+
+  const handleOpenCommentDrawer = useCallback(() => {
+    onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
+  }, [entry.guid, entry.feedUrl, initialData.comments, onOpenCommentDrawer]);
 
   return (
     <article>
@@ -251,11 +256,14 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               initialData={initialData.likes}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments)}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
               initialData={initialData.comments}
+              buttonOnly={true}
+              setIsOpen={undefined}
+              isOpen={undefined}
             />
           </div>
           <div>
@@ -316,6 +324,7 @@ interface FeedContentProps {
   postTitle?: string;
   mediaType?: string;
   verified?: boolean;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }
 
 // Memoize the FeedContent component to prevent unnecessary re-renders
@@ -328,24 +337,27 @@ const FeedContent = React.memo(function FeedContent({
   featuredImg,
   postTitle,
   mediaType,
-  verified
+  verified,
+  onOpenCommentDrawer
 }: FeedContentProps) {
   // Render each entry
   const renderItem = useCallback((index: number) => {
     if (!entries || index >= entries.length) {
       return null;
     }
+    const entryData = entries[index];
     return (
       <RSSEntry 
-        key={entries[index].entry.guid} 
-        entryWithData={entries[index]} 
+        key={entryData.entry.guid} 
+        entryWithData={entryData} 
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}
         verified={verified}
+        onOpenCommentDrawer={onOpenCommentDrawer}
       />
     );
-  }, [entries, featuredImg, postTitle, mediaType, verified]);
+  }, [entries, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer]);
 
   return (
     <div className="space-y-0">
@@ -410,6 +422,20 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
+  
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
   
   // Debug log the initial data
   useEffect(() => {
@@ -608,7 +634,18 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         postTitle={postTitle}
         mediaType={mediaType}
         verified={verified}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
       />
+      {/* Single global comment drawer */}
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 }
