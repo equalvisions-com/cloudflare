@@ -248,17 +248,19 @@ const ActivityCard = React.memo(({
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   commentInteractions: { count: number };
 }) => {
-  if (!entryDetails) return null;
+  // Always call hooks at the top
   const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
-  const interactions = getEntryMetrics(entryDetails.guid);
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
+  const interactions = entryDetails ? getEntryMetrics(entryDetails.guid) : undefined;
+  const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
     }
   }, [entryDetails, playTrack]);
+  if (!entryDetails) return null;
+  const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
   const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
   const isPodcast = mediaType?.toLowerCase() === 'podcast';
   return (
@@ -402,14 +404,14 @@ const ActivityCard = React.memo(({
               title={entryDetails.title}
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+              initialData={safeInteractions.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions?.comments)}>
+          <div onClick={() => onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', safeInteractions.comments)}>
             <CommentSectionClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
-              initialData={interactions?.comments || { count: 0 }}
+              initialData={safeInteractions.comments}
               buttonOnly={true}
             />
           </div>
@@ -420,7 +422,7 @@ const ActivityCard = React.memo(({
               title={entryDetails.title}
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+              initialData={safeInteractions.retweets}
             />
           </div>
           <div className="flex items-center gap-4">

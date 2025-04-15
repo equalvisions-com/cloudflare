@@ -744,12 +744,19 @@ const ActivityCard = React.memo(({
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   commentInteractions: { count: number };
 }) => {
-  if (!entryDetail) return null;
+  // Always call hooks at the top
   const { playTrack, currentTrack } = useAudio();
+  // Only use entryDetail if defined
   const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail.link;
-  
-  // Get metrics for this entry - explicitly memoized to prevent regeneration
-  const interactions = getEntryMetrics(entryDetail.guid) || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
+  const interactions = entryDetail ? getEntryMetrics(entryDetail.guid) : undefined;
+  const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
+      e.preventDefault();
+      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
+    }
+  }, [entryDetail, playTrack]);
+  if (!entryDetail) return null;
   
   // Format entry timestamp using the same logic as RSSFeedClient
   const entryTimestamp = useMemo(() => {
@@ -836,14 +843,6 @@ const ActivityCard = React.memo(({
     }
   }, [activity.timestamp]);
 
-  // Handle card click for podcasts
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
-      e.preventDefault();
-      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
-    }
-  }, [entryDetail, playTrack]);
-  
   // If we don't have entry details, show a simplified card
   if (!entryDetail) return null;
   
@@ -1234,14 +1233,14 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+              initialData={safeInteractions.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions.comments)}>
+          <div onClick={() => onOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', safeInteractions.comments)}>
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-              initialData={interactions.comments}
+              initialData={safeInteractions.comments}
               buttonOnly={true}
             />
           </div>
@@ -1252,7 +1251,7 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+              initialData={safeInteractions.retweets}
             />
           </div>
           <div className="flex items-center gap-4">
@@ -1562,6 +1561,7 @@ export function UserActivityFeed({
     const entryDetail = entryDetails[group.entryGuid];
     if (!entryDetail) return null;
     const interactions = getEntryMetrics(entryDetail.guid) || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
+    const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
     const isCurrentlyPlaying = currentTrack?.src === entryDetail.link;
     const handleCardClick = (e: React.MouseEvent) => {
       if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
@@ -1581,7 +1581,7 @@ export function UserActivityFeed({
           entryDetail={entryDetail}
           getEntryMetrics={getEntryMetrics}
           onOpenCommentDrawer={handleOpenCommentDrawer}
-          commentInteractions={interactions?.comments || { count: 0 }}
+          commentInteractions={safeInteractions.comments}
         />
       );
     }
@@ -1597,14 +1597,14 @@ export function UserActivityFeed({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={interactions.likes}
+              initialData={safeInteractions.likes}
             />
           </div>
-          <div onClick={() => handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions.comments)}>
+          <div onClick={() => handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', safeInteractions.comments)}>
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-              initialData={interactions.comments}
+              initialData={safeInteractions.comments}
               buttonOnly={true}
             />
           </div>
@@ -1615,7 +1615,7 @@ export function UserActivityFeed({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={interactions.retweets}
+              initialData={safeInteractions.retweets}
             />
           </div>
           <div className="flex items-center gap-4">
