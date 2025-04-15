@@ -119,6 +119,20 @@ export function CommentSectionClient({
     };
   }, []);
   
+  // Effect to lock/unlock body scroll when drawer opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    // Cleanup function to remove style when component unmounts or before re-applying
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+  
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
   const comments = useQuery(
@@ -528,19 +542,9 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
                   maxLength={500}
                   rows={1}
-                  inputMode="text"
-                  autoComplete="off"
-                  onFocus={e => {
-                    // Only run on mobile devices
-                    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-                      setTimeout(() => {
-                        e.target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                      }, 150); // Delay to allow keyboard to open
-                    }
-                  }}
                 />
                 <Button 
                   onClick={handleSubmit} 

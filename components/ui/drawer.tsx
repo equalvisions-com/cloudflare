@@ -7,15 +7,10 @@ import { cn } from "@/lib/utils"
 
 const Drawer = ({
   shouldScaleBackground = true,
-  snapPoints,
-  repositionInputs = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root> & { snapPoints?: (number | string)[], repositionInputs?: boolean }) => (
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root
     shouldScaleBackground={shouldScaleBackground}
-    disablePreventScroll={false}
-    repositionInputs={repositionInputs}
-    snapPoints={snapPoints ?? [0.9]}
     {...props}
   />
 )
