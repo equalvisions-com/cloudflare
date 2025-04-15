@@ -14,7 +14,8 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger
+  DrawerTrigger,
+  DrawerOverlay
 } from "@/components/ui/drawer";
 import { 
   DropdownMenu, 
@@ -544,9 +545,42 @@ export function CommentSectionClient({
     };
   }, [isOpen]);
   
+  // Add effect to prevent background scrolling when drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      // When drawer opens, prevent body scrolling
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // Restore scrolling when drawer closes
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [isOpen]);
+  
+  // Handle input focus when the drawer opens
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      // Short delay to allow the drawer to fully open before focusing
+      const timer = setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus({ preventScroll: true });
+        }
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+  
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer 
+        open={isOpen} 
+        onOpenChange={setIsOpen}
+        shouldScaleBackground={false}
+        dismissible={false}
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -556,7 +590,26 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerOverlay className="bg-black/70" onClick={(e) => {
+          // Only close drawer when explicitly clicking the overlay background
+          // and not when clicking/touching the drawer content
+          if (e.target === e.currentTarget) {
+            setIsOpen(false);
+          } else {
+            e.stopPropagation();
+          }
+        }} />
+        <DrawerContent 
+          className="h-[75vh] w-full max-w-[550px] mx-auto overflow-hidden"
+          onPointerDownOutside={(e) => {
+            // Prevent drawer from closing when interacting with content
+            e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            // Prevent interactions outside the drawer from affecting it
+            e.preventDefault();
+          }}
+        >
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
@@ -591,6 +644,16 @@ export function CommentSectionClient({
                   rows={1}
                   onFocus={(e) => {
                     e.currentTarget.focus({ preventScroll: true });
+                    // Prevent event propagation that might trigger drawer closure
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    // Prevent any click events from propagating to the drawer
+                    e.stopPropagation();
+                  }}
+                  onTouchStart={(e) => {
+                    // Prevent touch events from propagating to background elements
+                    e.stopPropagation();
                   }}
                   ref={textareaRef}
                 />
