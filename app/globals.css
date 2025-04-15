@@ -307,3 +307,7 @@
 .sidebar-card {
   border-radius: 0.5rem;
 }
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

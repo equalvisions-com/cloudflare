@@ -111,7 +111,7 @@ export function FeedTabsContainerClientWrapper({
   return (
     <Suspense fallback={null}>
       <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
-        <div>
+        <div className="pb-safe">
           <FeedTabsContainerWithErrorBoundary
             initialData={initialData}
             featuredData={featuredData}
