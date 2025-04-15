@@ -96,9 +96,6 @@ export function CommentSectionClient({
   // Track which comments have expanded replies
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   
-  // Reference to the textarea element for auto-resize
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
   // Track refs for like counts
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
   
@@ -111,6 +108,9 @@ export function CommentSectionClient({
   
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
+  
+  // Add a ref for the textarea
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   useEffect(() => {
     // Set mounted flag to true
@@ -332,6 +332,21 @@ export function CommentSectionClient({
     });
   };
   
+  // Function to handle textarea focus without triggering page scrolling
+  const handleTextareaFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    // Prevent scrolling when textarea is focused
+    e.preventDefault();
+    // Ensure drawer stays open
+    setIsOpen(true);
+  }, [setIsOpen]);
+
+  // Handle selecting the text area
+  const selectTextArea = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+  
   // Render a single comment with its replies
   const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
     const hasReplies = 'replies' in comment && comment.replies.length > 0;
@@ -486,22 +501,48 @@ export function CommentSectionClient({
     );
   };
   
+  // Add an effect to prevent unwanted drawer closing when keyboard appears
+  useEffect(() => {
+    if (isOpen) {
+      // Add a flag to prevent content from scrolling when keyboard appears
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = 'hidden';
+      
+      // Create handler for focusing within the drawer
+      const handleFocusIn = (e: FocusEvent) => {
+        if (e.target === textareaRef.current) {
+          // If our textarea is focused, prevent any actions that might close the drawer
+          e.stopPropagation();
+        }
+      };
+
+      // Add event listener
+      document.addEventListener('focusin', handleFocusIn);
+      
+      // Cleanup
+      return () => {
+        document.body.style.overflow = originalStyle;
+        document.removeEventListener('focusin', handleFocusIn);
+      };
+    }
+  }, [isOpen]);
+  
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
-  // Auto-resize textarea when content changes
-  useEffect(() => {
-    if (textareaRef.current) {
-      // Reset height to auto to correctly calculate the new height
-      textareaRef.current.style.height = 'auto';
-      // Set the height to the scrollHeight to expand based on content
-      textareaRef.current.style.height = `${Math.min(100, textareaRef.current.scrollHeight)}px`;
-    }
-  }, [comment]);
-  
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer 
+        open={isOpen} 
+        onOpenChange={setIsOpen}
+        dismissible={false}
+        modal={true}
+        // Add snap points to control the height and prevent unwanted closing
+        snapPoints={[1]}
+        activeSnapPoint={0}
+        // Prevent scroll restoration which can cause problems with the keyboard
+        shouldScaleBackground={false}
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -511,13 +552,31 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto flex flex-col max-h-[75vh]">
-          <DrawerHeader className="px-4 pb-2 text-center flex-shrink-0">
+        <DrawerContent 
+          className="h-[75vh] w-full max-w-[550px] mx-auto"
+          // Add these properties to help with the mobile keyboard issue
+          onInteractOutside={(e) => {
+            // Prevent default behavior for keyboard-related events
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
-          <ScrollArea className="flex-1 overflow-auto" scrollHideDelay={0} type="always">
+          <ScrollArea 
+            className="h-[calc(75vh-160px)]" 
+            scrollHideDelay={0} 
+            type="always"
+            // Prevent scroll chaining which can cause problems with the keyboard
+            style={{ 
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
             <div className="mt-2">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
@@ -527,11 +586,12 @@ export function CommentSectionClient({
             </div>
           </ScrollArea>
           
-          {/* Comment input - stays at bottom, even with keyboard open */}
-          <div className="sticky bottom-0 bg-background border-t border-border p-4 mobile-input-fix ios-keyboard-fix">
+          {/* Comment input - stays at bottom */}
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
+                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -541,10 +601,10 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
+                  onFocus={handleTextareaFocus}
                   className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
                   rows={1}
-                  ref={textareaRef}
                 />
                 <Button 
                   onClick={handleSubmit} 
