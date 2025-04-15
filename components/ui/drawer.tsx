@@ -5,6 +5,10 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
 
+// Global scroll lock manager for drawers
+let openDrawerCount = 0;
+let lockedScrollY = 0;
+
 const Drawer = ({
   shouldScaleBackground = true,
   ...props
@@ -12,31 +16,35 @@ const Drawer = ({
   React.useEffect(() => {
     // Helper to clean up body styles and restore scroll position
     const cleanup = () => {
-      const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.overflow = '';
-      document.body.style.touchAction = '';
-      if (y) window.scrollTo(0, y);
+      openDrawerCount = Math.max(0, openDrawerCount - 1);
+      if (openDrawerCount === 0) {
+        const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.overflow = '';
+        document.body.style.touchAction = '';
+        if (y) window.scrollTo(0, y);
+      }
     };
 
     if (props.open) {
-      // Save scroll position and lock
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
+      if (openDrawerCount === 0) {
+        // Save scroll position and lock
+        lockedScrollY = window.scrollY;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${lockedScrollY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+      }
+      openDrawerCount++;
     } else {
-      // Restore on close
       cleanup();
     }
     return () => {
-      // Always clean up on unmount
       cleanup();
     };
   }, [props.open]);
