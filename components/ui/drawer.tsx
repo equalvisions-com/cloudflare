@@ -11,29 +11,8 @@ const Drawer = ({
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
   // Scroll lock fallback for iOS/Safari quirks
   React.useEffect(() => {
-    let scrollY = 0;
-    if (props.open) {
-      // Save scroll position
-      scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
-    } else {
-      // Restore scroll position
-      const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.overflow = '';
-      document.body.style.touchAction = '';
-      if (y) window.scrollTo(0, y);
-    }
-    return () => {
-      // Always clean up
+    // Helper to clean up body styles and restore scroll position
+    const cleanup = () => {
       const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
       document.body.style.position = '';
       document.body.style.top = '';
@@ -43,6 +22,23 @@ const Drawer = ({
       document.body.style.touchAction = '';
       if (y) window.scrollTo(0, y);
     };
+
+    if (props.open) {
+      // Always clean up before applying new lock
+      cleanup();
+      // Save scroll position and lock
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      // Restore on close
+      cleanup();
+    }
+    return cleanup;
   }, [props.open]);
 
   return (
