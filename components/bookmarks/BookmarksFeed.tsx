@@ -102,11 +102,13 @@ EntryCardContent.displayName = 'EntryCardContent';
 const BookmarkCard = React.memo(({ 
   bookmark, 
   entryDetails,
-  interactions
+  interactions,
+  onOpenCommentDrawer
 }: { 
   bookmark: BookmarkItem; 
   entryDetails?: RSSEntry;
   interactions?: InteractionStates;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
@@ -279,11 +281,12 @@ const BookmarkCard = React.memo(({
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions?.comments)}>
             <CommentSectionClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
               initialData={interactions?.comments || { count: 0 }}
+              buttonOnly={true}
             />
           </div>
           <div>
@@ -353,6 +356,20 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   
   // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.bookmarks.length);
+
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
 
   // Log when initial data is received
   useEffect(() => {
@@ -473,6 +490,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
             bookmark={bookmark} 
             entryDetails={entryDetails[bookmark.entryGuid]}
             interactions={entryMetrics[bookmark.entryGuid]}
+            onOpenCommentDrawer={handleOpenCommentDrawer}
           />
         )}
         components={{
@@ -484,6 +502,15 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
             ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 } 

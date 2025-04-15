@@ -107,11 +107,25 @@ export function EntriesDisplay({
   const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
   // Get entry guids for metrics
   const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
   
   // Use our custom hook for metrics
   const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(entryGuids, isVisible);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
 
   // Memoize loadMore function
   const loadMore = useCallback(async () => {
@@ -206,6 +220,7 @@ export function EntriesDisplay({
               key={entry.guid} 
               entry={entry} 
               interactions={getEntryMetrics(entry.guid)}
+              onOpenCommentDrawer={handleOpenCommentDrawer}
             />
           );
         }}
@@ -218,14 +233,24 @@ export function EntriesDisplay({
             ) : <div className="h-0" />
         }}
       />
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 }
 
-// Modified EntryCard to accept interactions prop
-const EntryCard = React.memo(({ entry, interactions }: { 
+// Modified EntryCard to accept interactions prop and onOpenCommentDrawer
+const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: { 
   entry: RSSEntry; 
   interactions: InteractionStates;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
@@ -438,11 +463,12 @@ const EntryCard = React.memo(({ entry, interactions }: {
               initialData={interactions.likes}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feed_url || '', interactions.comments)}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
               initialData={interactions.comments}
+              buttonOnly={true}
             />
           </div>
           <div>

@@ -55,7 +55,7 @@ interface FeaturedEntryProps {
   entryWithData: FeaturedEntryWithData;
 }
 
-const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: FeaturedEntryProps) => {
+const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -268,11 +268,12 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata } }: 
               initialData={initialData.likes}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments)}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
               initialData={initialData.comments}
+              buttonOnly={true}
             />
           </div>
           <div>
@@ -315,14 +316,16 @@ const FeedContent = React.memo(({
   loadMoreRef,
   hasMore,
   loadMore,
-  isLoading
+  isLoading,
+  onOpenCommentDrawer
 }: { 
   entries: FeaturedEntryWithData[],
   visibleEntries: FeaturedEntryWithData[],
   loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
   hasMore: boolean,
   loadMore: () => void,
-  isLoading: boolean
+  isLoading: boolean,
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void
 }) => {
   if (!entries.length) {
     return (
@@ -349,6 +352,7 @@ const FeedContent = React.memo(({
           return (
             <FeaturedEntry
               entryWithData={entryWithData}
+              onOpenCommentDrawer={onOpenCommentDrawer}
             />
           );
         }}
@@ -387,6 +391,14 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
   // Calculate visible entries based on current page
   const visibleEntries = useMemo(() => {
     return initialData.entries.slice(0, currentPage * pageSize);
@@ -407,7 +419,12 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
     }
   };
   
-  // Return the FeedContent directly instead of using tabs
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
+
   return (
     <div className="w-full">
       <FeedContent
@@ -417,7 +434,17 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
         hasMore={hasMore}
         loadMore={loadMore}
         isLoading={isLoading}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
       />
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 } 

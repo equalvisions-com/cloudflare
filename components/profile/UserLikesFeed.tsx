@@ -238,34 +238,29 @@ EntryCardContent.displayName = 'EntryCardContent';
 const ActivityCard = React.memo(({ 
   activity, 
   entryDetails,
-  getEntryMetrics
+  getEntryMetrics,
+  onOpenCommentDrawer,
+  commentInteractions
 }: { 
   activity: ActivityItem; 
   entryDetails?: RSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  commentInteractions: { count: number };
 }) => {
+  if (!entryDetails) return null;
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
-  
-  const interactions = useMemo(() => {
-    if (!entryDetails) return undefined;
-    return getEntryMetrics(entryDetails.guid);
-  }, [entryDetails, getEntryMetrics]);
-  
+  const interactions = getEntryMetrics(entryDetails.guid);
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
-
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
     }
   }, [entryDetails, playTrack]);
-  
-  if (!entryDetails) return null;
-  
   const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
   const isPodcast = mediaType?.toLowerCase() === 'podcast';
-  
   return (
     <article className="">
       <div className="p-4">
@@ -410,11 +405,12 @@ const ActivityCard = React.memo(({
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions?.comments)}>
             <CommentSectionClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
               initialData={interactions?.comments || { count: 0 }}
+              buttonOnly={true}
             />
           </div>
           <div>
@@ -443,7 +439,6 @@ const ActivityCard = React.memo(({
           </div>
         </div>
       </div>
-      
       <div id={`comments-${entryDetails.guid}`} className="border-t border-border" />
     </article>
   );
@@ -465,21 +460,35 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
   const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
-  
-  // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
-  
-  // Get entry guids for metrics
-  const entryGuids = useMemo(() => 
-    activities.map(activity => activity.entryGuid), 
-    [activities]
-  );
-  
-  // Use our custom hook for metrics
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
-    entryGuids,
-    initialData?.entryMetrics
-  );
+  const entryGuids = useMemo(() => activities.map(activity => activity.entryGuid), [activities]);
+  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(entryGuids, initialData?.entryMetrics);
+
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Scroll lock when drawer is open
+  useEffect(() => {
+    if (commentDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [commentDrawerOpen]);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
 
   // Log when initial data is received
   useEffect(() => {
@@ -598,6 +607,8 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
             activity={activity} 
             entryDetails={entryDetails[activity.entryGuid]}
             getEntryMetrics={getEntryMetrics}
+            onOpenCommentDrawer={handleOpenCommentDrawer}
+            commentInteractions={getEntryMetrics(activity.entryGuid)?.comments || { count: 0 }}
           />
         )}
         components={{
@@ -609,6 +620,15 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
             ) : <div ref={loadMoreRef} className="h-0" />
         }}
       />
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 } 

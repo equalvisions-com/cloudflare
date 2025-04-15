@@ -77,7 +77,7 @@ interface RSSEntryProps {
 }
 
 // Memoize the RSSEntry component to prevent unnecessary re-renders
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata } }: RSSEntryProps) => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -304,11 +304,12 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               initialData={initialData.likes}
             />
           </div>
-          <div>
+          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments)}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
               initialData={initialData.comments}
+              buttonOnly={true}
             />
           </div>
           <div>
@@ -385,6 +386,7 @@ interface EntriesContentProps {
     hasMore?: boolean;
     postTitles?: string[];
   };
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }
 
 // Define the component function first
@@ -396,7 +398,8 @@ function EntriesContentComponent({
   loadMore,
   entryMetrics,
   postMetadata,
-  initialData
+  initialData,
+  onOpenCommentDrawer
 }: EntriesContentProps) {
   // Debug logging for pagination
   useEffect(() => {
@@ -428,9 +431,9 @@ function EntriesContentComponent({
     }
     
     return (
-      <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} />
+      <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} onOpenCommentDrawer={onOpenCommentDrawer} />
     );
-  }, [paginatedEntries, entryMetrics, postMetadata]);
+  }, [paginatedEntries, entryMetrics, postMetadata, onOpenCommentDrawer]);
   
   if (paginatedEntries.length === 0) {
     return (
@@ -503,6 +506,20 @@ export function RSSEntriesClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreState, setHasMoreState] = useState(initialData?.hasMore || false);
   
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
+
   // Debug log the initial data
   useEffect(() => {
     logger.debug('Initial data received in client:', {
@@ -736,7 +753,17 @@ export function RSSEntriesClient({
         entryMetrics={entryMetricsMap}
         postMetadata={postMetadataMap}
         initialData={initialData}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
       />
+      {selectedCommentEntry && (
+        <CommentSectionClient
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen}
+        />
+      )}
     </div>
   );
 }
