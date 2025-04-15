@@ -334,13 +334,38 @@ export function SwipeableTabs({
     const measureSlideHeights = () => {
       slideRefs.current.forEach((slide, index) => {
         if (slide && slide.offsetHeight > 0) {
-          tabHeightsRef.current[index] = slide.offsetHeight;
+          // If on mobile, account for the dock height at the bottom
+          if (isMobile) {
+            const dockHeight = 64; // Base dock height
+            const safeAreaInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0');
+            const additionalPadding = dockHeight + safeAreaInset;
+            
+            // Only add padding if slide content height is close to or exceeds viewport height
+            const viewportHeight = window.innerHeight;
+            if (slide.offsetHeight > viewportHeight - 200) { // If content is tall
+              tabHeightsRef.current[index] = slide.offsetHeight + additionalPadding;
+            } else {
+              tabHeightsRef.current[index] = slide.offsetHeight;
+            }
+          } else {
+            tabHeightsRef.current[index] = slide.offsetHeight;
+          }
         }
       });
     };
     
+    // Add CSS variable for safe area on document root for calculations
+    const updateSafeAreaVar = () => {
+      const safeAreaInset = getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)');
+      document.documentElement.style.setProperty('--safe-area-inset-bottom', safeAreaInset || '0px');
+    };
+    
     // Call initially
+    updateSafeAreaVar();
     measureSlideHeights();
+    
+    // Observe safe area changes (device rotation, etc)
+    window.addEventListener('resize', updateSafeAreaVar);
     
     // Function to track transition state
     const onTransitionStart = () => {
@@ -444,6 +469,7 @@ export function SwipeableTabs({
       if (delayedReInitTimeout) clearTimeout(delayedReInitTimeout);
       emblaApi.off('settle', onTransitionEnd);
       emblaApi.off('select', onTransitionStart);
+      window.removeEventListener('resize', updateSafeAreaVar);
     };
   }, [emblaApi, selectedTab, animationDuration]); // Dependency on selectedTab ensures it observes the correct initial node
 

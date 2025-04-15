@@ -42,12 +42,12 @@ export default async function RootLayout({
       {/* `suppressHydrationWarning` only affects the html tag,
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
-      <html lang="en" suppressHydrationWarning className="h-full">
+      <html lang="en" suppressHydrationWarning>
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full min-h-screen flex flex-col`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll h-full flex flex-col`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -61,7 +61,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="flex-1">
+                  <div className="">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
