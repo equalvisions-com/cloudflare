@@ -732,8 +732,7 @@ const ActivityCard = React.memo(({
   profileImage,
   entryDetail,
   getEntryMetrics,
-  onOpenCommentDrawer,
-  commentInteractions
+  onOpenCommentDrawer
 }: { 
   activity: ActivityItem; 
   username: string;
@@ -742,35 +741,53 @@ const ActivityCard = React.memo(({
   entryDetail?: RSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  commentInteractions: { count: number };
 }) => {
-  // Always call hooks at the top
   const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail?.link;
-  const interactions = entryDetail ? getEntryMetrics(entryDetail.guid) : undefined;
-  const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
-
-  // Move all useMemo hooks to the top
+  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail.link;
+  
+  // Get metrics for this entry - explicitly memoized to prevent regeneration
+  const interactions = useMemo(() => {
+    if (!entryDetail) return undefined;
+    return getEntryMetrics(entryDetail.guid);
+  }, [entryDetail, getEntryMetrics]);
+  
+  // Format entry timestamp using the same logic as RSSFeedClient
   const entryTimestamp = useMemo(() => {
     if (!entryDetail?.pub_date) return '';
+
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
     let pubDate: Date;
+    
     if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
+      // Convert MySQL datetime string to UTC time
       const [datePart, timePart] = entryDetail.pub_date.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`);
+      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
     } else {
+      // Handle other formats
       pubDate = new Date(entryDetail.pub_date);
     }
+    
     const now = new Date();
-    if (isNaN(pubDate.getTime())) return '';
+    
+    // Ensure we're working with valid dates
+    if (isNaN(pubDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
     const diffInMs = now.getTime() - pubDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
-    const isFuture = diffInMs < -(60 * 1000);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
     const suffix = isFuture ? '' : '';
+    
+    // Format based on the time difference
     if (diffInMinutes < 60) {
       return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
     } else if (diffInHours < 24) {
@@ -782,19 +799,32 @@ const ActivityCard = React.memo(({
     }
   }, [entryDetail?.pub_date]);
 
+  // Format activity timestamp for comments
   const activityTimestamp = useMemo(() => {
     if (!activity.timestamp) return '';
+    
     const now = new Date();
     const activityDate = new Date(activity.timestamp);
-    if (isNaN(activityDate.getTime())) return '';
+    
+    // Ensure we're working with valid dates
+    if (isNaN(activityDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
     const diffInMs = now.getTime() - activityDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
-    const isFuture = diffInMs < -(60 * 1000);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
     const prefix = isFuture ? 'in ' : '';
+    // For comments, we don't want to show "ago"
     const suffix = isFuture ? '' : '';
+    
+    // Format based on the time difference
     if (diffInMinutes < 60) {
       return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
     } else if (diffInHours < 24) {
@@ -806,14 +836,46 @@ const ActivityCard = React.memo(({
     }
   }, [activity.timestamp]);
 
+  // Handle card click for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
       playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
     }
   }, [entryDetail, playTrack]);
-
-  if (!entryDetail) return null;
+  
+  // If we don't have entry details, show a simplified card
+  if (!entryDetail) {
+    return (
+      <div className="p-4 rounded-lg shadow-sm mb-4">
+        <div className="flex items-start">
+          {activity.type !== "comment" && (
+            <div className="mt-1 mr-3">
+              <ActivityIcon type={activity.type} />
+            </div>
+          )}
+          <div className="flex-1">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={activity.type === "comment" ? activityTimestamp : undefined}
+            />
+            {activity.type !== "comment" && (
+              <div className="text-sm text-gray-500 mt-2">
+                {activity.type === "retweet" ? (
+                  <span className="hidden">{activityTimestamp}</span>
+                ) : (
+                  activityTimestamp
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // With entry details, show a rich card similar to EntriesDisplay
   return (
@@ -1202,14 +1264,14 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={safeInteractions.likes}
+              initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', safeInteractions.comments)}>
+          <div onClick={() => onOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions?.comments)}>
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-              initialData={safeInteractions.comments}
+              initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
             />
           </div>
@@ -1220,7 +1282,7 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              initialData={safeInteractions.retweets}
+              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
           </div>
           <div className="flex items-center gap-4">
@@ -1316,36 +1378,24 @@ export function UserActivityFeed({
   const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(initialData?.entryDetails || {});
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
   const totalCount = initialData?.totalCount || 0;
+  
+  // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
+  
+  // Get audio context at the component level
   const { playTrack, currentTrack } = useAudio();
-  const entryGuids = useMemo(() => activities.map(activity => activity.entryGuid), [activities]);
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(entryGuids, initialData?.entryMetrics);
-
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Scroll lock when drawer is open
-  useEffect(() => {
-    if (commentDrawerOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [commentDrawerOpen]);
-
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
+  
+  // Get entry guids for metrics
+  const entryGuids = useMemo(() => 
+    activities.map(activity => activity.entryGuid), 
+    [activities]
+  );
+  
+  // Use our custom hook for metrics
+  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
+    entryGuids,
+    initialData?.entryMetrics
+  );
 
   // Group activities by entry GUID for comments
   const groupedActivities = useMemo(() => {
@@ -1519,6 +1569,20 @@ export function UserActivityFeed({
     );
   }
 
+  // --- Drawer state for comments ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
+
   // Render a group of activities for the same entry
   const renderActivityGroup = (group: {
     entryGuid: string;
@@ -1528,18 +1592,27 @@ export function UserActivityFeed({
     type: string;
   }, index: number) => {
     const entryDetail = entryDetails[group.entryGuid];
-    if (!entryDetail) return null;
-    const interactions = getEntryMetrics(entryDetail.guid) || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
-    const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
+    
+    if (!entryDetail) {
+      return null;
+    }
+    
+    // Get metrics for this entry
+    const interactions = getEntryMetrics(entryDetail.guid);
+    
+    // Check if this entry is currently playing
     const isCurrentlyPlaying = currentTrack?.src === entryDetail.link;
+    
+    // Handle card click for podcasts
     const handleCardClick = (e: React.MouseEvent) => {
       if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
         e.preventDefault();
         playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
       }
     };
+    
+    // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
     if (group.type !== 'comment' || group.comments.length <= 1) {
-      if (!entryDetail) return null;
       return (
         <ActivityCard 
           key={`group-${group.entryGuid}-${group.type}-${index}`}
@@ -1550,59 +1623,344 @@ export function UserActivityFeed({
           entryDetail={entryDetail}
           getEntryMetrics={getEntryMetrics}
           onOpenCommentDrawer={handleOpenCommentDrawer}
-          commentInteractions={safeInteractions.comments}
         />
       );
     }
+    
     // For multiple comments, render a special daisy-chained version
     return (
       <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
-        {/* ... existing code ... */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
-            <LikeButtonClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={safeInteractions.likes}
-            />
+        <div className="p-4">
+          {/* Activity header with icon and description */}
+          <div className="flex items-start mb-2 relative h-[16px]">
+            <div className="mr-2">
+              <ActivityIcon type={group.firstActivity.type} />
+            </div>
+            <div className="flex-1">
+              <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
+                <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+              </span>
+            </div>
           </div>
-          <div onClick={() => handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', safeInteractions.comments)}>
-            <CommentSectionClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              initialData={safeInteractions.comments}
-              buttonOnly={true}
-            />
+          
+          {/* Featured Image and Title */}
+          <div className="flex items-start gap-4 mb-4 relative mt-4">
+            {/* Featured Image */}
+            <div className="flex-shrink-0 relative">
+              {(entryDetail.post_featured_img || entryDetail.image) && (
+                <div className="w-12 h-12 relative z-10">
+                  <Link 
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
+                    className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetail.post_featured_img || entryDetail.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </div>
+              )}
+            </div>
+            
+            {/* Title and Timestamp */}
+            <div className="flex-grow">
+              <div className="w-full">
+                <div className="flex items-start justify-between gap-2">
+                  <Link 
+                    href={entryDetail.post_slug ? 
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                        `/newsletters/${entryDetail.post_slug}` : 
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                          `/podcasts/${entryDetail.post_slug}` : 
+                          entryDetail.category_slug ? 
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                            entryDetail.link) : 
+                          entryDetail.link}
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                      ? "" : "noopener noreferrer"}
+                  >
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                    </h3>
+                  </Link>
+                  <span 
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
+                    title={entryDetail.pub_date ? 
+                      format(new Date(entryDetail.pub_date), 'PPP p') : 
+                      new Date(group.firstActivity.timestamp).toLocaleString()
+                    }
+                  >
+                    {(() => {
+                      if (!entryDetail.pub_date) return '';
+
+                      // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+                      const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                      let pubDate: Date;
+                      
+                      if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
+                        // Convert MySQL datetime string to UTC time
+                        const [datePart, timePart] = entryDetail.pub_date.split(' ');
+                        pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+                      } else {
+                        // Handle other formats
+                        pubDate = new Date(entryDetail.pub_date);
+                      }
+                      
+                      const now = new Date();
+                      
+                      // Ensure we're working with valid dates
+                      if (isNaN(pubDate.getTime())) {
+                        return '';
+                      }
+
+                      // Calculate time difference
+                      const diffInMs = now.getTime() - pubDate.getTime();
+                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                      const diffInHours = Math.floor(diffInMinutes / 60);
+                      const diffInDays = Math.floor(diffInHours / 24);
+                      const diffInMonths = Math.floor(diffInDays / 30);
+                      
+                      // For future dates (more than 1 minute ahead), show 'in X'
+                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                      const prefix = isFuture ? 'in ' : '';
+                      const suffix = isFuture ? '' : '';
+                      
+                      // Format based on the time difference
+                      if (diffInMinutes < 60) {
+                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                      } else if (diffInHours < 24) {
+                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                      } else if (diffInDays < 30) {
+                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                      } else {
+                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                      }
+                    })()}
+                  </span>
+                </div>
+                {/* Media type badge */}
+                {(entryDetail.post_media_type || entryDetail.mediaType) && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
+                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                    }
+                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <RetweetButtonClientWithErrorBoundary
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={safeInteractions.retweets}
-            />
+                
+          {/* Entry Content Card */}
+          <div className="mt-4">
+            {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+              <div>
+                <div 
+                  onClick={handleCardClick}
+                  className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                >
+                  <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                    {entryDetail.image && (
+                      <CardHeader className="p-0">
+                        <AspectRatio ratio={2/1}>
+                          <Image
+                            src={entryDetail.image}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 768px"
+                            loading="lazy"
+                            priority={false}
+                          />
+                        </AspectRatio>
+                      </CardHeader>
+                    )}
+                    <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                      <h3 className="text-base font-bold capitalize leading-[1.5]">
+                        {entryDetail.title}
+                      </h3>
+                      {entryDetail.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                          {entryDetail.description}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              <a
+                href={entryDetail.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity"
+              >
+                <Card className="rounded-xl border overflow-hidden shadow-none">
+                  {entryDetail.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={2/1}>
+                        <Image
+                          src={entryDetail.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
+                      {entryDetail.title}
+                    </h3>
+                    {entryDetail.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                        {entryDetail.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </a>
+            )}
           </div>
-          <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={{ isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entryDetail.link}
-              title={entryDetail.title}
-            />
+             {/* Add engagement buttons below the card */}
+             <div className="flex justify-between items-center mt-4 h-[16px]">
+             <div>
+              <LikeButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={interactions.likes}
+              />
+            </div>
+            <div onClick={() => handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions.comments)}>
+              <CommentSectionClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                initialData={interactions.comments}
+                buttonOnly={true}
+              />
+            </div>
+            <div>
+              <RetweetButtonClientWithErrorBoundary
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={interactions.retweets}
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <BookmarkButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={{ isBookmarked: false }}
+              />
+              <ShareButtonClient
+                url={entryDetail.link}
+                title={entryDetail.title}
+              />
+            </div>
           </div>
         </div>
-        {/* ... existing code ... */}
+
+     
+        
+        <div id={`comments-${entryDetail.guid}`} className="" />
+        
+        {/* Render all comments in chronological order */}
+        <div className="border-l border-r border-b">
+          {group.comments.map((comment) => {
+            return (
+              <div 
+                key={`comment-${comment._id}`} 
+                className="p-4 border-t relative"
+              >
+                {/* Comment content */}
+                <div className="relative z-10">
+                  <ActivityDescription 
+                    item={comment} 
+                    username={username}
+                    name={name}
+                    profileImage={profileImage}
+                    timestamp={(() => {
+                      const now = new Date();
+                      const commentDate = new Date(comment.timestamp);
+                      
+                      // Ensure we're working with valid dates
+                      if (isNaN(commentDate.getTime())) {
+                        return '';
+                      }
+
+                      // Calculate time difference
+                      const diffInMs = now.getTime() - commentDate.getTime();
+                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+                      const diffInHours = Math.floor(diffInMinutes / 60);
+                      const diffInDays = Math.floor(diffInHours / 24);
+                      const diffInMonths = Math.floor(diffInDays / 30);
+                      
+                      // For future dates (more than 1 minute ahead), show 'in X'
+                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+                      const prefix = isFuture ? 'in ' : '';
+                      // Remove suffix for comments to eliminate "ago"
+                      const suffix = isFuture ? '' : '';
+                      
+                      // Format based on the time difference
+                      if (diffInMinutes < 60) {
+                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+                      } else if (diffInHours < 24) {
+                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+                      } else if (diffInDays < 30) {
+                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+                      } else {
+                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+                      }
+                    })()}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </article>
     );
   };
