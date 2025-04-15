@@ -19,11 +19,13 @@ export async function LayoutManager() {
   // Prepare the feed content - no need to pass user profile props
   // as they're available from the context provider
   const mainContent = (
+    <div className="h-full flex flex-col">
     <FeedTabsContainerClientWrapper
       initialData={rssData}
       featuredData={featuredData}
       pageSize={30}
     />
+    </div>
   );
   
   // Prepare the right sidebar
