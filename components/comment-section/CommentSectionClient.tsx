@@ -81,157 +81,6 @@ interface CommentWithReplies extends CommentFromAPI {
   replies: CommentFromAPI[];
 }
 
-// Custom component to handle mobile-friendly textarea auto growing
-const MobileAutoGrowTextarea = ({ 
-  value, 
-  onChange, 
-  placeholder, 
-  maxLength, 
-  className = "",
-  onSubmit
-}: { 
-  value: string, 
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, 
-  placeholder: string, 
-  maxLength?: number,
-  className?: string,
-  onSubmit?: () => void
-}) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  // Store the last scroll position
-  const lastScrollPosition = useRef<number>(0);
-  
-  // Track if the keyboard is visible
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  // Update height when value changes
-  useEffect(() => {
-    if (textareaRef.current) {
-      // Reset height to get accurate scrollHeight
-      textareaRef.current.style.height = 'auto';
-      // Set height to scrollHeight
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [value]);
-
-  // Detect keyboard visibility changes
-  useEffect(() => {
-    const detectKeyboard = () => {
-      // On iOS, window.visualViewport.height changes when keyboard appears
-      // On Android, window.innerHeight changes when keyboard appears
-      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
-      const windowHeight = window.innerHeight;
-      
-      // If viewport height is significantly less than window height, keyboard is likely visible
-      const keyboardVisible = currentViewportHeight < windowHeight * 0.8;
-      
-      if (keyboardVisible !== isKeyboardVisible) {
-        setIsKeyboardVisible(keyboardVisible);
-        
-        // When keyboard closes, store the current scroll position
-        if (!keyboardVisible) {
-          lastScrollPosition.current = window.scrollY;
-        }
-      }
-    };
-
-    // Subscribe to resize and visualViewport resize events
-    window.addEventListener('resize', detectKeyboard);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', detectKeyboard);
-    }
-
-    return () => {
-      window.removeEventListener('resize', detectKeyboard);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', detectKeyboard);
-      }
-    };
-  }, [isKeyboardVisible]);
-
-  // Handle key events (Enter to submit)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
-      e.preventDefault();
-      onSubmit();
-    }
-  };
-
-  // Handle focus events to prevent scrolling to top
-  const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    
-    // Store current position
-    const currentPosition = window.scrollY;
-    lastScrollPosition.current = currentPosition;
-    
-    // Make textarea visible in viewport
-    const textareaRect = textareaRef.current?.getBoundingClientRect();
-    if (textareaRect) {
-      // Get viewport height (accounting for keyboard)
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      
-      // Check if textarea is partially offscreen
-      if (textareaRect.bottom > viewportHeight) {
-        // Adjust scroll to keep textarea above keyboard
-        const newScrollY = currentPosition + (textareaRect.bottom - viewportHeight) + 20; // 20px buffer
-        
-        // Use RAF to ensure this happens after browser's default scroll behavior
-        requestAnimationFrame(() => {
-          window.scrollTo({
-            top: newScrollY,
-            behavior: 'smooth'
-          });
-        });
-      } else {
-        // Just maintain current scroll position
-        requestAnimationFrame(() => {
-          window.scrollTo(0, currentPosition);
-        });
-      }
-    }
-  };
-
-  // Create a throttled scroll restoration function
-  const restoreScrollPosition = useCallback(() => {
-    if (document.activeElement !== textareaRef.current) {
-      window.scrollTo(0, lastScrollPosition.current);
-    }
-  }, []);
-
-  // Apply scroll restoration on blur
-  const handleBlur = () => {
-    // If keyboard is closing (will be detected by the resize listener)
-    // the lastScrollPosition will be updated and we'll use it later
-  };
-
-  return (
-    <div 
-      ref={wrapperRef} 
-      className="relative w-full"
-    >
-      <Textarea
-        ref={textareaRef}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        rows={1}
-        className={`text-base resize-none py-2 min-h-[36px] overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none ${className}`}
-        onKeyDown={handleKeyDown}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onClick={(e) => {
-          // Prevent any default behavior that might cause scrolling
-          e.stopPropagation();
-          handleFocus(e as unknown as React.FocusEvent<HTMLTextAreaElement>);
-        }}
-      />
-    </div>
-  );
-};
-
 export function CommentSectionClient({ 
   entryGuid, 
   feedUrl,
@@ -250,11 +99,6 @@ export function CommentSectionClient({
   // Track refs for like counts
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
   
-  // Track keyboard visibility
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  // Reference to the comment input container
-  const commentInputRef = useRef<HTMLDivElement>(null);
-  
   // Authentication and current user
   const { isAuthenticated } = useConvexAuth();
   const viewer = useQuery(api.users.viewer);
@@ -265,55 +109,18 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
-  // Ensure the textarea scrolls into view when the keyboard appears
-  useEffect(() => {
-    if (isKeyboardVisible && commentInputRef.current) {
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        commentInputRef.current?.scrollIntoView({ 
-          behavior: 'smooth',
-          block: 'end'
-        });
-      });
-    }
-  }, [isKeyboardVisible]);
+  // Add a ref for the textarea
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
     
-    // Detect keyboard visibility changes
-    const detectKeyboard = () => {
-      if (!isMountedRef.current) return;
-      
-      // On iOS, window.visualViewport.height changes when keyboard appears
-      // On Android, window.innerHeight changes when keyboard appears
-      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
-      const windowHeight = window.innerHeight;
-      
-      // If viewport height is significantly less than window height, keyboard is likely visible
-      const keyboardVisible = currentViewportHeight < windowHeight * 0.8;
-      
-      if (keyboardVisible !== isKeyboardVisible) {
-        setIsKeyboardVisible(keyboardVisible);
-      }
-    };
-
-    // Subscribe to resize and visualViewport resize events
-    window.addEventListener('resize', detectKeyboard);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', detectKeyboard);
-    }
-    
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
-      window.removeEventListener('resize', detectKeyboard);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', detectKeyboard);
-      }
     };
-  }, [isKeyboardVisible]);
+  }, []);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -682,6 +489,43 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
+  // Add this useEffect to handle textarea auto-growing
+  useEffect(() => {
+    // Function to handle textarea height adjustment
+    const adjustHeight = () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      
+      // Reset height to auto to correctly calculate the new height
+      textarea.style.height = 'auto';
+      // Set to scrollHeight to expand the textarea to fit content
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    
+    // Call immediately and when content changes
+    adjustHeight();
+    
+    // Prevent scrolling to the top when textarea is focused on mobile
+    const preventScroll = (e: Event) => {
+      // Stop propagation to prevent the drawer's content from scrolling
+      e.stopPropagation();
+    };
+    
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.addEventListener('focus', preventScroll);
+      // Adjust height when text changes
+      textarea.addEventListener('input', adjustHeight);
+    }
+    
+    return () => {
+      if (textarea) {
+        textarea.removeEventListener('focus', preventScroll);
+        textarea.removeEventListener('input', adjustHeight);
+      }
+    };
+  }, [comment]);
+  
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
@@ -694,22 +538,13 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent 
-          className={`w-full max-w-[550px] mx-auto bottom-0 flex flex-col ${isKeyboardVisible ? 'h-[50vh]' : 'h-[75vh]'}`} 
-          style={{ 
-            position: 'fixed',
-            zIndex: 50
-          }}
-        >
-          <DrawerHeader className="px-4 pb-2 text-center flex-shrink-0">
-            <DrawerClose className="absolute right-4 top-4">
-              <X className="h-4 w-4" />
-            </DrawerClose>
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+          <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
-          <ScrollArea className="flex-grow overflow-y-auto" scrollHideDelay={0} type="always">
+          <ScrollArea className="flex-1 h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
             <div className="mt-2">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
@@ -720,13 +555,11 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div 
-            ref={commentInputRef}
-            className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background flex-shrink-0"
-          >
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <MobileAutoGrowTextarea
+                <Textarea
+                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -736,9 +569,11 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="text-base resize-none py-2 min-h-[36px] overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
-                  onSubmit={handleSubmit}
+                  rows={1}
+                  onClick={(e) => e.stopPropagation()} // Prevent propagation to avoid scroll issues
+                  style={{ overflowY: 'hidden' }} // Prevent scrollbar from appearing
                 />
                 <Button 
                   onClick={handleSubmit} 
