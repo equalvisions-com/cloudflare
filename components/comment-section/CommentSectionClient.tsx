@@ -119,20 +119,6 @@ export function CommentSectionClient({
     };
   }, []);
   
-  // Effect to lock/unlock body scroll when drawer opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-
-    // Cleanup function to remove style when component unmounts or before re-applying
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
-  
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
   const comments = useQuery(
@@ -502,7 +488,11 @@ export function CommentSectionClient({
   
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen} shouldScaleBackground={false}>
+      <Drawer 
+        open={isOpen} 
+        onOpenChange={setIsOpen}
+        modal={true} // Ensure modal is true to prevent background page scrolling
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -512,13 +502,13 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent className="h-[100dvh] md:h-[75vh] w-full max-w-[550px] mx-auto flex flex-col">
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
-          {/* Comments list with ScrollArea */}
-          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+          {/* Comments list with ScrollArea - use flex-1 to allow it to expand properly */}
+          <ScrollArea className="flex-1 h-0" scrollHideDelay={0} type="always">
             <div className="mt-2">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
@@ -528,8 +518,8 @@ export function CommentSectionClient({
             </div>
           </ScrollArea>
           
-          {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
+          {/* Comment input - make it sticky at the bottom */}
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
@@ -542,7 +532,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-base"
+                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
                   rows={1}
                 />
