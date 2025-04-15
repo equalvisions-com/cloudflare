@@ -81,6 +81,72 @@ interface CommentWithReplies extends CommentFromAPI {
   replies: CommentFromAPI[];
 }
 
+// Custom component to handle mobile-friendly textarea auto growing
+const MobileAutoGrowTextarea = ({ 
+  value, 
+  onChange, 
+  placeholder, 
+  maxLength, 
+  className = "",
+  onSubmit
+}: { 
+  value: string, 
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, 
+  placeholder: string, 
+  maxLength?: number,
+  className?: string,
+  onSubmit?: () => void
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Update height when value changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Reset height to get accurate scrollHeight
+      textareaRef.current.style.height = 'auto';
+      // Set height to scrollHeight
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [value]);
+
+  // Handle key events (Enter to submit)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
+      e.preventDefault();
+      onSubmit();
+    }
+  };
+
+  return (
+    <div 
+      ref={wrapperRef} 
+      className="relative w-full"
+    >
+      <Textarea
+        ref={textareaRef}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={1}
+        className={`text-base resize-none py-2 min-h-[36px] overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none ${className}`}
+        onKeyDown={handleKeyDown}
+        // Prevent scroll jump on focus
+        onFocus={(e) => {
+          e.preventDefault();
+          // Remember scroll position
+          const scrollPos = window.scrollY;
+          // Set timeout to restore scroll after browser default behavior
+          setTimeout(() => {
+            window.scrollTo(0, scrollPos);
+          }, 0);
+        }}
+      />
+    </div>
+  );
+};
+
 export function CommentSectionClient({ 
   entryGuid, 
   feedUrl,
@@ -108,15 +174,6 @@ export function CommentSectionClient({
   
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
-  
-  // Track if the keyboard is visible
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  
-  // Reference to the textarea element
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Track if we're on iOS device
-  const [isIOS, setIsIOS] = useState(false);
   
   useEffect(() => {
     // Set mounted flag to true
@@ -495,103 +552,6 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
-  // Detect keyboard visibility on mobile
-  useEffect(() => {
-    // Only run this effect on the client side
-    if (typeof window === 'undefined') return;
-    
-    // Create handlers for visibility change
-    const handleVisibilityChange = () => {
-      // Using a small timeout to ensure the keyboard has fully appeared
-      setTimeout(() => {
-        // Check if an input element is focused, indicating keyboard is likely visible
-        const isFocused = document.activeElement instanceof HTMLTextAreaElement ||
-                         document.activeElement instanceof HTMLInputElement;
-        setIsKeyboardVisible(isFocused);
-      }, 100);
-    };
-    
-    // Listen for focus events that might indicate keyboard appearance
-    document.addEventListener('focusin', handleVisibilityChange);
-    document.addEventListener('focusout', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('focusin', handleVisibilityChange);
-      document.removeEventListener('focusout', handleVisibilityChange);
-    };
-  }, []);
-  
-  // Auto-resize textarea when input changes
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // Limit to 500 characters
-    const newValue = e.target.value.slice(0, 500);
-    setComment(newValue);
-    
-    // Auto-resize the textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
-    }
-  };
-  
-  // Reset textarea height when content is cleared
-  useEffect(() => {
-    if (comment === '' && textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-  }, [comment]);
-  
-  // Detect iOS device
-  useEffect(() => {
-    // Only run on client
-    if (typeof window !== 'undefined') {
-      // Check if on iOS device
-      const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      setIsIOS(iOS);
-    }
-  }, []);
-  
-  // Add event listener to fix iOS input positioning
-  useEffect(() => {
-    // Fix for iOS devices to prevent viewport shifting when keyboard appears
-    if (!isIOS) return;
-    
-    const handleFocus = () => {
-      // Add a small delay to let the keyboard appear
-      setTimeout(() => {
-        // Scroll the input into view
-        if (textareaRef.current) {
-          textareaRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'end'
-          });
-        }
-      }, 300);
-    };
-    
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.addEventListener('focus', handleFocus);
-    }
-    
-    return () => {
-      if (textarea) {
-        textarea.removeEventListener('focus', handleFocus);
-      }
-    };
-  }, [isIOS]);
-  
-  // Function to handle Enter key for submission
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // If Enter is pressed without Shift, submit the form
-    if (e.key === 'Enter' && !e.shiftKey && !isSubmitting) {
-      e.preventDefault(); // Prevent newline
-      if (comment.trim()) {
-        handleSubmit();
-      }
-    }
-  };
-  
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
@@ -604,71 +564,43 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent 
-          className="h-[75vh] w-full max-w-[550px] mx-auto flex flex-col"
-          style={{
-            // Fix for iOS to prevent keyboard issues
-            position: 'relative',
-            paddingBottom: isIOS && isKeyboardVisible ? '40vh' : undefined
-          }}
-        >
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto bottom-0 flex flex-col" style={{ position: 'fixed' }}>
           <DrawerHeader className="px-4 pb-2 text-center flex-shrink-0">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
           
-          {/* Comments list with ScrollArea - ensure it takes available space */}
-          <div className="flex-1 overflow-hidden">
-            <ScrollArea 
-              className="h-full" 
-              scrollHideDelay={0} 
-              type="always"
-              style={{
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
-              }}
-            >
-              <div className="mt-2 pb-4">
-                {commentHierarchy.length > 0 ? (
-                  commentHierarchy.map(comment => renderComment(comment))
-                ) : (
-                  <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+          {/* Comments list with ScrollArea */}
+          <ScrollArea className="flex-grow overflow-y-auto" scrollHideDelay={0} type="always">
+            <div className="mt-2">
+              {commentHierarchy.length > 0 ? (
+                commentHierarchy.map(comment => renderComment(comment))
+              ) : (
+                <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
+              )}
+            </div>
+          </ScrollArea>
           
-          {/* Comment input - fixed at bottom with accessibility improvements */}
-          <div 
-            className="flex-shrink-0 border-t border-border p-4 bg-background"
-            style={{
-              position: 'sticky', 
-              bottom: 0,
-              zIndex: 10,
-              width: '100%'
-            }}
-          >
+          {/* Comment input - stays at bottom */}
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background flex-shrink-0">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Textarea
-                  ref={textareaRef}
+                <MobileAutoGrowTextarea
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
                   value={comment}
-                  onChange={handleTextareaChange}
-                  onKeyDown={handleKeyDown}
-                  className="text-base resize-none min-h-[36px] max-h-[100px] py-2 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
-                  maxLength={500}
-                  rows={1}
-                  style={{
-                    // Prevent the iOS auto-zoom on focus
-                    fontSize: '16px'
+                  onChange={(e) => {
+                    // Limit to 500 characters
+                    const newValue = e.target.value.slice(0, 500);
+                    setComment(newValue);
                   }}
+                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  maxLength={500}
+                  onSubmit={handleSubmit}
                 />
                 <Button 
                   onClick={handleSubmit} 
                   disabled={!comment.trim() || isSubmitting}
-                  className="flex-shrink-0"
                 >
                   {isSubmitting ? "Posting..." : "Post"}
                 </Button>
