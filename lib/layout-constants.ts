@@ -2,8 +2,8 @@
  * Shared layout constants to ensure consistency across different page layouts
  */
 export const LAYOUT_CONSTANTS = {
-  // Container classes - ensure flex layout for horizontal arrangement
-  CONTAINER_CLASS: "container min-h-screen flex flex-col md:flex-row gap-6 p-0 md:px-0",
+  // Container classes - ensure flex layout for horizontal arrangement with no side margins/padding
+  CONTAINER_CLASS: "w-full max-w-full container min-h-screen flex flex-col md:flex-row gap-0 md:gap-6 p-0 md:px-0",
   
   // Content area classes
   MAIN_CONTENT_CLASS: "flex-1 md:basis-[50%] md:max-w-[50%] border-l border-r",
