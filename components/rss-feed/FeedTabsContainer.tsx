@@ -167,7 +167,7 @@ export function FeedTabsContainer({
   ], [initialData, featuredData, pageSize]);
 
   return (
-    <div className="w-full min-h-screen flex flex-col">
+    <div className="w-full">
 
 <div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
 <div>
