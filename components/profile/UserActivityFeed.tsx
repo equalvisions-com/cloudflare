@@ -746,55 +746,31 @@ const ActivityCard = React.memo(({
 }) => {
   // Always call hooks at the top
   const { playTrack, currentTrack } = useAudio();
-  // Only use entryDetail if defined
-  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail.link;
+  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail?.link;
   const interactions = entryDetail ? getEntryMetrics(entryDetail.guid) : undefined;
   const safeInteractions = interactions || { likes: { isLiked: false, count: 0 }, comments: { count: 0 }, retweets: { isRetweeted: false, count: 0 } };
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
-      e.preventDefault();
-      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
-    }
-  }, [entryDetail, playTrack]);
-  if (!entryDetail) return null;
-  
-  // Format entry timestamp using the same logic as RSSFeedClient
+
+  // Move all useMemo hooks to the top
   const entryTimestamp = useMemo(() => {
     if (!entryDetail?.pub_date) return '';
-
-    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
     let pubDate: Date;
-    
     if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
-      // Convert MySQL datetime string to UTC time
       const [datePart, timePart] = entryDetail.pub_date.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+      pubDate = new Date(`${datePart}T${timePart}Z`);
     } else {
-      // Handle other formats
       pubDate = new Date(entryDetail.pub_date);
     }
-    
     const now = new Date();
-    
-    // Ensure we're working with valid dates
-    if (isNaN(pubDate.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
+    if (isNaN(pubDate.getTime())) return '';
     const diffInMs = now.getTime() - pubDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const isFuture = diffInMs < -(60 * 1000);
     const prefix = isFuture ? 'in ' : '';
     const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
     if (diffInMinutes < 60) {
       return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
     } else if (diffInHours < 24) {
@@ -806,32 +782,19 @@ const ActivityCard = React.memo(({
     }
   }, [entryDetail?.pub_date]);
 
-  // Format activity timestamp for comments
   const activityTimestamp = useMemo(() => {
     if (!activity.timestamp) return '';
-    
     const now = new Date();
     const activityDate = new Date(activity.timestamp);
-    
-    // Ensure we're working with valid dates
-    if (isNaN(activityDate.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
+    if (isNaN(activityDate.getTime())) return '';
     const diffInMs = now.getTime() - activityDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const isFuture = diffInMs < -(60 * 1000);
     const prefix = isFuture ? 'in ' : '';
-    // For comments, we don't want to show "ago"
     const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
     if (diffInMinutes < 60) {
       return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
     } else if (diffInHours < 24) {
@@ -843,7 +806,13 @@ const ActivityCard = React.memo(({
     }
   }, [activity.timestamp]);
 
-  // If we don't have entry details, show a simplified card
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
+      e.preventDefault();
+      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
+    }
+  }, [entryDetail, playTrack]);
+
   if (!entryDetail) return null;
   
   // With entry details, show a rich card similar to EntriesDisplay
