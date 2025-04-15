@@ -307,31 +307,3 @@
 .sidebar-card {
   border-radius: 0.5rem;
 }
-
-/* Mobile dock safe area fixes */
-.mobile-dock {
-  z-index: 100;
-}
-
-/* Add padding to the bottom of the page on mobile to account for the dock */
-@media (max-width: 767px) {
-  main {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-  
-  /* Fix for Safari viewport height issues */
-  html, body {
-    height: 100%;
-    overflow-x: hidden;
-  }
-  
-  /* Ensure mobile dock stays fixed at the bottom regardless of content height */
-  .mobile-dock {
-    position: fixed !important;
-  }
-}
-
-/* Handle audio player and mobile dock overlap */
-.PersistentPlayer {
-  bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
-}
