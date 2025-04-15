@@ -9,28 +9,52 @@ const Drawer = ({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  // Scroll lock fallback for iOS/Safari quirks
+  // Enhanced scroll lock for mobile: lock scroll position, prevent page jump
   React.useEffect(() => {
+    let scrollY = 0;
     if (props.open) {
-      // Lock scroll on body
+      scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
       document.body.style.overflow = 'hidden';
       document.body.style.touchAction = 'none';
     } else {
-      // Restore scroll
+      // Restore scroll position and styles
+      const top = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
       document.body.style.overflow = '';
       document.body.style.touchAction = '';
+      if (top) {
+        const scrollTo = -parseInt(top || '0', 10);
+        window.scrollTo(0, scrollTo);
+      }
     }
     return () => {
+      // Clean up in case of unmount
+      const top = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
       document.body.style.overflow = '';
       document.body.style.touchAction = '';
+      if (top) {
+        const scrollTo = -parseInt(top || '0', 10);
+        window.scrollTo(0, scrollTo);
+      }
     };
   }, [props.open]);
 
   return (
     <DrawerPrimitive.Root
       shouldScaleBackground={shouldScaleBackground}
-      disablePreventScroll={false} // Ensure scroll lock is enabled
-      repositionInputs={false} // Let browser handle input/keyboard
+      disablePreventScroll={false}
+      repositionInputs={false}
       {...props}
     />
   );
