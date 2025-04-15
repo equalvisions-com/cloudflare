@@ -9,7 +9,6 @@ const Drawer = ({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  // Scroll lock fallback for iOS/Safari quirks
   React.useEffect(() => {
     // Helper to clean up body styles and restore scroll position
     const cleanup = () => {
