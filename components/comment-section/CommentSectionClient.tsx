@@ -488,13 +488,7 @@ export function CommentSectionClient({
   
   return (
     <>
-      <Drawer 
-        open={isOpen} 
-        onOpenChange={setIsOpen}
-        fixed={true}
-        disablePreventScroll={false}
-        repositionInputs={true}
-      >
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
         <Button
           variant="ghost"
           size="sm"
@@ -504,7 +498,7 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto overflow-hidden touch-manipulation keyboard-aware keyboard-aware-ios">
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
@@ -521,7 +515,7 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 bg-background">
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
@@ -534,7 +528,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none touch-manipulation"
+                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                   maxLength={500}
                   rows={1}
                 />
