@@ -1378,9 +1378,21 @@ export function UserActivityFeed({
   const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(initialData?.entryDetails || {});
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
   const totalCount = initialData?.totalCount || 0;
-  
-  // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
+  
+  // --- Drawer state for comments (moved to top level) ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry (moved to top level)
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []);
   
   // Get audio context at the component level
   const { playTrack, currentTrack } = useAudio();
@@ -1570,18 +1582,18 @@ export function UserActivityFeed({
   }
 
   // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
+  // const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  // const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+  //   entryGuid: string;
+  //   feedUrl: string;
+  //   initialData?: { count: number };
+  // } | null>(null);
 
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
+  // // Callback to open the comment drawer for a given entry
+  // const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+  //   setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+  //   setCommentDrawerOpen(true);
+  // }, []);
 
   // Render a group of activities for the same entry
   const renderActivityGroup = (group: {
