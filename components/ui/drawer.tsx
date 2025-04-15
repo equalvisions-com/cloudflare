@@ -9,10 +9,11 @@ const Drawer = ({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
-  // Enhanced scroll lock for mobile: lock scroll position, prevent page jump
+  // Scroll lock fallback for iOS/Safari quirks
   React.useEffect(() => {
     let scrollY = 0;
     if (props.open) {
+      // Save scroll position
       scrollY = window.scrollY;
       document.body.style.position = 'fixed';
       document.body.style.top = `-${scrollY}px`;
@@ -21,40 +22,34 @@ const Drawer = ({
       document.body.style.overflow = 'hidden';
       document.body.style.touchAction = 'none';
     } else {
-      // Restore scroll position and styles
-      const top = document.body.style.top;
+      // Restore scroll position
+      const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
       document.body.style.position = '';
       document.body.style.top = '';
       document.body.style.left = '';
       document.body.style.right = '';
       document.body.style.overflow = '';
       document.body.style.touchAction = '';
-      if (top) {
-        const scrollTo = -parseInt(top || '0', 10);
-        window.scrollTo(0, scrollTo);
-      }
+      if (y) window.scrollTo(0, y);
     }
     return () => {
-      // Clean up in case of unmount
-      const top = document.body.style.top;
+      // Always clean up
+      const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
       document.body.style.position = '';
       document.body.style.top = '';
       document.body.style.left = '';
       document.body.style.right = '';
       document.body.style.overflow = '';
       document.body.style.touchAction = '';
-      if (top) {
-        const scrollTo = -parseInt(top || '0', 10);
-        window.scrollTo(0, scrollTo);
-      }
+      if (y) window.scrollTo(0, y);
     };
   }, [props.open]);
 
   return (
     <DrawerPrimitive.Root
       shouldScaleBackground={shouldScaleBackground}
-      disablePreventScroll={false}
-      repositionInputs={false}
+      disablePreventScroll={false} // Ensure scroll lock is enabled
+      repositionInputs={false} // Let browser handle input/keyboard
       {...props}
     />
   );
