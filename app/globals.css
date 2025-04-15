@@ -12,6 +12,25 @@
     overscroll-behavior: none;
   }
 
+  /* Fixes for drawer comments on mobile with keyboard */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .keyboard-aware {
+    position: relative;
+  }
+  
+  /* On iOS Safari specifically */
+  @supports (-webkit-touch-callout: none) {
+    .keyboard-aware-ios {
+      /* Prevent content from being pushed up under the keyboard */
+      position: relative;
+      transform: translateZ(0);
+    }
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }

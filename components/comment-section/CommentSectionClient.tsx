@@ -14,8 +14,7 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger,
-  DrawerOverlay
+  DrawerTrigger
 } from "@/components/ui/drawer";
 import { 
   DropdownMenu, 
@@ -97,10 +96,6 @@ export function CommentSectionClient({
   // Track which comments have expanded replies
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   
-  // Add refs for input container and textarea
-  const inputContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
   // Track refs for like counts
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
   
@@ -113,27 +108,6 @@ export function CommentSectionClient({
   
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
-  
-  // Effect to handle visibility changes (helps with keyboard appearance/disappearance)
-  useEffect(() => {
-    // For mobile browsers, ensure scroll behavior is smooth when keyboard appears/disappears
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && textareaRef.current) {
-        // When returning to the page, ensure the textarea is visible if it has focus
-        if (document.activeElement === textareaRef.current) {
-          setTimeout(() => {
-            inputContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }, 100);
-        }
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
   
   useEffect(() => {
     // Set mounted flag to true
@@ -512,74 +486,14 @@ export function CommentSectionClient({
   // Organize comments into a hierarchy
   const commentHierarchy = organizeCommentsHierarchy();
   
-  // Add resize event listener to handle keyboard appearance
-  useEffect(() => {
-    // Only add listeners when drawer is open
-    if (!isOpen) return;
-    
-    let lastHeight = window.innerHeight;
-    
-    const handleResize = () => {
-      // If the height decreased significantly, it's likely the keyboard appeared
-      const currentHeight = window.innerHeight;
-      if (lastHeight > currentHeight && textareaRef.current) {
-        // Keyboard appeared - ensure textarea is visible
-        setTimeout(() => {
-          if (textareaRef.current) {
-            // Ensure we don't lose focus when keyboard appears
-            if (document.activeElement !== textareaRef.current) {
-              textareaRef.current.focus({preventScroll: true});
-            }
-            // Scroll the textarea into view
-            inputContainerRef.current?.scrollIntoView({block: 'end', behavior: 'smooth'});
-          }
-        }, 150);
-      }
-      lastHeight = currentHeight;
-    };
-    
-    window.addEventListener('resize', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [isOpen]);
-  
-  // Add effect to prevent background scrolling when drawer is open
-  useEffect(() => {
-    if (isOpen) {
-      // When drawer opens, prevent body scrolling
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = 'hidden';
-      
-      return () => {
-        // Restore scrolling when drawer closes
-        document.body.style.overflow = originalStyle;
-      };
-    }
-  }, [isOpen]);
-  
-  // Handle input focus when the drawer opens
-  useEffect(() => {
-    if (isOpen && textareaRef.current) {
-      // Short delay to allow the drawer to fully open before focusing
-      const timer = setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus({ preventScroll: true });
-        }
-      }, 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-  
   return (
     <>
       <Drawer 
         open={isOpen} 
         onOpenChange={setIsOpen}
-        shouldScaleBackground={false}
-        dismissible={false}
+        fixed={true}
+        disablePreventScroll={false}
+        repositionInputs={true}
       >
         <Button
           variant="ghost"
@@ -590,26 +504,7 @@ export function CommentSectionClient({
           <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
           <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
         </Button>
-        <DrawerOverlay className="bg-black/70" onClick={(e) => {
-          // Only close drawer when explicitly clicking the overlay background
-          // and not when clicking/touching the drawer content
-          if (e.target === e.currentTarget) {
-            setIsOpen(false);
-          } else {
-            e.stopPropagation();
-          }
-        }} />
-        <DrawerContent 
-          className="h-[75vh] w-full max-w-[550px] mx-auto overflow-hidden"
-          onPointerDownOutside={(e) => {
-            // Prevent drawer from closing when interacting with content
-            e.preventDefault();
-          }}
-          onInteractOutside={(e) => {
-            // Prevent interactions outside the drawer from affecting it
-            e.preventDefault();
-          }}
-        >
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto overflow-hidden touch-manipulation keyboard-aware keyboard-aware-ios">
           <DrawerHeader className="px-4 pb-2 text-center">
             <DrawerTitle>Comments</DrawerTitle>
           </DrawerHeader>
@@ -626,7 +521,7 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 sticky bottom-0 bg-background" ref={inputContainerRef}>
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4 bg-background">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
@@ -639,23 +534,9 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none touch-manipulation"
                   maxLength={500}
                   rows={1}
-                  onFocus={(e) => {
-                    e.currentTarget.focus({ preventScroll: true });
-                    // Prevent event propagation that might trigger drawer closure
-                    e.stopPropagation();
-                  }}
-                  onClick={(e) => {
-                    // Prevent any click events from propagating to the drawer
-                    e.stopPropagation();
-                  }}
-                  onTouchStart={(e) => {
-                    // Prevent touch events from propagating to background elements
-                    e.stopPropagation();
-                  }}
-                  ref={textareaRef}
                 />
                 <Button 
                   onClick={handleSubmit} 
