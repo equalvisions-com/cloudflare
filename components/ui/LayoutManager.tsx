@@ -31,14 +31,14 @@ export async function LayoutManager() {
   
   // Use the standardized layout with mobile header
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <>
       <StandardSidebarLayout
         rightSidebar={rightSidebar}
         useCardStyle={false}
-        containerClass={`${LAYOUT_CONSTANTS.CONTAINER_CLASS} pb-safe`}
+        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
       >
         {mainContent}
       </StandardSidebarLayout>
-    </div>
+    </>
   );
 }

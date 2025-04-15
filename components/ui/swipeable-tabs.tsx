@@ -85,7 +85,7 @@ const TabContent = React.memo(({
     <div 
       id={`tab-content-${id}`}
       className={cn(
-        "w-full h-full flex-1 tab-content", 
+        "w-full tab-content", 
         { 
           "tab-content-active": isActive,
           "tab-content-inactive": !isActive
@@ -113,9 +113,6 @@ export function SwipeableTabs({
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
-  
-  // Ref to track the previous tab for animation purposes
-  const previousTabRef = useRef<number>(defaultTabIndex);
   
   // Flag to prevent scroll events during tab switching
   const isRestoringScrollRef = useRef(false);
@@ -532,43 +529,47 @@ export function SwipeableTabs({
     });
   }, []);
 
-  // Find handleTabClick function and update it to track previous tab
-  const handleTabClick = useCallback((index: number) => {
-    if (index !== selectedTab && !isTransitioning) {
-      // Save previous tab for animation
-      previousTabRef.current = selectedTab;
-      
-      // Only instantly jump if we're on desktop or using a click
-      isInstantJumpRef.current = !isMobile;
-      
-      // If we still have an active embla instance
-      if (emblaApi) {
-        emblaApi.scrollTo(index);
-      } else {
-        setSelectedTab(index);
-      }
-    }
-  }, [selectedTab, isTransitioning, emblaApi, isMobile]);
+  // Handle tab click
+  const handleTabClick = useCallback(
+    (index: number) => {
+      if (!emblaApi || index === selectedTab) return;
+
+      // Save current scroll position before jumping
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+
+      // Signal that the next 'select' event is from an instant jump
+      isInstantJumpRef.current = true; 
+
+      // Jump instantly
+      emblaApi.scrollTo(index, true);
+    },
+    [emblaApi, selectedTab]
+  );
 
   // Sync tab selection with carousel
   useEffect(() => {
     if (!emblaApi) return;
     
     const onSelect = () => {
-      if (!emblaApi) return;
+      const index = emblaApi.selectedScrollSnap();
       
-      // Get the current index
-      const currentIndex = emblaApi.selectedScrollSnap();
-      
-      // If the index has changed, update state
-      if (currentIndex !== selectedTab) {
-        // Save previous tab before changing
-        previousTabRef.current = selectedTab;
+      if (selectedTab !== index) {
+        // For non-instant jumps (swipes), save the scroll position
+        if (!isInstantJumpRef.current && !isRestoringScrollRef.current) {
+          scrollPositionsRef.current[selectedTab] = window.scrollY;
+        }
+
+        // Call restoreScrollPosition - it runs async via requestAnimationFrame
+        restoreScrollPosition(index); 
+
+        // Reset instant jump flag after restoration starts
+        if (isInstantJumpRef.current) {
+          isInstantJumpRef.current = false;
+        }
         
-        setSelectedTab(currentIndex);
-        
-        // Call the onTabChange callback if provided
-        onTabChange?.(currentIndex);
+        // Update state
+        setSelectedTab(index);
+        handleTabChangeWithDebounce(index);
       }
     };
     
@@ -577,7 +578,7 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, onTabChange]); 
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce]); 
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
@@ -643,47 +644,67 @@ export function SwipeableTabs({
   }, [emblaApi]);
 
   return (
-    <div className={cn("w-full h-full flex flex-col", className)}>
-      {/* Tab Headers always at the top */}
-      <TabHeaders tabs={tabs} selectedTab={selectedTab} onTabClick={handleTabClick} />
-      
-      {/* Slides Container */}
+    <div 
+      className={cn('w-full', className)}
+    >
+      {/* Tab Headers */}
+      <TabHeaders 
+        tabs={tabs} 
+        selectedTab={selectedTab} 
+        onTabClick={handleTabClick} 
+      />
+
+      {/* Carousel container is now visible and holds the actual content */}
       <div 
-        ref={emblaRef} 
         className={cn(
-          "overflow-hidden flex-1 h-full embla__swipeable_tabs",
-          {
-            "transitioning": isTransitioning,
-            "cursor-grabbing": isInteracting
-          }
+          "w-full overflow-hidden embla__swipeable_tabs"
+          // REMOVE: !isMobile && "pointer-events-none" 
         )}
+        ref={emblaRef}
+        style={{ 
+          willChange: 'transform',
+          WebkitPerspective: '1000',
+          WebkitBackfaceVisibility: 'hidden',
+          touchAction: 'pan-y pinch-zoom' // APPLY CONSISTENTLY
+        }}
       >
-        <div className="flex h-full">
+        <div className="flex items-start"
+          style={{
+            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
+            willChange: 'transform',
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
+          }}
+        > 
           {tabs.map((tab, index) => {
-            const TabRenderer = memoizedTabRenderers[index];
+            const isActive = index === selectedTab;
+            
+            // Use the memoized renderer for this tab
+            const renderTab = memoizedTabRenderers[index];
+
             return (
-              <div
-                key={tab.id}
+              <div 
+                key={`carousel-${tab.id}`} 
                 className={cn(
-                  "embla-slide w-full shrink-0 grow-0 basis-full h-full overflow-y-auto",
-                  {
-                    "transitioning": isTransitioning && index === selectedTab,
-                    "opacity-0": index !== selectedTab && index !== previousTabRef.current
-                  }
+                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
+                  isTransitioning && "transitioning"
                 )}
-                id={`embla-slide-${tab.id}`}
-                ref={element => { slideRefs.current[index] = element; }}
+                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
+                aria-hidden={!isActive} // Add aria-hidden for accessibility
                 style={{
-                  transform: isMobile && isTransitioning 
-                    ? `translateX(${index === selectedTab ? '0%' : index < selectedTab ? '-100%' : '100%'})` 
-                    : undefined
+                  willChange: 'transform', 
+                  transform: 'translate3d(0,0,0)',
+                  WebkitBackfaceVisibility: 'hidden',
+                  // Hide inactive tabs instantly during interaction
+                  opacity: !isActive && isInteracting ? 0 : 1,
+                  transition: 'opacity 0s',
+                  // Make slide content interactive even on desktop
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  // Explicitly allow vertical panning on the slide itself
+                  touchAction: 'pan-y' 
                 }}
               >
-                <TabContent
-                  content={<TabRenderer />}
-                  isActive={index === selectedTab}
-                  id={tab.id}
-                />
+                {/* The renderer function is stable, only the isActive prop changes */}
+                {renderTab()}
               </div>
             );
           })}
