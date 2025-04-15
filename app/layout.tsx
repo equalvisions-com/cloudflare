@@ -61,7 +61,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="max-w-full">
+                  <div className="">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>

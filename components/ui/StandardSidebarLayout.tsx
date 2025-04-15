@@ -38,7 +38,7 @@ export function StandardSidebarLayout({
     : `${finalContainerClass} flex flex-col md:flex-row`;
 
   return (
-    <div className={`w-full max-w-full ${containerWithFlex}`}>
+    <div className={containerWithFlex}>
       {/* Left navigation sidebar (hidden on mobile) */}
       <div className={LAYOUT_CONSTANTS.LEFT_SIDEBAR_WRAPPER_CLASS}>
         <SidebarWithErrorBoundary />
