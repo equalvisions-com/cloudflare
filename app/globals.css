@@ -123,6 +123,29 @@
       }
     }
   }
+
+  /* Fix for mobile input focus issues in drawers */
+  .fixed-drawer-input {
+    position: relative;
+    z-index: 100;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  .prevent-input-zoom {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  /* Class to prevent page scroll when drawer is open */
+  .overflow-hidden.fixed.inset-0 {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
 }
 
 /* Disable tap highlight color and add Safari-specific fixes for all devices */
