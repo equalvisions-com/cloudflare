@@ -211,9 +211,11 @@
     @apply border-border;
     box-sizing: border-box;
   }
-  html {
+  html, body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
+    height: 100%;
+    min-height: 100vh;
   }
   body {
     margin: 0;
