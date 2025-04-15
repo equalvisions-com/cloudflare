@@ -148,9 +148,11 @@ export function FeedTabsContainer({
       id: 'discover',
       label: 'Discover',
       component: () => (
-        <FeaturedFeedWrapper 
-          initialData={featuredData as any /* Adjust typing */} 
-        />
+        <div className="max-w-4xl mx-auto">
+          <FeaturedFeedWrapper 
+            initialData={featuredData as any /* Adjust typing */} 
+          />
+        </div>
       )
     },
     // Following tab (renamed from Discover) - shows RSS feed content
@@ -158,37 +160,38 @@ export function FeedTabsContainer({
       id: 'following',
       label: 'Following',
       component: () => (
-        <RSSEntriesClient 
-          initialData={initialData as any /* Adjust typing */} 
-          pageSize={pageSize} 
-        />
+        <div className="max-w-4xl mx-auto">
+          <RSSEntriesClient 
+            initialData={initialData as any /* Adjust typing */} 
+            pageSize={pageSize} 
+          />
+        </div>
       )
     }
   ], [initialData, featuredData, pageSize]);
 
   return (
     <div className="w-full">
-
-<div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
-<div>
-        {isAuthenticated ? (
-          <UserMenuClientWithErrorBoundary 
-            initialDisplayName={displayName}
-            isBoarded={isBoarded} 
-            initialProfileImage={profileImage}
-            pendingFriendRequestCount={pendingFriendRequestCount}
-          />
-        ) : (
-          <SignInButton />
-        )}
+      <div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden max-w-4xl mx-auto">
+        <div>
+          {isAuthenticated ? (
+            <UserMenuClientWithErrorBoundary 
+              initialDisplayName={displayName}
+              isBoarded={isBoarded} 
+              initialProfileImage={profileImage}
+              pendingFriendRequestCount={pendingFriendRequestCount}
+            />
+          ) : (
+            <SignInButton />
+          )}
+        </div>
+        <div className="flex justify-center font-medium">
+          <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
+        </div>
+        <div className="flex justify-end">
+          <MobileSearch />
+        </div>
       </div>
-                      <div className="flex justify-center font-medium">
-                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
-                      </div>
-                      <div className="flex justify-end">
-                        <MobileSearch />
-                      </div>
-</div>
      
       <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
     </div>
