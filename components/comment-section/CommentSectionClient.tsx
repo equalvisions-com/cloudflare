@@ -502,7 +502,7 @@ export function CommentSectionClient({
   
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer open={isOpen} onOpenChange={setIsOpen} shouldScaleBackground={false}>
         <Button
           variant="ghost"
           size="sm"
