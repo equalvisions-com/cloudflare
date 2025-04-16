@@ -3,7 +3,7 @@
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { SidebarWithErrorBoundary } from "@/components/ui/Sidebar";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 interface StandardSidebarLayoutProps {
   children: ReactNode;
@@ -26,6 +26,14 @@ export function StandardSidebarLayout({
   containerClass,
   useCardStyle = false
 }: StandardSidebarLayoutProps) {
+  // State to track if we're in a mobile environment
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Wait for mount to ensure we have access to window
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Use provided classes or defaults from constants
   const finalContainerClass = containerClass || LAYOUT_CONSTANTS.CONTAINER_CLASS;
   const finalMainContentClass = mainContentClass || 
@@ -37,15 +45,20 @@ export function StandardSidebarLayout({
     ? finalContainerClass 
     : `${finalContainerClass} flex flex-col md:flex-row`;
 
+  // Add dynamic viewport class for better mobile height handling
+  const containerWithDynamicHeight = isMounted 
+    ? `${containerWithFlex} dynamic-viewport` 
+    : containerWithFlex;
+
   return (
-    <div className={containerWithFlex}>
+    <div className={containerWithDynamicHeight}>
       {/* Left navigation sidebar (hidden on mobile) */}
       <div className={LAYOUT_CONSTANTS.LEFT_SIDEBAR_WRAPPER_CLASS}>
         <SidebarWithErrorBoundary />
       </div>
       
-      {/* Main content area with error boundary */}
-      <main className={finalMainContentClass}>
+      {/* Main content area with error boundary - use flex-fill to expand content */}
+      <main className={`${finalMainContentClass} flex-fill`}>
         <ErrorBoundary>
             {children}
         </ErrorBoundary>

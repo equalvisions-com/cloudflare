@@ -645,7 +645,7 @@ export function SwipeableTabs({
 
   return (
     <div 
-      className={cn('w-full', className)}
+      className={cn('w-full flex flex-col flex-1', className)}
     >
       {/* Tab Headers */}
       <TabHeaders 
@@ -657,21 +657,26 @@ export function SwipeableTabs({
       {/* Carousel container is now visible and holds the actual content */}
       <div 
         className={cn(
-          "w-full overflow-hidden embla__swipeable_tabs"
+          "w-full overflow-hidden embla__swipeable_tabs flex-1"
         )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: 'pan-y pinch-zoom' // APPLY CONSISTENTLY
+          touchAction: 'pan-y pinch-zoom', // APPLY CONSISTENTLY
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1 1 auto'
         }}
       >
-        <div className="flex items-start"
+        <div className="flex items-start flex-1"
           style={{
             minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
             willChange: 'transform',
-            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none',
+            flex: '1 1 auto',
+            display: 'flex'
           }}
         > 
           {tabs.map((tab, index) => {

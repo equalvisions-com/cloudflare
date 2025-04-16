@@ -167,30 +167,31 @@ export function FeedTabsContainer({
   ], [initialData, featuredData, pageSize]);
 
   return (
-    <div className="w-full pb-16 md:pb-0">
-
-<div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
-<div>
-        {isAuthenticated ? (
-          <UserMenuClientWithErrorBoundary 
-            initialDisplayName={displayName}
-            isBoarded={isBoarded} 
-            initialProfileImage={profileImage}
-            pendingFriendRequestCount={pendingFriendRequestCount}
-          />
-        ) : (
-          <SignInButton />
-        )}
+    <div className="w-full pb-16 md:pb-0 flex-fill">
+      <div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
+        <div>
+          {isAuthenticated ? (
+            <UserMenuClientWithErrorBoundary 
+              initialDisplayName={displayName}
+              isBoarded={isBoarded} 
+              initialProfileImage={profileImage}
+              pendingFriendRequestCount={pendingFriendRequestCount}
+            />
+          ) : (
+            <SignInButton />
+          )}
+        </div>
+        <div className="flex justify-center font-medium">
+          <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
+        </div>
+        <div className="flex justify-end">
+          <MobileSearch />
+        </div>
       </div>
-                      <div className="flex justify-center font-medium">
-                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
-                      </div>
-                      <div className="flex justify-end">
-                        <MobileSearch />
-                      </div>
-</div>
      
-      <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
+      <div className="flex flex-col flex-1">
+        <SwipeableTabs tabs={tabs} />
+      </div>
     </div>
   );
 }
