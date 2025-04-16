@@ -140,14 +140,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         following: {
           _id: item._id,
           userId: profile.userId,
-          postId: item.post ? item._id : null as any, // Using any here as we don't have all field info
+          postId: item.postId,
           feedUrl: item.feedUrl
         },
         post: {
-          _id: item.post ? item._id : null as any, // Using any as a placeholder
+          _id: item.post._id,
           title: item.post.title,
           postSlug: item.post.postSlug,
-          category: "", // This field doesn't appear to be in the response
+          category: "",
           categorySlug: item.post.categorySlug,
           featuredImg: item.post.featuredImg,
           mediaType: item.post.mediaType

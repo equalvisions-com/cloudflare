@@ -387,7 +387,9 @@ export const getProfilePageData = query({
         return post ? {
           _id: follow._id,
           feedUrl: follow.feedUrl,
+          postId: follow.postId,
           post: {
+            _id: post._id,
             title: post.title,
             featuredImg: post.featuredImg,
             categorySlug: post.categorySlug,
@@ -430,6 +432,7 @@ export const getProfileActivityData = query({
       ctx.db
         .query("comments")
         .withIndex("by_user", q => q.eq("userId", userId))
+        .filter(q => q.eq(q.field("parentId"), undefined)) // Only fetch top-level comments
         .order("desc")
         .take(limit),
       ctx.db

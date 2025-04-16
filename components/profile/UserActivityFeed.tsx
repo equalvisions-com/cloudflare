@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Podcast } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Podcast, X } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -229,6 +229,8 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   const replyLikeCountRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // State to track deleted replies
   const [deletedReplies, setDeletedReplies] = useState<Set<string>>(new Set());
+  // State to track if user is actively replying to the main comment
+  const [isReplying, setIsReplying] = useState(false);
   
   // Use Convex query for replies
   const commentRepliesQuery = useQuery(
@@ -297,11 +299,9 @@ export function ActivityDescription({ item, username, name, profileImage, timest
         feedUrl: item.feedUrl
       });
       
-      // Clear the input
+      // Clear the input and hide the reply form
       setReplyText('');
-      
-      // Make sure replies are expanded
-      setRepliesExpanded(true);
+      setIsReplying(false); // Hide the input form
       
       // The replies will automatically update through the Convex subscription
       // No need to manually fetch them again
@@ -326,6 +326,23 @@ export function ActivityDescription({ item, username, name, profileImage, timest
         likeCountRef.current.classList.add('hidden');
       }
     }
+  };
+  
+  // Function to initiate replying to the main comment
+  const handleReplyClick = () => {
+    // Toggle the replying state
+    if (isReplying) {
+      setIsReplying(false);
+      setReplyText(''); // Clear text if closing
+    } else {
+      setIsReplying(true);
+    }
+  };
+
+  // Function to cancel replying
+  const cancelReplyClick = () => {
+    setIsReplying(false);
+    setReplyText(''); // Clear text on cancel
   };
   
   // Check for initial like count from Convex
@@ -410,7 +427,7 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   }, []);
   
   // Render a single reply with ID-based authorization
-  const renderReply = (reply: Comment) => {
+  const renderReply = (reply: Comment, index: number) => {
     // Check if this reply is deleted using the component-level state
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
     
@@ -466,7 +483,9 @@ export function ActivityDescription({ item, username, name, profileImage, timest
     
     return (
       <div key={reply._id} className="mt-0">
-        <div className="flex items-start gap-4 border-t pl-4 py-4">
+        {/* Add padding-left here to indent replies */}
+        {/* Conditionally apply border-t based on index */}
+        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`}> 
           <ProfileImage 
             profileImage={profileImageUrl}
             username={reply.username}
@@ -615,20 +634,34 @@ export function ActivityDescription({ item, username, name, profileImage, timest
                       {timestamp}
                     </div>
                   )}
-                  <div className="leading-none font-semibold text-muted-foreground text-xs">
-                    <button 
-                      onClick={toggleReplies}
-                      className="text-muted-foreground hover:underline focus:outline-none"
-                    >
-                      Replies
-                    </button>
-                  </div>
                   <div 
                     ref={likeCountRef} 
                     className="leading-none font-semibold text-muted-foreground text-xs hidden"
                   >
                     <span>0 Likes</span>
                   </div>
+                  {/* Reply button - only for the main comment */}
+                  <div className="leading-none font-semibold text-muted-foreground text-xs">
+                    <button 
+                      onClick={handleReplyClick}
+                      className="text-muted-foreground hover:underline focus:outline-none"
+                    >
+                      Reply
+                    </button>
+                  </div>
+                  {/* View/Hide Replies Button */}
+                  {(commentRepliesQuery?.length ?? 0) > 0 && (
+                    <div className="leading-none font-semibold text-muted-foreground text-xs">
+                      <button 
+                        onClick={toggleReplies}
+                        className="text-muted-foreground hover:underline focus:outline-none"
+                      >
+                        {repliesExpanded 
+                          ? "Hide Replies" 
+                          : `View Replies (${commentRepliesQuery?.length ?? 0})`}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -668,49 +701,66 @@ export function ActivityDescription({ item, username, name, profileImage, timest
             </div>
           </div>
           
-          {/* Replies section - outside the flex layout */}
-          {repliesExpanded && (
-            <div className="mt-0">
-              {repliesLoading ? (
-                <div className="py-2 text-sm text-muted-foreground">Loading replies...</div>
-              ) : replies.length > 0 ? (
-                <div className="space-y-0">
-                  {replies.map(reply => renderReply(reply))}
-                </div>
-              ) : null}
-              
-              {/* Reply form */}
-              <div className="p-4 border-t">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Write a reply..."
-                    value={replyText}
-                    onChange={(e) => {
-                      // Limit to 500 characters
-                      const newValue = e.target.value.slice(0, 500);
-                      setReplyText(newValue);
-                    }}
-                    className="resize-none h-9 py-2 min-h-0 text-sm"
-                    maxLength={500}
-                    rows={1}
-                  />
-                  <Button 
-                    onClick={submitReply} 
-                    disabled={!replyText.trim() || isSubmittingReply}
-                    size="sm"
-                  >
-                    {isSubmittingReply ? (
-                      <span className="flex items-center">
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        Posting...
-                      </span>
-                    ) : "Reply"}
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground text-right mt-1">
+          {/* Reply Input Form - Conditionally shown */}
+          {isReplying && (
+            <div className="p-4 border-t">
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder={`Replying to ${name}...`}
+                  value={replyText}
+                  onChange={(e) => {
+                    const newValue = e.target.value.slice(0, 500);
+                    setReplyText(newValue);
+                  }}
+                  className="resize-none h-9 py-2 min-h-0 text-sm"
+                  maxLength={500}
+                  rows={1}
+                  autoFocus // Focus the input when it appears
+                />
+                <Button 
+                  onClick={submitReply} 
+                  disabled={!replyText.trim() || isSubmittingReply}
+                  size="sm"
+                >
+                  {isSubmittingReply ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Posting...
+                    </span>
+                  ) : "Post"}
+                </Button>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <button 
+                  onClick={cancelReplyClick}
+                  className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+                >
+                  <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
+                  Cancel
+                </button>
+                <div className="text-xs text-muted-foreground text-right">
                   {replyText.length}/500 characters
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Replies section - shown when repliesExpanded is true */}
+          {repliesExpanded && (
+            <div className="mt-0 border-t"> {/* Add border-t here */}
+              {repliesLoading ? (
+                <div className="py-2 pl-4 text-sm text-muted-foreground">Loading replies...</div>
+              ) : replies.length > 0 ? (
+                <div className="space-y-0">
+                  {replies
+                    .filter(reply => !deletedReplies.has(reply._id.toString())) 
+                    // Pass index to renderReply
+                    .map((reply, index) => renderReply(reply, index)) 
+                  }
+                </div>
+              ) : (
+                 <div className="py-2 pl-4 text-sm text-muted-foreground">No replies yet.</div>
+              )}
             </div>
           )}
         </div>
@@ -1920,12 +1970,13 @@ export function UserActivityFeed({
         <div id={`comments-${entryDetail.guid}`} className="" />
         
         {/* Render all comments in chronological order */}
-        <div className="border-l border-r border-b">
+        <div className="border-b"> {/* Removed border-l and border-r */}
           {group.comments.map((comment) => {
             return (
               <div 
                 key={`comment-${comment._id}`} 
-                className="p-4 border-t relative"
+                // Remove p-4 from here, keep border-t and relative
+                className="border-t relative" 
               >
                 {/* Comment content */}
                 <div className="relative z-10">

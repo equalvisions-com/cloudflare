@@ -6,7 +6,6 @@ import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
-import { Twitter } from "lucide-react";
 import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
 import { useSidebar } from '@/components/ui/sidebar-context';
@@ -169,7 +168,7 @@ export function FeedTabsContainer({
   return (
     <div className="w-full">
 
-<div className="grid grid-cols-3 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
+<div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
 <div>
         {isAuthenticated ? (
           <UserMenuClientWithErrorBoundary 
@@ -182,9 +181,6 @@ export function FeedTabsContainer({
           <SignInButton />
         )}
       </div>
-                      <div className="flex justify-center font-medium">
-                        <Twitter className="h-8 w-8 fill-[#1DA1F2] stroke-[#1DA1F2]" />
-                      </div>
                       <div className="flex justify-end">
                         <MobileSearch />
                       </div>
