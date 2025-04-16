@@ -30,7 +30,7 @@ export async function LayoutManager() {
   const rightSidebar = <RightSidebar />;
   
   // Custom class for main content to add padding at the bottom on all screen sizes
-  const customMainContentClass = `${LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS} pb-[64px]`;
+  const customMainContentClass = `${LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS} pb-[128px]`;
   
   // Use the standardized layout with mobile header
   return (
