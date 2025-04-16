@@ -3,25 +3,22 @@
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
   /* No transition for immediate height changes */
+  /* Use CSS variables for viewport height */
+  height: var(--app-height, 100vh);
+  overflow-y: auto;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
 .embla-slides-container {
   display: flex;
   align-items: flex-start;
+  min-height: calc(var(--app-height, 100vh) - 64px - env(safe-area-inset-bottom, 0px));
 }
 
 /* Ensure each slide takes full width */
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
-  /* Ensure content doesn't overflow under mobile dock */
-  padding-bottom: 64px; /* Match mobile dock height */
-}
-
-/* Hide padding on larger screens */
-@media (min-width: 768px) {
-  .embla-slide {
-    padding-bottom: 0;
-  }
+  /* Ensure slide content fills the available height */
+  min-height: calc(var(--app-height, 100vh) - 64px - env(safe-area-inset-bottom, 0px));
 } 

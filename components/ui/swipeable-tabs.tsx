@@ -85,7 +85,7 @@ const TabContent = React.memo(({
     <div 
       id={`tab-content-${id}`}
       className={cn(
-        "w-full tab-content", 
+        "w-full tab-content min-h-screen-safe", 
         { 
           "tab-content-active": isActive,
           "tab-content-inactive": !isActive
@@ -643,9 +643,39 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
+  // Add effect to measure the viewport height
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const updateViewportHeight = () => {
+      // Get the viewport height
+      const vh = window.innerHeight * 0.01;
+      // Set the CSS variable
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      // Set the app height
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    };
+    
+    // Initial call
+    updateViewportHeight();
+    
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    
+    // Update on safari address bar show/hide
+    window.addEventListener('scroll', updateViewportHeight);
+    
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      window.removeEventListener('scroll', updateViewportHeight);
+    };
+  }, []);
+
   return (
     <div 
-      className={cn('w-full flex flex-col flex-1', className)}
+      className={cn('w-full', className)}
     >
       {/* Tab Headers */}
       <TabHeaders 
@@ -657,26 +687,22 @@ export function SwipeableTabs({
       {/* Carousel container is now visible and holds the actual content */}
       <div 
         className={cn(
-          "w-full overflow-hidden embla__swipeable_tabs flex-1"
+          "w-full overflow-hidden embla__swipeable_tabs min-h-screen-safe",
+          "pb-[calc(64px+env(safe-area-inset-bottom,0px))]" // Add bottom padding for mobile dock
         )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: 'pan-y pinch-zoom', // APPLY CONSISTENTLY
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1 1 auto'
+          touchAction: 'pan-y pinch-zoom' // APPLY CONSISTENTLY
         }}
       >
-        <div className="flex items-start flex-1"
+        <div className="flex items-start"
           style={{
             minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
             willChange: 'transform',
-            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none',
-            flex: '1 1 auto',
-            display: 'flex'
+            transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
           }}
         > 
           {tabs.map((tab, index) => {
@@ -689,7 +715,7 @@ export function SwipeableTabs({
               <div 
                 key={`carousel-${tab.id}`} 
                 className={cn(
-                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide pb-safe-area",
+                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
                   isTransitioning && "transitioning"
                 )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment

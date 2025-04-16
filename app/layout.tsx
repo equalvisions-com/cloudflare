@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
+import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
 import { AudioProvider } from "@/components/audio-player/AudioContext";
@@ -9,6 +9,7 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 
 const inter = Inter({
@@ -42,13 +43,14 @@ export default async function RootLayout({
       {/* `suppressHydrationWarning` only affects the html tag,
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
-      <html lang="en" className="scrollbar-visible dynamic-viewport" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col flex-fill`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen-safe flex flex-col`}
         >
+          <ViewportHeightFix />
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
@@ -61,7 +63,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="flex-fill">
+                  <div className="flex-grow">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>

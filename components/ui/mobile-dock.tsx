@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useEffect, useState } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -51,6 +51,46 @@ NavItem.displayName = "NavItem";
 export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  const [safeAreaBottom, setSafeAreaBottom] = useState('0px');
+  
+  // Effect to get the safe area inset bottom
+  useEffect(() => {
+    // Get the actual safe area value
+    const getSafeAreaInset = () => {
+      // For environment variable support
+      const envValue = getComputedStyle(document.documentElement).getPropertyValue('--sat-bottom-inset');
+      
+      // Try to get the environment variable
+      if (typeof window !== 'undefined') {
+        const computed = window.getComputedStyle(document.documentElement);
+        const safeAreaEnv = computed.getPropertyValue('env(safe-area-inset-bottom)').trim();
+        
+        if (safeAreaEnv && safeAreaEnv !== '0px' && safeAreaEnv !== '0') {
+          return safeAreaEnv;
+        }
+      }
+      
+      // Default to 0px if not available
+      return '0px';
+    };
+    
+    setSafeAreaBottom(getSafeAreaInset());
+    
+    // Listen to orientation changes for safe area updates
+    const handleResize = () => {
+      setTimeout(() => {
+        setSafeAreaBottom(getSafeAreaInset());
+      }, 100); // Small delay to ensure the environment variables have updated
+    };
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -82,6 +122,9 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
     return pathname === href || pathname.startsWith(href + '/');
   }, [pathname]);
 
+  // Calculate the bottom padding based on safe area inset
+  const bottomPadding = safeAreaBottom !== '0px' ? safeAreaBottom : '0px';
+
   return (
     <nav 
       className={cn(
@@ -91,9 +134,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
         className
       )}
       style={{ 
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        height: "64px",
-        zIndex: 9999,
+        paddingBottom: bottomPadding,
+        height: `calc(64px + ${bottomPadding})`,
       }}
       aria-label="Mobile navigation"
     >

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Add viewport height CSS variables for iOS and other browsers */
+:root {
+  --vh: 1vh;
+  --app-height: 100%;
+}
+
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
@@ -10,6 +16,17 @@
   
   .no-overscroll {
     overscroll-behavior: none;
+  }
+
+  /* Add utility for using dynamic viewport height */
+  .h-screen-safe {
+    height: 100vh; /* Fallback for browsers that don't support CSS variables */
+    height: var(--app-height);
+  }
+
+  .min-h-screen-safe {
+    min-height: 100vh; /* Fallback for browsers that don't support CSS variables */
+    min-height: var(--app-height);
   }
 
   .scrollbar-visible::-webkit-scrollbar {
@@ -306,41 +323,4 @@
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;
-}
-
-/* Safe area padding for mobile devices to prevent content from being under the mobile dock */
-.pb-safe-area {
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); /* Mobile dock height + safe area */
-}
-
-@media (min-width: 768px) {
-  .pb-safe-area {
-    padding-bottom: 0; /* Remove padding on desktop */
-  }
-}
-
-/* Fix for mobile browsers with collapsing UI bars */
-.dynamic-viewport {
-  min-height: 100vh; /* Fallback */
-  min-height: 100dvh; /* Dynamic viewport height - modern browsers */
-  display: flex;
-  flex-direction: column;
-}
-
-/* Use dvh units for various height calculations to adapt to mobile browser UI changes */
-.vh-100 {
-  height: 100vh; /* Fallback */
-  height: 100dvh; /* Dynamic viewport height */
-}
-
-.min-vh-100 {
-  min-height: 100vh; /* Fallback */
-  min-height: 100dvh; /* Dynamic viewport height */
-}
-
-/* When browser UI collapses, content should fill available space */
-.flex-fill {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
 }

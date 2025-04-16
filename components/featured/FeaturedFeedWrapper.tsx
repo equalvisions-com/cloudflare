@@ -44,7 +44,7 @@ interface FeaturedFeedWrapperProps {
 export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
   if (!initialData) {
     return (
-      <div className="text-center py-8 text-muted-foreground pb-16 md:pb-0 flex-fill">
+      <div className="text-center py-8 text-muted-foreground">
         <p>No featured content available at the moment.</p>
         <p className="text-sm mt-2">Check back later for featured content.</p>
       </div>
@@ -52,11 +52,9 @@ export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
   }
 
   return (
-    <div className="pb-safe-area flex-fill">
-      <FeaturedFeedClient
-        initialData={initialData}
-        pageSize={30}
-      />
-    </div>
+    <FeaturedFeedClient
+      initialData={initialData}
+      pageSize={30}
+    />
   );
 } 

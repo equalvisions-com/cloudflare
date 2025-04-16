@@ -111,13 +111,11 @@ export function FeedTabsContainerClientWrapper({
   return (
     <Suspense fallback={null}>
       <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
-        <div className="w-full pb-16 md:pb-0 flex-fill">
           <FeedTabsContainerWithErrorBoundary
             initialData={initialData}
             featuredData={featuredData}
             pageSize={pageSize}
           />
-        </div>
       </ReactErrorBoundary>
     </Suspense>
   );
