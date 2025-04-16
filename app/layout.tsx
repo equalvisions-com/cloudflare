@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
@@ -9,8 +9,15 @@ import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import ViewportHeightFix from "@/components/ViewportHeightFix";
 
+// Define viewport export for Next.js App Router
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover"
+};
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -45,12 +52,10 @@ export default async function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen-safe flex flex-col`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}
         >
-          <ViewportHeightFix />
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
               <AudioProvider>
@@ -63,7 +68,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="flex-grow">
+                  <div className="">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>

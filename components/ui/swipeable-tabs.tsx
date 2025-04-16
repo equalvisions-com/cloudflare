@@ -85,7 +85,7 @@ const TabContent = React.memo(({
     <div 
       id={`tab-content-${id}`}
       className={cn(
-        "w-full tab-content min-h-screen-safe", 
+        "w-full tab-content", 
         { 
           "tab-content-active": isActive,
           "tab-content-inactive": !isActive
@@ -643,36 +643,6 @@ export function SwipeableTabs({
     };
   }, [emblaApi]);
 
-  // Add effect to measure the viewport height
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const updateViewportHeight = () => {
-      // Get the viewport height
-      const vh = window.innerHeight * 0.01;
-      // Set the CSS variable
-      document.documentElement.style.setProperty('--vh', `${vh}px`);
-      // Set the app height
-      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-    };
-    
-    // Initial call
-    updateViewportHeight();
-    
-    // Update on resize and orientation change
-    window.addEventListener('resize', updateViewportHeight);
-    window.addEventListener('orientationchange', updateViewportHeight);
-    
-    // Update on safari address bar show/hide
-    window.addEventListener('scroll', updateViewportHeight);
-    
-    return () => {
-      window.removeEventListener('resize', updateViewportHeight);
-      window.removeEventListener('orientationchange', updateViewportHeight);
-      window.removeEventListener('scroll', updateViewportHeight);
-    };
-  }, []);
-
   return (
     <div 
       className={cn('w-full', className)}
@@ -687,8 +657,8 @@ export function SwipeableTabs({
       {/* Carousel container is now visible and holds the actual content */}
       <div 
         className={cn(
-          "w-full overflow-hidden embla__swipeable_tabs min-h-screen-safe",
-          "pb-[calc(64px+env(safe-area-inset-bottom,0px))]" // Add bottom padding for mobile dock
+          "w-full overflow-hidden embla__swipeable_tabs"
+          // REMOVE: !isMobile && "pointer-events-none" 
         )}
         ref={emblaRef}
         style={{ 

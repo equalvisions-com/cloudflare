@@ -2,12 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Add viewport height CSS variables for iOS and other browsers */
-:root {
-  --vh: 1vh;
-  --app-height: 100%;
-}
-
 @layer utilities {
   .scrollbar-visible {
     scrollbar-width: thin;
@@ -16,17 +10,6 @@
   
   .no-overscroll {
     overscroll-behavior: none;
-  }
-
-  /* Add utility for using dynamic viewport height */
-  .h-screen-safe {
-    height: 100vh; /* Fallback for browsers that don't support CSS variables */
-    height: var(--app-height);
-  }
-
-  .min-h-screen-safe {
-    min-height: 100vh; /* Fallback for browsers that don't support CSS variables */
-    min-height: var(--app-height);
   }
 
   .scrollbar-visible::-webkit-scrollbar {
