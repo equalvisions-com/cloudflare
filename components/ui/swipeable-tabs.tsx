@@ -670,7 +670,7 @@ export function SwipeableTabs({
       >
         <div className="flex items-start"
           style={{
-            minHeight: tabHeightsRef.current[selectedTab] ? `calc(${tabHeightsRef.current[selectedTab]}px + env(safe-area-inset-bottom, 0px))` : undefined,
+            minHeight: tabHeightsRef.current[selectedTab] ? `${tabHeightsRef.current[selectedTab]}px` : undefined,
             willChange: 'transform',
             transition: isMobile ? `transform ${animationDuration}ms linear` : 'none'
           }}

@@ -47,7 +47,14 @@ export default async function RootLayout({
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-[100dvh] flex flex-col`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}
+          style={{ 
+            margin: 0, 
+            padding: 0,
+            width: '100%',
+            maxWidth: '100vw',
+            overflowX: 'hidden'
+          }}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class">
@@ -61,7 +68,7 @@ export default async function RootLayout({
                   userId={userId}
                   pendingFriendRequestCount={pendingFriendRequestCount}
                 >
-                  <div className="">
+                  <div className="w-full max-w-full">
                     <div className="hidden">
                       <UserMenuServer />
                     </div>
