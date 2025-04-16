@@ -2,33 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* iOS Safari fixes for safe areas and full viewport width */
-:root {
-  --sat: env(safe-area-inset-top);
-  --sar: env(safe-area-inset-right);
-  --sab: env(safe-area-inset-bottom);
-  --sal: env(safe-area-inset-left);
-}
-
-html, body {
-  max-width: 100vw;
-  width: 100%;
-  overflow-x: hidden;
-}
-
-/* Fix for iOS horizontal overscroll */
-body {
-  position: relative;
-  overscroll-behavior-x: none;
-  -webkit-overflow-scrolling: touch;
-}
-
 @layer utilities {
-  /* Safe area spacing utilities */
-  .mb-safe {
-    margin-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
@@ -332,4 +306,15 @@ body {
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;
+}
+
+/* Safe area padding for mobile devices to prevent content from being under the mobile dock */
+.pb-safe-area {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); /* Mobile dock height + safe area */
+}
+
+@media (min-width: 768px) {
+  .pb-safe-area {
+    padding-bottom: 0; /* Remove padding on desktop */
+  }
 }

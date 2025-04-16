@@ -3,31 +3,25 @@
 /* Container for the auto height carousel */
 .embla-container-with-auto-height {
   /* No transition for immediate height changes */
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
 }
 
 /* Ensure slides align to the top - critical for Auto Height to work */
 .embla-slides-container {
   display: flex;
   align-items: flex-start;
-  width: 100%;
 }
 
 /* Ensure each slide takes full width */
 .embla-slide {
   flex: 0 0 100%;
   min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
+  /* Ensure content doesn't overflow under mobile dock */
+  padding-bottom: 64px; /* Match mobile dock height */
 }
 
-/* Fix for iOS Safari safe areas and horizontal mode */
-@supports (padding: max(0px)) {
-  .embla__swipeable_tabs {
-    padding-left: max(env(safe-area-inset-left), 0px);
-    padding-right: max(env(safe-area-inset-right), 0px);
-    width: 100%;
+/* Hide padding on larger screens */
+@media (min-width: 768px) {
+  .embla-slide {
+    padding-bottom: 0;
   }
 } 

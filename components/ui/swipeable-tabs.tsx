@@ -658,7 +658,6 @@ export function SwipeableTabs({
       <div 
         className={cn(
           "w-full overflow-hidden embla__swipeable_tabs"
-          // REMOVE: !isMobile && "pointer-events-none" 
         )}
         ref={emblaRef}
         style={{ 
@@ -685,7 +684,7 @@ export function SwipeableTabs({
               <div 
                 key={`carousel-${tab.id}`} 
                 className={cn(
-                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
+                  "min-w-0 flex-[0_0_100%] transform-gpu embla-slide pb-safe-area",
                   isTransitioning && "transitioning"
                 )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
