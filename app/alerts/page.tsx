@@ -45,7 +45,7 @@ export default function NotificationsPage() {
         useCardStyle={true}
         containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
       >
-       <div className="sm:pb-[119px] md:pb-[56px]"><NotificationsClientWrapper /></div>
+       <NotificationsClientWrapper />
       </StandardSidebarLayout>
     </>
   );

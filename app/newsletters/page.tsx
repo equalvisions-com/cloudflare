@@ -8,7 +8,7 @@ export default function NewslettersPage() {
       rightSidebar={<RightSidebar showSearch={false} />}
     >
       <div className="space-y-6">
-        <div className="sm:pb-[119px] md:pb-[56px] sm:max-w-full md:max-w-[550px]">
+        <div className="sm:max-w-full md:w-full md:max-w-[550px]">
           <CategorySwipeableWrapper mediaType="newsletter" showEntries={true} />
         </div>
       </div>
