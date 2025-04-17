@@ -181,6 +181,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
                       direction: null, // Direction isn't strictly needed for 'accepted' state display
                       friendshipId: friend.friendship._id
                     }}
+                    className="h-9 rounded-full text-sm font-semibold"
                   />
                 </div>
               ))}

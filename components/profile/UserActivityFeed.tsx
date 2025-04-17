@@ -712,7 +712,7 @@ export function ActivityDescription({ item, username, name, profileImage, timest
                     const newValue = e.target.value.slice(0, 500);
                     setReplyText(newValue);
                   }}
-                  className="resize-none h-9 py-2 min-h-0 text-sm"
+                  className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   maxLength={500}
                   rows={1}
                   autoFocus // Focus the input when it appears
@@ -720,7 +720,7 @@ export function ActivityDescription({ item, username, name, profileImage, timest
                 <Button 
                   onClick={submitReply} 
                   disabled={!replyText.trim() || isSubmittingReply}
-                  size="sm"
+                  size="sm" className="h-9 text-sm font-medium"
                 >
                   {isSubmittingReply ? (
                     <span className="flex items-center">

@@ -394,7 +394,8 @@ export const getProfilePageData = query({
             featuredImg: post.featuredImg,
             categorySlug: post.categorySlug,
             postSlug: post.postSlug,
-            mediaType: post.mediaType
+            mediaType: post.mediaType,
+            verified: post.verified
           }
         } : null;
       })

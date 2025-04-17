@@ -147,10 +147,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
           _id: item.post._id,
           title: item.post.title,
           postSlug: item.post.postSlug,
-          category: "",
           categorySlug: item.post.categorySlug,
           featuredImg: item.post.featuredImg,
-          mediaType: item.post.mediaType
+          mediaType: item.post.mediaType,
+          verified: item.post.verified
         }
       };
     }),

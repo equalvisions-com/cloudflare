@@ -513,13 +513,15 @@ export function CommentSectionClient({
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
         <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
-          <DrawerHeader className="px-4 pb-2 text-center">
-            <DrawerTitle>Comments</DrawerTitle>
+          <DrawerHeader 
+             className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
+           >
+            <DrawerTitle className="text-center text-base font-extrabold leading-none tracking-tight">Comments</DrawerTitle>
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
           <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
-            <div className="mt-2">
+            <div className="mt-0">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => renderComment(comment))
               ) : (
@@ -542,7 +544,7 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
-                  className="text-base resize-none h-9 py-2 min-h-0 overflow-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                  className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   maxLength={500}
                   rows={1}
                 />

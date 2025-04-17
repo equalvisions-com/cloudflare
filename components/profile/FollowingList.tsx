@@ -17,6 +17,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import { FollowButtonWithErrorBoundary } from "../follow-button/FollowButton";
+import { VerifiedBadge } from "../VerifiedBadge";
 
 interface FollowingListProps {
   username: string;
@@ -40,10 +41,10 @@ interface PostData {
   _id: Id<"posts">;
   title: string;
   postSlug: string;
-  category: string;
   categorySlug: string;
   featuredImg?: string;
   mediaType: string;
+  verified?: boolean;
 }
 
 interface FollowingWithPost {
@@ -160,14 +161,10 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                       href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
                        onClick={() => setOpen(false)}
                     >
-                      <span className="text-sm font-bold line-clamp-1">{item.post.title}</span>
-                     </Link>
-                     <Link
-                       href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}`}
-                       onClick={() => setOpen(false)}
-                       className="mt-[-4px]"
-                     >
-                       <span className="text-xs text-muted-foreground line-clamp-1">{item.post.category}</span>
+                      <span className="text-sm font-bold line-clamp-1 flex items-center">
+                        {item.post.title}
+                        {item.post.verified && <VerifiedBadge className="ml-1 h-3.5 w-3.5" />} 
+                      </span>
                      </Link>
                   </div>
                   <FollowButtonWithErrorBoundary
