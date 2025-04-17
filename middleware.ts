@@ -8,7 +8,7 @@ import { getUserProfile } from '@/components/user-menu/UserMenuServer';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isOnboardingPage = createRouteMatcher(["/onboarding"]);
-const isProtectedRoute = createRouteMatcher(["/notifications", "/settings"]);
+const isProtectedRoute = createRouteMatcher(["/settings", "/alerts", "/bookmarks"]);
 const isProfileRoute = createRouteMatcher(["/@:username"]);
 const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
 
