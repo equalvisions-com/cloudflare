@@ -67,7 +67,7 @@ export default function SignInPage() {
                       <h2 className="text-lg font-extrabold tracking-tight">
                         Welcome back
                       </h2>
-                      <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account</p>
+                      <p className="text-sm text-muted-foreground pb-4">Sign in to your account</p>
                       <SignInWithPassword 
                         onResetPassword={() => setStep("resetPassword")}
                       />
@@ -79,7 +79,7 @@ export default function SignInPage() {
                   <h2 className="text-lg font-extrabold tracking-tight">
                     Create an account
                   </h2>
-                  <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your details to continue</p>
+                  <p className="text-sm text-muted-foreground pb-4">Enter your details to continue</p>
                   <SignUpWithPassword onSignIn={() => {
                     setStep("signIn");
                     setActiveTab("sign-in");
@@ -93,7 +93,7 @@ export default function SignInPage() {
                 <h2 className="text-lg font-extrabold tracking-tight">
                   Reset password
                 </h2>
-                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your email to continue</p>
+                <p className="text-sm text-muted-foreground pb-4">Enter your email to continue</p>
                 <ResetPasswordRequest 
                   onEmailSent={(emailValue) => {
                     setEmail(emailValue);
