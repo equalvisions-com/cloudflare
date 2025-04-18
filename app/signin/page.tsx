@@ -11,6 +11,7 @@ import { useState } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { ChevronLeft } from "lucide-react";
 
 type AuthStep = 
   | "signIn" 
@@ -30,119 +31,133 @@ export default function SignInPage() {
       <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8 min-h-[500px]">
         <Card className="shadow-none">
           <CardContent className="pt-4">
-            <Tabs 
-              defaultValue="sign-in" 
-              value={activeTab}
-              onValueChange={(value) => {
-                setActiveTab(value);
-                if (value === "sign-in") {
-                  setStep("signIn");
-                } else if (value === "create-account") {
-                  setStep("signUp");
-                }
-              }}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="sign-in">Sign in</TabsTrigger>
-                <TabsTrigger value="create-account">Create account</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="sign-in" className="space-y-0">
-                {step === "signIn" && (
-                  <>
-                    <h2 className="text-lg font-extrabold tracking-tight">
-                      Welcome back
-                    </h2>
-                    <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account</p>
-                    <SignInWithPassword 
-                      onResetPassword={() => setStep("resetPassword")}
-                    />
-                  </>
-                )}
+            {(step === "resetPassword" || step === "resetSent" || step === "resetVerification") ? (
+              <div className="mb-4">
+                <Button
+                  variant="link"
+                  className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
+                  onClick={() => setStep("signIn")}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Back</span>
+                </Button>
+              </div>
+            ) : (
+              <Tabs 
+                defaultValue="sign-in" 
+                value={activeTab}
+                onValueChange={(value) => {
+                  setActiveTab(value);
+                  if (value === "sign-in") {
+                    setStep("signIn");
+                  } else if (value === "create-account") {
+                    setStep("signUp");
+                  }
+                }}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="sign-in">Sign in</TabsTrigger>
+                  <TabsTrigger value="create-account">Create account</TabsTrigger>
+                </TabsList>
                 
-                {step === "resetPassword" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Reset your password
-                    </h2>
-                    <ResetPasswordRequest 
-                      onEmailSent={(emailValue) => {
-                        setEmail(emailValue);
-                        setStep("resetSent");
-                      }}
-                      onCancel={() => setStep("signIn")}
-                    />
-                  </>
-                )}
+                <TabsContent value="sign-in" className="space-y-0">
+                  {step === "signIn" && (
+                    <>
+                      <h2 className="text-lg font-extrabold tracking-tight">
+                        Welcome back
+                      </h2>
+                      <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account</p>
+                      <SignInWithPassword 
+                        onResetPassword={() => setStep("resetPassword")}
+                      />
+                    </>
+                  )}
+                </TabsContent>
                 
-                {step === "resetSent" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Check your email
-                    </h2>
-                    <p className="text-sm text-muted-foreground">We&apos;ve sent a password reset code to your email address.</p>
-                    <Button
-                      variant="outline" 
-                      className="w-full mt-2"
-                      onClick={() => setStep("resetVerification")}
-                    >
-                      I have a code
-                    </Button>
-                    <Button
-                      className="p-0 self-start mt-2"
-                      variant="link"
-                      onClick={() => setStep("signIn")}
-                    >
-                      Back to sign in
-                    </Button>
-                  </>
-                )}
-                
-                {step === "resetVerification" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Reset your password
-                    </h2>
-                    <ResetPasswordVerification 
-                      email={email}
-                      onSuccess={() => {
-                        setStep("signIn");
-                        setActiveTab("sign-in");
-                      }}
-                      onCancel={() => setStep("signIn")}
-                    />
-                  </>
-                )}
-                
-                {step === "linkSent" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Check your email
-                    </h2>
-                    <p className="text-sm text-muted-foreground">A sign-in link has been sent to your email address.</p>
-                    <Button
-                      className="p-0 self-start mt-2"
-                      variant="link"
-                      onClick={() => setStep("signIn")}
-                    >
-                      Back to sign in
-                    </Button>
-                  </>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="create-account" className="space-y-0">
+                <TabsContent value="create-account" className="space-y-0">
+                  <h2 className="text-lg font-extrabold tracking-tight">
+                    Create an account
+                  </h2>
+                  <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your details to continue</p>
+                  <SignUpWithPassword onSignIn={() => {
+                    setStep("signIn");
+                    setActiveTab("sign-in");
+                  }} />
+                </TabsContent>
+              </Tabs>
+            )}
+            
+            {step === "resetPassword" && (
+              <>
                 <h2 className="text-lg font-extrabold tracking-tight">
-                  Create an account
+                  Reset password
                 </h2>
-                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your details to continue</p>
-                <SignUpWithPassword onSignIn={() => {
-                  setStep("signIn");
-                  setActiveTab("sign-in");
-                }} />
-              </TabsContent>
-            </Tabs>
+                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your email to continue</p>
+                <ResetPasswordRequest 
+                  onEmailSent={(emailValue) => {
+                    setEmail(emailValue);
+                    setStep("resetSent");
+                  }}
+                  onCancel={() => setStep("signIn")}
+                />
+              </>
+            )}
+            
+            {step === "resetSent" && (
+              <>
+                <h2 className="font-semibold text-2xl tracking-tight">
+                  Check your email
+                </h2>
+                <p className="text-sm text-muted-foreground">We&apos;ve sent a password reset code to your email address.</p>
+                <Button
+                  variant="outline" 
+                  className="w-full mt-2"
+                  onClick={() => setStep("resetVerification")}
+                >
+                  I have a code
+                </Button>
+                <Button
+                  className="p-0 self-start mt-2"
+                  variant="link"
+                  onClick={() => setStep("signIn")}
+                >
+                  Back to sign in
+                </Button>
+              </>
+            )}
+            
+            {step === "resetVerification" && (
+              <>
+                <h2 className="font-semibold text-2xl tracking-tight">
+                  Reset your password
+                </h2>
+                <ResetPasswordVerification 
+                  email={email}
+                  onSuccess={() => {
+                    setStep("signIn");
+                    setActiveTab("sign-in");
+                  }}
+                  onCancel={() => setStep("signIn")}
+                />
+              </>
+            )}
+            
+            {step === "linkSent" && (
+              <>
+                <h2 className="font-semibold text-2xl tracking-tight">
+                  Check your email
+                </h2>
+                <p className="text-sm text-muted-foreground">A sign-in link has been sent to your email address.</p>
+                <Button
+                  className="p-0 self-start mt-2"
+                  variant="link"
+                  onClick={() => setStep("signIn")}
+                >
+                  Back to sign in
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
