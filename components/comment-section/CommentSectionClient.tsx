@@ -26,6 +26,7 @@ import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from 'next/link';
+import { useRouter } from "next/navigation";
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -109,6 +110,7 @@ export function CommentSectionClient({
   
   // Authentication and current user
   const { isAuthenticated } = useConvexAuth();
+  const router = useRouter();
   const viewer = useQuery(api.users.viewer);
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
@@ -169,6 +171,10 @@ export function CommentSectionClient({
   const addComment = useMutation(api.comments.addComment);
   
   const handleSubmit = useCallback(async () => {
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
     if (!comment.trim() || isSubmitting) return;
     
     setIsSubmitting(true);
@@ -190,7 +196,7 @@ export function CommentSectionClient({
         entryGuid,
         feedUrl,
         content: commentContent,
-        parentId // Add parentId if replying to a comment
+        parentId
       });
       
       // Successful submission - no need to do anything as Convex will update the UI
@@ -208,7 +214,7 @@ export function CommentSectionClient({
         setIsSubmitting(false);
       }
     }
-  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting]);
+  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting, isAuthenticated, router]);
   
   // Function to handle initiating a reply to a comment
   const handleReply = (comment: CommentFromAPI) => {

@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useRouter } from "next/navigation";
 
 interface CommentLikeButtonProps {
   commentId: Id<"comments">;
@@ -41,6 +42,10 @@ export function CommentLikeButton({
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
+  
+  // Add authentication and router hooks
+  const { isAuthenticated } = useConvexAuth();
+  const router = useRouter();
   
   useEffect(() => {
     // Set mounted flag to true
@@ -101,6 +106,10 @@ export function CommentLikeButton({
   const toggleLike = useMutation(api.commentLikes.toggleCommentLike);
   
   const handleToggleLike = async () => {
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
     if (isSubmitting) return;
     
     setIsSubmitting(true);

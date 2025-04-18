@@ -9,6 +9,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 
 type AuthStep = 
   | "signIn" 
@@ -21,122 +23,128 @@ type AuthStep =
 export default function SignInPage() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
+  const [activeTab, setActiveTab] = useState("sign-in");
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto">
-      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8">
-        {step === "signIn" && (
-          <>
-            <div className="space-y-1 mb-2 !mt-[-5px]">
-              <h2 className="font-semibold text-2xl tracking-tight">
-                Sign in to your account
-              </h2>
-              <div className="text-sm text-muted-foreground">
-                Don&apos;t have an account?{" "}
-                <Button 
-                  variant="link" 
-                  type="button" 
-                  className="p-0 h-auto" 
-                  onClick={() => setStep("signUp")}
-                >
-                  Sign up
-                </Button>
-              </div>
-            </div>
-            <SignInWithPassword 
-              onResetPassword={() => setStep("resetPassword")}
-            />
-          </>
-        )}
-
-        {step === "signUp" && (
-          <>
-            <div className="space-y-1 mb-2">
-              <h2 className="font-semibold text-2xl tracking-tight">
-                Create an account
-              </h2>
-              <div className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Button 
-                  variant="link" 
-                  type="button" 
-                  className="p-0 h-auto" 
-                  onClick={() => setStep("signIn")}
-                >
-                  Sign in
-                </Button>
-              </div>
-            </div>
-            <SignUpWithPassword onSignIn={() => setStep("signIn")} />
-          </>
-        )}
-
-        {step === "resetPassword" && (
-          <>
-            <h2 className="font-semibold text-2xl tracking-tight">
-              Reset your password
-            </h2>
-            <ResetPasswordRequest 
-              onEmailSent={(emailValue) => {
-                setEmail(emailValue);
-                setStep("resetSent");
+      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8 min-h-[500px]">
+        <Card className="shadow-none">
+          <CardContent className="pt-4">
+            <Tabs 
+              defaultValue="sign-in" 
+              value={activeTab}
+              onValueChange={(value) => {
+                setActiveTab(value);
+                if (value === "sign-in") {
+                  setStep("signIn");
+                } else if (value === "create-account") {
+                  setStep("signUp");
+                }
               }}
-              onCancel={() => setStep("signIn")}
-            />
-          </>
-        )}
-
-        {step === "resetSent" && (
-          <>
-            <h2 className="font-semibold text-2xl tracking-tight">
-              Check your email
-            </h2>
-            <p>We&apos;ve sent a password reset code to your email address.</p>
-            <Button
-              variant="outline"
-              className="mt-2"
-              onClick={() => setStep("resetVerification")}
+              className="w-full"
             >
-              I have a code
-            </Button>
-            <Button
-              className="p-0 self-start"
-              variant="link"
-              onClick={() => setStep("signIn")}
-            >
-              Back to sign in
-            </Button>
-          </>
-        )}
-
-        {step === "resetVerification" && (
-          <>
-            <h2 className="font-semibold text-2xl tracking-tight">
-              Reset your password
-            </h2>
-            <ResetPasswordVerification 
-              email={email}
-              onSuccess={() => setStep("signIn")}
-              onCancel={() => setStep("signIn")}
-            />
-          </>
-        )}
-
-        {step === "linkSent" && (
-          <>
-            <h2 className="font-semibold text-2xl tracking-tight">
-              Check your email
-            </h2>
-            <p>A sign-in link has been sent to your email address.</p>
-            <Button
-              className="p-0 self-start"
-              variant="link"
-              onClick={() => setStep("signIn")}
-            >
-              Back to sign in
-            </Button>
-          </>
-        )}
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="sign-in">Sign In</TabsTrigger>
+                <TabsTrigger value="create-account">Create Account</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="sign-in" className="space-y-0">
+                {step === "signIn" && (
+                  <>
+                    <h2 className="text-lg font-extrabold tracking-tight">
+                      Welcome back
+                    </h2>
+                    <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account to continue</p>
+                    <SignInWithPassword 
+                      onResetPassword={() => setStep("resetPassword")}
+                    />
+                  </>
+                )}
+                
+                {step === "resetPassword" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Reset your password
+                    </h2>
+                    <ResetPasswordRequest 
+                      onEmailSent={(emailValue) => {
+                        setEmail(emailValue);
+                        setStep("resetSent");
+                      }}
+                      onCancel={() => setStep("signIn")}
+                    />
+                  </>
+                )}
+                
+                {step === "resetSent" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Check your email
+                    </h2>
+                    <p className="text-sm text-muted-foreground">We&apos;ve sent a password reset code to your email address.</p>
+                    <Button
+                      variant="outline" 
+                      className="w-full mt-2"
+                      onClick={() => setStep("resetVerification")}
+                    >
+                      I have a code
+                    </Button>
+                    <Button
+                      className="p-0 self-start mt-2"
+                      variant="link"
+                      onClick={() => setStep("signIn")}
+                    >
+                      Back to sign in
+                    </Button>
+                  </>
+                )}
+                
+                {step === "resetVerification" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Reset your password
+                    </h2>
+                    <ResetPasswordVerification 
+                      email={email}
+                      onSuccess={() => {
+                        setStep("signIn");
+                        setActiveTab("sign-in");
+                      }}
+                      onCancel={() => setStep("signIn")}
+                    />
+                  </>
+                )}
+                
+                {step === "linkSent" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Check your email
+                    </h2>
+                    <p className="text-sm text-muted-foreground">A sign-in link has been sent to your email address.</p>
+                    <Button
+                      className="p-0 self-start mt-2"
+                      variant="link"
+                      onClick={() => setStep("signIn")}
+                    >
+                      Back to sign in
+                    </Button>
+                  </>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="create-account" className="space-y-0">
+                <h2 className="text-lg font-extrabold tracking-tight">
+                  Create an account
+                </h2>
+                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Create your account to continue</p>
+                <SignUpWithPassword onSignIn={() => {
+                  setStep("signIn");
+                  setActiveTab("sign-in");
+                }} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
       <Toaster />
     </div>
@@ -147,7 +155,7 @@ function SignInWithGoogle() {
   const { signIn } = useAuthActions();
   return (
     <Button
-      className="w-full flex-1"
+      className="w-full flex-1 shadow-none font-semibold"
       variant="outline"
       type="button"
       onClick={() => void signIn("google", { redirectTo: "/" })}
@@ -192,23 +200,26 @@ function SignInWithPassword({
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="signin-email">Email</Label>
+        <div className="flex justify-between items-center">
+          <Label className="font-bold" htmlFor="signin-email">Email</Label>
+        </div>
         <Input 
           id="signin-email" 
           name="email" 
           type="email" 
           autoComplete="email" 
           required 
+          className="shadow-none"
         />
       </div>
       
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label htmlFor="signin-password">Password</Label>
+          <Label className="font-bold" htmlFor="signin-password">Password</Label>
           <Button 
             variant="link" 
             type="button" 
-            className="p-0 font-normal text-sm h-auto" 
+            className="p-0 h-auto text-sm font-normal" 
             onClick={onResetPassword}
           >
             Forgot password?
@@ -220,11 +231,12 @@ function SignInWithPassword({
           type="password" 
           autoComplete="current-password" 
           required 
+          className="shadow-none"
         />
       </div>
       
-      <Button type="submit" className="w-full">
-        Sign in
+      <Button type="submit" className="w-full font-semibold">
+        Sign In
       </Button>
 
       <OAuthOption />
@@ -235,7 +247,7 @@ function SignInWithPassword({
 function OAuthOption() {
   return (
     <div className="w-full">
-      <div className="relative my-3">
+      <div className="relative mb-3">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border" />
         </div>
@@ -305,18 +317,24 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="signup-email">Email</Label>
+        <div className="flex justify-between items-center">
+          <Label className="font-bold" htmlFor="signup-email">Email</Label>
+        </div>
         <Input 
           id="signup-email" 
           name="email" 
           type="email" 
           autoComplete="email" 
           required 
+          className="shadow-none"
         />
       </div>
       
-      <div className="space-y-2">
-        <Label htmlFor="signup-password">Password</Label>
+      <div className="space-y-2 mb-4">
+        <div className="flex justify-between items-center">
+          <Label className="font-bold" htmlFor="signup-password">Password</Label>
+          <span className="invisible text-sm h-[20px]">Forgot password?</span>
+        </div>
         <Input 
           id="signup-password" 
           name="password" 
@@ -327,6 +345,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
           onBlur={() => setPasswordFocused(false)}
           onChange={(e) => setPasswordValue(e.target.value)}
           value={passwordValue}
+          className="shadow-none"
         />
         {showPasswordRequirements && (
           <p className="text-xs text-muted-foreground">
@@ -335,7 +354,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         )}
       </div>
       
-      <Button type="submit" className="w-full" disabled={submitting}>
+      <Button type="submit" className="w-full font-semibold" disabled={submitting}>
         Create account
       </Button>
       
@@ -384,13 +403,16 @@ function ResetPasswordRequest({
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="reset-email">Email</Label>
+        <div className="flex justify-between items-center">
+          <Label htmlFor="reset-email">Email</Label>
+        </div>
         <Input 
           id="reset-email" 
           name="email" 
           type="email" 
           autoComplete="email" 
           required 
+          className="shadow-none"
         />
       </div>
       
@@ -401,7 +423,7 @@ function ResetPasswordRequest({
       <Button 
         variant="outline" 
         type="button" 
-        className="w-full" 
+        className="w-full mt-4" 
         onClick={onCancel}
         disabled={submitting}
       >
@@ -478,7 +500,9 @@ function ResetPasswordVerification({
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="verification-code">Verification code</Label>
+        <div className="flex justify-between items-center">
+          <Label htmlFor="verification-code">Verification code</Label>
+        </div>
         <InputOTP
           maxLength={8}
           value={code}
@@ -495,13 +519,16 @@ function ResetPasswordVerification({
             <InputOTPSlot index={7} />
           </InputOTPGroup>
         </InputOTP>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground">
           Enter the 8-digit code sent to your email
         </p>
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="new-password">New password</Label>
+        <div className="flex justify-between items-center">
+          <Label htmlFor="new-password">New password</Label>
+          <span className="invisible text-sm h-[20px]">Forgot password?</span>
+        </div>
         <Input 
           id="new-password" 
           name="newPassword" 
@@ -512,6 +539,7 @@ function ResetPasswordVerification({
           onBlur={() => setPasswordFocused(false)}
           onChange={(e) => setPasswordValue(e.target.value)}
           value={passwordValue}
+          className="shadow-none"
         />
         {showPasswordRequirements && (
           <p className="text-xs text-muted-foreground">
@@ -527,7 +555,7 @@ function ResetPasswordVerification({
       <Button 
         variant="outline" 
         type="button" 
-        className="w-full" 
+        className="w-full mt-4" 
         onClick={onCancel}
         disabled={submitting}
       >

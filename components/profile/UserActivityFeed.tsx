@@ -4,6 +4,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
 import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Podcast, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Virtuoso } from 'react-virtuoso';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -330,10 +331,14 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   
   // Function to initiate replying to the main comment
   const handleReplyClick = () => {
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
     // Toggle the replying state
     if (isReplying) {
       setIsReplying(false);
-      setReplyText(''); // Clear text if closing
+      setReplyText('');
     } else {
       setIsReplying(true);
     }
@@ -359,8 +364,9 @@ export function ActivityDescription({ item, username, name, profileImage, timest
   
   // Add authentication state
   const { isAuthenticated } = useConvexAuth();
-  const [isCurrentUser, setIsCurrentUser] = useState(false);
   const viewer = useQuery(api.users.viewer);
+  const router = useRouter();
+  const [isCurrentUser, setIsCurrentUser] = useState(false);
   
   // Add state to track if comment is deleted
   const [isDeleted, setIsDeleted] = useState(false);
