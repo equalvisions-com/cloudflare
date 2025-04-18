@@ -45,7 +45,7 @@ export function StandardSidebarLayout({
       </div>
       
       {/* Main content area with error boundary */}
-      <main className={finalMainContentClass}>
+      <main className={`${finalMainContentClass} min-w-0`}>
         <ErrorBoundary>
             {children}
         </ErrorBoundary>

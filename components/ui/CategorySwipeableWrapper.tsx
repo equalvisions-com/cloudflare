@@ -88,7 +88,7 @@ export function CategorySwipeableWrapper({
   const entriesTabLabel = useMemo(() => {
     switch (mediaType) {
       case 'newsletter':
-        return 'Posts';
+        return 'Entries';
       case 'podcast':
         return 'Episodes';
       default:
@@ -703,7 +703,7 @@ export function CategorySwipeableWrapper({
       </div>
       
       {/* Content display area */}
-      <div className="relative transition-all">
+      <div className="relative transition-all w-full">
         {/* Search Results */}
         {searchQuery && (
           <>

@@ -7,10 +7,8 @@ export default function PodcastsPage() {
     <StandardSidebarLayout
       rightSidebar={<RightSidebar showSearch={false} />}
     >
-      <div className="space-y-6">
-      <div className="sm:max-w-full md:w-full md:max-w-[550px]">
+      <div className="w-full">
       <CategorySwipeableWrapper mediaType="podcast" showEntries={true} />
-        </div>
       </div>
     </StandardSidebarLayout>
   );

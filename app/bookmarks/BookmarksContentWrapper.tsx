@@ -53,7 +53,7 @@ export function BookmarksContentWrapper() {
 
   // Provide safe fallbacks for props
   return (
-    <div className="pb-[128px]">
+    <div className="sm:pb-[128px] md:pb-0">
       <BookmarksContent 
         userId={userId || null} 
         initialData={initialData} 
