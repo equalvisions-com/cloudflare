@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 type FriendshipStatus = {
   exists: boolean;
@@ -43,6 +44,7 @@ export function SimpleFriendButton({
   pendingClassName = "text-muted-foreground",
   friendsClassName = "text-muted-foreground" 
 }: SimpleFriendButtonProps) {
+  const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -74,7 +76,10 @@ export function SimpleFriendButton({
 
   // Handle add friend action
   const handleAddFriend = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
     
     setIsActionLoading(true);
     try {
@@ -97,7 +102,12 @@ export function SimpleFriendButton({
 
   // Handle accept friend request
   const handleAcceptFriend = async () => {
-    if (!currentStatus?.friendshipId || !isAuthenticated) return;
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
+    
+    if (!currentStatus?.friendshipId) return;
     
     setIsActionLoading(true);
     try {
@@ -116,7 +126,12 @@ export function SimpleFriendButton({
 
   // Handle unfriend or cancel request
   const handleUnfriend = async () => {
-    if (!currentStatus?.friendshipId || !isAuthenticated) return;
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
+    
+    if (!currentStatus?.friendshipId) return;
     
     setIsActionLoading(true);
     try {
@@ -155,14 +170,14 @@ export function SimpleFriendButton({
     );
   }
 
-  // Not authenticated - show sign in message
+  // Not authenticated - show sign in button
   if (!isAuthenticated) {
     return (
       <Button 
         variant="default" 
         size="sm" 
         className={cn(className, "border-0 shadow-none")}
-        title="Sign in to add as friend"
+        onClick={() => router.push("/signin")}
       >
         Add Friend
       </Button>
