@@ -89,7 +89,7 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
                           name: follower.name,
                           profileImage: follower.profileImage
                         }}
-                        className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold"
+                        className="rounded-full h-9 px-4 py-2 flex-shrink-0 mt-0 font-semibold text-sm"
                       />
                     </div>
                   ))

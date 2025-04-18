@@ -218,13 +218,12 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                     <div className="flex flex-col flex-1 min-w-0">
                       <Link
                         href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                         onClick={() => setOpen(false)}
+                        onClick={() => setOpen(false)}
                       >
-                        <span className="text-sm font-bold line-clamp-1 flex items-center">
-                          {item.post.title}
-                          {item.post.verified && <VerifiedBadge className="ml-1 h-3.5 w-3.5" />} 
-                        </span>
-                       </Link>
+                        <div className="text-sm font-bold">
+                          {item.post.title} {item.post.verified && <VerifiedBadge className="inline-block align-text-middle ml-0.5 h-3.5 w-3.5" />}
+                        </div>
+                      </Link>
                     </div>
                     {isLoadingStatus ? (
                       <Button variant="outline" size="sm" disabled className="flex-shrink-0 w-[100px]">
