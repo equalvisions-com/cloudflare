@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -52,6 +52,39 @@ interface FollowingWithPost {
   post: PostData;
 }
 
+// New Component Definition
+interface ViewerFollowStatusButtonProps {
+  postId: Id<"posts">;
+  feedUrl: string;
+  postTitle: string;
+}
+
+function ViewerFollowStatusButton({ postId, feedUrl, postTitle }: ViewerFollowStatusButtonProps) {
+  const isViewerFollowing = useQuery(
+    api.following.isFollowing,
+    { postId }
+  );
+
+  if (isViewerFollowing === undefined) {
+    return (
+      <Button variant="outline" size="sm" disabled className="flex-shrink-0 w-[100px]">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </Button>
+    );
+  }
+
+  return (
+    <FollowButtonWithErrorBoundary
+      postId={postId}
+      feedUrl={feedUrl}
+      postTitle={postTitle}
+      initialIsFollowing={isViewerFollowing}
+      className="flex-shrink-0"
+    />
+  );
+}
+// End of New Component Definition
+
 export function FollowingList({ username, initialCount = 0, initialFollowing }: FollowingListProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,10 +95,35 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   const [hasMore, setHasMore] = useState<boolean>(initialFollowing?.hasMore ?? false);
   const [count, setCount] = useState<number>(initialCount);
   
-  // Use the count query when the drawer is open
-  const latestCount = useQuery(api.following.getFollowingCountByUsername, open ? { 
-    username
-  } : "skip");
+  // Extract all post IDs for batched follow status query
+  const postIds = useMemo(() => 
+    followingItems.map(item => item.following.postId),
+    [followingItems]
+  );
+  
+  // Make a single batched query for all post IDs' follow status
+  // This returns an array of booleans where each index corresponds to the postIds array
+  const followStatusArray = useQuery(
+    api.following.getFollowStates,
+    open && postIds.length > 0 ? { postIds } : "skip"
+  );
+  
+  // Create a mapping of postId to follow status for easier lookup
+  const followStatusMap = useMemo(() => {
+    if (!followStatusArray || !postIds) return {};
+    
+    // Build a map of postId string -> follow status boolean
+    const map: Record<string, boolean> = {};
+    
+    postIds.forEach((id, index) => {
+      // Make sure we don't access beyond the array bounds
+      if (index < followStatusArray.length) {
+        map[id.toString()] = followStatusArray[index];
+      }
+    });
+    
+    return map;
+  }, [followStatusArray, postIds]);
   
   // Get next page of following when the drawer is open
   const loadMoreFollowing = async () => {
@@ -91,13 +149,6 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
       setIsLoading(false);
     }
   };
-  
-  // Update the count if it changes
-  useEffect(() => {
-    if (latestCount !== undefined && latestCount !== null) {
-      setCount(latestCount);
-    }
-  }, [latestCount]);
   
    // Effect to reset following list when drawer opens if initial data wasn't provided or might be stale
    useEffect(() => {
@@ -139,43 +190,58 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
             </div>
           ) : (
             <div className="space-y-0">
-              {followingItems.map((item: FollowingWithPost) => (
-                <div key={item.following._id.toString()} className="flex items-center justify-between gap-3 p-4 border-b border-border">
-                  <Link
-                    href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                    className="flex-shrink-0 h-10 w-10 rounded-md bg-muted overflow-hidden"
-                    onClick={() => setOpen(false)}
-                  >
-                    {item.post.featuredImg ? (
-                      <img
-                        src={item.post.featuredImg}
-                        alt={item.post.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                       <div className="h-full w-full bg-muted"></div>
-                    )}
-                  </Link>
-                  <div className="flex flex-col flex-1 min-w-0">
+              {followingItems.map((item: FollowingWithPost) => {
+                // Get the follow status for this post from the mapping
+                const postIdStr = item.following.postId.toString();
+                const isFollowing = followStatusMap[postIdStr];
+                
+                // undefined means still loading
+                const isLoadingStatus = followStatusArray === undefined;
+                
+                return (
+                  <div key={item.following._id.toString()} className="flex items-center justify-between gap-3 p-4 border-b border-border">
                     <Link
                       href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                       onClick={() => setOpen(false)}
+                      className="flex-shrink-0 h-10 w-10 rounded-md bg-muted overflow-hidden"
+                      onClick={() => setOpen(false)}
                     >
-                      <span className="text-sm font-bold line-clamp-1 flex items-center">
-                        {item.post.title}
-                        {item.post.verified && <VerifiedBadge className="ml-1 h-3.5 w-3.5" />} 
-                      </span>
-                     </Link>
+                      {item.post.featuredImg ? (
+                        <img
+                          src={item.post.featuredImg}
+                          alt={item.post.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                         <div className="h-full w-full bg-muted"></div>
+                      )}
+                    </Link>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <Link
+                        href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
+                         onClick={() => setOpen(false)}
+                      >
+                        <span className="text-sm font-bold line-clamp-1 flex items-center">
+                          {item.post.title}
+                          {item.post.verified && <VerifiedBadge className="ml-1 h-3.5 w-3.5" />} 
+                        </span>
+                       </Link>
+                    </div>
+                    {isLoadingStatus ? (
+                      <Button variant="outline" size="sm" disabled className="flex-shrink-0 w-[100px]">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </Button>
+                    ) : (
+                      <FollowButtonWithErrorBoundary
+                        postId={item.following.postId}
+                        feedUrl={item.following.feedUrl}
+                        postTitle={item.post.title}
+                        initialIsFollowing={isFollowing}
+                        className="flex-shrink-0"
+                      />
+                    )}
                   </div>
-                  <FollowButtonWithErrorBoundary
-                    postId={item.following.postId}
-                    feedUrl={item.following.feedUrl}
-                    postTitle={item.post.title}
-                    initialIsFollowing={true}
-                    className="flex-shrink-0"
-                  />
-                </div>
-              ))}
+                );
+              })}
 
               {hasMore && (
                 <div className="py-4 text-center">
