@@ -77,9 +77,9 @@ export default function SignInPage() {
                 
                 <TabsContent value="create-account" className="space-y-0">
                   <h2 className="text-lg font-extrabold tracking-tight">
-                    Create an account
+                    Create account
                   </h2>
-                  <p className="text-sm text-muted-foreground pb-4">Enter your details to continue</p>
+                  <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
                   <SignUpWithPassword onSignIn={() => {
                     setStep("signIn");
                     setActiveTab("sign-in");
@@ -93,7 +93,7 @@ export default function SignInPage() {
                 <h2 className="text-lg font-extrabold tracking-tight">
                   Reset password
                 </h2>
-                <p className="text-sm text-muted-foreground pb-4">Enter your email to continue</p>
+                <p className="text-sm text-muted-foreground pb-4">Enter your email</p>
                 <ResetPasswordRequest 
                   onEmailSent={(emailValue) => {
                     setEmail(emailValue);
