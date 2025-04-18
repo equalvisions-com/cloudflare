@@ -44,8 +44,8 @@ export default function SignInPage() {
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="sign-in">Sign In</TabsTrigger>
-                <TabsTrigger value="create-account">Create Account</TabsTrigger>
+                <TabsTrigger value="sign-in">Sign in</TabsTrigger>
+                <TabsTrigger value="create-account">Create account</TabsTrigger>
               </TabsList>
               
               <TabsContent value="sign-in" className="space-y-0">
@@ -54,7 +54,7 @@ export default function SignInPage() {
                     <h2 className="text-lg font-extrabold tracking-tight">
                       Welcome back
                     </h2>
-                    <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account to continue</p>
+                    <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Sign in to your account</p>
                     <SignInWithPassword 
                       onResetPassword={() => setStep("resetPassword")}
                     />
@@ -136,7 +136,7 @@ export default function SignInPage() {
                 <h2 className="text-lg font-extrabold tracking-tight">
                   Create an account
                 </h2>
-                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Create your account to continue</p>
+                <p className="text-sm text-muted-foreground pb-4 pt-[1px]">Enter your details to continue</p>
                 <SignUpWithPassword onSignIn={() => {
                   setStep("signIn");
                   setActiveTab("sign-in");
@@ -201,7 +201,7 @@ function SignInWithPassword({
     >
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label className="font-bold" htmlFor="signin-email">Email</Label>
+          <Label className="font-semibold" htmlFor="signin-email">Email</Label>
         </div>
         <Input 
           id="signin-email" 
@@ -215,7 +215,7 @@ function SignInWithPassword({
       
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label className="font-bold" htmlFor="signin-password">Password</Label>
+          <Label className="font-semibold" htmlFor="signin-password">Password</Label>
           <Button 
             variant="link" 
             type="button" 
@@ -235,8 +235,8 @@ function SignInWithPassword({
         />
       </div>
       
-      <Button type="submit" className="w-full font-semibold">
-        Sign In
+      <Button type="submit" className="w-full font-medium text-sm">
+        Sign in
       </Button>
 
       <OAuthOption />
@@ -318,7 +318,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
     >
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label className="font-bold" htmlFor="signup-email">Email</Label>
+          <Label className="font-semibold" htmlFor="signup-email">Email</Label>
         </div>
         <Input 
           id="signup-email" 
@@ -332,7 +332,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
       
       <div className="space-y-2 mb-4">
         <div className="flex justify-between items-center">
-          <Label className="font-bold" htmlFor="signup-password">Password</Label>
+          <Label className="font-semibold" htmlFor="signup-password">Password</Label>
           <span className="invisible text-sm h-[20px]">Forgot password?</span>
         </div>
         <Input 
@@ -354,7 +354,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         )}
       </div>
       
-      <Button type="submit" className="w-full font-semibold" disabled={submitting}>
+      <Button type="submit" className="w-full font-medium text-sm" disabled={submitting}>
         Create account
       </Button>
       
