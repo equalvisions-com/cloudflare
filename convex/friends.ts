@@ -1,7 +1,58 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+
+// Helper function to check friendship status between two users
+export async function checkFriendshipStatus(
+  ctx: QueryCtx,
+  requesterId: Id<"users">,
+  requesteeId: Id<"users">
+) {
+  // Check if a friendship already exists in either direction
+  const sentRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q: any) => 
+      q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
+    )
+    .first()
+    .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
+
+  if (sentRequest) {
+    return {
+      exists: true,
+      status: sentRequest.status,
+      direction: "sent",
+      friendshipId: sentRequest._id,
+    };
+  }
+
+  // Check if there's a request from the other user
+  const receivedRequest = await ctx.db
+    .query("friends")
+    .withIndex("by_users", (q: any) => 
+      q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
+    )
+    .first()
+    .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
+
+  if (receivedRequest) {
+    return {
+      exists: true,
+      status: receivedRequest.status,
+      direction: "received",
+      friendshipId: receivedRequest._id,
+    };
+  }
+
+  // No friendship exists
+  return {
+    exists: false,
+    status: null,
+    direction: null,
+    friendshipId: null,
+  };
+}
 
 // Check the friendship status between two users
 export const getFriendshipStatus = query({
@@ -11,48 +62,7 @@ export const getFriendshipStatus = query({
   },
   handler: async (ctx, args) => {
     const { requesterId, requesteeId } = args;
-
-    // Check if a friendship already exists in either direction
-    const sentRequest = await ctx.db
-      .query("friends")
-      .withIndex("by_users", (q) => 
-        q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
-      )
-      .first();
-
-    if (sentRequest) {
-      return {
-        exists: true,
-        status: sentRequest.status,
-        direction: "sent",
-        friendshipId: sentRequest._id,
-      };
-    }
-
-    // Check if there's a request from the other user
-    const receivedRequest = await ctx.db
-      .query("friends")
-      .withIndex("by_users", (q) => 
-        q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
-      )
-      .first();
-
-    if (receivedRequest) {
-      return {
-        exists: true,
-        status: receivedRequest.status,
-        direction: "received",
-        friendshipId: receivedRequest._id,
-      };
-    }
-
-    // No friendship exists
-    return {
-      exists: false,
-      status: null,
-      direction: null,
-      friendshipId: null,
-    };
+    return checkFriendshipStatus(ctx, requesterId, requesteeId);
   },
 });
 
@@ -91,10 +101,7 @@ export const getFriendshipStatusByUserId = query({
       };
     }
 
-    return getFriendshipStatus(ctx, {
-      requesterId: userId,
-      requesteeId: userId2,
-    });
+    return checkFriendshipStatus(ctx, userId, userId2);
   },
 });
 
@@ -123,12 +130,13 @@ export const getFriendshipStatusByUsername = query({
       userId = authUserId;
     }
 
-    // Only get the _id field from the user, not the entire document
+    // Get the user by username using the by_username index
     const user = await ctx.db
       .query("users")
       .withIndex("by_username", q => q.eq("username", username))
-      .first();
-
+      .first()
+      .then(user => user ? { _id: user._id } : null);
+    
     if (!user) {
       throw new Error("User not found");
     }
@@ -145,10 +153,7 @@ export const getFriendshipStatusByUsername = query({
       };
     }
 
-    return getFriendshipStatus(ctx, {
-      requesterId: userId,
-      requesteeId: profileUserId,
-    });
+    return checkFriendshipStatus(ctx, userId, profileUserId);
   },
 });
 
@@ -165,7 +170,8 @@ export const getFriendCountByUsername = query({
     const user = await ctx.db
       .query("users")
       .withIndex("by_username", q => q.eq("username", username))
-      .first();
+      .first()
+      .then(user => user ? { _id: user._id } : null);
     
     if (!user) {
       throw new Error("User not found");
@@ -208,7 +214,8 @@ export const getFriendsByUsername = query({
     const user = await ctx.db
       .query("users")
       .withIndex("by_username", q => q.eq("username", username))
-      .first();
+      .first()
+      .then(user => user ? { _id: user._id } : null);
     
     if (!user) {
       throw new Error("User not found");
@@ -471,7 +478,8 @@ export const sendFriendRequest = mutation({
       .withIndex("by_users", (q) => 
         q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
       )
-      .first();
+      .first()
+      .then(doc => doc ? { _id: doc._id } : null);
 
     if (existingFriendship) {
       throw new Error("Friend request already sent");
@@ -483,7 +491,8 @@ export const sendFriendRequest = mutation({
       .withIndex("by_users", (q) => 
         q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
       )
-      .first();
+      .first()
+      .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
 
     if (receivedRequest) {
       // If there's a pending request from the other user, accept it

@@ -17,6 +17,7 @@ interface FollowButtonProps {
   initialIsFollowing: boolean;
   isAuthenticated?: boolean; // Make optional to maintain backward compatibility
   className?: string; // Add className prop
+  disableAutoFetch?: boolean; // New prop to control when we should skip individual fetching
 }
 
 const fetcher = async (key: string) => {
@@ -41,7 +42,8 @@ export function FollowButton({
   postTitle, 
   initialIsFollowing,
   isAuthenticated: serverIsAuthenticated,
-  className 
+  className,
+  disableAutoFetch = false
 }: FollowButtonProps) {
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
@@ -53,16 +55,20 @@ export function FollowButton({
   // Track if we've loaded the initial state
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Skip fetching if we're in a list context that already provided the follow state
+  // or if fetching is explicitly disabled
+  const shouldFetch = isAuthenticated && !disableAutoFetch;
+
   const { data, mutate } = useSWR(
-    isAuthenticated ? postId : null,
+    shouldFetch ? postId : null,
     fetcher,
     {
       fallbackData: { isFollowing: initialIsFollowing },
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 60000,
+      dedupingInterval: 60000, // Cache for 1 minute
       revalidateIfStale: true,
-      revalidateOnMount: true,
+      revalidateOnMount: !disableAutoFetch, // Only revalidate if not in batch mode
       keepPreviousData: true,
     }
   );
@@ -73,11 +79,11 @@ export function FollowButton({
       setIsLoaded(true);
     }
     
-    // Force revalidation with the server if initialIsFollowing is provided
-    if (isAuthenticated && initialIsFollowing !== undefined && data?.isFollowing !== initialIsFollowing) {
+    // Only force revalidation if we're not in batch mode
+    if (shouldFetch && initialIsFollowing !== undefined && data?.isFollowing !== initialIsFollowing) {
       mutate();
     }
-  }, [data, initialIsFollowing, isLoaded, isAuthenticated, mutate]);
+  }, [data, initialIsFollowing, isLoaded, shouldFetch, mutate]);
 
   // Make sure we use the most accurate state available
   const isFollowing = data?.isFollowing ?? initialIsFollowing;

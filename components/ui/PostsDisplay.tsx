@@ -272,6 +272,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     isAuthenticated={post.isAuthenticated}
                     className="px-2 h-[23px] text-xs font-semibold"
                     key={followButtonKey}
+                    disableAutoFetch={true}
                   />
                 </div>
               )}

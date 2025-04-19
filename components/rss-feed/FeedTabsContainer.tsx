@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import { RSSEntriesClient } from "@/components/rss-feed/RSSEntriesDisplay.client";
+import dynamic from 'next/dynamic';
 import { FeaturedFeedWrapper } from "@/components/featured/FeaturedFeedWrapper";
 import type { FeaturedEntry } from "@/lib/featured_redis";
 import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
@@ -10,7 +10,18 @@ import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { SignInButton } from "@/components/ui/SignInButton";
+import { Loader2 } from 'lucide-react';
+import { SkeletonFeed } from '@/components/ui/skeleton-feed';
 
+// Lazy load RSSEntriesClient component
+const RSSEntriesClientWithErrorBoundary = dynamic(
+  () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
+  { 
+    ssr: false,
+    // Remove the loading component as we'll use our custom skeleton
+    loading: () => null
+  }
+);
 
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
@@ -140,7 +151,54 @@ export function FeedTabsContainer({
   // Get user data from context
   const { displayName, isBoarded, profileImage, isAuthenticated, pendingFriendRequestCount } = useSidebar();
   
-  // Memoize the tabs configuration to prevent unnecessary re-creation
+  // State to track the loaded RSS data
+  const [rssData, setRssData] = useState(initialData);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  
+  // Function to fetch RSS data
+  const fetchRSSData = useCallback(async () => {
+    // Skip if data is already loaded or loading is in progress
+    if (rssData !== null || isLoading) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/rss-feed');
+      if (!response.ok) {
+        throw new Error('Failed to fetch RSS feed data');
+      }
+      
+      const data = await response.json();
+      setRssData(data);
+    } catch (err) {
+      console.error('Error fetching RSS data:', err);
+      setError('Failed to load RSS feed data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [rssData, isLoading]);
+  
+  // Handle tab change
+  const handleTabChange = useCallback((index: number) => {
+    setActiveTabIndex(index);
+    
+    // If switching to the "Following" tab (index 1), fetch RSS data
+    if (index === 1) {
+      fetchRSSData();
+    }
+  }, [fetchRSSData]);
+  
+  // If we're on the Following tab and don't have data yet, trigger fetch
+  useEffect(() => {
+    if (activeTabIndex === 1 && rssData === null && !isLoading && !error) {
+      fetchRSSData();
+    }
+  }, [activeTabIndex, rssData, isLoading, error, fetchRSSData]);
+  
+  // Memoize the tabs configuration
   const tabs = useMemo(() => [
     // Discover tab - first in order
     {
@@ -152,41 +210,64 @@ export function FeedTabsContainer({
         />
       )
     },
-    // Following tab (renamed from Discover) - shows RSS feed content
+    // Following tab - shows RSS feed content
     {
       id: 'following',
       label: 'Following',
-      component: () => (
-        <RSSEntriesClient 
-          initialData={initialData as any /* Adjust typing */} 
-          pageSize={pageSize} 
-        />
-      )
+      component: () => {
+        if (error) {
+          return (
+            <div className="p-8 text-center text-destructive">
+              <p>{error}</p>
+              <button 
+                className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md"
+                onClick={() => fetchRSSData()}
+              >
+                Try Again
+              </button>
+            </div>
+          );
+        }
+        
+        if (isLoading) {
+          return <SkeletonFeed count={5} />;
+        }
+        
+        return (
+          <RSSEntriesClientWithErrorBoundary 
+            initialData={rssData as any /* Adjust typing */} 
+            pageSize={pageSize} 
+          />
+        );
+      }
     }
-  ], [initialData, featuredData, pageSize]);
+  ], [rssData, featuredData, pageSize, error, isLoading, fetchRSSData]);
 
   return (
     <div className="w-full">
-
-<div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
-<div>
-        {isAuthenticated ? (
-          <UserMenuClientWithErrorBoundary 
-            initialDisplayName={displayName}
-            isBoarded={isBoarded} 
-            initialProfileImage={profileImage}
-            pendingFriendRequestCount={pendingFriendRequestCount}
-          />
-        ) : (
-          <SignInButton />
-        )}
+      <div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
+        <div>
+          {isAuthenticated ? (
+            <UserMenuClientWithErrorBoundary 
+              initialDisplayName={displayName}
+              isBoarded={isBoarded} 
+              initialProfileImage={profileImage}
+              pendingFriendRequestCount={pendingFriendRequestCount}
+            />
+          ) : (
+            <SignInButton />
+          )}
+        </div>
+        <div className="flex justify-end">
+          <MobileSearch />
+        </div>
       </div>
-                      <div className="flex justify-end">
-                        <MobileSearch />
-                      </div>
-</div>
      
-      <SwipeableTabs tabs={tabs} /> {/* SwipeableTabs now uses the 'component' prop */}
+      <SwipeableTabs 
+        tabs={tabs} 
+        onTabChange={handleTabChange}
+        defaultTabIndex={activeTabIndex} 
+      />
     </div>
   );
 }

@@ -80,6 +80,7 @@ function ViewerFollowStatusButton({ postId, feedUrl, postTitle }: ViewerFollowSt
       postTitle={postTitle}
       initialIsFollowing={isViewerFollowing}
       className="flex-shrink-0"
+      disableAutoFetch={true}
     />
   );
 }
@@ -236,6 +237,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                         postTitle={item.post.title}
                         initialIsFollowing={isFollowing}
                         className="flex-shrink-0"
+                        disableAutoFetch={true}
                       />
                     )}
                   </div>

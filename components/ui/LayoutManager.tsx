@@ -10,17 +10,15 @@ import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
  * Uses StandardSidebarLayout for consistent layout across the application
  */
 export async function LayoutManager() {
-  // Pre-fetch initial data in parallel for better performance
-  const [rssData, featuredData] = await Promise.all([
-    getInitialEntries(),
-    getFeaturedEntries()
-  ]);
+  // Only pre-fetch featured data on initial load
+  // RSS feed data will be lazily loaded when the user switches to that tab
+  const featuredData = await getFeaturedEntries();
   
   // Prepare the feed content - no need to pass user profile props
   // as they're available from the context provider
   const mainContent = (
     <FeedTabsContainerClientWrapper
-      initialData={rssData}
+      initialData={null} // Pass null initially - data will be fetched when needed
       featuredData={featuredData}
       pageSize={30}
     />

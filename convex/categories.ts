@@ -89,9 +89,6 @@ export const getPostsByCategory = query({
   handler: async (ctx, args) => {
     const { categoryId, mediaType, cursor, limit = 10 } = args;
     
-    // Deprecation warning
-    console.warn("categories.getPostsByCategory with categoryId is being deprecated. Consider using mediaType directly.");
-    
     // Get user authentication state
     const userId = await getAuthUserId(ctx);
     const isAuthenticated = !!userId;
