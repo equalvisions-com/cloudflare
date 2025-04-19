@@ -134,7 +134,7 @@ export async function generateStaticParams() {
     mediaType: "podcast",
   });
   
-  return posts.map((post: Doc<"posts">) => ({
+  return posts.map(post => ({
     postSlug: post.postSlug,
   }));
 }
