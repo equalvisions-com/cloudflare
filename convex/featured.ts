@@ -20,7 +20,8 @@ export const getFeaturedPosts = query({
         featuredImg: post.featuredImg,
         mediaType: post.mediaType,
         feedUrl: post.feedUrl,
-        verified: post.verified ?? false
+        verified: post.verified ?? false,
+        body: post.body // Add body field for the onboarding page
       })));
     
     return featuredPosts;
@@ -55,7 +56,8 @@ export const getFeaturedPostsWithFollowState = query({
         featuredImg: post.featuredImg,
         mediaType: post.mediaType,
         feedUrl: post.feedUrl,
-        verified: post.verified ?? false
+        verified: post.verified ?? false,
+        body: post.body // Add body field for consistency
       })));
     
     // Shuffle the posts (Fisher-Yates algorithm)
