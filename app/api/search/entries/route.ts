@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     // Create a map of feed titles to post metadata
     const postMetadataMap = new Map(
-      posts.map((post: Doc<"posts">) => [post.title, post])
+      posts.map(post => [post.title, post])
     );
 
     // Check if there are more entries
