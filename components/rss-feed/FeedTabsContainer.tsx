@@ -18,7 +18,7 @@ const RSSEntriesClientWithErrorBoundary = dynamic(
   () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
   { 
     ssr: false,
-    loading: () => null
+    loading: () => <SkeletonFeed count={5} />
   }
 );
 
@@ -26,7 +26,7 @@ const FeaturedFeedWrapper = dynamic(
   () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
   {
     ssr: false,
-    loading: () => null
+    loading: () => <SkeletonFeed count={5} />
   }
 );
 
