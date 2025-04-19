@@ -438,7 +438,6 @@ function EntriesContentComponent({
   if (paginatedEntries.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No entries found in your RSS feeds.
       </div>
     );
   }
