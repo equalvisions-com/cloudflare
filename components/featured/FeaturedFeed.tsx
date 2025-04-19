@@ -71,7 +71,8 @@ export const getInitialEntries = cache(async () => {
 });
 
 export default async function FeaturedFeed({ initialData }: FeaturedFeedProps) {
-  // If initialData is not provided, fetch it
+  // Only fetch data if initialData is not provided
+  // This prevents redundant fetching when the data is already passed from LayoutManager
   const data = initialData || await getInitialEntries();
   
   if (!data) {
@@ -81,6 +82,17 @@ export default async function FeaturedFeed({ initialData }: FeaturedFeedProps) {
         <p className="text-muted-foreground mt-2">Check back later for featured content</p>
       </div>
     );
+  }
+  
+  // Add a console log to confirm we're using the passed data when available
+  if (initialData) {
+    console.log('FeaturedFeed: Using prefetched featured data from LayoutManager', {
+      entriesCount: initialData.entries?.length || 0
+    });
+  } else {
+    console.log('FeaturedFeed: Fetched data directly', {
+      entriesCount: data.entries?.length || 0
+    });
   }
   
   return (

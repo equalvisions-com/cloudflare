@@ -163,14 +163,31 @@ export const getFollowStates = query({
       return postIds.map(() => false);
     }
 
-    // Get all following records for this user
-    const followings = await ctx.db
-      .query("following")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
+    // Get only the postIds from the following records that we need
+    // Use batch approach for efficiency
+    const followedPostIds = new Set<string>();
     
-    // Create a Set of post IDs that the user follows for quick lookup
-    const followedPostIds = new Set(followings.map(f => f.postId.toString()));
+    // Process in batches to avoid large queries
+    const batchSize = 50;
+    for (let i = 0; i < postIds.length; i += batchSize) {
+      const batchIds = postIds.slice(i, i + batchSize);
+      
+      const followingBatch = await ctx.db
+        .query("following")
+        .withIndex("by_user_post")
+        .filter(q => 
+          q.and(
+            q.eq(q.field("userId"), userId),
+            q.or(...batchIds.map(postId => q.eq(q.field("postId"), postId)))
+          )
+        )
+        // We only need the postId field, minimize data transfer
+        .collect()
+        .then(results => results.map(f => f.postId.toString()));
+      
+      // Add to our set
+      followingBatch.forEach(id => followedPostIds.add(id));
+    }
     
     // Return a boolean array indicating whether the user follows each post
     return postIds.map(postId => followedPostIds.has(postId.toString()));

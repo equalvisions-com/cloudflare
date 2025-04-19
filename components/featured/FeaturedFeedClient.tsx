@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -399,6 +399,13 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
     initialData?: { count: number };
   } | null>(null);
 
+  // Log to confirm we're using prefetched data from LayoutManager
+  useEffect(() => {
+    console.log('FeaturedFeedClient: Using prefetched data from LayoutManager', {
+      entriesCount: initialData?.entries?.length || 0
+    });
+  }, [initialData]);
+  
   // Calculate visible entries based on current page
   const visibleEntries = useMemo(() => {
     return initialData.entries.slice(0, currentPage * pageSize);

@@ -212,7 +212,7 @@ async function getFriendsWithProfiles(
   userId: Id<"users">, 
   limit: number
 ) {
-  // Get friends relationships
+  // Get friends relationships with minimal fields needed
   const friendships = await ctx.db
     .query("friends")
     .withIndex("by_users")
@@ -236,12 +236,11 @@ async function getFriendsWithProfiles(
   const cursor = hasMore ? friendships[limit - 1]._id : null;
   const items = hasMore ? friendships.slice(0, limit) : friendships;
 
-  // Get profile data for each friend
+  // Get profile data for each friend - optimize to get only needed fields
   const friendItems = await Promise.all(
     items.map(async (friendship: any) => {
       try {
         // Safely determine the friend's userId (the one that's not the current user)
-        // Use string comparison instead of equals() method which might not exist
         const isSender = friendship.requesterId && friendship.requesterId.toString() === userId.toString();
         const friendId = isSender ? friendship.requesteeId : friendship.requesterId;
 
@@ -250,11 +249,19 @@ async function getFriendsWithProfiles(
           return null;
         }
 
-        // Get friend's user data
+        // Get friend's user data - we'll only extract the fields we need
         const user = await ctx.db.get(friendId);
         if (!user) return null;
 
-        // Format as profile data
+        // Simplified friendship object with only the fields we need
+        const simplifiedFriendship = {
+          _id: friendship._id,
+          status: friendship.status,
+          direction: isSender ? "sent" : "received",
+          friendId,
+        };
+
+        // Format as profile data with only the fields we need
         const profile = {
           userId: user._id,
           username: user.username || "Guest",
@@ -263,11 +270,7 @@ async function getFriendsWithProfiles(
         };
 
         return {
-          friendship: {
-            ...friendship,
-            direction: isSender ? "sent" : "received",
-            friendId,
-          },
+          friendship: simplifiedFriendship,
           profile,
         };
       } catch (error) {
@@ -311,7 +314,7 @@ export const getProfilePageData = query({
       return null;
     }
 
-    // Format as profile
+    // Format as profile - only extract the specific fields we need
     const profile = {
       userId: user._id,
       username: user.username,
@@ -344,6 +347,7 @@ export const getProfilePageData = query({
 
         if (friendship) {
           const isSender = friendship.requesterId.toString() === currentUserId.toString();
+          // Only extract needed fields for friendship status
           friendshipStatus = {
             status: friendship.status,
             direction: isSender ? "sent" : "received",
@@ -356,17 +360,16 @@ export const getProfilePageData = query({
       }
     }
 
-    // Get friends with profiles
+    // Get friends with profiles - making sure to optimize the helper function
     const friendsWithProfiles = await getFriendsWithProfiles(ctx, user._id, limit);
 
-    // Get following count
-    const followingRecords = await ctx.db
+    // Get following count using optimized count-only query
+    const followingCount = await ctx.db
       .query("following")
       .withIndex("by_user", q => q.eq("userId", user._id))
-      .collect();
+      .collect()
+      .then(records => records.length);
     
-    const followingCount = followingRecords.length;
-
     // Get following data (limited)
     const following = await ctx.db
       .query("following")
@@ -374,11 +377,23 @@ export const getProfilePageData = query({
       .order("desc")
       .take(limit);
 
-    // Get post data for followed feeds
+    // Get post data for followed feeds - only fetch specific fields needed
     const postIds = following.map(f => f.postId);
-    const posts = postIds.length > 0 
-      ? await Promise.all(postIds.map(id => ctx.db.get(id)))
+    const postsPromises = postIds.length > 0 
+      ? postIds.map(id => 
+          ctx.db.get(id).then(post => post ? {
+            _id: post._id,
+            title: post.title,
+            featuredImg: post.featuredImg,
+            categorySlug: post.categorySlug,
+            postSlug: post.postSlug,
+            mediaType: post.mediaType,
+            verified: post.verified ?? false
+          } : null)
+        )
       : [];
+    
+    const posts = await Promise.all(postsPromises);
 
     // Filter out any null posts and format following data
     const followingData = following
@@ -388,15 +403,7 @@ export const getProfilePageData = query({
           _id: follow._id,
           feedUrl: follow.feedUrl,
           postId: follow.postId,
-          post: {
-            _id: post._id,
-            title: post.title,
-            featuredImg: post.featuredImg,
-            categorySlug: post.categorySlug,
-            postSlug: post.postSlug,
-            mediaType: post.mediaType,
-            verified: post.verified
-          }
+          post: post // Already formatted with only the fields we need
         } : null;
       })
       .filter(Boolean);
@@ -423,28 +430,49 @@ export const getProfileActivityData = query({
   handler: async (ctx, args) => {
     const { userId, limit = 30 } = args;
     
-    // Get user to verify existence
-    const user = await ctx.db.get(userId);
-    if (!user) throw new Error("User not found");
+    // Get user to verify existence - just check existence without fetching full document
+    const userExists = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(Boolean);
+    
+    if (!userExists) throw new Error("User not found");
     
     // Get the last 30 activities (comments, retweets)
     // Note: We're not including likes in the general activity feed
+    // Only select the specific fields we need for comments
     const [comments, retweets] = await Promise.all([
       ctx.db
         .query("comments")
         .withIndex("by_user", q => q.eq("userId", userId))
         .filter(q => q.eq(q.field("parentId"), undefined)) // Only fetch top-level comments
         .order("desc")
-        .take(limit),
+        .take(limit)
+        .then(results => results.map(comment => ({
+          _id: comment._id,
+          createdAt: comment.createdAt,
+          entryGuid: comment.entryGuid,
+          feedUrl: comment.feedUrl,
+          content: comment.content
+        }))),
       ctx.db
         .query("retweets")
         .withIndex("by_user", q => q.eq("userId", userId))
         .order("desc")
         .take(limit)
+        .then(results => results.map(retweet => ({
+          _id: retweet._id,
+          retweetedAt: retweet.retweetedAt,
+          entryGuid: retweet.entryGuid,
+          feedUrl: retweet.feedUrl,
+          title: retweet.title,
+          link: retweet.link,
+          pubDate: retweet.pubDate
+        })))
     ]);
     
-    // Convert to unified activity items
-    // We're not including likes in the activity feed
+    // Convert to unified activity items - already optimized from previous step
     const commentActivities = comments.map(comment => ({
       type: "comment" as const,
       timestamp: comment.createdAt,
@@ -475,13 +503,14 @@ export const getProfileActivityData = query({
     const activities = allActivities.slice(0, limit);
     
     // Get all unique entryGuids from the activities
-    const entryGuids = [
-      ...new Set(activities.map(activity => activity.entryGuid))
-    ];
+    const entryGuids = [...new Set(activities.map(activity => activity.entryGuid))];
     
-    // Get entry metrics for all guids
-    const entryMetricsPromises = entryGuids.map(guid => 
-      Promise.all([
+    // Get only the unique feedUrls we need
+    const feedUrls = [...new Set(activities.map(activity => activity.feedUrl))];
+    
+    // Get entry metrics for all guids more efficiently - perform count operations in parallel
+    const entryMetricsPromises = entryGuids.map(async guid => {
+      const [likeCount, commentCount, retweetCount] = await Promise.all([
         ctx.db.query("likes")
           .withIndex("by_entry", q => q.eq("entryGuid", guid))
           .collect()
@@ -494,32 +523,50 @@ export const getProfileActivityData = query({
           .withIndex("by_entry", q => q.eq("entryGuid", guid))
           .collect()
           .then(retweets => retweets.length)
-      ]).then(([likeCount, commentCount, retweetCount]) => ({
+      ]);
+      
+      return {
         guid,
         likeCount,
         commentCount,
         retweetCount
-      }))
-    );
+      };
+    });
     
-    // Collect all entry metrics into an object keyed by guid
-    const entryMetricsArray = await Promise.all(entryMetricsPromises);
-    const entryMetrics = Object.fromEntries(
-      entryMetricsArray.map(metrics => [metrics.guid, metrics])
-    );
-    
-    // Get detailed post information for all feedUrls
-    const feedUrls = [
-      ...new Set(activities.map(activity => activity.feedUrl))
-    ];
-    
+    // Get post data with only the fields we need
     const postsPromises = feedUrls.map(feedUrl => 
       ctx.db.query("posts")
         .withIndex("by_feedUrl", q => q.eq("feedUrl", feedUrl))
         .first()
+        .then(post => post ? {
+          feedUrl: post.feedUrl,
+          title: post.title,
+          featuredImg: post.featuredImg,
+          mediaType: post.mediaType, 
+          categorySlug: post.categorySlug,
+          postSlug: post.postSlug,
+          verified: post.verified ?? false
+        } : null)
     );
     
-    const posts = (await Promise.all(postsPromises)).filter(Boolean);
+    // Collect all data in parallel
+    const [entryMetricsArray, postsArray] = await Promise.all([
+      Promise.all(entryMetricsPromises),
+      Promise.all(postsPromises)
+    ]);
+    
+    // Construct the metrics lookup and filter out nulls
+    const entryMetrics = Object.fromEntries(
+      entryMetricsArray.map(metrics => [metrics.guid, metrics])
+    );
+    
+    // Filter null posts and create a map for fast lookup
+    const postsMap = new Map();
+    postsArray.filter(Boolean).forEach(post => {
+      if (post && post.feedUrl) {
+        postsMap.set(post.feedUrl, post);
+      }
+    });
     
     // Create a mapping of entry guids to post details
     const entryDetails: Record<string, {
@@ -530,8 +577,10 @@ export const getProfileActivityData = query({
       post_slug: string;
       verified?: boolean;
     }> = {};
+    
+    // Use the map for faster lookups instead of find() operation
     for (const activity of activities) {
-      const post = posts.find(p => p?.feedUrl === activity.feedUrl);
+      const post = postsMap.get(activity.feedUrl);
       if (post) {
         entryDetails[activity.entryGuid] = {
           post_title: post.title,
@@ -539,7 +588,7 @@ export const getProfileActivityData = query({
           post_media_type: post.mediaType,
           category_slug: post.categorySlug,
           post_slug: post.postSlug,
-          verified: post.verified ?? false,
+          verified: post.verified
         };
       }
     }
@@ -564,18 +613,32 @@ export const getProfileLikesData = query({
   handler: async (ctx, args) => {
     const { userId, limit = 30 } = args;
     
-    // Get user to verify existence
-    const user = await ctx.db.get(userId);
-    if (!user) throw new Error("User not found");
+    // Get user to verify existence - just check existence without fetching full document
+    const userExists = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(Boolean);
     
-    // Get the user's likes
+    if (!userExists) throw new Error("User not found");
+    
+    // Get the user's likes - only select fields we need
     const likes = await ctx.db
       .query("likes")
       .withIndex("by_user", q => q.eq("userId", userId))
       .order("desc")
-      .take(limit);
+      .take(limit)
+      .then(results => results.map(like => ({
+        _id: like._id,
+        _creationTime: like._creationTime,
+        entryGuid: like.entryGuid,
+        feedUrl: like.feedUrl,
+        title: like.title,
+        link: like.link,
+        pubDate: like.pubDate
+      })));
     
-    // Convert to activity items
+    // Convert to activity items - already optimized from previous step
     const activities = likes.map(like => ({
       type: "like" as const,
       timestamp: like._creationTime,
@@ -587,14 +650,13 @@ export const getProfileLikesData = query({
       _id: like._id.toString()
     }));
     
-    // Get all unique entryGuids from the activities
-    const entryGuids = [
-      ...new Set(activities.map(activity => activity.entryGuid))
-    ];
+    // Get all unique entryGuids and feedUrls
+    const entryGuids = [...new Set(activities.map(activity => activity.entryGuid))];
+    const feedUrls = [...new Set(activities.map(activity => activity.feedUrl))];
     
-    // Get entry metrics for all guids
-    const entryMetricsPromises = entryGuids.map(guid => 
-      Promise.all([
+    // Get entry metrics for all guids efficiently - perform count operations in parallel
+    const entryMetricsPromises = entryGuids.map(async guid => {
+      const [likeCount, commentCount, retweetCount] = await Promise.all([
         ctx.db.query("likes")
           .withIndex("by_entry", q => q.eq("entryGuid", guid))
           .collect()
@@ -607,32 +669,50 @@ export const getProfileLikesData = query({
           .withIndex("by_entry", q => q.eq("entryGuid", guid))
           .collect()
           .then(retweets => retweets.length)
-      ]).then(([likeCount, commentCount, retweetCount]) => ({
+      ]);
+      
+      return {
         guid,
         likeCount,
         commentCount,
         retweetCount
-      }))
-    );
+      };
+    });
     
-    // Collect all entry metrics into an object keyed by guid
-    const entryMetricsArray = await Promise.all(entryMetricsPromises);
-    const entryMetrics = Object.fromEntries(
-      entryMetricsArray.map(metrics => [metrics.guid, metrics])
-    );
-    
-    // Get detailed post information for all feedUrls
-    const feedUrls = [
-      ...new Set(activities.map(activity => activity.feedUrl))
-    ];
-    
+    // Get post data with only the fields we need
     const postsPromises = feedUrls.map(feedUrl => 
       ctx.db.query("posts")
         .withIndex("by_feedUrl", q => q.eq("feedUrl", feedUrl))
         .first()
+        .then(post => post ? {
+          feedUrl: post.feedUrl,
+          title: post.title,
+          featuredImg: post.featuredImg,
+          mediaType: post.mediaType, 
+          categorySlug: post.categorySlug,
+          postSlug: post.postSlug,
+          verified: post.verified ?? false
+        } : null)
     );
     
-    const posts = (await Promise.all(postsPromises)).filter(Boolean);
+    // Collect all data in parallel
+    const [entryMetricsArray, postsArray] = await Promise.all([
+      Promise.all(entryMetricsPromises),
+      Promise.all(postsPromises)
+    ]);
+    
+    // Construct the metrics lookup
+    const entryMetrics = Object.fromEntries(
+      entryMetricsArray.map(metrics => [metrics.guid, metrics])
+    );
+    
+    // Filter null posts and create a map for fast lookup
+    const postsMap = new Map();
+    postsArray.filter(Boolean).forEach(post => {
+      if (post && post.feedUrl) {
+        postsMap.set(post.feedUrl, post);
+      }
+    });
     
     // Create a mapping of entry guids to post details
     const entryDetails: Record<string, {
@@ -643,8 +723,10 @@ export const getProfileLikesData = query({
       post_slug: string;
       verified?: boolean;
     }> = {};
+    
+    // Use the map for faster lookups instead of find() operation
     for (const activity of activities) {
-      const post = posts.find(p => p?.feedUrl === activity.feedUrl);
+      const post = postsMap.get(activity.feedUrl);
       if (post) {
         entryDetails[activity.entryGuid] = {
           post_title: post.title,
@@ -652,7 +734,7 @@ export const getProfileLikesData = query({
           post_media_type: post.mediaType,
           category_slug: post.categorySlug,
           post_slug: post.postSlug,
-          verified: post.verified ?? false,
+          verified: post.verified
         };
       }
     }

@@ -50,6 +50,7 @@ export const getByMediaTypeAndSlug = query({
       ...post,
       relatedPosts: relatedPosts.map((p: typeof post) => ({
         _id: p._id,
+        _creationTime: p._creationTime,
         title: p.title,
         featuredImg: p.featuredImg,
         postSlug: p.postSlug,
@@ -119,6 +120,21 @@ export const searchPosts = query({
     const matchingPosts = allPosts.filter(post => 
       searchPattern.test(post.title) || searchPattern.test(post.body)
     );
+    
+    // Optimize the results - only keep fields we need
+    const optimizedPosts = matchingPosts.map(post => ({
+      _id: post._id,
+      _creationTime: post._creationTime,
+      title: post.title,
+      postSlug: post.postSlug,
+      category: post.category,
+      categorySlug: post.categorySlug,
+      mediaType: post.mediaType,
+      featuredImg: post.featuredImg,
+      body: post.body.substring(0, 150), // Truncate body to 150 chars for preview
+      feedUrl: post.feedUrl,
+      verified: post.verified
+    }));
 
     // Get follow states if authenticated
     let followStates: { [key: string]: boolean } = {};
@@ -129,15 +145,15 @@ export const searchPosts = query({
         .filter(q => q.eq(q.field("userId"), userId))
         .collect();
 
-      followStates = followings.reduce((acc, following) => {
+      followStates = followings.reduce((acc: { [key: string]: boolean }, following) => {
         acc[following.postId] = true;
         return acc;
       }, {} as { [key: string]: boolean });
     }
     
     // Handle pagination
-    const startIndex = cursor ? matchingPosts.findIndex(p => p._id === cursor) + 1 : 0;
-    const paginatedPosts = matchingPosts.slice(startIndex, startIndex + limit + 1);
+    const startIndex = cursor ? optimizedPosts.findIndex(p => p._id === cursor) + 1 : 0;
+    const paginatedPosts = optimizedPosts.slice(startIndex, startIndex + limit + 1);
     
     // Check if there are more posts
     const hasMore = paginatedPosts.length > limit;
@@ -174,6 +190,7 @@ export const getByTitles = query({
 
 /**
  * Fetch posts by feed URLs
+ * Only return the fields needed by the bookmarks page components
  */
 export const getByFeedUrls = query({
   args: {
@@ -200,7 +217,19 @@ export const getByFeedUrls = query({
           .withIndex("by_feedUrl", (q) => q.eq("feedUrl", feedUrl))
           .collect();
         
-        posts.push(...results);
+        // Filter results to only include fields needed by the BookmarksContent component
+        // instead of returning entire post documents
+        const filteredResults = results.map(post => ({
+          feedUrl: post.feedUrl,
+          title: post.title,
+          featuredImg: post.featuredImg,
+          mediaType: post.mediaType,
+          categorySlug: post.categorySlug,
+          postSlug: post.postSlug,
+          verified: post.verified
+        }));
+        
+        posts.push(...filteredResults);
       }
     }
     

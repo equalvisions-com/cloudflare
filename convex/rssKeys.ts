@@ -41,17 +41,20 @@ export const getUserRSSKeysWithPosts = query({
       )
       .collect();
     
+    // Map the posts to only include the fields we need
+    const filteredPosts = posts.map(post => ({
+      title: post.title,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug,
+      feedUrl: post.feedUrl,
+      verified: post.verified
+    }));
+    
     return {
       rssKeys: user.rssKeys,
-      posts: posts.map(post => ({
-        title: post.title,
-        featuredImg: post.featuredImg,
-        mediaType: post.mediaType,
-        postSlug: post.postSlug,
-        categorySlug: post.categorySlug,
-        feedUrl: post.feedUrl,
-        verified: post.verified
-      }))
+      posts: filteredPosts
     };
   },
 });

@@ -90,6 +90,21 @@ export const getPostsByCategory = query({
         )
         .take(limit + 1);
 
+      // Optimize posts to only include needed fields
+      const optimizedPosts = posts.map(post => ({
+        _id: post._id,
+        _creationTime: post._creationTime,
+        title: post.title,
+        postSlug: post.postSlug,
+        category: post.category,
+        categorySlug: post.categorySlug,
+        mediaType: post.mediaType,
+        featuredImg: post.featuredImg,
+        body: post.body?.substring(0, 150), // Truncate body to first 150 chars for preview
+        feedUrl: post.feedUrl,
+        verified: post.verified
+      }));
+
       // Get follow states if authenticated
       let followStates: { [key: string]: boolean } = {};
       if (isAuthenticated) {
@@ -99,14 +114,14 @@ export const getPostsByCategory = query({
           .filter(q => q.eq(q.field("userId"), userId))
           .collect();
 
-        followStates = followings.reduce((acc, following) => {
+        followStates = followings.reduce((acc: { [key: string]: boolean }, following) => {
           acc[following.postId] = true;
           return acc;
         }, {} as { [key: string]: boolean });
       }
 
-      const hasMore = posts.length > limit;
-      const postsWithFollowState = posts.slice(0, limit).map(post => ({
+      const hasMore = optimizedPosts.length > limit;
+      const postsWithFollowState = optimizedPosts.slice(0, limit).map(post => ({
         ...post,
         isAuthenticated,
         isFollowing: followStates[post._id] || false
@@ -115,7 +130,7 @@ export const getPostsByCategory = query({
       return {
         posts: postsWithFollowState,
         hasMore,
-        nextCursor: hasMore && posts.length > 0 ? posts[limit - 1]._id : null
+        nextCursor: hasMore && optimizedPosts.length > 0 ? optimizedPosts[limit - 1]._id : null
       };
     }
     
@@ -133,6 +148,21 @@ export const getPostsByCategory = query({
       // Get posts with limit + 1 to determine if there are more posts
       const posts = await postsQuery.take(limit + 1);
 
+      // Optimize posts to only include needed fields
+      const optimizedPosts = posts.map(post => ({
+        _id: post._id,
+        _creationTime: post._creationTime,
+        title: post.title,
+        postSlug: post.postSlug,
+        category: post.category,
+        categorySlug: post.categorySlug,
+        mediaType: post.mediaType,
+        featuredImg: post.featuredImg,
+        body: post.body?.substring(0, 150), // Truncate body to first 150 chars for preview
+        feedUrl: post.feedUrl,
+        verified: post.verified
+      }));
+
       // Get follow states if authenticated
       let followStates: { [key: string]: boolean } = {};
       if (isAuthenticated) {
@@ -142,17 +172,17 @@ export const getPostsByCategory = query({
           .filter(q => q.eq(q.field("userId"), userId))
           .collect();
 
-        followStates = followings.reduce((acc, following) => {
+        followStates = followings.reduce((acc: { [key: string]: boolean }, following) => {
           acc[following.postId] = true;
           return acc;
         }, {} as { [key: string]: boolean });
       }
       
       // Check if there are more posts
-      const hasMore = posts.length > limit;
+      const hasMore = optimizedPosts.length > limit;
       
       // Add follow states to posts
-      const postsWithFollowState = posts.slice(0, limit).map(post => ({
+      const postsWithFollowState = optimizedPosts.slice(0, limit).map(post => ({
         ...post,
         isAuthenticated,
         isFollowing: followStates[post._id] || false
@@ -162,7 +192,7 @@ export const getPostsByCategory = query({
       return {
         posts: postsWithFollowState,
         hasMore,
-        nextCursor: hasMore && posts.length > 0 ? posts[limit - 1]._id : null
+        nextCursor: hasMore && optimizedPosts.length > 0 ? optimizedPosts[limit - 1]._id : null
       };
     } catch (error) {
       console.error("Error fetching posts by category:", error);
@@ -190,6 +220,22 @@ export const getCategorySliderData = query({
       .filter(q => q.eq(q.field("mediaType"), mediaType))
       .collect();
 
+    // Extract only the fields we need to reduce memory usage
+    const optimizedPosts = allPosts.map(post => ({
+      _id: post._id,
+      _creationTime: post._creationTime,
+      title: post.title,
+      postSlug: post.postSlug,
+      category: post.category,
+      categorySlug: post.categorySlug,
+      mediaType: post.mediaType,
+      featuredImg: post.featuredImg,
+      isFeatured: post.isFeatured,
+      body: post.body?.substring(0, 150), // Truncate body to first 150 chars for preview
+      feedUrl: post.feedUrl,
+      verified: post.verified
+    }));
+
     // If authenticated, get all follow states for these posts
     let followStates: { [key: string]: boolean } = {};
     if (isAuthenticated) {
@@ -199,14 +245,14 @@ export const getCategorySliderData = query({
         .filter(q => q.eq(q.field("userId"), userId))
         .collect();
 
-      followStates = followings.reduce((acc, following) => {
+      followStates = followings.reduce((acc: { [key: string]: boolean }, following) => {
         acc[following.postId] = true;
         return acc;
       }, {} as { [key: string]: boolean });
     }
 
-    // Add follow state to each post
-    const postsWithFollowState = allPosts.map(post => ({
+    // Add follow state to each post with optimized fields
+    const postsWithFollowState = optimizedPosts.map(post => ({
       ...post,
       isAuthenticated,
       isFollowing: followStates[post._id] || false

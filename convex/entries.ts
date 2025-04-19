@@ -25,7 +25,11 @@ export const getFeedDataWithMetrics = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(like => ({
+          entryGuid: like.entryGuid,
+          userId: like.userId
+        }))),
 
       // Get all comments for the requested entries
       ctx.db
@@ -38,7 +42,10 @@ export const getFeedDataWithMetrics = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(comment => ({
+          entryGuid: comment.entryGuid
+        }))),
         
       // Get all retweets for the requested entries
       ctx.db
@@ -51,7 +58,11 @@ export const getFeedDataWithMetrics = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(retweet => ({
+          entryGuid: retweet.entryGuid,
+          userId: retweet.userId
+        }))),
         
       // Get all bookmarks for the requested entries
       ctx.db
@@ -64,7 +75,11 @@ export const getFeedDataWithMetrics = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(bookmark => ({
+          entryGuid: bookmark.entryGuid,
+          userId: bookmark.userId
+        }))),
         
       // Get all posts for the requested feed URLs
       ctx.db
@@ -78,6 +93,15 @@ export const getFeedDataWithMetrics = query({
           )
         )
         .collect()
+        .then(posts => posts.map(post => ({
+          feedUrl: post.feedUrl,
+          title: post.title,
+          featuredImg: post.featuredImg,
+          mediaType: post.mediaType,
+          postSlug: post.postSlug,
+          categorySlug: post.categorySlug,
+          verified: post.verified
+        })))
     ]);
 
     // Process likes data
@@ -178,7 +202,7 @@ export const batchGetEntryData = query({
 
     // Get all likes, comments, and retweets in parallel but within the same query
     const [likes, comments, retweets] = await Promise.all([
-      // Get all likes for the requested entries
+      // Get all likes for the requested entries, selecting only fields we need
       ctx.db
         .query("likes")
         .withIndex("by_entry")
@@ -189,9 +213,13 @@ export const batchGetEntryData = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(like => ({
+          entryGuid: like.entryGuid,
+          userId: like.userId
+        }))),
 
-      // Get all comments for the requested entries
+      // Get all comments for the requested entries, selecting only count
       ctx.db
         .query("comments")
         .withIndex("by_entry")
@@ -202,9 +230,12 @@ export const batchGetEntryData = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(results => results.map(comment => ({
+          entryGuid: comment.entryGuid
+        }))),
         
-      // Get all retweets for the requested entries
+      // Get all retweets for the requested entries, selecting only fields we need
       ctx.db
         .query("retweets")
         .withIndex("by_entry")
@@ -216,6 +247,10 @@ export const batchGetEntryData = query({
           )
         )
         .collect()
+        .then(results => results.map(retweet => ({
+          entryGuid: retweet.entryGuid,
+          userId: retweet.userId
+        })))
     ]);
 
     // Process likes data
@@ -413,6 +448,7 @@ export const getEntryWithComments = query({
 });
 
 // Dedicated batch query for EntriesDisplay component
+// Optimized to only return the metrics needed for bookmarks display
 export const batchGetEntriesMetrics = query({
   args: {
     entryGuids: v.array(v.string()),
@@ -422,8 +458,9 @@ export const batchGetEntriesMetrics = query({
     const userId = await getAuthUserId(ctx).catch(() => null);
 
     // Get all likes, comments, and retweets in parallel but within the same query
-    const [likes, comments, retweets] = await Promise.all([
-      // Get all likes for the requested entries
+    // Extract only the specific fields we need instead of entire documents
+    const [likeResults, commentResults, retweetResults] = await Promise.all([
+      // Get only entryGuid and userId fields from likes for the requested entries
       ctx.db
         .query("likes")
         .withIndex("by_entry")
@@ -434,22 +471,25 @@ export const batchGetEntriesMetrics = query({
             )
           )
         )
-        .collect(),
+        .collect()
+        .then(likes => likes.map(like => ({
+          entryGuid: like.entryGuid,
+          userId: like.userId
+        }))),
 
-      // Get all comments for the requested entries
-      ctx.db
-        .query("comments")
-        .withIndex("by_entry")
-        .filter((q) => 
-          q.or(
-            ...args.entryGuids.map(guid => 
-              q.eq(q.field("entryGuid"), guid)
-            )
-          )
-        )
-        .collect(),
+      // Get only the count of comments for each entry guid
+      Promise.all(args.entryGuids.map(guid => 
+        ctx.db
+          .query("comments")
+          .withIndex("by_entry", q => q.eq("entryGuid", guid))
+          .collect()
+          .then(comments => ({
+            entryGuid: guid,
+            count: comments.length
+          }))
+      )),
         
-      // Get all retweets for the requested entries
+      // Get only entryGuid and userId fields from retweets for the requested entries
       ctx.db
         .query("retweets")
         .withIndex("by_entry")
@@ -461,28 +501,39 @@ export const batchGetEntriesMetrics = query({
           )
         )
         .collect()
+        .then(retweets => retweets.map(retweet => ({
+          entryGuid: retweet.entryGuid,
+          userId: retweet.userId
+        })))
     ]);
 
-    // Create maps for each interaction type
+    // Build comment counts map for faster lookup
+    const commentCountMap = new Map();
+    commentResults.forEach(result => {
+      commentCountMap.set(result.entryGuid, result.count);
+    });
+
+    // Create a map for storing the metrics for each entry guid
     const metricsMap = new Map();
 
-    // Process all entries
+    // Process all entries and return only the required metrics fields
+    // instead of entire documents
     for (const entryGuid of args.entryGuids) {
-      const entryLikes = likes.filter(like => like.entryGuid === entryGuid);
-      const entryComments = comments.filter(comment => comment.entryGuid === entryGuid);
-      const entryRetweets = retweets.filter(retweet => retweet.entryGuid === entryGuid);
+      const entryLikes = likeResults.filter(like => like.entryGuid === entryGuid);
+      const entryRetweets = retweetResults.filter(retweet => retweet.entryGuid === entryGuid);
+      const commentCount = commentCountMap.get(entryGuid) || 0;
 
       metricsMap.set(entryGuid, {
         likes: {
           count: entryLikes.length,
-          isLiked: userId ? entryLikes.some(like => like.userId === userId) : false
+          isLiked: userId ? entryLikes.some(like => like.userId && like.userId.toString() === userId.toString()) : false
         },
         comments: {
-          count: entryComments.length
+          count: commentCount
         },
         retweets: {
           count: entryRetweets.length,
-          isRetweeted: userId ? entryRetweets.some(retweet => retweet.userId === userId) : false
+          isRetweeted: userId ? entryRetweets.some(retweet => retweet.userId && retweet.userId.toString() === userId.toString()) : false
         }
       });
     }

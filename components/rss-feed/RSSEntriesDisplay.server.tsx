@@ -296,26 +296,3 @@ export const getInitialEntries = cache(async () => {
     return null;
   }
 });
-
-export default async function RSSEntriesDisplay() {
-  const initialData = await getInitialEntries();
-  
-  if (!initialData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
-        <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
-      </div>
-    );
-  }
-
-  // Log the post titles being passed to the client
-  console.log(`SERVER: Passing ${initialData.postTitles?.length || 0} post titles to client`);
-
-  return (
-    <RSSEntriesClient
-      initialData={initialData}
-      pageSize={30}
-    />
-  );
-}

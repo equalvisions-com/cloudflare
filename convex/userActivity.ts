@@ -182,8 +182,9 @@ export const getUserBookmarks = query({
       .order("desc")
       .collect();
     
-    // Transform bookmarks into items
-    const bookmarkItems = bookmarks.map(bookmark => ({
+    // Transform bookmarks into items - only include the fields we need
+    // This avoids returning entire documents
+    const bookmarkItems = bookmarks.map((bookmark) => ({
       _id: bookmark._id.toString(),
       entryGuid: bookmark.entryGuid,
       feedUrl: bookmark.feedUrl,
@@ -191,6 +192,7 @@ export const getUserBookmarks = query({
       link: bookmark.link,
       pubDate: bookmark.pubDate,
       bookmarkedAt: bookmark.bookmarkedAt,
+      // Only include fields actually used by the bookmarks page components
     }));
     
     // Sort by timestamp (newest first)

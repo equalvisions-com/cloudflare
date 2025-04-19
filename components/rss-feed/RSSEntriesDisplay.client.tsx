@@ -529,6 +529,11 @@ export function RSSEntriesClient({
       totalEntries: initialData?.totalEntries
     });
     
+    // Log to confirm we're using prefetched data from LayoutManager
+    console.log('RSSEntriesClient: Using prefetched data from LayoutManager', {
+      entriesCount: initialData?.entries?.length || 0
+    });
+    
     // Initialize state with initial data, using fallbacks for null/undefined
     setAllEntriesState(initialData?.entries || []);
     setHasMoreState(initialData?.hasMore || false);
