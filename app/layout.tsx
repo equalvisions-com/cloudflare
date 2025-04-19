@@ -74,9 +74,7 @@ export default async function RootLayout({
                     </div>
                     {children}
                   </div>
-                  <div style={{ transform: "translateY(env(safe-area-inset-bottom))" }}>
-                    <PersistentPlayer />
-                  </div>
+                  <PersistentPlayer />
                   <MobileDock />
                 </SidebarProvider>
               </AudioProvider>
