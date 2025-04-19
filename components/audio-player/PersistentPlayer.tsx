@@ -33,7 +33,7 @@ export function PersistentPlayer() {
     <div 
       className="fixed left-0 right-0 bg-background border-t shadow-lg z-[60] md:bottom-0 bottom-[64px]"
       style={{ 
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        paddingBottom: '0px)'
       }}
     >
       <div className="container mx-0 px-0 md:mx-auto">

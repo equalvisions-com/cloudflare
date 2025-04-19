@@ -16,6 +16,7 @@
     "@auth/core": "^0.37.0",
     "@convex-dev/auth": "^0.0.77",
     "@convex-dev/r2": "^0.4.0",
+    "@convex-dev/rate-limiter": "^0.2.6",
     "@planetscale/database": "^1.19.0",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
