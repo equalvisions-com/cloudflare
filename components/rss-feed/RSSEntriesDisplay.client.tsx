@@ -437,9 +437,9 @@ function EntriesContentComponent({
   
   if (paginatedEntries.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        No entries found in your RSS feeds.
-      </div>
+      <div className="flex justify-center items-center py-10">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
     );
   }
 
