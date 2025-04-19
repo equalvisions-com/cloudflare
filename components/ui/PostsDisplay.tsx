@@ -29,11 +29,6 @@ export interface Post {
   // Optional fields that might not be present in all posts
   publishedAt?: number;
   feedUrl?: string;
-  author?: string;
-  authorUrl?: string;
-  twitterUrl?: string;
-  websiteUrl?: string;
-  platform?: string;
   // Follow state fields
   isFollowing?: boolean;
   isAuthenticated?: boolean;

@@ -16,11 +16,6 @@ type Post = {
   body: string;
   featuredImg?: string;
   feedUrl: string;
-  author: string;
-  authorUrl: string;
-  twitterUrl: string;
-  websiteUrl: string;
-  platform: string;
   categorySlug: string;
   relatedPosts?: Array<{
     _id: Id<"posts">;
