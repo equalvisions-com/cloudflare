@@ -13,12 +13,12 @@ import { Loader2 } from 'lucide-react';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
 import { useRouter } from 'next/navigation';
 
-// Lazy load both components with loading states that show the skeleton
+// Lazy load both components
 const RSSEntriesClientWithErrorBoundary = dynamic(
   () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
   { 
     ssr: false,
-    loading: () => <SkeletonFeed count={5} />
+    loading: () => null
   }
 );
 
@@ -26,7 +26,7 @@ const FeaturedFeedWrapper = dynamic(
   () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
   {
     ssr: false,
-    loading: () => <SkeletonFeed count={5} />
+    loading: () => null
   }
 );
 
@@ -312,14 +312,13 @@ export function FeedTabsContainer({
           );
         }
         
-        // Only show loading skeleton if we don't have data yet
-        if (featuredLoading && featuredData === null) {
+        if (featuredLoading || featuredData === null) {
           return <SkeletonFeed count={5} />;
         }
         
         return (
           <FeaturedFeedWrapper
-            initialData={featuredData as any}
+            initialData={featuredData as any /* Adjust typing */}
           />
         );
       }
@@ -343,14 +342,13 @@ export function FeedTabsContainer({
           );
         }
         
-        // Only show loading skeleton if we don't have data yet
-        if (isLoading && rssData === null) {
+        if (isLoading || rssData === null) {
           return <SkeletonFeed count={5} />;
         }
         
         return (
           <RSSEntriesClientWithErrorBoundary 
-            initialData={rssData as any}
+            initialData={rssData as any /* Adjust typing */} 
             pageSize={pageSize} 
           />
         );
