@@ -17,6 +17,7 @@ import type * as entries from "../entries.js";
 import type * as featured from "../featured.js";
 import type * as following from "../following.js";
 import type * as friends from "../friends.js";
+import type * as functions_users from "../functions/users.js";
 import type * as http from "../http.js";
 import type * as likes from "../likes.js";
 import type * as passwordReset_PasswordResetEmail from "../passwordReset/PasswordResetEmail.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   featured: typeof featured;
   following: typeof following;
   friends: typeof friends;
+  "functions/users": typeof functions_users;
   http: typeof http;
   likes: typeof likes;
   "passwordReset/PasswordResetEmail": typeof passwordReset_PasswordResetEmail;
