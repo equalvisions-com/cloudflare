@@ -1,5 +1,3 @@
-import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
-import { getInitialEntries as getFeaturedEntries } from "@/components/featured/FeaturedFeed";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { FeedTabsContainerClientWrapper } from "@/components/rss-feed/FeedTabsContainerClientWrapper";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
@@ -10,16 +8,15 @@ import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
  * Uses StandardSidebarLayout for consistent layout across the application
  */
 export async function LayoutManager() {
-  // Only pre-fetch featured data on initial load
-  // RSS feed data will be lazily loaded when the user switches to that tab
-  const featuredData = await getFeaturedEntries();
+  // We now use a fully lazy loading approach for both tabs
+  // Data will be fetched via API routes when the user views each tab
   
-  // Prepare the feed content - no need to pass user profile props
-  // as they're available from the context provider
+  // Prepare the feed content - Components are dynamically imported in FeedTabsContainer
+  // with custom skeleton loaders while content is being loaded
   const mainContent = (
     <FeedTabsContainerClientWrapper
-      initialData={null} // Pass null initially - data will be fetched when needed
-      featuredData={featuredData}
+      initialData={null} // RSS data will be fetched when needed
+      featuredData={null} // Featured data will be fetched when needed
       pageSize={30}
     />
   );

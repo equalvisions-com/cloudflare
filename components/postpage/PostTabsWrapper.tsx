@@ -53,8 +53,7 @@ const FeedTabContent = React.memo(({
   if (!rssData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No RSS feed entries found for this podcast.</p>
-        <p className="text-sm mt-2">Please check back later or contact the podcast owner.</p>
+    
       </div>
     );
   }

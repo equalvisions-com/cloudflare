@@ -28,40 +28,29 @@ const TabHeaders = React.memo(({
   selectedTab: number, 
   onTabClick: (index: number) => void 
 }) => {
-  const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const [, forceUpdate] = useState({});
-
-  // Force re-render when selected tab changes to ensure indicator width updates
-  useEffect(() => {
-    forceUpdate({});
-  }, [selectedTab]);
-
   return (
     <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-40 border-b">
-      
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
           onClick={() => onTabClick(index)}
           className={cn(
-            'flex-1 py-3 text-center font-bold text-[15px] relative transition-colors',
+            'flex-1 py-3 text-center font-bold text-[15px] transition-colors relative',
             selectedTab === index 
               ? 'text-primary' 
               : 'text-muted-foreground hover:text-primary/80'
           )}
           role="tab"
+          aria-selected={selectedTab === index}
           aria-controls={`panel-${tab.id}`}
           id={`tab-${tab.id}`}
         >
-          <span ref={(el) => { labelRefs.current[index] = el; }}>{tab.label}</span>
+          {tab.label}
+          
+          {/* Indicator directly in the button - only shows for selected tab */}
           {selectedTab === index && (
             <div 
-              className="absolute bottom-0 h-1 bg-primary rounded-full" 
-              style={{ 
-                width: labelRefs.current[index]?.offsetWidth || 'auto',
-                left: '50%',
-                transform: 'translateX(-50%)'
-              }} 
+              className="absolute left-0 bottom-[-0.5px] w-full h-[1px] bg-primary transition-all duration-200"
             />
           )}
         </button>
@@ -152,7 +141,7 @@ export function SwipeableTabs({
     });
   }, [tabs]);
   
-  // Use the AutoHeight plugin with default options - REMOVED AutoHeight
+  // Use the AutoHeight plugin with default options
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const tabHeightsRef = useRef<Record<number, number>>({});
@@ -174,6 +163,7 @@ export function SwipeableTabs({
     };
   }, []);
 
+  // Initialize the Embla carousel with the current settings
   const [emblaRef, emblaApi] = useEmblaCarousel(
     isMobile 
       ? { 
@@ -200,7 +190,17 @@ export function SwipeableTabs({
       AutoHeight(),
       ...(isMobile ? [WheelGesturesPlugin()] : [])
     ]
-  ); 
+  );
+
+  // Ensure we initialize with the default tab
+  useEffect(() => {
+    if (emblaApi) {
+      // This is needed to ensure proper initial selection
+      emblaApi.scrollTo(defaultTabIndex, true);
+      // Ensure proper selected tab state matches Embla's state
+      setSelectedTab(emblaApi.selectedScrollSnap());
+    }
+  }, [emblaApi, defaultTabIndex]);
 
   // Disable all touch and pointer events on desktop - REVISED LOGIC
   useEffect(() => {

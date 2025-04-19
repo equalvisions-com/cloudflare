@@ -341,8 +341,12 @@ const FeedContent = React.memo(({
         useWindowScroll
         totalCount={visibleEntries.length}
         endReached={() => {
+          console.log(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isLoading: ${isLoading}, entries: ${visibleEntries.length}`);
           if (hasMore && !isLoading) {
+            console.log('📥 Virtuoso end reached, loading more entries');
             loadMore();
+          } else {
+            console.log(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isLoading=${isLoading}`);
           }
         }}
         overscan={20}
