@@ -14,12 +14,19 @@ export const addComment = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the user to get their username
-    const user = await ctx.db.get(userId);
+    // Get the user to get their username with field filtering
+    const user = await ctx.db
+      .query("users")
+      .filter((q: any) => q.eq(q.field("_id"), userId))
+      .first()
+      .then((user: any) => user ? {
+        username: user.username || user.name || "Guest"
+      } : null);
+      
     if (!user) throw new Error("User not found");
 
-    // Use username or name or default to "Guest"
-    const username = user.username || user.name || "Guest";
+    // Use username or default to "Guest"
+    const username = user.username;
 
     // Validate content - updated to match client-side limits
     const content = args.content.trim();
@@ -33,8 +40,8 @@ export const addComment = mutation({
     const oneMinuteAgo = Date.now() - 60 * 1000;
     const recentComments = await ctx.db
       .query("comments")
-      .filter(q => q.eq(q.field("userId"), userId))
-      .filter(q => q.gt(q.field("createdAt"), oneMinuteAgo))
+      .filter((q: any) => q.eq(q.field("userId"), userId))
+      .filter((q: any) => q.gt(q.field("createdAt"), oneMinuteAgo))
       .collect();
     
     if (recentComments.length >= 5) {
@@ -43,7 +50,15 @@ export const addComment = mutation({
 
     // If this is a reply, verify parent exists
     if (args.parentId) {
-      const parent = await ctx.db.get(args.parentId);
+      const parent = await ctx.db
+        .query("comments")
+        .filter((q: any) => q.eq(q.field("_id"), args.parentId))
+        .first()
+        .then((comment: any) => comment ? {
+          _id: comment._id,
+          entryGuid: comment.entryGuid
+        } : null);
+        
       if (!parent) throw new Error("Parent comment not found");
       if (parent.entryGuid !== args.entryGuid) {
         throw new Error("Parent comment belongs to different entry");
@@ -73,7 +88,15 @@ export const deleteComment = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
     
-    const comment = await ctx.db.get(args.commentId);
+    const comment = await ctx.db
+      .query("comments")
+      .filter((q: any) => q.eq(q.field("_id"), args.commentId))
+      .first()
+      .then((comment: any) => comment ? {
+        _id: comment._id,
+        userId: comment.userId
+      } : null);
+      
     if (!comment) throw new Error("Comment not found");
     
     // Only the comment author can delete it
@@ -86,7 +109,7 @@ export const deleteComment = mutation({
       const replies = await ctx.db
         .query("comments")
         .withIndex("by_parent")
-        .filter(q => q.eq(q.field("parentId"), commentId))
+        .filter((q: any) => q.eq(q.field("parentId"), commentId))
         .collect();
       
       // Recursively delete all replies
@@ -111,38 +134,69 @@ export const getComments = query({
     entryGuid: v.string(),
   },
   handler: async (ctx, args) => {
+    // Get only the necessary comment fields
     const comments = await ctx.db
       .query("comments")
       .withIndex("by_entry_time")
       .filter(q => q.eq(q.field("entryGuid"), args.entryGuid))
       .order("desc")
-      .collect();
+      .collect()
+      .then(comments => comments.map(comment => ({
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        userId: comment.userId,
+        feedUrl: comment.feedUrl,
+        parentId: comment.parentId,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        username: comment.username,
+        entryGuid: comment.entryGuid
+      })));
     
     if (comments.length === 0) return [];
     
     // Get all unique user IDs
     const userIds = [...new Set(comments.map(c => c.userId))];
     
-    // Get user data for all comments
-    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    // Get only the necessary user fields
+    const users = await Promise.all(
+      userIds.map(id => 
+        ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), id))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username || user.name || "Guest",
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
+      )
+    );
     
     // Create a map of userId to formatted user data
     const userMap = new Map();
-    users.forEach(user => {
-      if (user) {
-        userMap.set(user._id.toString(), {
-          userId: user._id,
-          username: user.username || user.name || "Guest",
-          name: user.name,
-          profileImage: user.profileImage || user.image
-        });
-      }
+    users.filter(Boolean).forEach(user => {
+      if (user) userMap.set(user._id.toString(), {
+        userId: user._id,
+        username: user.username,
+        name: user.name,
+        profileImage: user.profileImage
+      });
     });
     
-    // Add user data to each comment
+    // Add user data to each comment with only required fields
     return comments.map(comment => ({
-      ...comment,
-      user: userMap.get(comment.userId.toString()),
+      _id: comment._id,
+      _creationTime: comment._creationTime,
+      userId: comment.userId,
+      feedUrl: comment.feedUrl,
+      parentId: comment.parentId,
+      content: comment.content,
+      createdAt: comment.createdAt,
+      username: comment.username,
+      entryGuid: comment.entryGuid,
+      user: userMap.get(comment.userId.toString())
     }));
   },
 });
@@ -150,10 +204,10 @@ export const getComments = query({
 // Define the type for a comment with user data
 type CommentWithUser = {
   _id: Id<"comments">;
-  _creationTime: number;
+  _creationTime?: number;
   parentId?: Id<"comments">;
-  feedUrl: string;
   userId: Id<"users">;
+  feedUrl?: string;
   username: string;
   entryGuid: string;
   content: string;
@@ -163,7 +217,6 @@ type CommentWithUser = {
     username: string;
     name?: string;
     profileImage?: string;
-    [key: string]: unknown;
   };
 };
 
@@ -184,7 +237,18 @@ export const batchGetComments = query({
         )
       )
       .order("desc")
-      .collect();
+      .collect()
+      .then(comments => comments.map(comment => ({
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        userId: comment.userId,
+        feedUrl: comment.feedUrl,
+        parentId: comment.parentId,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        username: comment.username,
+        entryGuid: comment.entryGuid
+      })));
 
     if (comments.length === 0) {
       return args.entryGuids.map(() => []);
@@ -193,18 +257,31 @@ export const batchGetComments = query({
     // Get all unique user IDs
     const userIds = [...new Set(comments.map(c => c.userId))];
     
-    // Fetch all users data directly
-    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    // Fetch only the necessary user fields
+    const users = await Promise.all(
+      userIds.map(id => 
+        ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), id))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username || user.name || "Guest",
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
+      )
+    );
     
     // Create a map for quick user lookup with properly formatted user data
     const userMap = new Map();
-    users.forEach(user => {
+    users.filter(Boolean).forEach(user => {
       if (user) {
         userMap.set(user._id.toString(), {
           userId: user._id,
-          username: user.username || user.name || "Guest",
+          username: user.username,
           name: user.name,
-          profileImage: user.profileImage || user.image
+          profileImage: user.profileImage
         });
       }
     });
@@ -214,8 +291,16 @@ export const batchGetComments = query({
     for (const comment of comments) {
       const entryComments = commentsByEntry.get(comment.entryGuid) || [];
       const commentWithUser: CommentWithUser = {
-        ...comment,
-        user: userMap.get(comment.userId.toString()),
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        userId: comment.userId,
+        feedUrl: comment.feedUrl,
+        parentId: comment.parentId,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        username: comment.username,
+        entryGuid: comment.entryGuid,
+        user: userMap.get(comment.userId.toString())
       };
       entryComments.push(commentWithUser);
       commentsByEntry.set(comment.entryGuid, entryComments);
@@ -233,56 +318,123 @@ export const getCommentReplies = query({
     commentId: v.id("comments"),
   },
   handler: async (ctx, args) => {
+    // Get only the necessary reply fields
     const replies = await ctx.db
       .query("comments")
       .withIndex("by_parent")
       .filter(q => q.eq(q.field("parentId"), args.commentId))
       .order("asc") // Oldest first for replies
-      .collect();
+      .collect()
+      .then(replies => replies.map(reply => ({
+        _id: reply._id,
+        _creationTime: reply._creationTime,
+        userId: reply.userId,
+        feedUrl: reply.feedUrl,
+        parentId: reply.parentId,
+        content: reply.content,
+        createdAt: reply.createdAt,
+        username: reply.username,
+        entryGuid: reply.entryGuid
+      })));
     
     if (replies.length === 0) return [];
     
     // Get all unique user IDs
     const userIds = [...new Set(replies.map(c => c.userId))];
     
-    // Get user data for all replies
-    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
+    // Get only the necessary user fields
+    const users = await Promise.all(
+      userIds.map(id => 
+        ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), id))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username || user.name || "Guest",
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
+      )
+    );
     
     // Create a map of userId to formatted user data
     const userMap = new Map();
-    users.forEach(user => {
+    users.filter(Boolean).forEach(user => {
       if (user) {
         userMap.set(user._id.toString(), {
           userId: user._id,
-          username: user.username || user.name || "Guest",
+          username: user.username,
           name: user.name,
-          profileImage: user.profileImage || user.image
+          profileImage: user.profileImage
         });
       }
     });
     
-    // Add user data to each reply
+    // Add user data to each reply with only required fields
     return replies.map(reply => ({
-      ...reply,
-      user: userMap.get(reply.userId.toString()),
+      _id: reply._id,
+      _creationTime: reply._creationTime,
+      userId: reply.userId,
+      feedUrl: reply.feedUrl,
+      parentId: reply.parentId,
+      content: reply.content,
+      createdAt: reply.createdAt,
+      username: reply.username,
+      entryGuid: reply.entryGuid,
+      user: userMap.get(reply.userId.toString())
     }));
   },
 });
 
 // Helper function to get user data for comments
 async function getUserDataForComment(ctx: any, commentId: Id<"comments">) {
-  const comment = await ctx.db.get(commentId);
+  // Get comment with field filtering
+  const comment = await ctx.db
+    .query("comments")
+    .filter((q: any) => q.eq(q.field("_id"), commentId))
+    .first()
+    .then((comment: any) => comment ? {
+      _id: comment._id,
+      _creationTime: comment._creationTime,
+      userId: comment.userId,
+      feedUrl: comment.feedUrl,
+      parentId: comment.parentId,
+      content: comment.content,
+      createdAt: comment.createdAt,
+      username: comment.username,
+      entryGuid: comment.entryGuid
+    } : null);
+    
   if (!comment) return null;
   
-  const user = await ctx.db.get(comment.userId);
-  
-  return {
-    ...comment,
-    user: user ? {
-      userId: user._id,
+  // Get user with field filtering
+  const user = await ctx.db
+    .query("users")
+    .filter((q: any) => q.eq(q.field("_id"), comment.userId))
+    .first()
+    .then((user: any) => user ? {
+      _id: user._id,
       username: user.username || user.name || "Guest",
       name: user.name,
       profileImage: user.profileImage || user.image
+    } : null);
+  
+  return {
+    _id: comment._id,
+    _creationTime: comment._creationTime,
+    userId: comment.userId,
+    feedUrl: comment.feedUrl,
+    parentId: comment.parentId,
+    content: comment.content,
+    createdAt: comment.createdAt,
+    username: comment.username,
+    entryGuid: comment.entryGuid,
+    user: user ? {
+      userId: user._id,
+      username: user.username,
+      name: user.name,
+      profileImage: user.profileImage
     } : undefined
   };
 } 

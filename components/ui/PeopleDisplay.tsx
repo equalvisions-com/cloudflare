@@ -72,7 +72,7 @@ export function PeopleDisplay({
 
   // Query for users - search results
   const usersResult = useQuery(
-    api.users.searchUsers,
+    api.users.searchUsersOptimized,
     searchQuery ? { query: searchQuery, cursor: nextCursor, limit: 10 } : "skip"
   );
 

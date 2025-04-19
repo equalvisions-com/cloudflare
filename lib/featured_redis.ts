@@ -120,7 +120,7 @@ export async function fetchAndCacheFeaturedEntries(): Promise<FeaturedEntry[]> {
     // Create a Convex client
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     
-    // Get featured posts from Convex
+    // Get featured posts from Convex - now returns filtered fields
     const featuredPosts = await convex.query(api.featured.getFeaturedPosts);
     
     if (!featuredPosts || featuredPosts.length === 0) {

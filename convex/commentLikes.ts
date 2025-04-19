@@ -12,8 +12,13 @@ export const toggleCommentLike = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if the comment exists
-    const comment = await ctx.db.get(args.commentId);
+    // Check if the comment exists with field filtering
+    const comment = await ctx.db
+      .query("comments")
+      .filter(q => q.eq(q.field("_id"), args.commentId))
+      .first()
+      .then(comment => comment ? { _id: comment._id } : null);
+      
     if (!comment) throw new Error("Comment not found");
 
     // Check if the user has already liked this comment

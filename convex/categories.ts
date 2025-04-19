@@ -8,11 +8,16 @@ export const getCategories = query({
   handler: async (ctx, args) => {
     const { mediaType } = args;
     
-    // Get all posts for the media type
+    // Get only the category and mediaType fields from posts
     const posts = await ctx.db
       .query("posts")
       .filter(q => q.eq(q.field("mediaType"), mediaType))
-      .collect();
+      .collect()
+      .then(posts => posts.map(post => ({
+        category: post.category,
+        categorySlug: post.categorySlug,
+        mediaType: post.mediaType
+      })));
     
     // Extract unique categories
     const categoriesMap = new Map();
@@ -56,7 +61,20 @@ export const getFeaturedPosts = query({
       )
       .take(limit);
     
-    return posts;
+    // Return only the necessary fields, not the entire post documents
+    return posts.map(post => ({
+      _id: post._id,
+      _creationTime: post._creationTime,
+      title: post.title,
+      postSlug: post.postSlug,
+      category: post.category,
+      categorySlug: post.categorySlug,
+      mediaType: post.mediaType,
+      featuredImg: post.featuredImg,
+      body: post.body?.substring(0, 150), // Truncate body to first 150 chars for preview
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false
+    }));
   },
 });
 

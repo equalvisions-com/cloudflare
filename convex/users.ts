@@ -12,10 +12,59 @@ export const viewer = query({
     if (userId === null) {
       return null;
     }
-    const user = await ctx.db.get(userId);
-    if (user === null) {
+    
+    const userData = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first();
+      
+    if (!userData) {
       throw new Error("User was deleted");
     }
+    
+    // Return only essential fields needed for authentication
+    return {
+      _id: userData._id,
+      _creationTime: userData._creationTime,
+      username: userData.username,
+      name: userData.name,
+      email: userData.email,
+      isAnonymous: userData.isAnonymous,
+      isBoarded: userData.isBoarded ?? false,
+      image: userData.image,
+      profileImage: userData.profileImage
+    };
+  },
+});
+
+// New optimized version that only selects needed fields
+export const viewerOptimized = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return null;
+    }
+    
+    // Use query with field filtering instead of get()
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        isAnonymous: user.isAnonymous,
+        isBoarded: user.isBoarded
+      } : null);
+    
+    if (!user) {
+      throw new Error("User was deleted");
+    }
+    
+    // Return only the fields we need
     return user;
   },
 });
@@ -26,35 +75,41 @@ export const getProfile = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
-    const user = await ctx.db.get(userId);
-    if (!user) return null;
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        userId: user._id,
+        username: user.username || "Guest",
+        name: user.name,
+        bio: user.bio,
+        profileImage: user.profileImage || user.image,
+        rssKeys: user.rssKeys || [],
+        isBoarded: user.isBoarded ?? false
+      } : null);
 
-    return {
-      userId: user._id,
-      username: user.username || "Guest",
-      name: user.name,
-      bio: user.bio,
-      profileImage: user.profileImage || user.image,
-      rssKeys: user.rssKeys || [],
-      isBoarded: user.isBoarded ?? false
-    };
+    return user;
   },
 });
 
 export const getUserProfile = query({
   args: { id: v.id("users") },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.id);
-    if (!user) return null;
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), args.id))
+      .first()
+      .then(user => user ? {
+        userId: user._id,
+        username: user.username || "Guest",
+        name: user.name,
+        bio: user.bio,
+        profileImage: user.profileImage || user.image,
+        rssKeys: user.rssKeys || []
+      } : null);
 
-    return {
-      userId: user._id,
-      username: user.username || "Guest",
-      name: user.name,
-      bio: user.bio,
-      profileImage: user.profileImage || user.image,
-      rssKeys: user.rssKeys || []
-    };
+    return user;
   },
 });
 
@@ -68,6 +123,7 @@ export const getProfileByUsername = query({
     
     if (!user) return null;
 
+    // Return only the specific fields needed for profile display
     return {
       userId: user._id,
       username: user.username,
@@ -76,6 +132,47 @@ export const getProfileByUsername = query({
       profileImage: user.profileImage || user.image,
       rssKeys: user.rssKeys || []
     };
+  },
+});
+
+// Optimized version that implements field selection pattern
+export const getUserByUsernameOptimized = query({
+  args: { 
+    username: v.string(),
+    // Allow callers to specify exactly which fields they need
+    fields: v.optional(v.array(v.string()))
+  },
+  handler: async (ctx, args) => {
+    const { username, fields = ["_id", "username", "name", "bio", "profileImage", "image"] } = args;
+    
+    // First get the base user document - but only retrieve it once
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_username", q => q.eq("username", username.toLowerCase()))
+      .first();
+    
+    if (!user) return null;
+    
+    // Create a result object with only the requested fields
+    const result: Record<string, any> = {
+      userId: user._id, // Always include the ID for reference
+    };
+    
+    // Only include fields that were requested
+    fields.forEach(field => {
+      if (field === "profileImage" && !user.profileImage) {
+        // Handle the special case for profileImage fallback
+        result.profileImage = user.image;
+      } else if (field in user) {
+        // Handle standard fields
+        result[field] = user[field as keyof typeof user];
+      } else if (field === "rssKeys" && !user.rssKeys) {
+        // Handle optional arrays with defaults
+        result.rssKeys = [];
+      }
+    });
+    
+    return result;
   },
 });
 
@@ -136,8 +233,16 @@ export const updateProfile = mutation({
       throw new Error("Unauthenticated");
     }
     
-    // Find the user
-    const user = await ctx.db.get(userId);
+    // Find the user with field filtering
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        profileImageKey: user.profileImageKey
+      } : null);
+      
     if (!user) {
       throw new Error("User not found");
     }
@@ -236,53 +341,74 @@ async function getFriendsWithProfiles(
   const cursor = hasMore ? friendships[limit - 1]._id : null;
   const items = hasMore ? friendships.slice(0, limit) : friendships;
 
-  // Get profile data for each friend - optimize to get only needed fields
-  const friendItems = await Promise.all(
-    items.map(async (friendship: any) => {
-      try {
-        // Safely determine the friend's userId (the one that's not the current user)
-        const isSender = friendship.requesterId && friendship.requesterId.toString() === userId.toString();
-        const friendId = isSender ? friendship.requesteeId : friendship.requesterId;
+  // Collect all friend IDs first to make a single batch query
+  const friendIds: Id<"users">[] = [];
+  // Track which friendships correspond to which IDs for later mapping
+  const friendshipMap: Record<string, any> = {};
 
-        if (!friendId) {
-          console.error("Invalid friendship record missing IDs:", friendship);
-          return null;
-        }
-
-        // Get friend's user data - we'll only extract the fields we need
-        const user = await ctx.db.get(friendId);
-        if (!user) return null;
-
-        // Simplified friendship object with only the fields we need
-        const simplifiedFriendship = {
+  items.forEach((friendship: any) => {
+    try {
+      const isSender = friendship.requesterId && friendship.requesterId.toString() === userId.toString();
+      const friendId = isSender ? friendship.requesteeId : friendship.requesterId;
+      
+      if (friendId) {
+        friendIds.push(friendId);
+        // Store minimal friendship data
+        friendshipMap[friendId.toString()] = {
           _id: friendship._id,
           status: friendship.status,
           direction: isSender ? "sent" : "received",
           friendId,
         };
-
-        // Format as profile data with only the fields we need
-        const profile = {
-          userId: user._id,
-          username: user.username || "Guest",
-          name: user.name,
-          profileImage: user.profileImage || user.image,
-        };
-
-        return {
-          friendship: simplifiedFriendship,
-          profile,
-        };
-      } catch (error) {
-        console.error("Error processing friendship:", error, friendship);
-        return null;
       }
-    })
+    } catch (error) {
+      console.error("Error processing friendship for batch query:", error);
+    }
+  });
+
+  // Batch query for all friend users at once - only get necessary fields
+  const friends = await Promise.all(
+    friendIds.map(id => 
+      ctx.db
+        .query("users")
+        .filter((q: any) => q.eq(q.field("_id"), id))
+        .first()
+        .then((user: any) => 
+          user ? {
+            _id: user._id,
+            username: user.username,
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null
+        )
+    )
   );
 
-  // Filter out null values and return
+  // Map the friends to their friendship data
+  const friendItems = friends
+    .filter(Boolean)
+    .map((friend: any) => {
+      const friendshipData = friendshipMap[friend._id.toString()];
+      if (!friendshipData) return null;
+      
+      // Format as profile data with the expected structure
+      // IMPORTANT: Use _id instead of userId to match ProfileData type
+      return {
+        friendship: friendshipData,
+        profile: {
+          _id: friend._id,  // This field must be _id, not userId
+          userId: friend._id, // Keep userId for backward compatibility
+          username: friend.username || "Guest",
+          name: friend.name,
+          profileImage: friend.profileImage
+        }
+      };
+    })
+    .filter(Boolean);
+
+  // Return results in expected format
   return {
-    items: friendItems.filter(Boolean),
+    items: friendItems,
     hasMore,
     cursor
   };
@@ -381,15 +507,19 @@ export const getProfilePageData = query({
     const postIds = following.map(f => f.postId);
     const postsPromises = postIds.length > 0 
       ? postIds.map(id => 
-          ctx.db.get(id).then(post => post ? {
-            _id: post._id,
-            title: post.title,
-            featuredImg: post.featuredImg,
-            categorySlug: post.categorySlug,
-            postSlug: post.postSlug,
-            mediaType: post.mediaType,
-            verified: post.verified ?? false
-          } : null)
+          ctx.db
+            .query("posts")
+            .filter(q => q.eq(q.field("_id"), id))
+            .first()
+            .then(post => post ? {
+              _id: post._id,
+              title: post.title,
+              featuredImg: post.featuredImg,
+              categorySlug: post.categorySlug,
+              postSlug: post.postSlug,
+              mediaType: post.mediaType,
+              verified: post.verified ?? false
+            } : null)
         )
       : [];
     
@@ -767,8 +897,16 @@ export const completeOnboarding = mutation({
       throw new Error("Unauthenticated");
     }
     
-    // Find the user
-    const user = await ctx.db.get(userId);
+    // Find the user with field filtering
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        username: user.username
+      } : null);
+      
     if (!user) {
       throw new Error("User not found");
     }
@@ -829,7 +967,8 @@ export const completeOnboarding = mutation({
   },
 });
 
-export const searchUsers = query({
+// Optimized version of searchUsers that uses field filtering
+export const searchUsersOptimized = query({
   args: { 
     query: v.string(),
     cursor: v.optional(v.id("users")),
@@ -849,19 +988,30 @@ export const searchUsers = query({
     // Create a case-insensitive regex pattern
     const searchPattern = new RegExp(query.trim() || '.', 'i');
     
-    // Get all users
-    const allUsers = await ctx.db
+    // Get only the fields we need for filtering and displaying users
+    // This prevents exposing sensitive fields like email, verification status, etc.
+    const users = await ctx.db
       .query("users")
-      .collect();
+      .collect()
+      .then(users => users.map(user => ({
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        bio: user.bio,
+        profileImage: user.profileImage,
+        image: user.image,
+        isAnonymous: user.isAnonymous,
+        isBoarded: user.isBoarded
+      })));
 
     // Skip if we don't have users
-    if (allUsers.length === 0) {
+    if (users.length === 0) {
       return { users: [], hasMore: false, nextCursor: null };
     }
     
     // Filter users by username, name, and bio using regex
     // Sort by priority: username match, then name match, then bio match
-    const matchingUsers = allUsers
+    const matchingUsers = users
       .filter(user => {
         // Skip users without usernames
         if (!user.username) return false;
@@ -914,6 +1064,7 @@ export const searchUsers = query({
         // Get friendship status if authenticated
         let friendshipStatus = null;
         if (currentUserId && currentUserId.toString() !== user._id.toString()) {
+          // Only query the specific friendship instead of getting all friendships
           const friendship = await ctx.db
             .query("friends")
             .withIndex("by_users")
@@ -929,7 +1080,13 @@ export const searchUsers = query({
                 )
               )
             )
-            .first();
+            .first()
+            .then(friendship => friendship ? {
+              _id: friendship._id,
+              status: friendship.status,
+              requesterId: friendship.requesterId,
+              requesteeId: friendship.requesteeId
+            } : null);
 
           if (friendship) {
             const isSender = friendship.requesterId.toString() === currentUserId.toString();
@@ -956,6 +1113,7 @@ export const searchUsers = query({
           };
         }
         
+        // Return only essential fields needed for the UI
         return {
           userId: user._id,
           username: user.username || "Guest",
@@ -967,8 +1125,6 @@ export const searchUsers = query({
         };
       })
     );
-    
-    console.log(`Search for "${query}" found ${formattedUsers.length} results`);
     
     return {
       users: formattedUsers,
@@ -993,18 +1149,28 @@ export const getRandomUsers = query({
       // Not authenticated, continue as guest
     }
     
-    // Get all users
-    const allUsers = await ctx.db
+    // Get only necessary fields from users - avoid exposing sensitive information
+    const users = await ctx.db
       .query("users")
-      .collect();
+      .collect()
+      .then(allUsers => allUsers.map(user => ({
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        bio: user.bio,
+        profileImage: user.profileImage,
+        image: user.image,
+        isAnonymous: user.isAnonymous,
+        isBoarded: user.isBoarded
+      })));
 
     // Skip if we don't have users
-    if (allUsers.length === 0) {
+    if (users.length === 0) {
       return { users: [], hasMore: false, nextCursor: null };
     }
     
     // Filter out users without usernames and anonymous users
-    const validUsers = allUsers.filter(user => {
+    const validUsers = users.filter(user => {
       return user.username && !user.isAnonymous && user.isBoarded === true;
     });
     
@@ -1017,67 +1183,104 @@ export const getRandomUsers = query({
     // Get the limited number of users
     const randomUsers = validUsers.slice(0, limit);
     
+    // If not authenticated, return without friendship status
+    if (!currentUserId) {
+      const formattedUsers = randomUsers.map(user => ({
+        userId: user._id,
+        username: user.username || "Guest",
+        name: user.name,
+        bio: user.bio || "",
+        profileImage: user.profileImage || user.image,
+        isAuthenticated: false,
+        friendshipStatus: null
+      }));
+      
+      return {
+        users: formattedUsers,
+        hasMore: false,
+        nextCursor: null
+      };
+    }
+    
+    // Get all friendship data in one batch query for efficiency
+    const userIds = randomUsers.map(user => user._id);
+    
+    // Query all relevant friendships where current user is involved with any of the random users
+    const friendships = await ctx.db
+      .query("friends")
+      .filter(q => 
+        q.or(
+          q.and(
+            q.eq(q.field("requesterId"), currentUserId),
+            q.or(...userIds.map(id => q.eq(q.field("requesteeId"), id)))
+          ),
+          q.and(
+            q.or(...userIds.map(id => q.eq(q.field("requesterId"), id))),
+            q.eq(q.field("requesteeId"), currentUserId)
+          )
+        )
+      )
+      .collect()
+      .then(friendships => friendships.map(friendship => ({
+        _id: friendship._id,
+        requesterId: friendship.requesterId,
+        requesteeId: friendship.requesteeId,
+        status: friendship.status
+      })));
+    
+    // Create a map of userId to friendship status for fast lookup
+    const friendshipMap = new Map();
+    
+    friendships.forEach(friendship => {
+      const isSender = friendship.requesterId.toString() === currentUserId.toString();
+      const targetId = isSender ? friendship.requesteeId.toString() : friendship.requesterId.toString();
+      
+      friendshipMap.set(targetId, {
+        exists: true,
+        status: friendship.status,
+        direction: isSender ? "sent" : "received",
+        friendshipId: friendship._id
+      });
+    });
+    
     // Process users to get friendship status and format result
-    const formattedUsers = await Promise.all(
-      randomUsers.map(async (user) => {
-        // Get friendship status if authenticated
-        let friendshipStatus = null;
-        if (currentUserId && currentUserId.toString() !== user._id.toString()) {
-          const friendship = await ctx.db
-            .query("friends")
-            .withIndex("by_users")
-            .filter(q =>
-              q.or(
-                q.and(
-                  q.eq(q.field("requesterId"), currentUserId),
-                  q.eq(q.field("requesteeId"), user._id)
-                ),
-                q.and(
-                  q.eq(q.field("requesterId"), user._id),
-                  q.eq(q.field("requesteeId"), currentUserId)
-                )
-              )
-            )
-            .first();
-
-          if (friendship) {
-            const isSender = friendship.requesterId.toString() === currentUserId.toString();
-            friendshipStatus = {
-              exists: true,
-              status: friendship.status,
-              direction: isSender ? "sent" : "received",
-              friendshipId: friendship._id
-            };
-          } else {
-            friendshipStatus = {
-              exists: false,
-              status: null,
-              direction: null,
-              friendshipId: null
-            };
-          }
-        } else if (currentUserId && currentUserId.toString() === user._id.toString()) {
-          friendshipStatus = {
-            exists: true, 
-            status: "self",
-            direction: null,
-            friendshipId: null
-          };
-        }
-        
+    const formattedUsers = randomUsers.map(user => {
+      // Skip self
+      if (user._id.toString() === currentUserId.toString()) {
         return {
           userId: user._id,
           username: user.username || "Guest",
           name: user.name,
           bio: user.bio || "",
           profileImage: user.profileImage || user.image,
-          isAuthenticated: !!currentUserId,
-          friendshipStatus
+          isAuthenticated: true,
+          friendshipStatus: {
+            exists: true, 
+            status: "self",
+            direction: null,
+            friendshipId: null
+          }
         };
-      })
-    );
-    
-    console.log(`Random users query returned ${formattedUsers.length} results`);
+      }
+      
+      // Get from map or create default
+      const friendshipStatus = friendshipMap.get(user._id.toString()) || {
+        exists: false,
+        status: null,
+        direction: null,
+        friendshipId: null
+      };
+      
+      return {
+        userId: user._id,
+        username: user.username || "Guest",
+        name: user.name,
+        bio: user.bio || "",
+        profileImage: user.profileImage || user.image,
+        isAuthenticated: true,
+        friendshipStatus
+      };
+    });
     
     return {
       users: formattedUsers,
@@ -1096,8 +1299,16 @@ export const deleteAccount = mutation({
       throw new Error("Unauthenticated");
     }
     
-    // Find the user
-    const user = await ctx.db.get(userId);
+    // Get only the profile image key if it exists
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        profileImageKey: user.profileImageKey
+      } : null);
+      
     if (!user) {
       throw new Error("User not found");
     }

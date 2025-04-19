@@ -123,7 +123,7 @@ export const getFriendshipStatusByUsername = query({
       userId = authUserId;
     }
 
-    // First get the user by username using the by_username index
+    // Only get the _id field from the user, not the entire document
     const user = await ctx.db
       .query("users")
       .withIndex("by_username", q => q.eq("username", username))
@@ -390,31 +390,56 @@ export const getFriendsByUsername = query({
       }
     }
     
-    // Fetch user and profile information for each friend
-    const friendsWithDetails = await Promise.all(
-      friendships.map(async (friendship) => {
-        const friendUserId = friendship.friendId;
-        const friendUser = await ctx.db
+    // Collect all friend IDs for a single batch query
+    const friendUserIds = friendships.map(friendship => friendship.friendId);
+    
+    // Fetch only required profile fields for each friend in an optimized batch operation
+    const friendProfiles = await Promise.all(
+      friendUserIds.map(friendId => 
+        ctx.db
           .query("users")
-          .filter(q => q.eq(q.field("_id"), friendUserId))
-          .first();
-          
-        if (!friendUser) {
-          return null;
-        }
-        
-        return {
-          friendship,
-          profile: friendUser,
-        };
-      })
+          .filter(q => q.eq(q.field("_id"), friendId))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            userId: user._id, // Include userId for backward compatibility
+            username: user.username || "Guest",
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
+      )
     );
     
-    // Filter out nulls
-    const results = friendsWithDetails.filter(Boolean);
+    // Create a map for quick lookup of friend profiles
+    const profileMap = new Map();
+    friendProfiles.forEach((profile, index) => {
+      if (profile) {
+        profileMap.set(friendUserIds[index].toString(), profile);
+      }
+    });
+    
+    // Match friendships with their profiles efficiently
+    const friendsWithDetails = friendships
+      .map(friendship => {
+        const profile = profileMap.get(friendship.friendId.toString());
+        if (!profile) return null;
+        
+        // Return only necessary friendship data with the profile
+        return {
+          friendship: {
+            _id: friendship._id,
+            status: friendship.status,
+            direction: friendship.direction,
+            createdAt: friendship.createdAt,
+            updatedAt: friendship.updatedAt
+          },
+          profile
+        };
+      })
+      .filter(Boolean);
     
     return {
-      friends: results,
+      friends: friendsWithDetails,
       hasMore,
       cursor: hasMore ? newCursor : null
     };
@@ -497,7 +522,16 @@ export const acceptFriendRequest = mutation({
       throw new Error("Unauthorized");
     }
 
-    const friendship = await ctx.db.get(friendshipId);
+    // Get the friendship with field filtering
+    const friendship = await ctx.db
+      .query("friends")
+      .filter(q => q.eq(q.field("_id"), friendshipId))
+      .first()
+      .then(friendship => friendship ? {
+        _id: friendship._id,
+        requesteeId: friendship.requesteeId,
+        status: friendship.status
+      } : null);
 
     if (!friendship) {
       throw new Error("Friend request not found");
@@ -535,7 +569,16 @@ export const deleteFriendship = mutation({
       throw new Error("Unauthorized");
     }
 
-    const friendship = await ctx.db.get(friendshipId);
+    // Get the friendship with field filtering
+    const friendship = await ctx.db
+      .query("friends")
+      .filter(q => q.eq(q.field("_id"), friendshipId))
+      .first()
+      .then(friendship => friendship ? {
+        _id: friendship._id,
+        requesterId: friendship.requesterId,
+        requesteeId: friendship.requesteeId
+      } : null);
 
     if (!friendship) {
       throw new Error("Friendship not found");
@@ -574,13 +617,29 @@ export const getFriends = query({
     let sentFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requester", (q) => q.eq("requesterId", currentUserId))
-      .collect();
+      .collect()
+      .then(friendships => friendships.map(friendship => ({
+        _id: friendship._id,
+        requesterId: friendship.requesterId,
+        requesteeId: friendship.requesteeId,
+        status: friendship.status,
+        createdAt: friendship.createdAt,
+        updatedAt: friendship.updatedAt
+      })));
 
     // Get friendships where the user is the requestee
     let receivedFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requestee", (q) => q.eq("requesteeId", currentUserId))
-      .collect();
+      .collect()
+      .then(friendships => friendships.map(friendship => ({
+        _id: friendship._id,
+        requesterId: friendship.requesterId,
+        requesteeId: friendship.requesteeId,
+        status: friendship.status,
+        createdAt: friendship.createdAt,
+        updatedAt: friendship.updatedAt
+      })));
 
     // If status is provided, filter the results
     if (status) {
@@ -612,8 +671,17 @@ export const getNotifications = query({
       return { user: null, notifications: [] };
     }
     
-    // Get user information
-    const user = await ctx.db.get(userId);
+    // Get user information - optimized to only get necessary fields
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        profileImage: user.profileImage
+      } : null);
     
     if (!user) {
       return { user: null, notifications: [] };
@@ -634,7 +702,16 @@ export const getNotifications = query({
           q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
         );
       })
-      .collect();
+      .collect()
+      .then(requests => requests.map(req => ({
+        _id: req._id,
+        requesterId: req.requesterId,
+        requesteeId: req.requesteeId,
+        status: req.status,
+        createdAt: req.createdAt,
+        updatedAt: req.updatedAt,
+        _creationTime: req._creationTime
+      })));
       
     // Get friend requests accepted where user is the requester
     const acceptedSentRequests = await ctx.db
@@ -648,7 +725,16 @@ export const getNotifications = query({
           q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
         );
       })
-      .collect();
+      .collect()
+      .then(requests => requests.map(req => ({
+        _id: req._id,
+        requesterId: req.requesterId,
+        requesteeId: req.requesteeId,
+        status: req.status,
+        createdAt: req.createdAt,
+        updatedAt: req.updatedAt,
+        _creationTime: req._creationTime
+      })));
       
     // Get friend requests accepted where user is the requestee
     const acceptedReceivedRequests = await ctx.db
@@ -662,7 +748,16 @@ export const getNotifications = query({
           q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
         );
       })
-      .collect();
+      .collect()
+      .then(requests => requests.map(req => ({
+        _id: req._id,
+        requesterId: req.requesterId,
+        requesteeId: req.requesteeId,
+        status: req.status,
+        createdAt: req.createdAt,
+        updatedAt: req.updatedAt,
+        _creationTime: req._creationTime
+      })));
       
     // Combine all notifications
     const allNotifications = [
@@ -695,12 +790,18 @@ export const getNotifications = query({
     // Fetch user information for each friend in one go
     const friendUserIds = allNotifications.map(n => n.friendId);
     
-    // Fetch users individually but in parallel
+    // Fetch users individually but in parallel, with field filtering
     const userPromises = friendUserIds.map(friendId => 
       ctx.db
         .query("users")
         .filter(q => q.eq(q.field("_id"), friendId))
         .first()
+        .then(user => user ? {
+          _id: user._id,
+          username: user.username,
+          name: user.name,
+          profileImage: user.profileImage
+        } : null)
     );
     
     const users = await Promise.all(userPromises);
@@ -760,21 +861,37 @@ export const friendRequests = query({
       return { friendRequests: [], cursor: null };
     }
 
-    // Get friendship requests where status is "requested"
+    // Get friendship requests where status is "requested", with field filtering
     const friendships = await ctx.db
       .query("friends")
       .withIndex("by_requestee", q => q.eq("requesteeId", requesteeId).eq("status", "requested"))
       .order("desc")
-      .paginate({ cursor: cursor || null, numItems });
+      .paginate({ cursor: cursor || null, numItems })
+      .then(result => ({
+        page: result.page.map(friendship => ({
+          _id: friendship._id,
+          requesterId: friendship.requesterId,
+          requesteeId: friendship.requesteeId,
+          status: friendship.status,
+          createdAt: friendship.createdAt
+        })),
+        continueCursor: result.continueCursor
+      }));
 
-    // Fetch user information for each requesterId
+    // Fetch user information for each requesterId with field filtering
     const friendsWithDetails = await Promise.all(
       friendships.page.map(async (friendship) => {
         const friendUserId = friendship.requesterId;
         const friendUser = await ctx.db
           .query("users")
           .filter(q => q.eq(q.field("_id"), friendUserId))
-          .first();
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username,
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null);
           
         if (!friendUser) {
           return null;

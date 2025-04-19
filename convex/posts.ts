@@ -8,12 +8,25 @@ export const getPostsByMediaType = query({
     mediaType: v.string(),
   },
   handler: async (ctx, { mediaType }) => {
+    // Get posts of specific media type
     const posts = await ctx.db
       .query("posts")
       .filter((q) => q.eq(q.field("mediaType"), mediaType))
       .collect();
     
-    return posts;
+    // Return only the fields needed for display, avoiding returning entire documents
+    return posts.map(post => ({
+      _id: post._id,
+      _creationTime: post._creationTime,
+      title: post.title,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug,
+      category: post.category,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false
+    }));
   },
 });
 
@@ -46,9 +59,21 @@ export const getByMediaTypeAndSlug = query({
       .withIndex("by_post", q => q.eq("postId", post._id))
       .collect()).length;
 
+    // Return explicitly listed fields instead of spreading the whole post object
     return {
-      ...post,
-      relatedPosts: relatedPosts.map((p: typeof post) => ({
+      _id: post._id,
+      _creationTime: post._creationTime,
+      title: post.title,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug,
+      category: post.category,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false, // Ensure consistency with other queries
+      body: post.body, // Assuming body is needed here
+      isFeatured: post.isFeatured, // Assuming this field might exist and be needed
+      relatedPosts: relatedPosts.map((p) => ({ // Removed type assertion as it might be complex with partial objects
         _id: p._id,
         _creationTime: p._creationTime,
         title: p.title,
@@ -65,11 +90,26 @@ export const getByMediaTypeAndSlug = query({
 export const getAllCategories = query({
   args: {},
   handler: async (ctx) => {
-    const posts = await ctx.db.query("posts").collect();
-    const uniqueCategories = [...new Set(posts.map(post => ({
-      category: post.category,
-      categorySlug: post.categorySlug
-    })))];
+    // Query posts but only select the category fields we need
+    const categoryData = await ctx.db
+      .query("posts")
+      .collect()
+      .then(posts => posts.map(post => ({
+        category: post.category,
+        categorySlug: post.categorySlug
+      })));
+    
+    // Create a unique set of categories
+    const uniqueCategories = [];
+    const seen = new Set();
+    
+    for (const item of categoryData) {
+      const key = `${item.categorySlug}|${item.category}`;
+      if (!seen.has(key) && item.category && item.categorySlug) {
+        seen.add(key);
+        uniqueCategories.push(item);
+      }
+    }
     
     return uniqueCategories;
   },
@@ -79,7 +119,7 @@ export const getPostsByFeedUrls = query({
   args: { feedUrls: v.array(v.string()) },
   handler: async (ctx, { feedUrls }) => {
     // Use a single query with OR conditions instead of multiple parallel queries
-    return ctx.db
+    const posts = await ctx.db
       .query("posts")
       .withIndex("by_feedUrl")
       .filter((q) => 
@@ -90,6 +130,18 @@ export const getPostsByFeedUrls = query({
         )
       )
       .collect();
+      
+    // Return only the fields needed for display
+    return posts.map(post => ({
+      _id: post._id,
+      title: post.title,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false
+    }));
   },
 });
 
@@ -184,7 +236,17 @@ export const getByTitles = query({
       )
       .collect();
 
-    return posts;
+    // Return only the fields needed by consumers
+    return posts.map(post => ({
+      _id: post._id,
+      title: post.title,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false
+    }));
   },
 });
 

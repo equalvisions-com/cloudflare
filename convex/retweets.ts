@@ -121,7 +121,18 @@ export const getUserRetweets = query({
       .query("retweets")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
-      .take(limit);
+      .take(limit)
+      .then(retweets => retweets.map(retweet => ({
+        _id: retweet._id,
+        _creationTime: retweet._creationTime,
+        userId: retweet.userId,
+        entryGuid: retweet.entryGuid,
+        feedUrl: retweet.feedUrl,
+        title: retweet.title,
+        pubDate: retweet.pubDate,
+        link: retweet.link,
+        retweetedAt: retweet.retweetedAt
+      })));
     
     return retweets;
   },
@@ -141,23 +152,31 @@ export const batchGetRetweetCounts = query({
       results[guid] = { isRetweeted: false, count: 0 };
     }
     
-    // Get all retweets for these entries
-    for (const guid of args.entryGuids) {
-      const retweets = await ctx.db
-        .query("retweets")
-        .withIndex("by_entry", (q) => q.eq("entryGuid", guid))
-        .collect();
+    // Get all retweets for these entries in a single batch query
+    const allRetweets = await ctx.db
+      .query("retweets")
+      .withIndex("by_entry")
+      .filter((q) => 
+        q.or(
+          ...args.entryGuids.map(guid => 
+            q.eq(q.field("entryGuid"), guid)
+          )
+        )
+      )
+      .collect()
+      .then(retweets => retweets.map(retweet => ({
+        entryGuid: retweet.entryGuid,
+        userId: retweet.userId
+      })));
+    
+    // Count retweets by entryGuid
+    for (const retweet of allRetweets) {
+      const count = results[retweet.entryGuid].count + 1;
+      results[retweet.entryGuid].count = count;
       
-      results[guid].count = retweets.length;
-      
-      // Check if user has retweeted
-      if (userId) {
-        const userRetweet = await ctx.db
-          .query("retweets")
-          .withIndex("by_user_entry", (q) => q.eq("userId", userId).eq("entryGuid", guid))
-          .unique();
-        
-        results[guid].isRetweeted = !!userRetweet;
+      // Check if user has retweeted this entry
+      if (userId && retweet.userId === userId) {
+        results[retweet.entryGuid].isRetweeted = true;
       }
     }
     

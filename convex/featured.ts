@@ -5,11 +5,23 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 export const getFeaturedPosts = query({
   args: {},
   handler: async (ctx) => {
-    // Query posts with isFeatured set to true
+    // Query posts with isFeatured set to true but only select needed fields
     const featuredPosts = await ctx.db
       .query("posts")
       .filter((q) => q.eq(q.field("isFeatured"), true))
-      .collect();
+      .collect()
+      .then(posts => posts.map(post => ({
+        _id: post._id,
+        _creationTime: post._creationTime,
+        title: post.title,
+        postSlug: post.postSlug,
+        category: post.category,
+        categorySlug: post.categorySlug,
+        featuredImg: post.featuredImg,
+        mediaType: post.mediaType,
+        feedUrl: post.feedUrl,
+        verified: post.verified ?? false
+      })));
     
     return featuredPosts;
   },
@@ -29,11 +41,22 @@ export const getFeaturedPostsWithFollowState = query({
     const userId = await getAuthUserId(ctx);
     const isAuthenticated = !!userId;
 
-    // Query all featured posts 
+    // Query all featured posts with only needed fields
     const allFeaturedPosts = await ctx.db
       .query("posts")
       .filter((q) => q.eq(q.field("isFeatured"), true))
-      .collect();
+      .collect()
+      .then(posts => posts.map(post => ({
+        _id: post._id,
+        title: post.title,
+        postSlug: post.postSlug,
+        category: post.category,
+        categorySlug: post.categorySlug,
+        featuredImg: post.featuredImg,
+        mediaType: post.mediaType,
+        feedUrl: post.feedUrl,
+        verified: post.verified ?? false
+      })));
     
     // Shuffle the posts (Fisher-Yates algorithm)
     for (let i = allFeaturedPosts.length - 1; i > 0; i--) {
@@ -61,7 +84,10 @@ export const getFeaturedPostsWithFollowState = query({
       .query("following")
       .withIndex("by_user_post")
       .filter(q => q.eq(q.field("userId"), userId))
-      .collect();
+      .collect()
+      .then(followings => followings.map(following => ({
+        postId: following.postId
+      })));
     
     // Filter locally for matching postIds
     const userFollowings = followings.filter(following => 

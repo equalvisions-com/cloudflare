@@ -8,8 +8,15 @@ export const getUserRSSKeys = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    const user = await ctx.db.get(userId);
-    return user?.rssKeys || [];
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        rssKeys: user.rssKeys || []
+      } : null);
+      
+    return user ? user.rssKeys : [];
   },
 });
 
@@ -19,8 +26,14 @@ export const getUserRSSKeysWithPosts = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the user with RSS keys
-    const user = await ctx.db.get(userId);
+    // Get the user with RSS keys only
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        rssKeys: user.rssKeys || []
+      } : null);
     
     if (!user || !user.rssKeys || user.rssKeys.length === 0) {
       return { rssKeys: [], posts: [] };

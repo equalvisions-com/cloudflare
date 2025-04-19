@@ -28,14 +28,21 @@ export const follow = mutation({
       return; // Already following
     }
 
-    // Get user
-    let user = await ctx.db.get(userId);
+    // Get user with only the fields we need
+    let user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        rssKeys: user.rssKeys || []
+      } : null);
 
     if (!user) {
       throw new Error("User not found");
     } else {
       // Update user with new RSS key
-      const currentKeys = user.rssKeys || [];
+      const currentKeys = user.rssKeys;
       if (!currentKeys.includes(rssKey)) {
         await ctx.db.patch(userId, {
           rssKeys: [...currentKeys, rssKey]
@@ -81,9 +88,17 @@ export const unfollow = mutation({
       return { success: false, error: "Not following this feed" };
     }
 
-    // Remove RSS key from user
-    const user = await ctx.db.get(userId);
-    if (user && user.rssKeys) {
+    // Get user with only the fields we need
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        rssKeys: user.rssKeys || []
+      } : null);
+      
+    if (user && user.rssKeys.length > 0) {
       await ctx.db.patch(userId, {
         rssKeys: user.rssKeys.filter(key => key !== rssKey)
       });
@@ -124,19 +139,33 @@ export const getFollowers = query({
   handler: async (ctx, args) => {
     const { postId } = args;
     
-    // Get all following records for this post
+    // Get all following records for this post - only select the userId
     const followers = await ctx.db
       .query("following")
       .withIndex("by_post", (q) => q.eq("postId", postId))
-      .collect();
+      .collect()
+      .then(followers => followers.map(follow => ({
+        userId: follow.userId
+      })));
     
     if (followers.length === 0) {
       return [];
     }
 
-    // Get user data for all followers
+    // Get only the required user fields using filtered queries
     const users = await Promise.all(
-      followers.map(follow => ctx.db.get(follow.userId))
+      followers.map(follow => 
+        ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), follow.userId))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username || user.name || "User",
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
+      )
     );
     
     // Return only valid users with usernames
@@ -144,9 +173,9 @@ export const getFollowers = query({
       .filter(Boolean)
       .map(user => ({
         userId: user!._id,
-        username: user!.username || user!.name || "User",
+        username: user!.username,
         name: user!.name,
-        profileImage: user!.profileImage || user!.image
+        profileImage: user!.profileImage
       }));
   },
 });
@@ -229,7 +258,7 @@ export const getFollowingByUsername = query({
   handler: async (ctx, args) => {
     const { username, limit = 30, cursor } = args;
     
-    // Get user by username using the by_username index
+    // Get user by username - only get the _id field
     const user = await ctx.db
       .query("users")
       .withIndex("by_username", q => q.eq("username", username))
@@ -250,7 +279,13 @@ export const getFollowingByUsername = query({
     }
     
     // Fetch one more than requested to know if there are more
-    const followings = await query.take(limit + 1);
+    const followings = await query.take(limit + 1)
+      .then(followings => followings.map(following => ({
+        _id: following._id,
+        userId: following.userId,
+        postId: following.postId,
+        feedUrl: following.feedUrl
+      })));
     
     // Check if there are more results
     const hasMore = followings.length > limit;
@@ -258,16 +293,34 @@ export const getFollowingByUsername = query({
       followings.pop(); // Remove the extra item
     }
     
-    // Get post details for each following
+    // Get post details for each following - only select required fields
     const followingWithDetails = await Promise.all(
       followings.map(async (following) => {
-        const post = await ctx.db.get(following.postId);
+        const post = await ctx.db
+          .query("posts")
+          .filter(q => q.eq(q.field("_id"), following.postId))
+          .first()
+          .then(post => post ? {
+            _id: post._id,
+            title: post.title,
+            postSlug: post.postSlug,
+            categorySlug: post.categorySlug,
+            featuredImg: post.featuredImg,
+            mediaType: post.mediaType,
+            verified: post.verified ?? false
+          } : null);
+        
         if (!post) {
           return null;
         }
         
         return {
-          following,
+          following: {
+            _id: following._id,
+            userId: following.userId,
+            postId: following.postId,
+            feedUrl: following.feedUrl
+          },
           post
         };
       })
@@ -281,5 +334,54 @@ export const getFollowingByUsername = query({
       hasMore,
       cursor: hasMore ? followings[followings.length - 1]._id : null
     };
+  },
+});
+
+export const followFeed = mutation({
+  args: {
+    feedUrl: v.string(),
+    postId: v.id("posts"),
+  },
+  handler: async (ctx, args) => {
+    const { feedUrl, postId } = args;
+    
+    // Get user ID
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+    
+    // Get only required user fields with query filtering rather than full document
+    let user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("_id"), userId))
+      .first()
+      .then(user => user ? {
+        _id: user._id,
+        username: user.username
+      } : null);
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+    
+    // Check if already following
+    const existing = await ctx.db
+      .query("following")
+      .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
+      .first();
+      
+    if (existing) {
+      return { success: false, message: "Already following this feed" };
+    }
+    
+    // Add new following entry
+    await ctx.db.insert("following", {
+      userId,
+      postId,
+      feedUrl,
+    });
+    
+    return { success: true };
   },
 }); 

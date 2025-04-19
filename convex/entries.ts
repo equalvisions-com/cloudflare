@@ -378,18 +378,36 @@ export const getEntryWithComments = query({
         .query("likes")
         .withIndex("by_entry")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
-        .collect(),
+        .collect()
+        .then(likes => likes.map(like => ({
+          _id: like._id,
+          userId: like.userId
+        }))),
       ctx.db
         .query("comments")
         .withIndex("by_entry_time")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .order("desc")
-        .collect(),
+        .collect()
+        .then(comments => comments.map(comment => ({
+          _id: comment._id,
+          _creationTime: comment._creationTime,
+          userId: comment.userId,
+          feedUrl: comment.feedUrl,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          parentId: comment.parentId,
+          username: comment.username,
+          entryGuid: comment.entryGuid
+        }))),
       ctx.db
         .query("retweets")
         .withIndex("by_entry")
         .filter((q) => q.eq(q.field("entryGuid"), args.entryGuid))
         .collect()
+        .then(retweets => retweets.map(retweet => ({
+          userId: retweet.userId
+        })))
     ]);
 
     if (comments.length === 0) {
@@ -412,20 +430,27 @@ export const getEntryWithComments = query({
     // Get all unique user IDs from comments
     const userIds = new Set(comments.map(c => c.userId));
     
-    // Fetch all user data in one query
-    const users = await ctx.db
-      .query("users")
-      .filter((q) => 
-        q.or(
-          ...Array.from(userIds).map(id => 
-            q.eq(q.field("_id"), id)
-          )
-        )
+    // Fetch only required user fields in one query
+    const users = await Promise.all(
+      Array.from(userIds).map(id => 
+        ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), id))
+          .first()
+          .then(user => user ? {
+            _id: user._id,
+            username: user.username,
+            name: user.name,
+            profileImage: user.profileImage || user.image
+          } : null)
       )
-      .collect();
+    );
 
     // Create a map for quick user lookup
-    const userMap = new Map(users.map(u => [u._id, u]));
+    const userMap = new Map();
+    users.filter(Boolean).forEach(user => {
+      if (user) userMap.set(user._id.toString(), user);
+    });
 
     return {
       likes: {
@@ -434,10 +459,25 @@ export const getEntryWithComments = query({
       },
       comments: {
         count: comments.length,
-        items: comments.map(comment => ({
-          ...comment,
-          user: userMap.get(comment.userId)
-        }))
+        items: comments.map(comment => {
+          const user = userMap.get(comment.userId.toString());
+          return {
+            _id: comment._id,
+            _creationTime: comment._creationTime,
+            userId: comment.userId,
+            feedUrl: comment.feedUrl,
+            content: comment.content,
+            createdAt: comment.createdAt,
+            username: comment.username,
+            parentId: comment.parentId,
+            user: user ? {
+              _id: user._id,
+              username: user.username,
+              name: user.name,
+              profileImage: user.profileImage
+            } : null
+          };
+        })
       },
       retweets: {
         count: retweets.length,
