@@ -8,7 +8,7 @@ import { Repeat } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useToast } from "@/components/ui/use-toast";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 
 interface RetweetButtonProps {
   entryGuid: string;
@@ -30,19 +30,23 @@ export function RetweetButtonClientWithErrorBoundary(props: RetweetButtonProps) 
   );
 }
 
-export function RetweetButtonClient({ 
+// Create the component implementation that will be memoized
+const RetweetButtonClientComponent = ({ 
   entryGuid, 
   feedUrl, 
   title, 
   pubDate, 
   link,
   initialData = { isRetweeted: false, count: 0 }
-}: RetweetButtonProps) {
+}: RetweetButtonProps) => {
   const router = useRouter();
   const { toast } = useToast();
   const { isAuthenticated } = useConvexAuth();
   const retweet = useMutation(api.retweets.retweet);
   const unretweet = useMutation(api.retweets.unretweet);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -53,9 +57,20 @@ export function RetweetButtonClient({
   // Use state for optimistic updates
   const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number, timestamp: number} | null>(null);
   
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   // Update metricsLoaded when metrics are received
   useEffect(() => {
-    if (metrics && !metricsLoaded) {
+    if (metrics && !metricsLoaded && isMountedRef.current) {
       setMetricsLoaded(true);
     }
   }, [metrics, metricsLoaded]);
@@ -67,6 +82,8 @@ export function RetweetButtonClient({
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (metrics && optimisticState) {
       // Only clear optimistic state if server data matches what we expect
       // or if the optimistic update is older than 5 seconds (fallback)
@@ -81,7 +98,8 @@ export function RetweetButtonClient({
     }
   }, [metrics, optimisticState]);
 
-  const handleClick = async () => {
+  // Memoize the click handler to prevent unnecessary recreations between renders
+  const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
       router.push('/signin');
       return;
@@ -100,11 +118,13 @@ export function RetweetButtonClient({
     try {
       if (isRetweeted) {
         await unretweet({ entryGuid });
-        toast({
-          title: "Removed from your posts",
-          description: "This post has been removed from your profile.",
-          duration: 3000,
-        });
+        if (isMountedRef.current) {
+          toast({
+            title: "Removed from your posts",
+            description: "This post has been removed from your profile.",
+            duration: 3000,
+          });
+        }
       } else {
         await retweet({
           entryGuid,
@@ -113,26 +133,43 @@ export function RetweetButtonClient({
           pubDate,
           link,
         });
-        toast({
-          title: "Added to your posts",
-          description: "This post will now appear on your profile.",
-          duration: 3000,
-        });
+        if (isMountedRef.current) {
+          toast({
+            title: "Added to your posts",
+            description: "This post will now appear on your profile.",
+            duration: 3000,
+          });
+        }
       }
       // Convex will automatically update the UI with the new state
       // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
       // Revert optimistic update on error
       console.error('Error updating retweet status:', err);
-      setOptimisticState(null);
-      toast({
-        title: "Error",
-        description: "There was an error processing your request.",
-        variant: "destructive",
-        duration: 3000,
-      });
+      if (isMountedRef.current) {
+        setOptimisticState(null);
+        toast({
+          title: "Error",
+          description: "There was an error processing your request.",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
     }
-  };
+  }, [
+    isAuthenticated, 
+    router, 
+    isRetweeted, 
+    retweetCount, 
+    unretweet, 
+    entryGuid, 
+    retweet, 
+    feedUrl, 
+    title, 
+    pubDate, 
+    link, 
+    toast
+  ]);
 
   return (
     <Button
@@ -151,4 +188,7 @@ export function RetweetButtonClient({
       <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{retweetCount}</span>
     </Button>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const RetweetButtonClient = memo(RetweetButtonClientComponent); 

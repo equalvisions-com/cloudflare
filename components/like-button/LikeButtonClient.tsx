@@ -7,7 +7,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Heart } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
 
 interface LikeButtonProps {
   entryGuid: string;
@@ -21,15 +21,15 @@ interface LikeButtonProps {
   };
 }
 
-export function LikeButtonClientWithErrorBoundary(props: LikeButtonProps) {
+export const LikeButtonClientWithErrorBoundary = memo(function LikeButtonClientWithErrorBoundary(props: LikeButtonProps) {
   return (
     <ErrorBoundary>
       <LikeButtonClient {...props} />
     </ErrorBoundary>
   );
-}
+});
 
-export function LikeButtonClient({ 
+export const LikeButtonClient = memo(function LikeButtonClient({ 
   entryGuid, 
   feedUrl, 
   title, 
@@ -42,6 +42,9 @@ export function LikeButtonClient({
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
   
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
   
@@ -51,9 +54,20 @@ export function LikeButtonClient({
   // Use state for optimistic updates
   const [optimisticState, setOptimisticState] = useState<{isLiked: boolean, count: number, timestamp: number} | null>(null);
   
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   // Update metricsLoaded when metrics are received
   useEffect(() => {
-    if (metrics && !metricsLoaded) {
+    if (metrics && !metricsLoaded && isMountedRef.current) {
       setMetricsLoaded(true);
     }
   }, [metrics, metricsLoaded]);
@@ -65,6 +79,8 @@ export function LikeButtonClient({
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (metrics && optimisticState) {
       // Only clear optimistic state if server data matches what we expect
       // or if the optimistic update is older than 5 seconds (fallback)
@@ -77,7 +93,7 @@ export function LikeButtonClient({
     }
   }, [metrics, optimisticState]);
 
-  const handleClick = async () => {
+  const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
       router.push('/signin');
       return;
@@ -110,9 +126,23 @@ export function LikeButtonClient({
     } catch (err) {
       // Revert optimistic update on error
       console.error('Error updating like status:', err);
-      setOptimisticState(null);
+      if (isMountedRef.current) {
+        setOptimisticState(null);
+      }
     }
-  };
+  }, [
+    isAuthenticated, 
+    router, 
+    isLiked, 
+    likeCount, 
+    unlike, 
+    like, 
+    entryGuid, 
+    feedUrl, 
+    title, 
+    pubDate, 
+    link
+  ]);
 
   return (
     <Button
@@ -131,4 +161,4 @@ export function LikeButtonClient({
       <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{likeCount}</span>
     </Button>
   );
-} 
+}); 

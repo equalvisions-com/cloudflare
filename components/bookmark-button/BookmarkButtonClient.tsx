@@ -7,7 +7,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 
 interface BookmarkButtonProps {
   entryGuid: string;
@@ -20,26 +20,30 @@ interface BookmarkButtonProps {
   };
 }
 
-export function BookmarkButtonClientWithErrorBoundary(props: BookmarkButtonProps) {
+export const BookmarkButtonClientWithErrorBoundary = memo(function BookmarkButtonClientWithErrorBoundary(props: BookmarkButtonProps) {
   return (
     <ErrorBoundary>
       <BookmarkButtonClient {...props} />
     </ErrorBoundary>
   );
-}
+});
 
-export function BookmarkButtonClient({ 
+// Create the component implementation that will be memoized
+const BookmarkButtonClientComponent = ({ 
   entryGuid, 
   feedUrl, 
   title, 
   pubDate, 
   link,
   initialData = { isBookmarked: false }
-}: BookmarkButtonProps) {
+}: BookmarkButtonProps) => {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
   const bookmark = useMutation(api.bookmarks.bookmark);
   const removeBookmark = useMutation(api.bookmarks.removeBookmark);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // Use Convex's real-time query with proper loading state handling
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
@@ -50,9 +54,20 @@ export function BookmarkButtonClient({
   // Use state for optimistic updates
   const [optimisticState, setOptimisticState] = useState<{isBookmarked: boolean, timestamp: number} | null>(null);
   
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   // Update metricsLoaded when metrics are received
   useEffect(() => {
-    if (metrics && !metricsLoaded) {
+    if (metrics && !metricsLoaded && isMountedRef.current) {
       setMetricsLoaded(true);
     }
   }, [metrics, metricsLoaded]);
@@ -63,6 +78,8 @@ export function BookmarkButtonClient({
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (metrics && optimisticState) {
       // Only clear optimistic state if server data matches what we expect
       // or if the optimistic update is older than 5 seconds (fallback)
@@ -75,7 +92,8 @@ export function BookmarkButtonClient({
     }
   }, [metrics, optimisticState]);
 
-  const handleClick = async () => {
+  // Memoize the click handler to prevent unnecessary recreations between renders
+  const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
       router.push('/signin');
       return;
@@ -107,9 +125,22 @@ export function BookmarkButtonClient({
     } catch (err) {
       // Revert optimistic update on error
       console.error('Error updating bookmark status:', err);
-      setOptimisticState(null);
+      if (isMountedRef.current) {
+        setOptimisticState(null);
+      }
     }
-  };
+  }, [
+    isAuthenticated, 
+    router, 
+    isBookmarked, 
+    removeBookmark, 
+    entryGuid, 
+    bookmark, 
+    feedUrl, 
+    title, 
+    pubDate, 
+    link
+  ]);
 
   return (
     <Button
@@ -123,4 +154,7 @@ export function BookmarkButtonClient({
       />
     </Button>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const BookmarkButtonClient = memo(BookmarkButtonClientComponent); 

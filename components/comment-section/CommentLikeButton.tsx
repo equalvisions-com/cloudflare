@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -28,13 +28,14 @@ export function CommentLikeButtonWithErrorBoundary(props: CommentLikeButtonProps
   );
 }
 
-export function CommentLikeButton({ 
+// The main component that will be memoized
+const CommentLikeButtonComponent = ({ 
   commentId, 
   initialData = { isLiked: false, count: 0 },
   size = 'sm',
   hideCount = false,
   onCountChange
-}: CommentLikeButtonProps) {
+}: CommentLikeButtonProps) => {
   const [optimisticIsLiked, setOptimisticIsLiked] = useState<boolean | null>(null);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
   const [optimisticTimestamp, setOptimisticTimestamp] = useState<number | null>(null);
@@ -105,7 +106,8 @@ export function CommentLikeButton({
   
   const toggleLike = useMutation(api.commentLikes.toggleCommentLike);
   
-  const handleToggleLike = async () => {
+  // Memoize the toggleLike handler with useCallback to prevent recreating the function on every render
+  const handleToggleLike = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
@@ -139,7 +141,7 @@ export function CommentLikeButton({
         setIsSubmitting(false);
       }
     }
-  };
+  }, [isAuthenticated, router, isSubmitting, isLiked, count, toggleLike, commentId]);
   
   return (
     <Button
@@ -159,4 +161,7 @@ export function CommentLikeButton({
       )}
     </Button>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const CommentLikeButton = memo(CommentLikeButtonComponent); 

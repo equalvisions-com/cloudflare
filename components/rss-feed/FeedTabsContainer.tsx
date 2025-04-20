@@ -13,6 +13,13 @@ import { Loader2 } from 'lucide-react';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
 import { useRouter } from 'next/navigation';
 
+// Add cache objects outside component to persist across navigations
+const GLOBAL_CACHE = {
+  featuredData: null,
+  rssData: null,
+  activeTabIndex: 0
+};
+
 // Lazy load both components
 const RSSEntriesClientWithErrorBoundary = dynamic(
   () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
@@ -159,16 +166,23 @@ export function FeedTabsContainer({
   const { displayName, isBoarded, profileImage, isAuthenticated, pendingFriendRequestCount } = useSidebar();
   const router = useRouter();
   
-  // State to track loaded data
-  const [rssData, setRssData] = useState(initialData);
+  // State to track loaded data - use cached data if available
+  const [rssData, setRssData] = useState(() => {
+    // Use global cache first, then initialData from props
+    return GLOBAL_CACHE.rssData || initialData;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [featuredData, setFeaturedData] = useState(initialFeaturedData);
+  const [featuredData, setFeaturedData] = useState(() => {
+    // Use global cache first, then initialFeaturedData from props
+    return GLOBAL_CACHE.featuredData || initialFeaturedData;
+  });
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredError, setFeaturedError] = useState<string | null>(null);
   
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // Use cached active tab index if available
+  const [activeTabIndex, setActiveTabIndex] = useState(GLOBAL_CACHE.activeTabIndex);
   
   // Add refs to track fetch requests in progress
   const featuredFetchInProgress = useRef(false);
@@ -193,6 +207,8 @@ export function FeedTabsContainer({
       
       const data = await response.json();
       setFeaturedData(data);
+      // Update the global cache
+      GLOBAL_CACHE.featuredData = data;
     } catch (err) {
       console.error('Error fetching featured data:', err);
       setFeaturedError('Failed to load featured content. Please try again.');
@@ -229,6 +245,8 @@ export function FeedTabsContainer({
       
       const data = await response.json();
       setRssData(data);
+      // Update the global cache
+      GLOBAL_CACHE.rssData = data;
     } catch (err) {
       console.error('Error fetching RSS data:', err);
       setError('Failed to load RSS feed data. Please try again.');
@@ -252,6 +270,8 @@ export function FeedTabsContainer({
     
     // Only update active tab index if not redirecting
     setActiveTabIndex(index);
+    // Update the global cache
+    GLOBAL_CACHE.activeTabIndex = index;
     // The useEffect will handle data fetching when activeTabIndex changes
   }, [isAuthenticated, router]);
   
