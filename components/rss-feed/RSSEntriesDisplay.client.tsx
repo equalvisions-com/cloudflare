@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -479,21 +479,25 @@ const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
 // Add displayName to avoid React DevTools issues
 EntriesContent.displayName = 'EntriesContent';
 
-export function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
   return (
     <ErrorBoundary>
       <RSSEntriesClient {...props} />
     </ErrorBoundary>
   );
-}
+});
 
-export function RSSEntriesClient({ 
+// Create the client component that will be memoized
+const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
   isActive = true
-}: RSSEntriesClientProps) {
+}: RSSEntriesClientProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // Track errors for better error handling
   const [fetchError, setFetchError] = useState<Error | null>(null);
@@ -514,14 +518,29 @@ export function RSSEntriesClient({
     initialData?: { count: number };
   } | null>(null);
 
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    if (!isMountedRef.current) return;
+    
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
   }, []);
 
   // Debug log the initial data
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     logger.debug('Initial data received in client:', {
       entriesCount: initialData?.entries?.length || 0,
       postTitles: initialData?.postTitles || [],
@@ -543,7 +562,7 @@ export function RSSEntriesClient({
     }
   }, [initialData]);
   
-  // Function to load more entries directly
+  // Function to load more entries directly - memoized with useCallback
   const loadMoreEntries = useCallback(async () => {
     // Only load more if the tab is active and not already loading/no more data
     if (!isActive || isLoading || !hasMoreState) { 
@@ -551,6 +570,7 @@ export function RSSEntriesClient({
       return;
     }
     
+    if (!isMountedRef.current) return;
     setIsLoading(true);
     logger.debug(`📥 Loading more entries, current page: ${currentPage}, next page: ${currentPage + 1}`);
     
@@ -657,16 +677,22 @@ export function RSSEntriesClient({
       
       logger.debug(`✅ Transformed ${transformedEntries.length} entries`);
       
-      // Update state with new entries
-      setAllEntriesState(prevEntries => [...prevEntries, ...transformedEntries]);
-      setCurrentPage(nextPage);
-      setHasMoreState(data.hasMore);
+      // Update state with new entries, only if component is still mounted
+      if (isMountedRef.current) {
+        setAllEntriesState(prevEntries => [...prevEntries, ...transformedEntries]);
+        setCurrentPage(nextPage);
+        setHasMoreState(data.hasMore);
+      }
       
     } catch (error) {
       logger.error('❌ Error loading more entries:', error);
-      setFetchError(error instanceof Error ? error : new Error(String(error)));
+      if (isMountedRef.current) {
+        setFetchError(error instanceof Error ? error : new Error(String(error)));
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [currentPage, hasMoreState, initialData, isLoading, ITEMS_PER_REQUEST, isActive]);
   
@@ -723,6 +749,22 @@ export function RSSEntriesClient({
     return metricsObject;
   }, [metricsMap]);
   
+  // Memoize the try again handler
+  const handleTryAgain = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    setFetchError(null);
+    setAllEntriesState(initialData?.entries || []);
+    setCurrentPage(1);
+    setHasMoreState(initialData?.hasMore || false);
+  }, [initialData]);
+  
+  // Memoize the comment drawer state change handler
+  const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
+    if (!isMountedRef.current) return;
+    setCommentDrawerOpen(open);
+  }, []);
+  
   // Display error message if there's an error
   if (fetchError) {
     const errorMessage = fetchError.message || 'Error loading entries';
@@ -733,12 +775,7 @@ export function RSSEntriesClient({
         <p className="mb-4">{errorMessage}</p>
         <Button 
           variant="outline" 
-          onClick={() => {
-            setFetchError(null);
-            setAllEntriesState(initialData?.entries || []);
-            setCurrentPage(1);
-            setHasMoreState(initialData?.hasMore || false);
-          }}
+          onClick={handleTryAgain}
         >
           Try Again
         </Button>
@@ -766,12 +803,15 @@ export function RSSEntriesClient({
           feedUrl={selectedCommentEntry.feedUrl}
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+          setIsOpen={handleCommentDrawerOpenChange}
         />
       )}
     </div>
   );
-}
+};
+
+// Export the memoized version of the component
+export const RSSEntriesClient = memo(RSSEntriesClientComponent);
 
 // Interface for post metadata used within the component
 interface InternalPostMetadata {

@@ -105,58 +105,6 @@ interface FeedTabsContainerProps {
   pageSize?: number;
 }
 
-// Memoized component for the "Following" tab content - REMOVED as we pass component directly
-/*
-const FollowingTabContent = React.memo(({ 
-  initialData, 
-  pageSize 
-}: { 
-  initialData: FeedTabsContainerProps['initialData'], 
-  pageSize: number 
-}) => {
-  if (!initialData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No entries found. Please sign in and add some RSS feeds to get started.</p>
-        <p className="text-sm mt-2">If you&apos;ve already added feeds, try refreshing the page.</p>
-      </div>
-    );
-  }
-
-  return (
-    <RSSEntriesClient
-      initialData={initialData as { 
-        entries: RSSEntryWithData[]; 
-        totalEntries: number; 
-        hasMore: boolean; 
-        postTitles?: string[]; 
-      }}
-      pageSize={pageSize}
-    />
-  );
-});
-FollowingTabContent.displayName = 'FollowingTabContent';
-*/
-
-// Memoized component for the "Discover" tab content - REMOVED as we pass component directly
-/*
-const DiscoverTabContent = React.memo(({ 
-  featuredData 
-}: { 
-  featuredData: FeedTabsContainerProps['featuredData'] 
-}) => {
-  return (
-    <FeaturedFeedWrapper 
-      initialData={featuredData as { 
-        entries: FeaturedEntryWithData[]; 
-        totalEntries: number; 
-      } | null} 
-    />
-  );
-});
-DiscoverTabContent.displayName = 'DiscoverTabContent';
-*/
-
 export function FeedTabsContainer({ 
   initialData, 
   featuredData: initialFeaturedData, 

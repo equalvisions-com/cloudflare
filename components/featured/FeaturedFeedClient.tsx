@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -55,7 +55,8 @@ interface FeaturedEntryProps {
   entryWithData: FeaturedEntryWithData;
 }
 
-const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
+// Memoize the FeaturedEntry component
+const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -123,6 +124,10 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, on
       playTrack(entry.link, decode(entry.title), entry.image);
     }
   }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
+
+  const handleOpenComment = useCallback(() => {
+    onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
+  }, [onOpenCommentDrawer, entry.guid, entry.feed_url, initialData.comments]);
 
   return (
     <article>
@@ -268,7 +273,7 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, on
               initialData={initialData.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments)}>
+          <div onClick={handleOpenComment}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
@@ -307,9 +312,10 @@ const FeaturedEntry = ({ entryWithData: { entry, initialData, postMetadata }, on
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
-};
+});
+FeaturedEntry.displayName = 'FeaturedEntry';
 
-// Feed content component
+// Feed content component is already memoized
 const FeedContent = React.memo(({ 
   entries,
   visibleEntries,
@@ -382,18 +388,22 @@ interface FeaturedFeedClientProps {
   pageSize?: number;
 }
 
-export function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
+export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
   return (
     <ErrorBoundary>
       <FeaturedFeedClient {...props} />
     </ErrorBoundary>
   );
-}
+});
 
-export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedClientProps) {
+// Create the client component that will be memoized
+const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFeedClientProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // --- Drawer state for comments ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -403,8 +413,21 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
     initialData?: { count: number };
   } | null>(null);
 
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Log to confirm we're using prefetched data from LayoutManager
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     console.log('FeaturedFeedClient: Using prefetched data from LayoutManager', {
       entriesCount: initialData?.entries?.length || 0
     });
@@ -419,21 +442,33 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
   const hasMore = visibleEntries.length < initialData.entries.length;
   
   // Function to load more entries - just update the page number
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (hasMore && !isLoading) {
+      if (!isMountedRef.current) return;
+      
       setIsLoading(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
-        setCurrentPage(prev => prev + 1);
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setCurrentPage(prev => prev + 1);
+          setIsLoading(false);
+        }
       }, 300);
     }
-  };
+  }, [hasMore, isLoading]);
   
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    if (!isMountedRef.current) return;
+    
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
+  }, []);
+
+  // Memoize the comment drawer state change handler
+  const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
+    if (!isMountedRef.current) return;
+    setCommentDrawerOpen(open);
   }, []);
 
   return (
@@ -453,9 +488,12 @@ export function FeaturedFeedClient({ initialData, pageSize = 30 }: FeaturedFeedC
           feedUrl={selectedCommentEntry.feedUrl}
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+          setIsOpen={handleCommentDrawerOpenChange}
         />
       )}
     </div>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const FeaturedFeedClient = memo(FeaturedFeedClientComponent); 
