@@ -324,7 +324,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
             console.error('Error deleting reply:', error);
           });
       };
-    }, [reply._id, deleteCommentMutation]);
+    }, [reply._id]); // Removed deleteCommentMutation
     
     // Function to delete a reply that uses the ref
     const deleteReply = () => {
@@ -1501,31 +1501,7 @@ const ActivityGroupRenderer = React.memo(({
     }
   }, [entryGuid, feedUrl, interactions?.comments, handleOpenCommentDrawer]);
 
-  // Early return moved after all hook calls
-  if (!entryDetail) {
-    console.warn(`Entry detail not found for GUID: ${group.entryGuid}`);
-    return null;
-  }
-
-  // For single comment or other activities
-  if (group.type !== 'comment' || group.comments.length <= 1) {
-    return (
-      <ActivityCard
-        // Use a more unique key combining guid, type, and activity id
-        key={`card-${group.entryGuid}-${group.firstActivity._id?.toString()}`}
-        activity={group.firstActivity}
-        username={username}
-        name={name}
-        profileImage={profileImage}
-        entryDetail={entryDetail}
-        getEntryMetrics={getEntryMetrics} // Stable from parent
-        onOpenCommentDrawer={handleOpenCommentDrawer} // Stable from parent
-      />
-    );
-  }
-
-  // For multiple comments, render a special daisy-chained version
-  // Calculate timestamp for the entry card once
+  // Calculate entry timestamp - instead of useMemo inside a loop or callback, pre-compute
   const group_entryTimestamp = useMemo(() => {
      if (!entryDetail.pub_date) return '';
 
@@ -1829,39 +1805,7 @@ const ActivityGroupRenderer = React.memo(({
       <div className="border-b"> {/* Removed border-l and border-r */}
         {group.comments.map((comment) => {
            // Calculate comment timestamp once using useMemo or keep inline
-           const commentTimestamp = useMemo(() => {
-               const now = new Date();
-               const commentDate = new Date(comment.timestamp);
-
-               // Ensure we're working with valid dates
-               if (isNaN(commentDate.getTime())) {
-                 return '';
-               }
-
-               // Calculate time difference
-               const diffInMs = now.getTime() - commentDate.getTime();
-               const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-               const diffInHours = Math.floor(diffInMinutes / 60);
-               const diffInDays = Math.floor(diffInHours / 24);
-               const diffInMonths = Math.floor(diffInDays / 30);
-
-               // For future dates (more than 1 minute ahead), show 'in X'
-               const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-               const prefix = isFuture ? 'in ' : '';
-               // Remove suffix for comments to eliminate "ago"
-               const suffix = isFuture ? '' : '';
-
-               // Format based on the time difference
-               if (diffInMinutes < 60) {
-                 return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-               } else if (diffInHours < 24) {
-                 return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-               } else if (diffInDays < 30) {
-                 return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-               } else {
-                 return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-               }
-           }, [comment.timestamp]);
+           const commentTimestamp = formatTimeAgo(comment.timestamp);
 
            return (
             <div
@@ -2143,15 +2087,20 @@ export function UserActivityFeed({
 
   // Memoize the Footer component - moved to top level
   const Footer = useMemo(() => {
-    return () => (
-      isLoading ? (
-        <div className="flex items-center justify-center gap-2 py-10">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      ) : hasMore ? (
-        <div className="h-8" /> // Placeholder for scroll trigger
-      ) : null
-    );
+    // Define as named function for better debugging
+    function VirtuosoFooter() {
+      return (
+        isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : hasMore ? (
+          <div className="h-8" /> // Placeholder for scroll trigger
+        ) : null
+      );
+    }
+    VirtuosoFooter.displayName = 'VirtuosoFooter';
+    return VirtuosoFooter;
   }, [isLoading, hasMore]); // Dependencies are the state values it uses
 
   // Memoize the item renderer - ensure it's at top level
@@ -2271,3 +2220,6 @@ export function UserActivityFeed({
     </div>
   );
 } 
+
+// Add display name to the UserActivityFeed component (at the end of file, line ~2146)
+UserActivityFeed.displayName = 'UserActivityFeed';
