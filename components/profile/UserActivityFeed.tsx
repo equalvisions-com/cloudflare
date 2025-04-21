@@ -6,7 +6,7 @@ import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Pod
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo, useReducer } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -119,11 +119,11 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
     [initialMetrics]
   );
   
-  // Create a stable representation of entry guids
+  // Create a stable representation of entry guids - FIX MEMOIZATION
   const memoizedGuids = useMemo(() => 
     entryGuids.length > 0 ? entryGuids : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entryGuids.join(',')]
+    // Use proper dependency array instead of join(',')
+    [entryGuids]
   );
   
   // Only fetch from Convex if we don't have initial metrics or if we need to refresh
@@ -193,7 +193,7 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   };
 }
 
-// Memoize ActivityIcon component for better performance
+// Memoize ActivityIcon
 const ActivityIcon = React.memo(({ type }: { type: "like" | "comment" | "retweet" }) => {
   switch (type) {
     case "like":
@@ -204,69 +204,17 @@ const ActivityIcon = React.memo(({ type }: { type: "like" | "comment" | "retweet
       return <Repeat className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
   }
 });
-ActivityIcon.displayName = 'ActivityIcon';
-
-// Create a reusable timestamp formatter function similar to UserLikesFeed.tsx
-// Add this near the top of the file where other utility functions/hooks are defined
-
-// Memoized timestamp formatter hook
-const useEntryTimestampFormatter = (pubDate?: string) => {
-  return useMemo(() => {
-    if (!pubDate) return '';
-
-    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    let date: Date;
-    
-    if (typeof pubDate === 'string' && mysqlDateRegex.test(pubDate)) {
-      // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = pubDate.split(' ');
-      date = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-    } else {
-      // Handle other formats
-      date = new Date(pubDate);
-    }
-    
-    const now = new Date();
-    
-    // Ensure we're working with valid dates
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-    const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-    } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-    } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-    } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-    }
-  }, [pubDate]);
-};
+ActivityIcon.displayName = 'ActivityIcon'; // Add display name for React DevTools
 
 // Export ActivityDescription for reuse
-const ActivityDescription = React.memo(function ActivityDescriptionInner({ item, username, name, profileImage, timestamp }: { 
-  item: ActivityItem; 
+// Memoize ActivityDescription
+export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp }: {
+  item: ActivityItem;
   username: string;
   name: string;
   profileImage?: string | null;
   timestamp?: string;
-}) {
+}) => {
   // Create a ref to store the like count element
   const likeCountRef = useRef<HTMLDivElement>(null);
   // State to track if replies are expanded
@@ -287,19 +235,31 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
   const [deletedReplies, setDeletedReplies] = useState<Set<string>>(new Set());
   // State to track if user is actively replying to the main comment
   const [isReplying, setIsReplying] = useState(false);
-  
-  // Use Convex query for replies
+  // Add authentication state
+  const { isAuthenticated } = useConvexAuth();
+  const viewer = useQuery(api.users.viewer);
+  const router = useRouter();
+  // Use Convex mutation for comment deletion
+  const deleteCommentMutation = useMutation(api.comments.deleteComment);
+  // Use the same addComment mutation for replies
+  const addComment = useMutation(api.comments.addComment);
+  // Add state to track if comment is deleted
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [isCurrentUser, setIsCurrentUser] = useState(false);
+
+  // Always call useQuery with the same pattern regardless of condition
+  // This fixes the "rendered more hooks" error by ensuring consistent hook usage
   const commentRepliesQuery = useQuery(
     api.comments.getCommentReplies,
-    item.type === 'comment' && item._id ? 
-      { commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id } : 
-      'skip'
+    item.type === 'comment' && item._id 
+      ? { commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id }
+      : 'skip'
   );
-  
+
   // Fetch replies when expanded
   const fetchReplies = useCallback(() => {
     if (item.type !== 'comment' || !item._id) return;
-    
+
     setRepliesLoading(true);
     try {
       // The query result is automatically updated by Convex
@@ -312,193 +272,40 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
     } finally {
       setRepliesLoading(false);
     }
-  }, [item, commentRepliesQuery]);
-  
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.type, item._id, commentRepliesQuery]); // Use item.type, item._id instead of whole item
+
   // Use effect to update replies whenever the query result changes
   useEffect(() => {
-    if (repliesExpanded && commentRepliesQuery) {
+    if (repliesExpanded && commentRepliesQuery && item.type === 'comment' && item._id) {
       setReplies(commentRepliesQuery || []);
       setRepliesLoaded(true);
       setRepliesLoading(false);
     }
-  }, [repliesExpanded, commentRepliesQuery]);
-  
+  }, [repliesExpanded, commentRepliesQuery, item.type, item._id]);
+
   // Toggle replies visibility
   const toggleReplies = useCallback(() => {
     const newExpandedState = !repliesExpanded;
     setRepliesExpanded(newExpandedState);
-    
-    if (newExpandedState && !repliesLoaded) {
+
+    if (newExpandedState && !repliesLoaded && item.type === 'comment' && item._id) {
       fetchReplies();
     }
-  }, [repliesExpanded, fetchReplies, repliesLoaded]);
-  
-  // Use the same addComment mutation for replies
-  const addComment = useMutation(api.comments.addComment);
-  
-  // Submit a reply
-  const submitReply = useCallback(async () => {
-    if (!replyText.trim() || isSubmittingReply || item.type !== 'comment' || !item._id) return;
-    
-    const commentId = typeof item._id === 'string' ? 
-      item._id as unknown as Id<"comments"> : 
-      item._id;
-    
-    setIsSubmittingReply(true);
-    
-    try {
-      // Use Convex mutation to submit the reply
-      await addComment({
-        parentId: commentId,
-        content: replyText.trim(),
-        entryGuid: item.entryGuid,
-        feedUrl: item.feedUrl
-      });
-      
-      // Clear the input and hide the reply form
-      setReplyText('');
-      setIsReplying(false); // Hide the input form
-      
-      // The replies will automatically update through the Convex subscription
-      // No need to manually fetch them again
-    } catch (error) {
-      console.error('Error submitting reply:', error);
-    } finally {
-      setIsSubmittingReply(false);
-    }
-  }, [replyText, isSubmittingReply, item, addComment]);
-  
-  // Function to update the like count text
-  const updateLikeCount = (count: number) => {
-    if (likeCountRef.current) {
-      if (count > 0) {
-        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
-        const countElement = likeCountRef.current.querySelector('span:last-child');
-        if (countElement) {
-          countElement.textContent = countText;
-        }
-        likeCountRef.current.classList.remove('hidden');
-      } else {
-        likeCountRef.current.classList.add('hidden');
-      }
-    }
-  };
-  
-  // Function to initiate replying to the main comment
-  const handleReplyClick = () => {
-    if (!isAuthenticated) {
-      router.push("/signin");
-      return;
-    }
-    // Toggle the replying state
-    if (isReplying) {
-      setIsReplying(false);
-      setReplyText('');
-    } else {
-      setIsReplying(true);
-    }
-  };
+  }, [repliesExpanded, fetchReplies, repliesLoaded, item.type, item._id]);
 
-  // Function to cancel replying
-  const cancelReplyClick = () => {
-    setIsReplying(false);
-    setReplyText(''); // Clear text on cancel
-  };
-  
-  // Check for initial like count from Convex
-  useEffect(() => {
-    if (item.type === 'comment' && item._id) {
-      // No need to convert the ID here since we're not using it
-      // We just need to make sure the ref is ready
-      if (likeCountRef.current) {
-        // The initial state is hidden, the button will update it if needed
-        likeCountRef.current.classList.add('hidden');
-      }
-    }
-  }, [item]);
-  
-  // Add authentication state
-  const { isAuthenticated } = useConvexAuth();
-  const viewer = useQuery(api.users.viewer);
-  const router = useRouter();
-  const [isCurrentUser, setIsCurrentUser] = useState(false);
-  
-  // Add state to track if comment is deleted
-  const [isDeleted, setIsDeleted] = useState(false);
-  
-  // Get comments to check ownership
-  const commentDetails = useQuery(
-    api.comments.getComments, 
-    item.type === 'comment' && item.entryGuid ? { entryGuid: item.entryGuid } : 'skip'
-  );
-  
-  // Check if the comment belongs to the current user using ID-based authorization
-  useEffect(() => {
-    if (isAuthenticated && viewer && item.type === 'comment' && item._id && commentDetails) {
-      const commentId = typeof item._id === 'string' ? 
-        item._id as unknown as Id<"comments"> : 
-        item._id;
-      
-      // Find the comment in the returned comments
-      const comment = commentDetails.find(c => c._id === commentId);
-      if (comment) {
-        // Use ID-based comparison instead of username
-        setIsCurrentUser(viewer._id === comment.userId);
-      }
-    }
-  }, [isAuthenticated, viewer, item, commentDetails]);
-  
-  // Use Convex mutation for comment deletion
-  const deleteCommentMutation = useMutation(api.comments.deleteComment);
-  
-  // Function to delete a comment - updated to use React state
-  const deleteComment = useCallback(async () => {
-    if (item.type !== 'comment' || !item._id) return;
-    
-    const commentId = typeof item._id === 'string' ? 
-      item._id as unknown as Id<"comments"> : 
-      item._id;
-    
-    try {
-      // Use Convex mutation instead of fetch
-      await deleteCommentMutation({ commentId });
-      
-      // Update UI to show comment was deleted using React state
-      setIsDeleted(true);
-    } catch (error) {
-      console.error('Error deleting comment:', error);
-    }
-  }, [item, deleteCommentMutation]);
-  
-  // Function to update the like count text for replies
-  const updateReplyLikeCount = useCallback((replyId: string, count: number) => {
-    const replyLikeCountElement = replyLikeCountRefs.current.get(replyId);
-    if (replyLikeCountElement) {
-      if (count > 0) {
-        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
-        const countElement = replyLikeCountElement.querySelector('span');
-        if (countElement) {
-          countElement.textContent = countText;
-        }
-        replyLikeCountElement.classList.remove('hidden');
-      } else {
-        replyLikeCountElement.classList.add('hidden');
-      }
-    }
-  }, []);
-  
-  // Render a single reply with ID-based authorization
-  const renderReply = (reply: Comment, index: number) => {
+  // Extract ReplyRenderer to a separate component to avoid hook issues in loops
+  const ReplyRenderer = useCallback(({ reply, index }: { reply: Comment, index: number }) => {
     // Check if this reply is deleted using the component-level state
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
-    
+
     // Check if this reply belongs to the current user using ID-based authorization
     const isReplyFromCurrentUser = isAuthenticated && viewer && viewer._id === reply.userId;
-    
-    // Function to delete a reply - updated to use component-level state
-    const deleteReply = () => {
+
+    // Function to delete a reply
+    const deleteReply = useCallback(() => {
       if (!reply._id) return;
-      
+
       // Use the same Convex mutation for deleting comments
       deleteCommentMutation({ commentId: reply._id })
         .then(() => {
@@ -512,42 +319,95 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
         .catch(error => {
           console.error('Error deleting reply:', error);
         });
-    };
-    
+    }, [reply._id]);
+
     // If reply is deleted, show a placeholder
     if (isReplyDeleted) {
       return (
-        <div key={reply._id} className="mt-0 border-t pl-4 py-4">
+        <div key={reply._id.toString()} className="mt-0 border-t pl-4 py-4">
           <div className="text-muted-foreground text-sm">This reply has been deleted.</div>
         </div>
       );
     }
-    
+
     // Function to set reference for the like count element
     const setReplyLikeCountRef = (el: HTMLDivElement | null) => {
       if (el && reply._id) {
         replyLikeCountRefs.current.set(reply._id.toString(), el);
+      } else if (!el && reply._id) {
+        replyLikeCountRefs.current.delete(reply._id.toString()); // Clean up ref map
       }
     };
-    
+
     // Get profile image - check multiple possible locations based on data structure
-    const profileImageUrl = 
+    const profileImageUrl =
       reply.user?.profileImage || // From profiles table
       reply.user?.image ||        // From users table
       null;                       // Fallback
-      
+
     // Get display name from various possible locations
-    const displayName = 
+    const displayName =
       reply.user?.name ||      // From profiles or users table
       reply.username ||        // Fallback to username in comment
       'Anonymous';             // Last resort fallback
-    
+
+    // Calculate timestamp
+    const replyTimestamp = (() => {
+      const now = new Date();
+      const replyDate = new Date(reply._creationTime);
+
+      // Ensure we're working with valid dates
+      if (isNaN(replyDate.getTime())) {
+        return '';
+      }
+
+      // Calculate time difference
+      const diffInMs = now.getTime() - replyDate.getTime();
+      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      const diffInDays = Math.floor(diffInHours / 24);
+      const diffInMonths = Math.floor(diffInDays / 30);
+
+      // For future dates (more than 1 minute ahead), show 'in X'
+      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+      const prefix = isFuture ? 'in ' : '';
+      const suffix = isFuture ? '' : '';
+
+      // Format based on the time difference
+      if (diffInMinutes < 60) {
+        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+      } else if (diffInHours < 24) {
+        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+      } else if (diffInDays < 30) {
+        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+      } else {
+        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+      }
+    })();
+
+    // Function to update the like count text for replies
+    const updateReplyLikeCount = (count: number) => {
+      const replyLikeCountElement = replyLikeCountRefs.current.get(reply._id.toString());
+      if (replyLikeCountElement) {
+        if (count > 0) {
+          const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+          const countElement = replyLikeCountElement.querySelector('span');
+          if (countElement) {
+            countElement.textContent = countText;
+          }
+          replyLikeCountElement.classList.remove('hidden');
+        } else {
+          replyLikeCountElement.classList.add('hidden');
+        }
+      }
+    };
+
     return (
-      <div key={reply._id} className="mt-0">
+      <div key={reply._id.toString()} className="mt-0">
         {/* Add padding-left here to indent replies */}
         {/* Conditionally apply border-t based on index */}
-        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`}> 
-          <ProfileImage 
+        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`}>
+          <ProfileImage
             profileImage={profileImageUrl}
             username={reply.username}
             size="md-lg"
@@ -559,47 +419,16 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
                 <span className="text-sm font-bold leading-none">{displayName}</span>
               </div>
               <p className="text-sm">{reply.content}</p>
-              
+
               {/* Actions row with timestamp and like count */}
               <div className="flex items-center gap-4 mt-1">
                 {/* Timestamp */}
                 <div className="leading-none font-semibold text-muted-foreground text-xs">
-                  {(() => {
-                    const now = new Date();
-                    const replyDate = new Date(reply._creationTime);
-                    
-                    // Ensure we're working with valid dates
-                    if (isNaN(replyDate.getTime())) {
-                      return '';
-                    }
-
-                    // Calculate time difference
-                    const diffInMs = now.getTime() - replyDate.getTime();
-                    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                    const diffInHours = Math.floor(diffInMinutes / 60);
-                    const diffInDays = Math.floor(diffInHours / 24);
-                    const diffInMonths = Math.floor(diffInDays / 30);
-                    
-                    // For future dates (more than 1 minute ahead), show 'in X'
-                    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                    const prefix = isFuture ? 'in ' : '';
-                    const suffix = isFuture ? '' : '';
-                    
-                    // Format based on the time difference
-                    if (diffInMinutes < 60) {
-                      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                    } else if (diffInHours < 24) {
-                      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                    } else if (diffInDays < 30) {
-                      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                    } else {
-                      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                    }
-                  })()}
+                  {replyTimestamp}
                 </div>
-                
+
                 {/* Like count for reply */}
-                <div 
+                <div
                   ref={setReplyLikeCountRef}
                   className="leading-none font-semibold text-muted-foreground text-xs hidden"
                 >
@@ -607,7 +436,7 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
                 </div>
               </div>
             </div>
-            
+
             <div className="flex-shrink-0 flex items-center ml-2 pr-4">
               <div className="flex flex-col items-end w-full">
                 {/* Add menu for reply owner at the top */}
@@ -620,7 +449,7 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={deleteReply}
                           className="text-red-500 focus:text-red-500 cursor-pointer"
                         >
@@ -630,13 +459,13 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
                     </DropdownMenu>
                   </div>
                 )}
-                
+
                 {/* Like button */}
-                <CommentLikeButton 
+                <CommentLikeButton
                   commentId={reply._id as unknown as Id<"comments">}
                   size="sm"
                   hideCount={true}
-                  onCountChange={(count) => updateReplyLikeCount(reply._id.toString(), count)}
+                  onCountChange={(count) => updateReplyLikeCount(count)}
                 />
               </div>
             </div>
@@ -644,8 +473,156 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
         </div>
       </div>
     );
+  }, [deletedReplies, isAuthenticated, viewer, deleteCommentMutation]);
+
+  // Render the replies section
+  const renderRepliesSection = () => {
+    if (!repliesExpanded) return null;
+    
+    return (
+      <div className="mt-0 border-t">
+        {repliesLoading ? (
+          <div className="py-2 pl-4 text-sm text-muted-foreground">Loading replies...</div>
+        ) : replies.length > 0 ? (
+          <div className="space-y-0">
+            {replies
+              .filter(reply => !deletedReplies.has(reply._id.toString()))
+              .map((reply, index) => (
+                <ReplyRenderer key={reply._id.toString()} reply={reply} index={index} />
+              ))}
+          </div>
+        ) : (
+          <div className="py-2 pl-4 text-sm text-muted-foreground">No replies yet.</div>
+        )}
+      </div>
+    );
   };
-  
+
+  // Submit a reply
+  const submitReply = useCallback(async () => {
+    if (!replyText.trim() || isSubmittingReply || item.type !== 'comment' || !item._id) return;
+
+    const commentId = typeof item._id === 'string' ?
+      item._id as unknown as Id<"comments"> :
+      item._id;
+
+    setIsSubmittingReply(true);
+
+    try {
+      // Use Convex mutation to submit the reply
+      await addComment({
+        parentId: commentId,
+        content: replyText.trim(),
+        entryGuid: item.entryGuid,
+        feedUrl: item.feedUrl
+      });
+
+      // Clear the input and hide the reply form
+      setReplyText('');
+      setIsReplying(false); // Hide the input form
+
+      // The replies will automatically update through the Convex subscription
+      // No need to manually fetch them again
+    } catch (error) {
+      console.error('Error submitting reply:', error);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyText, isSubmittingReply, item.type, item._id, item.entryGuid, item.feedUrl, addComment]); // Use specific item fields
+
+  // Function to update the like count text (ref dependent, useCallback might not be necessary but harmless)
+  const updateLikeCount = useCallback((count: number) => {
+    if (likeCountRef.current) {
+      if (count > 0) {
+        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+        const countElement = likeCountRef.current.querySelector('span:last-child');
+        if (countElement) {
+          countElement.textContent = countText;
+        }
+        likeCountRef.current.classList.remove('hidden');
+      } else {
+        likeCountRef.current.classList.add('hidden');
+      }
+    }
+  }, []); // Ref dependency doesn't need to be listed
+
+  // Function to initiate replying to the main comment
+  const handleReplyClick = useCallback(() => {
+    if (!isAuthenticated) {
+      router.push("/signin");
+      return;
+    }
+    // Toggle the replying state
+    setIsReplying(current => !current); // Use functional update
+    if (isReplying) { // If it *was* replying, clear text
+      setReplyText('');
+    }
+  }, [isAuthenticated, router, isReplying]);
+
+  // Function to cancel replying
+  const cancelReplyClick = useCallback(() => {
+    setIsReplying(false);
+    setReplyText(''); // Clear text on cancel
+  }, []); // No dependencies
+
+  // Check for initial like count from Convex
+  useEffect(() => {
+    if (item.type === 'comment' && item._id) {
+      // No need to convert the ID here since we're not using it
+      // We just need to make sure the ref is ready
+      if (likeCountRef.current) {
+        // The initial state is hidden, the button will update it if needed
+        likeCountRef.current.classList.add('hidden');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.type, item._id]); // Specific item fields
+
+  // Get comments to check ownership
+  const commentDetails = useQuery(
+    api.comments.getComments,
+    item.type === 'comment' && item.entryGuid 
+      ? { entryGuid: item.entryGuid } 
+      : 'skip'
+  );
+
+  // Check if the comment belongs to the current user using ID-based authorization
+  useEffect(() => {
+    if (isAuthenticated && viewer && item.type === 'comment' && item._id && commentDetails) {
+      const commentId = typeof item._id === 'string' ?
+        item._id as unknown as Id<"comments"> :
+        item._id;
+
+      // Find the comment in the returned comments
+      const comment = commentDetails.find(c => c._id === commentId);
+      // Use ID-based comparison instead of username
+      setIsCurrentUser(!!comment && viewer._id === comment.userId); // Ensure comment exists
+    } else {
+      setIsCurrentUser(false); // Reset if conditions not met
+    }
+  }, [isAuthenticated, viewer, item.type, item._id, commentDetails]); // Specific item fields
+
+  // Function to delete a comment - updated to use React state
+  const deleteComment = useCallback(async () => {
+    if (item.type !== 'comment' || !item._id) return;
+
+    const commentId = typeof item._id === 'string' ?
+      item._id as unknown as Id<"comments"> :
+      item._id;
+
+    try {
+      // Use Convex mutation instead of fetch
+      await deleteCommentMutation({ commentId });
+
+      // Update UI to show comment was deleted using React state
+      setIsDeleted(true);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.type, item._id, deleteCommentMutation]); // Specific item fields
+
   switch (item.type) {
     case "like":
       return (
@@ -707,11 +684,11 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
                       onClick={handleReplyClick}
                       className="text-muted-foreground hover:underline focus:outline-none"
                     >
-                      Reply
+                      {isReplying ? 'Cancel Reply' : 'Reply'}
                     </button>
                   </div>
-                  {/* View/Hide Replies Button */}
-                  {(commentRepliesQuery?.length ?? 0) > 0 && (
+                  {/* View/Hide Replies Button - Only show if we have an ID */}
+                  {item._id && (commentRepliesQuery?.length ?? 0) > 0 && (
                     <div className="leading-none font-semibold text-muted-foreground text-xs">
                       <button 
                         onClick={toggleReplies}
@@ -806,24 +783,8 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
             </div>
           )}
 
-          {/* Replies section - shown when repliesExpanded is true */}
-          {repliesExpanded && (
-            <div className="mt-0 border-t"> {/* Add border-t here */}
-              {repliesLoading ? (
-                <div className="py-2 pl-4 text-sm text-muted-foreground">Loading replies...</div>
-              ) : replies.length > 0 ? (
-                <div className="space-y-0">
-                  {replies
-                    .filter(reply => !deletedReplies.has(reply._id.toString())) 
-                    // Pass index to renderReply
-                    .map((reply, index) => renderReply(reply, index)) 
-                  }
-                </div>
-              ) : (
-                 <div className="py-2 pl-4 text-sm text-muted-foreground">No replies yet.</div>
-              )}
-            </div>
-          )}
+          {/* Replies section - Use the extracted renderRepliesSection function */}
+          {renderRepliesSection()}
         </div>
       );
     case "retweet":
@@ -834,19 +795,63 @@ const ActivityDescription = React.memo(function ActivityDescriptionInner({ item,
       );
   }
 });
+// Add display name for React DevTools
 ActivityDescription.displayName = 'ActivityDescription';
 
+// Now extract timestamp formatting to utility functions at the top level, above all components
+
+/**
+ * Utility function to format time ago for display
+ * @param timestamp Unix timestamp or date string
+ * @returns Formatted time string (e.g. "5m", "2h", "3d")
+ */
+const formatTimeAgo = (timestamp: number | string): string => {
+  if (!timestamp) return '';
+  
+  const now = new Date();
+  const date = new Date(timestamp);
+  
+  // Ensure we're working with valid dates
+  if (isNaN(date.getTime())) {
+    return '';
+  }
+
+  // Calculate time difference
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+  const diffInMonths = Math.floor(diffInDays / 30);
+  
+  // For future dates (more than 1 minute ahead), show 'in X'
+  const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+  const prefix = isFuture ? 'in ' : '';
+  const suffix = isFuture ? '' : '';
+  
+  // Format based on the time difference
+  if (diffInMinutes < 60) {
+    return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+  } else if (diffInHours < 24) {
+    return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+  } else if (diffInDays < 30) {
+    return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+  } else {
+    return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+  }
+};
+
 // Activity card with entry details
-const ActivityCard = React.memo(({ 
-  activity, 
-  username, 
+// Memoize ActivityCard
+const ActivityCard = React.memo(({
+  activity,
+  username,
   name,
   profileImage,
   entryDetail,
   getEntryMetrics,
   onOpenCommentDrawer
-}: { 
-  activity: ActivityItem; 
+}: {
+  activity: ActivityItem;
   username: string;
   name: string;
   profileImage?: string | null;
@@ -855,46 +860,72 @@ const ActivityCard = React.memo(({
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
-  const isCurrentlyPlaying = entryDetail && currentTrack?.src === entryDetail.link;
   
-  // Always call all hooks unconditionally at the top level
-  // Format entry timestamp - move outside of any conditional code
-  const entryTimestamp = useEntryTimestampFormatter(entryDetail?.pub_date);
+  // Extract primitive values from objects for dependency arrays
+  const entryGuid = entryDetail?.guid;
+  const feedUrl = entryDetail?.feed_url || '';
+  const entryLink = entryDetail?.link;
+  const entryTitle = entryDetail?.title;
+  const entryImage = entryDetail?.image;
+  const entryMediaType = entryDetail?.post_media_type?.toLowerCase();
+  const entryAlternativeMediaType = entryDetail?.mediaType?.toLowerCase();
+  const isPodcast = entryMediaType === 'podcast' || entryAlternativeMediaType === 'podcast';
+  
+  // Use primitive isCurrentlyPlaying
+  const isCurrentlyPlaying = useMemo(() =>
+    Boolean(entryLink && currentTrack?.src === entryLink),
+    [entryLink, currentTrack?.src]
+  );
 
-  // Format activity timestamp for comments - always call this hook
-  const activityTimestamp = useEntryTimestampFormatter(activity.timestamp ? activity.timestamp.toString() : undefined);
-
-  // Get metrics for this entry - always call at the top level
+  // Get metrics for this entry - explicitly memoized to prevent regeneration
   const interactions = useMemo(() => {
-    if (!entryDetail) return {
-      likes: { isLiked: false, count: 0 },
-      comments: { count: 0 },
-      retweets: { isRetweeted: false, count: 0 }
-    };
-    return getEntryMetrics(entryDetail.guid);
-  }, [entryDetail, getEntryMetrics]);
-  
-  // Handle card click - always call at the top level
+    if (!entryGuid) return undefined;
+    return getEntryMetrics(entryGuid);
+  }, [entryGuid, getEntryMetrics]);
+
+  // Format entry timestamp using shared formatter
+  const entryTimestamp = useMemo(() => {
+    if (!entryDetail?.pub_date) return '';
+    return formatTimeAgo(entryDetail.pub_date);
+  }, [entryDetail?.pub_date]);
+
+  // Format activity timestamp for comments
+  const activityTimestamp = useMemo(() => {
+    if (!activity.timestamp) return '';
+    return formatTimeAgo(activity.timestamp);
+  }, [activity.timestamp]);
+
+  // Handle card click for podcasts with primitive dependencies
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
+    if (isPodcast && entryLink) {
       e.preventDefault();
-      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
+      playTrack(entryLink, entryTitle || '', entryImage);
     }
-  }, [entryDetail, playTrack]);
-  
+  }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
+
+  // Memoize the comment drawer click handler
+  const handleCommentClick = useCallback(() => {
+    if (entryGuid) {
+      onOpenCommentDrawer(entryGuid, feedUrl, interactions?.comments);
+    }
+  }, [entryGuid, feedUrl, interactions?.comments, onOpenCommentDrawer]);
+
   // If we don't have entry details, show a simplified card
   if (!entryDetail) {
+    // Memoize the simple card content if necessary, but often not needed for simple displays
     return (
       <div className="p-4 rounded-lg shadow-sm mb-4">
         <div className="flex items-start">
           {activity.type !== "comment" && (
             <div className="mt-1 mr-3">
+               {/* Use memoized ActivityIcon */}
               <ActivityIcon type={activity.type} />
             </div>
           )}
           <div className="flex-1">
-            <ActivityDescription 
-              item={activity} 
+             {/* Use memoized ActivityDescription */}
+            <ActivityDescription
+              item={activity}
               username={username}
               name={name}
               profileImage={profileImage}
@@ -902,7 +933,12 @@ const ActivityCard = React.memo(({
             />
             {activity.type !== "comment" && (
               <div className="text-sm text-gray-500 mt-2">
-                {activityTimestamp}
+                {activity.type === "retweet" ? (
+                  // Ensure activityTimestamp is used correctly here if needed
+                  <span className="hidden">{activityTimestamp}</span>
+                ) : (
+                  activityTimestamp
+                )}
               </div>
             )}
           </div>
@@ -910,350 +946,224 @@ const ActivityCard = React.memo(({
       </div>
     );
   }
-  
+
   // With entry details, show a rich card similar to EntriesDisplay
   return (
-    <article className={activity.type === "comment" ? "relative" : ""}>
-      {/* Regular card implementation continues */}
-      {/* ... */}
-    </article>
-  );
-});
-ActivityCard.displayName = 'ActivityCard';
+    // Use activity._id or a combination for the key if possible, or index as fallback
+    <article key={activity._id?.toString() || activity.entryGuid} className={activity.type === "comment" ? "relative" : ""}>
+      {/* Removed vertical line for comments */}
 
-/**
- * Client component that displays a user's activity feed with virtualization and pagination
- * Initial data is fetched on the server, and additional data is loaded as needed
- */
-export function UserActivityFeed({ 
-  userId, 
-  username, 
-  name, 
-  profileImage, 
-  initialData, 
-  pageSize = 30, 
-  apiEndpoint = "/api/activity",
-  isActive = true
-}: UserActivityFeedProps) {
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const [activities, setActivities] = useState<ActivityItem[]>(initialData?.activities || []);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
-  const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(initialData?.entryDetails || {});
-  const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
-  const totalCount = initialData?.totalCount || 0;
-  const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
-  
-  // --- Drawer state for comments (moved to top level) ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Callback to open the comment drawer for a given entry (moved to top level)
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-  
-  // Get audio context at the component level
-  const { playTrack, currentTrack } = useAudio();
-  
-  // Get entry guids for metrics
-  const entryGuids = useMemo(() => 
-    activities.map(activity => activity.entryGuid), 
-    [activities]
-  );
-  
-  // Use our custom hook for metrics
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
-    entryGuids,
-    initialData?.entryMetrics
-  );
-
-  // Move handleCardClick outside the renderActivityGroup function to avoid conditional hook call
-  const handleCardClick = useCallback((e: React.MouseEvent, entryDetail: RSSEntry | undefined) => {
-    if (entryDetail && (entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast')) {
-      e.preventDefault();
-      playTrack(entryDetail.link, entryDetail.title, entryDetail.image || undefined);
-    }
-  }, [playTrack]);
-
-  // Group activities by entry GUID for comments
-  const groupedActivities = useMemo(() => {
-    // Create a map to store activities by entry GUID and type
-    const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
-    
-    // First pass: collect all activities by entry GUID and type
-    activities.forEach(activity => {
-      const key = activity.entryGuid;
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, new Map());
-      }
-      
-      // Group only comments together, keep likes and retweets separate
-      const typeKey = activity.type === 'comment' ? 'comment' : `${activity.type}-${activity._id}`;
-      
-      if (!groupedMap.get(key)!.has(typeKey)) {
-        groupedMap.get(key)!.set(typeKey, []);
-      }
-      groupedMap.get(key)!.get(typeKey)!.push(activity);
-    });
-    
-    // Second pass: create final structure
-    const result: Array<{
-      entryGuid: string;
-      firstActivity: ActivityItem;
-      comments: ActivityItem[];
-      hasMultipleComments: boolean;
-      type: string;
-    }> = [];
-    
-    groupedMap.forEach((typeMap, entryGuid) => {
-      typeMap.forEach((activitiesForType, typeKey) => {
-        // Sort activities by timestamp (oldest first)
-        const sortedActivities = [...activitiesForType].sort((a, b) => a.timestamp - b.timestamp);
-        
-        if (typeKey === 'comment') {
-          // For comments, group them together
-          result.push({
-            entryGuid,
-            firstActivity: sortedActivities[0],
-            comments: sortedActivities,
-            hasMultipleComments: sortedActivities.length > 1,
-            type: 'comment'
-          });
-        } else {
-          // For likes and retweets, each is a separate entry
-          sortedActivities.forEach(activity => {
-            result.push({
-              entryGuid,
-              firstActivity: activity,
-              comments: [],
-              hasMultipleComments: false,
-              type: activity.type
-            });
-          });
-        }
-      });
-    });
-    
-    // Sort the result by the timestamp of the first activity (newest first for the feed)
-    return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
-  }, [activities]);
-
-  // Log when initial data is received
-  useEffect(() => {
-    if (initialData?.activities) {
-      console.log('📋 Initial activity data received from server:', {
-        activitiesCount: initialData.activities.length,
-        totalCount: initialData.totalCount,
-        hasMore: initialData.hasMore,
-        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
-      });
-      
-      // Explicitly check if we have metrics in the initial data
-      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
-        console.log('🔢 Initial metrics will be used for rendering');
-      }
-      
-      setActivities(initialData.activities);
-      setEntryDetails(initialData.entryDetails || {});
-      setHasMore(initialData.hasMore);
-      setCurrentSkip(initialData.activities.length);
-      setIsInitialLoad(false);
-    }
-  }, [initialData]);
-
-  // Function to load more activities
-  const loadMoreActivities = useCallback(async () => {
-    if (!isActive || isLoading || !hasMore) {
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      console.log(`📡 Fetching more activities from API, skip=${currentSkip}, limit=${pageSize}`);
-      
-      // Use the API route to fetch the next page
-      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
-      
-      if (!result.ok) {
-        throw new Error(`API error: ${result.status}`);
-      }
-      
-      const data = await result.json();
-      console.log(`📦 Received data from API:`, {
-        activitiesCount: data.activities?.length || 0,
-        hasMore: data.hasMore,
-        entryDetailsCount: Object.keys(data.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(data.entryMetrics || {}).length
-      });
-      
-      if (!data.activities?.length) {
-        console.log('⚠️ No activities returned from API');
-        setHasMore(false);
-        setIsLoading(false);
-        return;
-      }
-      
-      setActivities(prev => [...prev, ...data.activities]);
-      setEntryDetails(prev => ({...prev, ...data.entryDetails}));
-      setCurrentSkip(prev => prev + data.activities.length);
-      setHasMore(data.hasMore);
-      
-      console.log(`📊 Updated state - total activities: ${activities.length + data.activities.length}, hasMore: ${data.hasMore}`);
-    } catch (error) {
-      console.error('❌ Error loading more activities:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isActive, isLoading, hasMore, currentSkip, userId, pageSize, activities.length, apiEndpoint]);
-
-  // Check if we need to load more when the component is mounted
-  const checkContentHeight = useCallback(() => {
-    if (!loadMoreRef.current || !hasMore || isLoading) return;
-    
-    const viewportHeight = window.innerHeight;
-    const documentHeight = document.documentElement.scrollHeight;
-    
-    // If the document is shorter than the viewport, load more
-    if (documentHeight <= viewportHeight && activities.length > 0) {
-      console.log('📏 Content is shorter than viewport, loading more activities');
-      loadMoreActivities();
-    }
-  }, [hasMore, isLoading, activities.length, loadMoreActivities]);
-
-  useEffect(() => {
-    // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 1000);
-    
-    return () => clearTimeout(timer);
-  }, [checkContentHeight]);
-
-  // Loading state - only show for initial load and initial metrics fetch
-  if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
-    return (
-      <div className="flex justify-center items-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
-  // No activities state
-  if (activities.length === 0 && !isLoading) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No activity found for this user.</p>
-      </div>
-    );
-  }
-
-  // Create a simple formatting function that doesn't rely on hooks
-  // This can be called from anywhere including conditionals
-  const formatTimestamp = (timestamp: number): string => {
-    const now = new Date();
-    const date = new Date(timestamp);
-    
-    // Ensure we're working with valid dates
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-    const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-    } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-    } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-    } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-    }
-  };
-
-  // Now modify the renderActivityGroup function to use our formatter
-  // Inside UserActivityFeed, add a formatTimestamp function that wraps useEntryTimestampFormatter
-  const renderActivityGroup = useCallback((group: {
-    entryGuid: string;
-    firstActivity: ActivityItem;
-    comments: ActivityItem[];
-    hasMultipleComments: boolean;
-    type: string;
-  }, index: number) => {
-    const entryDetail = entryDetails[group.entryGuid];
-    
-    // This is fine - early return without hooks
-    if (!entryDetail) {
-      return null;
-    }
-    
-    // Get metrics for this entry
-    const interactions = getEntryMetrics(entryDetail.guid);
-    
-    // Check if this entry is currently playing
-    const isCurrentlyPlaying = currentTrack?.src === entryDetail.link;
-    
-    // Replace the inner function with a call to the memoized function at component level
-    const handleEntryCardClick = (e: React.MouseEvent) => handleCardClick(e, entryDetail);
-    
-    // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
-    if (group.type !== 'comment' || group.comments.length <= 1) {
-      return (
-        <ActivityCard 
-          key={`group-${group.entryGuid}-${group.type}-${index}`}
-          activity={group.firstActivity}
-          username={username}
-          name={name}
-          profileImage={profileImage}
-          entryDetail={entryDetail}
-          getEntryMetrics={getEntryMetrics}
-          onOpenCommentDrawer={handleOpenCommentDrawer}
-        />
-      );
-    }
-    
-    // For multiple comments, render a special daisy-chained version
-    // Previously there was likely a conditional hook here, but our code is already fixed
-    // since we moved the handleCardClick hook to the component level
-    
-    return (
-      <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
-        <div className="p-4">
-          {/* Activity header with icon and description */}
-          <div className="flex items-start mb-2 relative h-[16px]">
-            <div className="mr-2">
-              <ActivityIcon type={group.firstActivity.type} />
-            </div>
-            <div className="flex-1">
+      <div className="p-4">
+        {/* Activity header with icon and description */}
+        <div className="flex items-start mb-2 relative h-[16px]">
+          <div className="mr-2">
+             {/* Use memoized ActivityIcon */}
+            <ActivityIcon type={activity.type} />
+          </div>
+          <div className="flex-1">
+            {activity.type === "like" && (
+              <ActivityDescription
+                item={activity}
+                username={username}
+                name={name}
+                profileImage={profileImage}
+                timestamp={undefined} // No timestamp needed here based on original logic
+              />
+            )}
+            {activity.type === "retweet" && (
+              <span className="text-muted-foreground text-sm block leading-none pt-[0px]">
+                <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
+              </span>
+            )}
+            {activity.type === "comment" && (
               <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
                 <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
               </span>
-            </div>
+            )}
           </div>
-          
-          {/* Featured Image and Title */}
+        </div>
+        
+        {/* Different layouts based on activity type */}
+        {activity.type === "comment" ? (
+          <>
+          {/* Featured Image and Title in flex layout */}
           <div className="flex items-start gap-4 mb-4 relative mt-4">
-            {/* Featured Image */}
+            {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
             <div className="flex-shrink-0 relative">
               {(entryDetail.post_featured_img || entryDetail.image) && (
                 <div className="w-12 h-12 relative z-10">
+                  <Link
+                    href={entryDetail.post_slug ?
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                        `/newsletters/${entryDetail.post_slug}` :
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                          `/podcasts/${entryDetail.post_slug}` :
+                          entryDetail.category_slug ?
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                            entryDetail.link) :
+                          entryDetail.link}
+                    className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "" : "noopener noreferrer"}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetail.post_featured_img || entryDetail.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Title and Timestamp */}
+            <div className="flex-grow">
+              <div className="w-full">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={entryDetail.post_slug ?
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                        `/newsletters/${entryDetail.post_slug}` :
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                          `/podcasts/${entryDetail.post_slug}` :
+                          entryDetail.category_slug ?
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                            entryDetail.link) :
+                          entryDetail.link}
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "" : "noopener noreferrer"}
+                  >
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                    </h3>
+                  </Link>
+                  <span
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
+                    title={entryDetail.pub_date ?
+                      format(new Date(entryDetail.pub_date), 'PPP p') :
+                      new Date(activity.timestamp).toLocaleString()
+                    }
+                  >
+                    {entryTimestamp}
+                  </span>
+                </div>
+                {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                {(entryDetail.post_media_type || entryDetail.mediaType) && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
+                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') &&
+                      <Podcast className="h-3 w-3" />
+                    }
+                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') &&
+                      <Mail className="h-3 w-3" strokeWidth={2.5} />
+                    }
+                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() +
+                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Entry Content Card - Full width */}
+          <div className="mt-4">
+          {/* Use the memoized handleCardClick */}
+          {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+            <div>
+              <div
+                onClick={handleCardClick}
+                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              >
+                <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                  {entryDetail.image && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={2/1}>
+                        <Image
+                          src={entryDetail.image}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 768px"
+                          loading="lazy"
+                          priority={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
+                  )}
+                  <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
+                      {entryDetail.title}
+                    </h3>
+                    {entryDetail.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                        {entryDetail.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : (
+            <a
+              href={entryDetail.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block hover:opacity-80 transition-opacity"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entryDetail.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entryDetail.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {entryDetail.title}
+                  </h3>
+                  {entryDetail.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {entryDetail.description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          )}
+        </div>
+          </>
+        ) : (
+          // Original full-width layout for retweets/likes
+          <>
+            {/* Top Row: Featured Image and Title */}
+            <div className="flex items-start gap-4 mb-4 relative mt-4">
+              {/* Featured Image - Use post_featured_img if available, otherwise fallback to feed image */}
+              {(entryDetail.post_featured_img || entryDetail.image) && (
+                <div className="flex-shrink-0 w-12 h-12">
                   <Link 
                     href={entryDetail.post_slug ? 
                       (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
@@ -1286,71 +1196,107 @@ export function UserActivityFeed({
                   </Link>
                 </div>
               )}
-            </div>
-            
-            {/* Title and Timestamp */}
-            <div className="flex-grow">
-              <div className="w-full">
-                <div className="flex items-start justify-between gap-2">
-                  <Link 
-                    href={entryDetail.post_slug ? 
-                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
-                        `/newsletters/${entryDetail.post_slug}` : 
-                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
-                          `/podcasts/${entryDetail.post_slug}` : 
-                          entryDetail.category_slug ? 
-                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
-                            entryDetail.link) : 
-                          entryDetail.link}
-                    className="hover:opacity-80 transition-opacity"
-                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
-                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+              
+              {/* Title and Timestamp */}
+              <div className="flex-grow">
+                <div className="w-full">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link 
+                      href={entryDetail.post_slug ? 
+                        (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ? 
+                          `/newsletters/${entryDetail.post_slug}` : 
+                          entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ? 
+                            `/podcasts/${entryDetail.post_slug}` : 
+                            entryDetail.category_slug ? 
+                              `/${entryDetail.category_slug}/${entryDetail.post_slug}` : 
+                              entryDetail.link) : 
+                            entryDetail.link}
+                        className="hover:opacity-80 transition-opacity"
+                        target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                         ? "_self" : "_blank"}
-                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
-                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
+                        rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
+                                                   entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
-                  >
-                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
-                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
-                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                    </h3>
-                  </Link>
-                  <span 
-                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
-                    title={entryDetail.pub_date ? 
-                      format(new Date(entryDetail.pub_date), 'PPP p') : 
-                      new Date(group.firstActivity.timestamp).toLocaleString()
-                    }
-                  >
-                    {entryDetail.pub_date ? formatTimestamp(new Date(entryDetail.pub_date).getTime()) : ''}
-                  </span>
+                    >
+                      <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                        {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                        {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                      </h3>
+                    </Link>
+                    <span 
+                      className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
+                      title={entryDetail.pub_date ? 
+                        format(new Date(entryDetail.pub_date), 'PPP p') : 
+                        new Date(activity.timestamp).toLocaleString()
+                      }
+                    >
+                      {entryTimestamp}
+                    </span>
+                  </div>
+                  {/* Use post_media_type if available, otherwise fallback to mediaType */}
+                  {(entryDetail.post_media_type || entryDetail.mediaType) && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
+                      {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
+                        <Podcast className="h-3 w-3" />
+                      }
+                      {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
+                        <Mail className="h-3 w-3" strokeWidth={2.5} />
+                      }
+                      {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
+                       (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                    </span>
+                  )}
                 </div>
-                {/* Media type badge */}
-                {(entryDetail.post_media_type || entryDetail.mediaType) && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
-                    {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') && 
-                      <Podcast className="h-3 w-3" />
-                    }
-                    {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') && 
-                      <Mail className="h-3 w-3" strokeWidth={2.5} />
-                    }
-                    {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() + 
-                     (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
-                  </span>
-                )}
               </div>
             </div>
-          </div>
-                
-          {/* Entry Content Card */}
-          <div className="mt-4">
-            {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
-              <div>
-                <div 
-                  onClick={handleEntryCardClick}
-                  className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+
+            {/* Entry Content Card - Full width for retweets/likes */}
+            <div>
+              {/* Use the memoized handleCardClick */}
+              {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+                <div>
+                  <div 
+                    onClick={handleCardClick}
+                    className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                  >
+                    <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                      {entryDetail.image && (
+                        <CardHeader className="p-0">
+                          <AspectRatio ratio={2/1}>
+                            <Image
+                              src={entryDetail.image}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, 768px"
+                              loading="lazy"
+                              priority={false}
+                            />
+                          </AspectRatio>
+                        </CardHeader>
+                      )}
+                      <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                        <h3 className="text-base font-bold capitalize leading-[1.5]">
+                          {entryDetail.title}
+                        </h3>
+                        {entryDetail.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                            {entryDetail.description}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              ) : (
+                <a
+                  href={entryDetail.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block hover:opacity-80 transition-opacity"
                 >
-                  <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                  <Card className="rounded-xl border overflow-hidden shadow-none">
                     {entryDetail.image && (
                       <CardHeader className="p-0">
                         <AspectRatio ratio={2/1}>
@@ -1366,7 +1312,7 @@ export function UserActivityFeed({
                         </AspectRatio>
                       </CardHeader>
                     )}
-                    <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                    <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                       <h3 className="text-base font-bold capitalize leading-[1.5]">
                         {entryDetail.title}
                       </h3>
@@ -1377,16 +1323,368 @@ export function UserActivityFeed({
                       )}
                     </CardContent>
                   </Card>
-                </div>
+                </a>
+              )}
+            </div>
+          </>
+        )}
+
+         {/* Move engagement buttons below the card but within the article container */}
+         <div className="flex justify-between items-center mt-4 h-[16px]">
+          <div>
+            <LikeButtonClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+            />
+          </div>
+          <div onClick={handleCommentClick}>
+            <CommentSectionClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              initialData={interactions?.comments || { count: 0 }}
+              buttonOnly={true}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={{ isBookmarked: false }}
+            />
+            <ShareButtonClient
+              url={entryDetail.link}
+              title={entryDetail.title}
+            />
+          </div>
+        </div>
+      </div>
+      
+     
+      
+      <div id={`comments-${entryDetail.guid}`} className={activity.type === "comment" ? "" : "border-t border-border"} />
+      
+      {/* User Comment Activity - moved below the entry card */}
+      {activity.type === "comment" && (
+        <div className="border-b border-t relative">
+          <div className="relative z-10">
+            <ActivityDescription 
+              item={activity} 
+              username={username}
+              name={name}
+              profileImage={profileImage}
+              timestamp={activityTimestamp}
+            />
+          </div>
+        </div>
+      )}
+    </article>
+  );
+});
+// Add display name
+ActivityCard.displayName = 'ActivityCard';
+
+/**
+ * Define the type for the grouped activity structure
+ */
+type GroupedActivity = {
+  entryGuid: string;
+  firstActivity: ActivityItem;
+  comments: ActivityItem[];
+  hasMultipleComments: boolean;
+  type: string;
+};
+
+// *** NEW COMPONENT START ***
+/**
+ * Renders a single group of activities (for one entry) within the feed.
+ * Contains hooks previously causing issues in the itemContent callback.
+ */
+// Define props type for the new component
+type ActivityGroupRendererProps = {
+  group: GroupedActivity;
+  entryDetails: Record<string, RSSEntry>;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  getEntryMetrics: (entryGuid: string) => InteractionStates;
+  handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  currentTrack: { src: string | null } | null;
+  playTrack: (src: string, title: string, image?: string) => void;
+};
+
+const ActivityGroupRenderer = React.memo(({
+  group,
+  entryDetails,
+  username,
+  name,
+  profileImage,
+  getEntryMetrics,
+  handleOpenCommentDrawer,
+  currentTrack,
+  playTrack
+}: ActivityGroupRendererProps) => { // Use the defined props type
+
+  const entryDetail = entryDetails[group.entryGuid];
+
+  if (!entryDetail) {
+    // Optionally render a placeholder or log an error
+     console.warn(`Entry detail not found for GUID: ${group.entryGuid}`);
+    return null;
+  }
+
+  // Extract primitive values for better memoization
+  const entryGuid = entryDetail.guid;
+  const feedUrl = entryDetail.feed_url || '';
+  const entryLink = entryDetail.link;
+  const entryTitle = entryDetail.title;
+  const entryImage = entryDetail.image;
+  const entryMediaType = entryDetail.post_media_type?.toLowerCase();
+  const entryAlternativeMediaType = entryDetail.mediaType?.toLowerCase();
+  const isPodcast = entryMediaType === 'podcast' || entryAlternativeMediaType === 'podcast';
+  const currentTrackSrc = currentTrack?.src;
+  
+  // Use primitive properties for comparison
+  const isCurrentlyPlaying = currentTrackSrc === entryLink;
+
+  // Get metrics for this entry with better dependency
+  const interactions = getEntryMetrics(entryGuid);
+
+  // Use shared timestamp formatter - rename to rendererEntryTimestamp
+  const rendererEntryTimestamp = useMemo(() => {
+    if (!entryDetail.pub_date) return '';
+    return formatTimeAgo(entryDetail.pub_date);
+  }, [entryDetail.pub_date]);
+
+  // Handle card click for podcasts with primitive dependencies
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (isPodcast && entryLink) {
+      e.preventDefault();
+      playTrack(entryLink, entryTitle || '', entryImage);
+    }
+  }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
+
+  // Memoize the comment drawer click handler for this specific group - rename to rendererHandleCommentClick
+  const rendererHandleCommentClick = useCallback(() => {
+    if (entryGuid) {
+      handleOpenCommentDrawer(entryGuid, feedUrl, interactions?.comments);
+    }
+  }, [entryGuid, feedUrl, interactions?.comments, handleOpenCommentDrawer]);
+
+  // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
+  if (group.type !== 'comment' || group.comments.length <= 1) {
+    return (
+      <ActivityCard
+        // Use a more unique key combining guid, type, and activity id
+        key={`card-${group.entryGuid}-${group.firstActivity._id?.toString()}`}
+        activity={group.firstActivity}
+        username={username}
+        name={name}
+        profileImage={profileImage}
+        entryDetail={entryDetail}
+        getEntryMetrics={getEntryMetrics} // Stable from parent
+        onOpenCommentDrawer={handleOpenCommentDrawer} // Stable from parent
+      />
+    );
+  }
+
+  // For multiple comments, render a special daisy-chained version
+  // Calculate timestamp for the entry card once
+  const group_entryTimestamp = useMemo(() => {
+     if (!entryDetail.pub_date) return '';
+
+     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+     let pubDate: Date;
+
+     if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
+       // Convert MySQL datetime string to UTC time
+       const [datePart, timePart] = entryDetail.pub_date.split(' ');
+       pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+     } else {
+       // Handle other formats
+       pubDate = new Date(entryDetail.pub_date);
+     }
+
+     const now = new Date();
+
+     // Ensure we're working with valid dates
+     if (isNaN(pubDate.getTime())) {
+       return '';
+     }
+
+     // Calculate time difference
+     const diffInMs = now.getTime() - pubDate.getTime();
+     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+     const diffInHours = Math.floor(diffInMinutes / 60);
+     const diffInDays = Math.floor(diffInHours / 24);
+     const diffInMonths = Math.floor(diffInDays / 30);
+
+     // For future dates (more than 1 minute ahead), show 'in X'
+     const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+     const prefix = isFuture ? 'in ' : '';
+     const suffix = isFuture ? '' : '';
+
+     // Format based on the time difference
+     if (diffInMinutes < 60) {
+       return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+     } else if (diffInHours < 24) {
+       return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+     } else if (diffInDays < 30) {
+       return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+     } else {
+       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+     }
+  // Depend only on pub_date
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryDetail?.pub_date]);
+
+   // Memoize the comment drawer click handler for this specific group
+  const group_handleCommentClick = useCallback(() => {
+    // handleOpenCommentDrawer is stable from parent
+    handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions?.comments);
+  }, [entryDetail.guid, entryDetail.feed_url, interactions, handleOpenCommentDrawer]);
+
+
+  return (
+    // Use a unique key for the group
+    <article key={`group-${group.entryGuid}-${group.type}`} className="relative">
+      {/* ... Rest of ActivityGroupRenderer JSX ... */}
+      <div className="p-4">
+        {/* Activity header with icon and description */}
+        <div className="flex items-start mb-2 relative h-[16px]">
+          <div className="mr-2">
+             {/* Use memoized ActivityIcon */}
+            <ActivityIcon type={group.firstActivity.type} />
+          </div>
+          <div className="flex-1">
+            <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
+              <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Featured Image and Title */}
+        <div className="flex items-start gap-4 mb-4 relative mt-4">
+          {/* Featured Image */}
+          <div className="flex-shrink-0 relative">
+            {(entryDetail.post_featured_img || entryDetail.image) && (
+              <div className="w-12 h-12 relative z-10">
+                <Link
+                  href={entryDetail.post_slug ?
+                    (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                      `/newsletters/${entryDetail.post_slug}` :
+                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                        `/podcasts/${entryDetail.post_slug}` :
+                        entryDetail.category_slug ?
+                          `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                          entryDetail.link) :
+                        entryDetail.link}
+                  className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+                  target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "_self" : "_blank"}
+                  rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                             entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                    ? "" : "noopener noreferrer"}
+                >
+                  <AspectRatio ratio={1}>
+                    <Image
+                      src={entryDetail.post_featured_img || entryDetail.image || ''}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="96px"
+                      loading="lazy"
+                      priority={false}
+                    />
+                  </AspectRatio>
+                </Link>
               </div>
-            ) : (
-              <a
-                href={entryDetail.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block hover:opacity-80 transition-opacity"
+            )}
+          </div>
+
+          {/* Title and Timestamp */}
+          <div className="flex-grow">
+            <div className="w-full">
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  href={entryDetail.post_slug ?
+                    (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                      `/newsletters/${entryDetail.post_slug}` :
+                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                        `/podcasts/${entryDetail.post_slug}` :
+                        entryDetail.category_slug ?
+                          `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                          entryDetail.link) :
+                        entryDetail.link}
+                  className="hover:opacity-80 transition-opacity"
+                  target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "_self" : "_blank"}
+                  rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                             entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                    ? "" : "noopener noreferrer"}
+                >
+                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                    {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                    {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                  </h3>
+                </Link>
+                <span
+                  className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
+                  title={entryDetail.pub_date ?
+                    format(new Date(entryDetail.pub_date), 'PPP p') :
+                    new Date(group.firstActivity.timestamp).toLocaleString()
+                  }
+                >
+                  {/* Use the memoized group_entryTimestamp */}
+                  {group_entryTimestamp}
+                </span>
+              </div>
+              {/* Media type badge */}
+              {(entryDetail.post_media_type || entryDetail.mediaType) && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
+                  {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') &&
+                    <Podcast className="h-3 w-3" />
+                  }
+                  {(entryDetail.post_media_type?.toLowerCase() === 'newsletter' || entryDetail.mediaType?.toLowerCase() === 'newsletter') &&
+                    <Mail className="h-3 w-3" strokeWidth={2.5} />
+                  }
+                  {(entryDetail.post_media_type || entryDetail.mediaType || 'article').charAt(0).toUpperCase() +
+                   (entryDetail.post_media_type || entryDetail.mediaType || 'article').slice(1)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Entry Content Card */}
+        <div className="mt-4">
+          {/* Use the memoized handleCardClick */}
+          {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
+            <div>
+              <div
+                onClick={handleCardClick}
+                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
               >
-                <Card className="rounded-xl border overflow-hidden shadow-none">
+                <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                   {entryDetail.image && (
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
@@ -1402,7 +1700,7 @@ export function UserActivityFeed({
                       </AspectRatio>
                     </CardHeader>
                   )}
-                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                     <h3 className="text-base font-bold capitalize leading-[1.5]">
                       {entryDetail.title}
                     </h3>
@@ -1413,121 +1711,550 @@ export function UserActivityFeed({
                     )}
                   </CardContent>
                 </Card>
-              </a>
-            )}
-          </div>
-             {/* Add engagement buttons below the card */}
-             <div className="flex justify-between items-center mt-4 h-[16px]">
-             <div>
-              <LikeButtonClient
-                entryGuid={entryDetail.guid}
-                feedUrl={entryDetail.feed_url || ''}
-                title={entryDetail.title}
-                pubDate={entryDetail.pub_date}
-                link={entryDetail.link}
-                initialData={interactions.likes}
-              />
-            </div>
-            <div onClick={() => handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions.comments)}>
-              <CommentSectionClient
-                entryGuid={entryDetail.guid}
-                feedUrl={entryDetail.feed_url || ''}
-                initialData={interactions.comments}
-                buttonOnly={true}
-              />
-            </div>
-            <div>
-              <RetweetButtonClientWithErrorBoundary
-                entryGuid={entryDetail.guid}
-                feedUrl={entryDetail.feed_url || ''}
-                title={entryDetail.title}
-                pubDate={entryDetail.pub_date}
-                link={entryDetail.link}
-                initialData={interactions.retweets}
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <BookmarkButtonClient
-                entryGuid={entryDetail.guid}
-                feedUrl={entryDetail.feed_url || ''}
-                title={entryDetail.title}
-                pubDate={entryDetail.pub_date}
-                link={entryDetail.link}
-                initialData={{ isBookmarked: false }}
-              />
-              <ShareButtonClient
-                url={entryDetail.link}
-                title={entryDetail.title}
-              />
-            </div>
-          </div>
-        </div>
-
-     
-        
-        <div id={`comments-${entryDetail.guid}`} className="" />
-        
-        {/* Render all comments in chronological order */}
-        <div className="border-b"> {/* Removed border-l and border-r */}
-          {group.comments.map((comment) => {
-            return (
-              <div 
-                key={`comment-${comment._id}`} 
-                // Remove p-4 from here, keep border-t and relative
-                className="border-t relative" 
-              >
-                {/* Comment content */}
-                <div className="relative z-10">
-                  <ActivityDescription 
-                    item={comment} 
-                    username={username}
-                    name={name}
-                    profileImage={profileImage}
-                    timestamp={formatTimestamp(comment.timestamp)}
-                  />
-                </div>
               </div>
-            );
-          })}
+            </div>
+          ) : (
+            <a
+              href={entryDetail.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block hover:opacity-80 transition-opacity"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entryDetail.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entryDetail.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        loading="lazy"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {entryDetail.title}
+                  </h3>
+                  {entryDetail.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {entryDetail.description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          )}
         </div>
-      </article>
-    );
-  }, [entryDetails, currentTrack, handleCardClick, username, name, profileImage, getEntryMetrics, handleOpenCommentDrawer]);
+           {/* Add engagement buttons below the card */}
+           <div className="flex justify-between items-center mt-4 h-[16px]">
+           <div>
+            <LikeButtonClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              // Ensure interactions is stable or default value is memoized
+              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+            />
+          </div>
+           {/* Use stable handleGroupCommentClick */}
+          <div onClick={group_handleCommentClick}>
+            <CommentSectionClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+               // Ensure interactions is stable or default value is memoized
+              initialData={interactions?.comments || { count: 0 }}
+              buttonOnly={true}
+            />
+          </div>
+          <div>
+            <RetweetButtonClientWithErrorBoundary
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+               // Ensure interactions is stable or default value is memoized
+              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <BookmarkButtonClient
+              entryGuid={entryDetail.guid}
+              feedUrl={entryDetail.feed_url || ''}
+              title={entryDetail.title}
+              pubDate={entryDetail.pub_date}
+              link={entryDetail.link}
+              initialData={{ isBookmarked: false }}
+            />
+            <ShareButtonClient
+              url={entryDetail.link}
+              title={entryDetail.title}
+            />
+          </div>
+        </div>
+      </div>
 
-  // Memoize the components for Virtuoso
-  const virtuosoComponents = useMemo(() => ({
-    Footer: () => (
+
+
+      <div id={`comments-${entryDetail.guid}`} className="" />
+
+      {/* Render all comments in chronological order */}
+      <div className="border-b"> {/* Removed border-l and border-r */}
+        {group.comments.map((comment) => {
+           // Calculate comment timestamp once using useMemo or keep inline
+           const commentTimestamp = useMemo(() => {
+               const now = new Date();
+               const commentDate = new Date(comment.timestamp);
+
+               // Ensure we're working with valid dates
+               if (isNaN(commentDate.getTime())) {
+                 return '';
+               }
+
+               // Calculate time difference
+               const diffInMs = now.getTime() - commentDate.getTime();
+               const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+               const diffInHours = Math.floor(diffInMinutes / 60);
+               const diffInDays = Math.floor(diffInHours / 24);
+               const diffInMonths = Math.floor(diffInDays / 30);
+
+               // For future dates (more than 1 minute ahead), show 'in X'
+               const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+               const prefix = isFuture ? 'in ' : '';
+               // Remove suffix for comments to eliminate "ago"
+               const suffix = isFuture ? '' : '';
+
+               // Format based on the time difference
+               if (diffInMinutes < 60) {
+                 return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+               } else if (diffInHours < 24) {
+                 return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+               } else if (diffInDays < 30) {
+                 return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+               } else {
+                 return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+               }
+           }, [comment.timestamp]);
+
+           return (
+            <div
+              // Use comment._id for key
+              key={`comment-${comment._id?.toString()}`}
+              // Remove p-4 from here, keep border-t and relative
+              className="border-t relative"
+            >
+              {/* Comment content */}
+              <div className="relative z-10">
+                 {/* Use memoized ActivityDescription */}
+                <ActivityDescription
+                  item={comment}
+                  username={username}
+                  name={name}
+                  profileImage={profileImage}
+                  // Pass the memoized comment timestamp
+                  timestamp={commentTimestamp}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+});
+ActivityGroupRenderer.displayName = 'ActivityGroupRenderer';
+// *** NEW COMPONENT END ***
+
+// Add this reducer below the GroupedActivity type
+/**
+ * Reducer for feed state management
+ */
+type FeedState = {
+  activities: ActivityItem[];
+  isLoading: boolean;
+  hasMore: boolean;
+  entryDetails: Record<string, RSSEntry>;
+  currentSkip: number;
+  isInitialLoad: boolean;
+};
+
+type FeedAction =
+  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityItem[], entryDetails: Record<string, RSSEntry>, hasMore: boolean } }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityItem[], entryDetails: Record<string, RSSEntry>, hasMore: boolean } }
+  | { type: 'LOAD_MORE_FAILURE' }
+  | { type: 'SET_INITIAL_LOAD_COMPLETE' };
+
+function feedReducer(state: FeedState, action: FeedAction): FeedState {
+  switch (action.type) {
+    case 'INITIAL_LOAD':
+      return {
+        ...state,
+        activities: action.payload.activities,
+        entryDetails: action.payload.entryDetails,
+        hasMore: action.payload.hasMore,
+        currentSkip: action.payload.activities.length,
+        isInitialLoad: false
+      };
+    case 'LOAD_MORE_START':
+      return {
+        ...state,
+        isLoading: true
+      };
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        activities: [...state.activities, ...action.payload.activities],
+        entryDetails: {...state.entryDetails, ...action.payload.entryDetails},
+        hasMore: action.payload.hasMore,
+        currentSkip: state.currentSkip + action.payload.activities.length,
+        isLoading: false
+      };
+    case 'LOAD_MORE_FAILURE':
+      return {
+        ...state,
+        isLoading: false
+      };
+    case 'SET_INITIAL_LOAD_COMPLETE':
+      return {
+        ...state,
+        isInitialLoad: false
+      };
+    default:
+      return state;
+  }
+}
+
+/**
+  * Client component that displays a user's activity feed with virtualization and pagination
+  * Initial data is fetched on the server, and additional data is loaded as needed
+  */
+export function UserActivityFeed({
+  userId,
+  username,
+  name,
+  profileImage,
+  initialData,
+  pageSize = 30,
+  apiEndpoint = "/api/activity",
+  isActive = true
+}: UserActivityFeedProps) {
+  // Cache extracted values from initialData for hooks
+  const initialActivities = initialData?.activities || [];
+  const initialEntryDetails = initialData?.entryDetails || {};
+  const initialHasMore = initialData?.hasMore || false;
+  const initialEntryMetrics = initialData?.entryMetrics;
+  
+  // Replace multiple useState calls with useReducer
+  const [state, dispatch] = useReducer(feedReducer, {
+    activities: initialActivities,
+    isLoading: false,
+    hasMore: initialHasMore,
+    entryDetails: initialEntryDetails,
+    currentSkip: initialActivities.length,
+    isInitialLoad: !initialActivities.length
+  });
+  
+  // For easier reference in the component
+  const { activities, isLoading, hasMore, entryDetails, currentSkip, isInitialLoad } = state;
+  
+  // Use a ref to track activities length changes without affecting dependencies
+  const activitiesLengthRef = useRef<number>(activities.length);
+  
+  // Update ref when activities change
+  useEffect(() => {
+    activitiesLengthRef.current = activities.length;
+  }, [activities]);
+
+  // --- Drawer state for comments (moved to top level) ---
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null>(null);
+
+  // Callback to open the comment drawer for a given entry (moved to top level)
+  // Memoize handleOpenCommentDrawer
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, []); // Dependencies setCommentDrawerOpen and setSelectedCommentEntry are stable setters
+
+  // Get audio context at the component level
+  const { playTrack, currentTrack } = useAudio();
+
+  // Get entry guids as primitive array of strings
+  const entryGuids = useMemo(() => 
+    activities.map(activity => activity.entryGuid),
+    [activities]
+  );
+
+  // Use our custom hook for metrics
+  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
+    entryGuids,
+    initialEntryMetrics
+  );
+
+  // Function to load more activities with better dependency management
+  const loadMoreActivities = useCallback(async () => {
+    // Avoid redundant requests and early exit when needed
+    if (!isActive || isLoading || !hasMore) {
+      return;
+    }
+
+    // Start loading
+    dispatch({ type: 'LOAD_MORE_START' });
+
+    try {
+      console.log(`📡 Fetching more activities from API, skip=${currentSkip}, limit=${pageSize}`);
+
+      // Use the API route to fetch the next page
+      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
+
+      if (!result.ok) {
+        throw new Error(`API error: ${result.status}`);
+      }
+
+      const data = await result.json();
+      console.log(`📦 Received data from API:`, {
+        activitiesCount: data.activities?.length || 0,
+        hasMore: data.hasMore,
+        entryDetailsCount: Object.keys(data.entryDetails || {}).length,
+        entryMetricsCount: Object.keys(data.entryMetrics || {}).length
+      });
+
+      if (!data.activities?.length) {
+        console.log('⚠️ No activities returned from API');
+        dispatch({ 
+          type: 'LOAD_MORE_SUCCESS', 
+          payload: { 
+            activities: [], 
+            entryDetails: {}, 
+            hasMore: false 
+          } 
+        });
+        return;
+      }
+
+      // Use the reducer to update state in one go
+      dispatch({
+        type: 'LOAD_MORE_SUCCESS',
+        payload: {
+          activities: data.activities,
+          entryDetails: data.entryDetails || {},
+          hasMore: data.hasMore
+        }
+      });
+
+      // Use ref for accurate count without causing dependency issue
+      console.log(`📊 Updated state - total activities: ${activitiesLengthRef.current + data.activities.length}, hasMore: ${data.hasMore}`);
+    } catch (error) {
+      console.error('❌ Error loading more activities:', error);
+      dispatch({ type: 'LOAD_MORE_FAILURE' });
+    }
+  }, [isActive, hasMore, currentSkip, pageSize, apiEndpoint, userId, isLoading]);
+
+  // Check if we need to load more when the component is mounted or activities change
+  useEffect(() => {
+    // Function to check if we need to load more content
+    const checkContentHeight = () => {
+      // Check if the virtuoso container exists instead of loadMoreRef
+      const virtuosoContainer = document.querySelector('[data-virtuoso-scroller="true"]');
+      if (!virtuosoContainer || !hasMore || isLoading) return;
+
+      const viewportHeight = window.innerHeight;
+      const containerScrollHeight = virtuosoContainer.scrollHeight; // Use scrollHeight of the scroller
+
+      // If the content is shorter than the viewport, load more
+      // Use the ref to check activities length to prevent dependency issues
+      if (containerScrollHeight <= viewportHeight && activitiesLengthRef.current > 0) {
+        console.log('📏 Content is shorter than viewport, loading more activities');
+        loadMoreActivities();
+      }
+    };
+
+    // Run the check after a short delay to ensure the DOM has updated
+    const timer = setTimeout(checkContentHeight, 500); // Slightly increased delay
+
+    // Add resize listener for viewport changes
+    window.addEventListener('resize', checkContentHeight);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', checkContentHeight);
+    };
+    // Clean dependencies using the ref instead of activities.length
+  }, [hasMore, isLoading, loadMoreActivities]); // Dependencies are now correct
+
+  // Loading state - only show for initial load and initial metrics fetch
+  if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
+     return (
+       <div className="flex justify-center items-center py-10">
+         <Loader2 className="h-6 w-6 animate-spin" />
+       </div>
+     );
+  }
+
+  // No activities state
+  if (activities.length === 0 && !isLoading && !isInitialLoad) { // Check !isInitialLoad too
+     return (
+       <div className="text-center py-8 text-muted-foreground">
+         <p>No activity found for this user.</p>
+       </div>
+     );
+  }
+
+  // --- Drawer state already handled ---
+
+  // --- REMOVED renderActivityGroup function definition ---
+
+
+   // Memoize the Footer component to prevent re-renders when only index/group changes in Virtuoso
+   const Footer = useMemo(() => {
+     return () => (
       isLoading ? (
         <div className="flex items-center justify-center gap-2 py-10">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : hasMore ? (
-        <div className="h-8" />
+        <div className="h-8" /> // Placeholder for scroll trigger
       ) : null
-    )
-  }), [isLoading, hasMore]);
+    );
+  }, [isLoading, hasMore]); // Dependencies are the state values it uses
+
+  // Memoize the item renderer to prevent recreating it on each render
+  const itemRenderer = useCallback((index: number, group: GroupedActivity) => (
+    <ActivityGroupRenderer
+      key={`group-${group.entryGuid}-${group.type}-${index}`} // Use stable key with index
+      group={group}
+      entryDetails={entryDetails}
+      username={username}
+      name={name}
+      profileImage={profileImage}
+      getEntryMetrics={getEntryMetrics}
+      handleOpenCommentDrawer={handleOpenCommentDrawer}
+      currentTrack={currentTrack}
+      playTrack={playTrack}
+    />
+  ), [entryDetails, username, name, profileImage, getEntryMetrics, handleOpenCommentDrawer, currentTrack, playTrack]);
+
+  // Restore the groupedActivities memoization
+  const groupedActivities = useMemo(() => {
+    // Create a map to store activities by entry GUID and type
+    const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
+
+    // First pass: collect all activities by entry GUID and type
+    activities.forEach(activity => {
+      const key = activity.entryGuid;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, new Map());
+      }
+
+      // Group only comments together, keep likes and retweets separate
+      const typeKey = activity.type === 'comment' ? 'comment' : `${activity.type}-${activity._id}`;
+
+      if (!groupedMap.get(key)!.has(typeKey)) {
+        groupedMap.get(key)!.set(typeKey, []);
+      }
+      groupedMap.get(key)!.get(typeKey)!.push(activity);
+    });
+
+    // Second pass: create final structure
+    const result: Array<GroupedActivity> = []; // Use the defined type here
+
+    groupedMap.forEach((typeMap, entryGuid) => {
+      typeMap.forEach((activitiesForType, typeKey) => {
+        // Sort activities by timestamp (oldest first)
+        const sortedActivities = [...activitiesForType].sort((a, b) => a.timestamp - b.timestamp);
+
+        if (typeKey === 'comment') {
+          // For comments, group them together
+          result.push({
+            entryGuid,
+            firstActivity: sortedActivities[0],
+            comments: sortedActivities,
+            hasMultipleComments: sortedActivities.length > 1,
+            type: 'comment'
+          });
+        } else {
+          // For likes and retweets, each is a separate entry
+          sortedActivities.forEach(activity => {
+            result.push({
+              entryGuid,
+              firstActivity: activity,
+              comments: [],
+              hasMultipleComments: false,
+              type: activity.type
+            });
+          });
+        }
+      });
+    });
+
+    // Sort the result by the timestamp of the first activity (newest first for the feed)
+    return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
+  }, [activities]);
+
+  // Log when initial data is received
+  useEffect(() => {
+    if (initialData?.activities) {
+      console.log('📋 Initial activity data received from server:', {
+        activitiesCount: initialData.activities.length,
+        totalCount: initialData.totalCount,
+        hasMore: initialData.hasMore,
+        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
+        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
+      });
+
+      // Explicitly check if we have metrics in the initial data
+      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
+        console.log('🔢 Initial metrics will be used for rendering');
+      }
+
+      dispatch({
+        type: 'INITIAL_LOAD',
+        payload: {
+          activities: initialData.activities,
+          entryDetails: initialData.entryDetails || {},
+          hasMore: initialData.hasMore
+        }
+      });
+    }
+  }, [initialData]);
+
+  // Optimize Virtuoso implementation with memoized config
+  const virtuosoConfig = useMemo(() => ({
+    useWindowScroll: true,
+    data: groupedActivities,
+    endReached: loadMoreActivities,
+    overscan: 200,
+    itemContent: itemRenderer,
+    components: {
+      Footer: Footer,
+    }
+  }), [groupedActivities, loadMoreActivities, itemRenderer, Footer]);
 
   return (
     <div className="w-full">
-      <Virtuoso
-        useWindowScroll
-        data={groupedActivities}
-        endReached={loadMoreActivities}
-        overscan={200}
-        itemContent={(index, group) => renderActivityGroup(group, index)}
-        components={virtuosoComponents}
-      />
+      <Virtuoso {...virtuosoConfig} />
+      {/* Comment Drawer logic remains the same, ensure isOpen/setIsOpen are stable */}
       {selectedCommentEntry && (
         <CommentSectionClient
           entryGuid={selectedCommentEntry.entryGuid}
           feedUrl={selectedCommentEntry.feedUrl}
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+          setIsOpen={setCommentDrawerOpen} // Directly pass the state setter (stable)
         />
       )}
     </div>
   );
-}
-
-export { ActivityDescription };
+} 
