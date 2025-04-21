@@ -206,6 +206,59 @@ const ActivityIcon = React.memo(({ type }: { type: "like" | "comment" | "retweet
 });
 ActivityIcon.displayName = 'ActivityIcon';
 
+// Create a reusable timestamp formatter function similar to UserLikesFeed.tsx
+// Add this near the top of the file where other utility functions/hooks are defined
+
+// Memoized timestamp formatter hook
+const useEntryTimestampFormatter = (pubDate?: string) => {
+  return useMemo(() => {
+    if (!pubDate) return '';
+
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    let date: Date;
+    
+    if (typeof pubDate === 'string' && mysqlDateRegex.test(pubDate)) {
+      // Convert MySQL datetime string to UTC time
+      const [datePart, timePart] = pubDate.split(' ');
+      date = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+    } else {
+      // Handle other formats
+      date = new Date(pubDate);
+    }
+    
+    const now = new Date();
+    
+    // Ensure we're working with valid dates
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : '';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+    }
+  }, [pubDate]);
+};
+
 // Export ActivityDescription for reuse
 const ActivityDescription = React.memo(function ActivityDescriptionInner({ item, username, name, profileImage, timestamp }: { 
   item: ActivityItem; 
@@ -806,91 +859,10 @@ const ActivityCard = React.memo(({
   
   // Always call all hooks unconditionally at the top level
   // Format entry timestamp - move outside of any conditional code
-  const entryTimestamp = useMemo(() => {
-    if (!entryDetail?.pub_date) return '';
-
-    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    let pubDate: Date;
-    
-    if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
-      // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = entryDetail.pub_date.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-    } else if (entryDetail.pub_date) {
-      // Handle other formats
-      pubDate = new Date(entryDetail.pub_date);
-    } else {
-      return '';
-    }
-    
-    const now = new Date();
-    
-    // Ensure we're working with valid dates
-    if (isNaN(pubDate.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
-    const diffInMs = now.getTime() - pubDate.getTime();
-    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-    const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-    } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-    } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-    } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-    }
-  }, [entryDetail?.pub_date]);
+  const entryTimestamp = useEntryTimestampFormatter(entryDetail?.pub_date);
 
   // Format activity timestamp for comments - always call this hook
-  const activityTimestamp = useMemo(() => {
-    if (!activity.timestamp) return '';
-    
-    const now = new Date();
-    const activityDate = new Date(activity.timestamp);
-    
-    // Ensure we're working with valid dates
-    if (isNaN(activityDate.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
-    const diffInMs = now.getTime() - activityDate.getTime();
-    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-    const prefix = isFuture ? 'in ' : '';
-    // For comments, we don't want to show "ago"
-    const suffix = isFuture ? '' : '';
-    
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-    } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-    } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-    } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-    }
-  }, [activity.timestamp]);
+  const activityTimestamp = useEntryTimestampFormatter(activity.timestamp ? activity.timestamp.toString() : undefined);
 
   // Get metrics for this entry - always call at the top level
   const interactions = useMemo(() => {
@@ -930,11 +902,7 @@ const ActivityCard = React.memo(({
             />
             {activity.type !== "comment" && (
               <div className="text-sm text-gray-500 mt-2">
-                {activity.type === "retweet" ? (
-                  <span className="hidden">{activityTimestamp}</span>
-                ) : (
-                  activityTimestamp
-                )}
+                {activityTimestamp}
               </div>
             )}
           </div>
@@ -951,6 +919,7 @@ const ActivityCard = React.memo(({
     </article>
   );
 });
+ActivityCard.displayName = 'ActivityCard';
 
 /**
  * Client component that displays a user's activity feed with virtualization and pagination
@@ -1184,7 +1153,43 @@ export function UserActivityFeed({
     );
   }
 
-  // Render a group of activities for the same entry - memoized
+  // Create a simple formatting function that doesn't rely on hooks
+  // This can be called from anywhere including conditionals
+  const formatTimestamp = (timestamp: number): string => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    
+    // Ensure we're working with valid dates
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // For future dates (more than 1 minute ahead), show 'in X'
+    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const prefix = isFuture ? 'in ' : '';
+    const suffix = isFuture ? '' : '';
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    } else if (diffInHours < 24) {
+      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+    } else if (diffInDays < 30) {
+      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+    } else {
+      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+    }
+  };
+
+  // Now modify the renderActivityGroup function to use our formatter
+  // Inside UserActivityFeed, add a formatTimestamp function that wraps useEntryTimestampFormatter
   const renderActivityGroup = useCallback((group: {
     entryGuid: string;
     firstActivity: ActivityItem;
@@ -1194,6 +1199,7 @@ export function UserActivityFeed({
   }, index: number) => {
     const entryDetail = entryDetails[group.entryGuid];
     
+    // This is fine - early return without hooks
     if (!entryDetail) {
       return null;
     }
@@ -1224,6 +1230,9 @@ export function UserActivityFeed({
     }
     
     // For multiple comments, render a special daisy-chained version
+    // Previously there was likely a conditional hook here, but our code is already fixed
+    // since we moved the handleCardClick hook to the component level
+    
     return (
       <article key={`group-${group.entryGuid}-${group.type}-${index}`} className="relative">
         <div className="p-4">
@@ -1313,52 +1322,7 @@ export function UserActivityFeed({
                       new Date(group.firstActivity.timestamp).toLocaleString()
                     }
                   >
-                    {(() => {
-                      if (!entryDetail.pub_date) return '';
-
-                      // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-                      const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                      let pubDate: Date;
-                      
-                      if (typeof entryDetail.pub_date === 'string' && mysqlDateRegex.test(entryDetail.pub_date)) {
-                        // Convert MySQL datetime string to UTC time
-                        const [datePart, timePart] = entryDetail.pub_date.split(' ');
-                        pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-                      } else {
-                        // Handle other formats
-                        pubDate = new Date(entryDetail.pub_date);
-                      }
-                      
-                      const now = new Date();
-                      
-                      // Ensure we're working with valid dates
-                      if (isNaN(pubDate.getTime())) {
-                        return '';
-                      }
-
-                      // Calculate time difference
-                      const diffInMs = now.getTime() - pubDate.getTime();
-                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                      const diffInHours = Math.floor(diffInMinutes / 60);
-                      const diffInDays = Math.floor(diffInHours / 24);
-                      const diffInMonths = Math.floor(diffInDays / 30);
-                      
-                      // For future dates (more than 1 minute ahead), show 'in X'
-                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                      const prefix = isFuture ? 'in ' : '';
-                      const suffix = isFuture ? '' : '';
-                      
-                      // Format based on the time difference
-                      if (diffInMinutes < 60) {
-                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                      } else if (diffInHours < 24) {
-                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                      } else if (diffInDays < 30) {
-                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                      } else {
-                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                      }
-                    })()}
+                    {entryDetail.pub_date ? formatTimestamp(new Date(entryDetail.pub_date).getTime()) : ''}
                   </span>
                 </div>
                 {/* Media type badge */}
@@ -1519,39 +1483,7 @@ export function UserActivityFeed({
                     username={username}
                     name={name}
                     profileImage={profileImage}
-                    timestamp={(() => {
-                      const now = new Date();
-                      const commentDate = new Date(comment.timestamp);
-                      
-                      // Ensure we're working with valid dates
-                      if (isNaN(commentDate.getTime())) {
-                        return '';
-                      }
-
-                      // Calculate time difference
-                      const diffInMs = now.getTime() - commentDate.getTime();
-                      const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-                      const diffInHours = Math.floor(diffInMinutes / 60);
-                      const diffInDays = Math.floor(diffInHours / 24);
-                      const diffInMonths = Math.floor(diffInDays / 30);
-                      
-                      // For future dates (more than 1 minute ahead), show 'in X'
-                      const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
-                      const prefix = isFuture ? 'in ' : '';
-                      // Remove suffix for comments to eliminate "ago"
-                      const suffix = isFuture ? '' : '';
-                      
-                      // Format based on the time difference
-                      if (diffInMinutes < 60) {
-                        return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
-                      } else if (diffInHours < 24) {
-                        return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
-                      } else if (diffInDays < 30) {
-                        return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
-                      } else {
-                        return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
-                      }
-                    })()}
+                    timestamp={formatTimestamp(comment.timestamp)}
                   />
                 </div>
               </div>
