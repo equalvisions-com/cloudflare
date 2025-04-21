@@ -135,6 +135,51 @@ const CategorySwipeableWrapperComponent = ({
   // Initialize ResizeObserver
   const observerRef = useRef<ResizeObserver | null>(null);
 
+  // Memoize carousel options
+  const mobileCarouselOptions = useMemo(() => ({
+    loop: false,
+    skipSnaps: false,
+    align: 'start' as const,
+    containScroll: 'trimSnaps',
+    dragFree: false,
+    duration: 20, // Match SwipeableTabs
+    dragThreshold: 20,
+    axis: 'x',
+  }) as EmblaOptionsType, []);
+
+  const desktopCarouselOptions = useMemo(() => ({
+    loop: false,
+    skipSnaps: false,
+    align: 'start' as const,
+    containScroll: 'trimSnaps',
+    duration: 20, // Match SwipeableTabs
+    axis: 'x',
+  }) as EmblaOptionsType, []);
+
+  // Add this new search carousel ref after the existing emblaRef
+  const [searchEmblaRef, searchEmblaApi] = useEmblaCarousel(
+    isMobile ? mobileCarouselOptions : desktopCarouselOptions,
+    [
+      AutoHeight(),
+      ...(isMobile ? [WheelGesturesPlugin()] : [])
+    ]
+  );
+
+  // Add carousel state with same options as SwipeableTabs
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    isMobile ? mobileCarouselOptions : desktopCarouselOptions,
+    [
+      AutoHeight(),
+      ...(isMobile ? [WheelGesturesPlugin()] : [])
+    ]
+  );
+
+  // Add refs for search slide elements
+  const searchSlideRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Add state to track search content loading
+  const [searchContentLoaded, setSearchContentLoaded] = useState(false);
+
   // Set up the mounted ref
   useEffect(() => {
     // Set mounted flag to true
@@ -163,36 +208,6 @@ const CategorySwipeableWrapperComponent = ({
         return 'Entries';
     }
   }, [mediaType]);
-
-  // Memoize carousel options
-  const mobileCarouselOptions = useMemo(() => ({
-    loop: false,
-    skipSnaps: false,
-    align: 'start' as const,
-    containScroll: 'trimSnaps',
-    dragFree: false,
-    duration: 20, // Match SwipeableTabs
-    dragThreshold: 20,
-    axis: 'x',
-  }) as EmblaOptionsType, []);
-
-  const desktopCarouselOptions = useMemo(() => ({
-    loop: false,
-    skipSnaps: false,
-    align: 'start' as const,
-    containScroll: 'trimSnaps',
-    duration: 20, // Match SwipeableTabs
-    axis: 'x',
-  }) as EmblaOptionsType, []);
-
-  // Add carousel state with same options as SwipeableTabs
-  const [emblaRef, emblaApi] = useEmblaCarousel(
-    isMobile ? mobileCarouselOptions : desktopCarouselOptions,
-    [
-      AutoHeight(),
-      ...(isMobile ? [WheelGesturesPlugin()] : [])
-    ]
-  );
 
   // Fetch initial data (categories and featured posts)
   const initialData = useQuery(api.categories.getCategorySliderData, { 
@@ -252,15 +267,6 @@ const CategorySwipeableWrapperComponent = ({
     setPendingSearchQuery(e.target.value);
   }, []);
 
-  // Handle search clear
-  const handleSearchClear = useCallback(() => {
-    if (!isMountedRef.current) return;
-    setPendingSearchQuery('');
-    setSearchQuery('');
-    setSelectedCategoryId('featured');
-    setSearchTab('posts');
-  }, []);
-
   // Handle search submission
   const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -270,15 +276,56 @@ const CategorySwipeableWrapperComponent = ({
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    setSearchQuery(pendingSearchQuery);
-    // When searching, we don't want to filter by category
-    if (pendingSearchQuery) {
-      setSelectedCategoryId('');
-    } else {
-      setSelectedCategoryId('featured');
-      setSearchTab('posts'); // Reset to posts tab when clearing search
+    
+    // Only update search state if there's an actual change
+    if (pendingSearchQuery !== searchQuery) {
+      // Add a short transition effect to make the state change more visible
+      setIsTransitioning(true);
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        setSearchQuery(pendingSearchQuery);
+        
+        // When searching, we don't want to filter by category
+        if (pendingSearchQuery) {
+          setSelectedCategoryId('');
+        } else {
+          setSelectedCategoryId('featured');
+          setSearchTab('posts'); // Reset to posts tab when clearing search
+        }
+        
+        // End transition after a brief delay
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          setIsTransitioning(false);
+        }, 100);
+      }, 50);
     }
-  }, [pendingSearchQuery]);
+  }, [pendingSearchQuery, searchQuery]);
+
+  // Handle search clear
+  const handleSearchClear = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    // Only make changes if there's actually something to clear
+    if (pendingSearchQuery || searchQuery) {
+      setPendingSearchQuery('');
+      
+      // Add a short transition effect
+      setIsTransitioning(true);
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        setSearchQuery('');
+        setSelectedCategoryId('featured');
+        setSearchTab('posts');
+        
+        // End transition
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          setIsTransitioning(false);
+        }, 100);
+      }, 50);
+    }
+  }, [pendingSearchQuery, searchQuery]);
 
   // Handle key press for search input
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -674,7 +721,7 @@ const CategorySwipeableWrapperComponent = ({
     };
   }, [emblaApi]);
 
-  // Handle search tab change
+  // Modify the handleSearchTabChange function to use the carousel
   const handleSearchTabChange = useCallback((tab: 'posts' | 'entries') => {
     if (!isMountedRef.current) return;
     
@@ -690,6 +737,11 @@ const CategorySwipeableWrapperComponent = ({
     // Update tab
     setSearchTab(tab);
     
+    // Scroll to the appropriate slide
+    if (searchEmblaApi) {
+      searchEmblaApi.scrollTo(tab === 'posts' ? 0 : 1, true);
+    }
+    
     // Restore scroll position for selected tab
     restoreScrollPosition(`search-${tab}`);
     
@@ -698,8 +750,82 @@ const CategorySwipeableWrapperComponent = ({
       if (!isMountedRef.current) return;
       setIsTransitioning(false);
     }, 50);
-  }, [searchTab, restoreScrollPosition]);
-  
+  }, [searchTab, restoreScrollPosition, searchEmblaApi]);
+
+  // Add effect to sync search tab selection with carousel
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    if (!searchEmblaApi) return;
+    
+    const onSelect = () => {
+      if (!isMountedRef.current) return;
+      
+      try {
+        const index = searchEmblaApi.selectedScrollSnap();
+        if (index === undefined) return;
+        
+        const newTab = index === 0 ? 'posts' : 'entries';
+        
+        if (newTab !== searchTab) {
+          // Save current scroll position
+          scrollPositionsRef.current[`search-${searchTab}`] = window.scrollY;
+          
+          // Restore scroll position for selected tab
+          restoreScrollPosition(`search-${newTab}`);
+          
+          // Update tab state
+          setSearchTab(newTab);
+        }
+      } catch (error) {
+        console.error('Error in search carousel select handler:', error);
+      }
+    };
+    
+    searchEmblaApi.on('select', onSelect);
+    
+    return () => {
+      searchEmblaApi.off('select', onSelect);
+    };
+  }, [searchEmblaApi, searchTab, restoreScrollPosition]);
+
+  // Add similar observer effect for search slides
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    if (!searchEmblaApi || typeof window === 'undefined') return;
+
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    // Function to handle resize for search slides
+    const handleResize = () => {
+      if (!isMountedRef.current) return;
+      
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        // Wrap reInit in requestAnimationFrame
+        window.requestAnimationFrame(() => {
+          if (!isMountedRef.current || !searchEmblaApi) return;
+          searchEmblaApi.reInit();
+        });
+      }, 250);
+    };
+
+    // Create the observer instance
+    const searchResizeObserver = new ResizeObserver(handleResize);
+
+    // Observe both search slides
+    searchSlideRefs.current.forEach(slide => {
+      if (slide) {
+        searchResizeObserver.observe(slide);
+      }
+    });
+
+    // Cleanup: disconnect the observer when component unmounts
+    return () => {
+      searchResizeObserver.disconnect();
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+    };
+  }, [searchEmblaApi, searchTab]);
+
   // Check for search query in sessionStorage when component mounts
   useEffect(() => {
     if (!isMountedRef.current) return;
@@ -732,6 +858,174 @@ const CategorySwipeableWrapperComponent = ({
       }
     }
   }, [mediaType]);
+
+  // Add effect to ensure content stability during tab transitions
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    // Add a small delay after transitioning to ensure content is stable
+    const handleTransitionComplete = () => {
+      if (!isMountedRef.current) return;
+      
+      // Wait a bit after transition to stabilize
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        // Force a resize event to recalculate heights properly
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+    };
+    
+    // Listen for transition end on both carousels
+    if (emblaApi) {
+      emblaApi.on('settle', handleTransitionComplete);
+    }
+    
+    if (searchEmblaApi) {
+      searchEmblaApi.on('settle', handleTransitionComplete);
+    }
+    
+    return () => {
+      if (emblaApi) {
+        emblaApi.off('settle', handleTransitionComplete);
+      }
+      
+      if (searchEmblaApi) {
+        searchEmblaApi.off('settle', handleTransitionComplete);
+      }
+    };
+  }, [emblaApi, searchEmblaApi]);
+
+  // Add effect to preload content for better tab transitions
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    // Function to ensure all components are properly initialized
+    const initializeComponents = () => {
+      if (!isMountedRef.current) return;
+      
+      // For search tabs, measure both posts and entries heights
+      if (searchQuery) {
+        // Make sure all tab heights are measured
+        if (searchSlideRefs.current[0]) {
+          tabHeightsRef.current['search-posts'] = searchSlideRefs.current[0].offsetHeight || 
+                                                 tabHeightsRef.current['search-posts'] || 300;
+        }
+        
+        if (searchSlideRefs.current[1]) {
+          tabHeightsRef.current['search-entries'] = searchSlideRefs.current[1].offsetHeight || 
+                                                  tabHeightsRef.current['search-entries'] || 300;
+        }
+        
+        // Reinitialize carousel to ensure proper height
+        if (searchEmblaApi) {
+          setTimeout(() => {
+            if (searchEmblaApi && isMountedRef.current) {
+              searchEmblaApi.reInit();
+            }
+          }, 50);
+        }
+      } else {
+        // For category tabs, measure all category heights
+        slideRefs.current.forEach((slide, index) => {
+          if (slide && slide.offsetHeight > 0 && index < allCategories.length) {
+            tabHeightsRef.current[allCategories[index]._id] = slide.offsetHeight || 
+                                                           tabHeightsRef.current[allCategories[index]._id] || 300;
+          }
+        });
+        
+        // Reinitialize carousel to ensure proper height
+        if (emblaApi) {
+          setTimeout(() => {
+            if (emblaApi && isMountedRef.current) {
+              emblaApi.reInit();
+            }
+          }, 50);
+        }
+      }
+    };
+    
+    // Initialize components on mount and when tabs change
+    initializeComponents();
+    
+    // Also initialize on window resize
+    window.addEventListener('resize', initializeComponents);
+    
+    return () => {
+      window.removeEventListener('resize', initializeComponents);
+    };
+  }, [emblaApi, searchEmblaApi, searchQuery, allCategories, searchTab]);
+
+  // Add effect to handle search state changes
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    // Reset loaded state when search query changes
+    setSearchContentLoaded(false);
+    
+    // Set a timer to mark content as loaded after a short delay
+    const timer = setTimeout(() => {
+      if (isMountedRef.current) {
+        setSearchContentLoaded(true);
+        
+        // Trigger a reInit to adjust height after content is assumed to be loaded
+        if (searchEmblaApi) {
+          searchEmblaApi.reInit();
+        }
+      }
+    }, 300); // Allow time for content to render
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [searchQuery, searchEmblaApi]);
+
+  // Add effect to watch for DOM changes in search slides to handle content loading
+  useEffect(() => {
+    if (!isMountedRef.current || typeof MutationObserver === 'undefined') return;
+    
+    // Setup observers for both search slides to detect content changes
+    const observers: MutationObserver[] = [];
+    
+    // Function to handle content mutations
+    const handleMutation = () => {
+      if (!isMountedRef.current) return;
+      
+      // Update heights and reinitialize carousel
+      searchSlideRefs.current.forEach((slide, index) => {
+        if (slide && slide.offsetHeight > 0) {
+          const key = index === 0 ? 'search-posts' : 'search-entries';
+          tabHeightsRef.current[key] = slide.offsetHeight;
+        }
+      });
+      
+      // Schedule a reInit to adjust to the new content
+      if (searchEmblaApi) {
+        setTimeout(() => {
+          if (isMountedRef.current && searchEmblaApi) {
+            searchEmblaApi.reInit();
+          }
+        }, 50);
+      }
+    };
+    
+    // Create and connect observers
+    searchSlideRefs.current.forEach((slide) => {
+      if (slide) {
+        const observer = new MutationObserver(handleMutation);
+        observer.observe(slide, { 
+          childList: true, 
+          subtree: true,
+          attributes: true
+        });
+        observers.push(observer);
+      }
+    });
+    
+    // Cleanup function
+    return () => {
+      observers.forEach(observer => observer.disconnect());
+    };
+  }, [searchContentLoaded, searchEmblaApi]);
 
   return (
     <div className={cn("w-full", className)}>
@@ -792,52 +1086,97 @@ const CategorySwipeableWrapperComponent = ({
       <div className="relative transition-all w-full">
         {/* Search Results */}
         {searchQuery && (
-          <>
-            {/* Posts Search Tab */}
-            <div 
-              className={cn(
-                "min-w-0 transition-opacity duration-50",
-                searchTab !== 'posts' && "hidden",
-                isTransitioning && "opacity-0"
-              )}
-              data-tab-id="search-posts"
+          <div 
+            className="w-full overflow-hidden embla__swipeable_tabs"
+            ref={searchEmblaRef}
+            style={{ 
+              willChange: 'transform',
+              WebkitPerspective: '1000',
+              WebkitBackfaceVisibility: 'hidden',
+              touchAction: 'pan-y pinch-zoom',
+              // Add minimum height during initial load to prevent clipping
+              minHeight: !searchContentLoaded ? '400px' : undefined
+            }}
+          >
+            <div className="flex items-start"
               style={{
-                minHeight: tabHeightsRef.current['search-posts'] 
-                  ? `${tabHeightsRef.current['search-posts']}px` 
-                  : undefined
+                minHeight: tabHeightsRef.current[`search-${searchTab}`] 
+                  ? `${tabHeightsRef.current[`search-${searchTab}`]}px` 
+                  : !searchContentLoaded ? '400px' : undefined,
+                willChange: 'transform',
+                transition: isMobile ? `transform 20ms linear` : 'none'
               }}
-            >
-              <PostsDisplay
-                categoryId=""
-                mediaType={mediaType}
-                initialPosts={searchResults?.posts || []}
-                className=""
-                searchQuery={searchQuery}
-              />
+            > 
+              {/* Posts Search Tab */}
+              <div 
+                ref={(el: HTMLDivElement | null) => { 
+                  searchSlideRefs.current[0] = el; 
+                  // Update height when element is available
+                  if (el && el.offsetHeight > 0) {
+                    tabHeightsRef.current['search-posts'] = el.offsetHeight;
+                  }
+                }}
+                className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
+                aria-hidden={searchTab !== 'posts'} 
+                style={{
+                  willChange: 'transform', 
+                  transform: 'translate3d(0,0,0)',
+                  WebkitBackfaceVisibility: 'hidden',
+                  // Only adjust opacity, not visibility to maintain DOM presence
+                  opacity: searchTab === 'posts' || isTransitioning ? 1 : 0.5,
+                  transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
+                  pointerEvents: searchTab === 'posts' ? 'auto' : 'none',
+                  touchAction: 'pan-y',
+                  // Add minimum height for initial rendering
+                  minHeight: !searchContentLoaded ? '400px' : undefined
+                }}
+              >
+                <PostsDisplay
+                  categoryId=""
+                  mediaType={mediaType}
+                  initialPosts={searchResults?.posts || []}
+                  className=""
+                  searchQuery={searchQuery}
+                  // Use a stable key that doesn't change with the search query
+                  key={`posts-search-${mediaType}`}
+                />
+              </div>
+              
+              {/* Entries Search Tab */}
+              <div 
+                ref={(el: HTMLDivElement | null) => { 
+                  searchSlideRefs.current[1] = el;
+                  // Update height when element is available
+                  if (el && el.offsetHeight > 0) {
+                    tabHeightsRef.current['search-entries'] = el.offsetHeight;
+                  }
+                }}
+                className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
+                aria-hidden={searchTab !== 'entries'} 
+                style={{
+                  willChange: 'transform', 
+                  transform: 'translate3d(0,0,0)',
+                  WebkitBackfaceVisibility: 'hidden',
+                  // Only adjust opacity, not visibility to maintain DOM presence
+                  opacity: searchTab === 'entries' || isTransitioning ? 1 : 0.5,
+                  transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
+                  pointerEvents: searchTab === 'entries' ? 'auto' : 'none',
+                  touchAction: 'pan-y',
+                  // Add minimum height for initial rendering
+                  minHeight: !searchContentLoaded ? '400px' : undefined
+                }}
+              >
+                <EntriesDisplay
+                  mediaType={mediaType}
+                  searchQuery={searchQuery}
+                  className=""
+                  isVisible={searchTab === 'entries' || isTransitioning}
+                  // Use a stable key that doesn't change with the search query
+                  key={`entries-search-${mediaType}`}
+                />
+              </div>
             </div>
-            
-            {/* Entries Search Tab */}
-            <div 
-              className={cn(
-                "min-w-0 transition-opacity duration-50",
-                searchTab !== 'entries' && "hidden",
-                isTransitioning && "opacity-0"
-              )}
-              data-tab-id="search-entries"
-              style={{
-                minHeight: tabHeightsRef.current['search-entries'] 
-                  ? `${tabHeightsRef.current['search-entries']}px` 
-                  : undefined
-              }}
-            >
-              <EntriesDisplay
-                mediaType={mediaType}
-                searchQuery={searchQuery}
-                className=""
-                isVisible={searchTab === 'entries'}
-              />
-            </div>
-          </>
+          </div>
         )}
         
         {/* Category Content - Exactly like SwipeableTabs */}
@@ -877,12 +1216,10 @@ const CategorySwipeableWrapperComponent = ({
                       willChange: 'transform', 
                       transform: 'translate3d(0,0,0)',
                       WebkitBackfaceVisibility: 'hidden',
-                      // Hide inactive tabs instantly during interaction - exactly like SwipeableTabs
-                      opacity: !isActive && isInteracting ? 0 : 1,
-                      transition: 'opacity 0s',
-                      // Make slide content interactive only when active
+                      // Modified to maintain stability during transitions
+                      opacity: !isActive && isInteracting ? 0.5 : 1,
+                      transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
                       pointerEvents: isActive ? 'auto' : 'none',
-                      // Explicitly allow vertical panning on the slide itself
                       touchAction: 'pan-y' 
                     }}
                   >
@@ -891,6 +1228,8 @@ const CategorySwipeableWrapperComponent = ({
                       mediaType={mediaType}
                       initialPosts={getInitialPostsForCategory(category._id)}
                       className=""
+                      // Add key to prevent remounting when swiping
+                      key={`category-${category._id}-${mediaType}`}
                     />
                   </div>
                 );

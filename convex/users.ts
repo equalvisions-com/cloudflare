@@ -569,8 +569,8 @@ export const getProfileActivityData = query({
     
     if (!userExists) throw new Error("User not found");
     
-    // Get the last 30 activities (comments, retweets)
-    // Note: We're not including likes in the general activity feed
+    // Get the last 30 activities (comments, retweets only)
+    // We've removed likes completely from the activity feed
     // Only select the specific fields we need for comments
     const [comments, retweets] = await Promise.all([
       ctx.db
@@ -639,12 +639,9 @@ export const getProfileActivityData = query({
     const feedUrls = [...new Set(activities.map(activity => activity.feedUrl))];
     
     // Get entry metrics for all guids more efficiently - perform count operations in parallel
+    // Removed like count query since it's not needed in the activity feed
     const entryMetricsPromises = entryGuids.map(async guid => {
-      const [likeCount, commentCount, retweetCount] = await Promise.all([
-        ctx.db.query("likes")
-          .withIndex("by_entry", q => q.eq("entryGuid", guid))
-          .collect()
-          .then(likes => likes.length),
+      const [commentCount, retweetCount] = await Promise.all([
         ctx.db.query("comments")
           .withIndex("by_entry", q => q.eq("entryGuid", guid))
           .collect()
@@ -657,7 +654,9 @@ export const getProfileActivityData = query({
       
       return {
         guid,
-        likeCount,
+        // Still include likeCount in the metrics object to maintain the API contract,
+        // but don't waste time querying it
+        likeCount: 0,
         commentCount,
         retweetCount
       };

@@ -15,7 +15,7 @@ interface ProfileActivityDataProps {
 
 // Types for activity items - must match UserProfileTabs.tsx exactly
 type ActivityItem = {
-  type: "like" | "comment" | "retweet";
+  type: "comment" | "retweet";
   timestamp: number;
   entryGuid: string;
   feedUrl: string;
@@ -194,7 +194,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     // Ensure the activities match the ActivityItem type
     const typedActivities: ActivityItem[] = activities.map((activity: any) => ({
       ...activity,
-      type: activity.type as "like" | "comment" | "retweet"
+      type: activity.type as "comment" | "retweet"
     }));
     
     return {
@@ -361,7 +361,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
       pubDate?: string; 
     }) => ({
       ...like,
-      type: "like" as "like" | "comment" | "retweet"
+      type: "comment" as "comment" | "retweet"
     }));
     
     return {

@@ -28,7 +28,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Types for activity items
 type ActivityItem = {
-  type: "like" | "comment" | "retweet";
+  type: "comment" | "retweet";
   timestamp: number;
   entryGuid: string;
   feedUrl: string;
@@ -194,10 +194,8 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
 }
 
 // Memoize ActivityIcon
-const ActivityIcon = React.memo(({ type }: { type: "like" | "comment" | "retweet" }) => {
+const ActivityIcon = React.memo(({ type }: { type: "comment" | "retweet" }) => {
   switch (type) {
-    case "like":
-      return <Heart className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
     case "comment":
       return <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
     case "retweet":
@@ -637,15 +635,6 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
   }, [item.type, item._id, deleteCommentMutation]); // Specific item fields
 
   switch (item.type) {
-    case "like":
-      return (
-        <span>
-          <span className="font-medium">{name}</span> liked{" "}
-          <Link href={item.link || "#"} className="text-blue-500 hover:underline">
-            {item.title || "a post"}
-          </Link>
-        </span>
-      );
     case "comment":
       // If comment is deleted, show a message
       if (isDeleted) {
@@ -806,6 +795,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
           <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
         </span>
       );
+    default:
+      return null;
   }
 });
 // Add display name for React DevTools
@@ -974,15 +965,7 @@ const ActivityCard = React.memo(({
             <ActivityIcon type={activity.type} />
           </div>
           <div className="flex-1">
-            {activity.type === "like" && (
-              <ActivityDescription
-                item={activity}
-                username={username}
-                name={name}
-                profileImage={profileImage}
-                timestamp={undefined} // No timestamp needed here based on original logic
-              />
-            )}
+            {/* Only show retweets and comments */}
             {activity.type === "retweet" && (
               <span className="text-muted-foreground text-sm block leading-none pt-[0px]">
                 <span className="font-semibold">{name}</span> <span className="font-semibold">shared</span>
@@ -1170,7 +1153,7 @@ const ActivityCard = React.memo(({
         </div>
           </>
         ) : (
-          // Original full-width layout for retweets/likes
+          // Original full-width layout for retweets
           <>
             {/* Top Row: Featured Image and Title */}
             <div className="flex items-start gap-4 mb-4 relative mt-4">
@@ -1264,7 +1247,7 @@ const ActivityCard = React.memo(({
               </div>
             </div>
 
-            {/* Entry Content Card - Full width for retweets/likes */}
+            {/* Entry Content Card - Full width for retweets */}
             <div>
               {/* Use the memoized handleCardClick */}
               {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
@@ -1571,7 +1554,10 @@ const ActivityGroupRenderer = React.memo(({
           </div>
           <div className="flex-1">
             <span className="text-muted-foreground text-sm block leading-none pt-[1px]">
-              <span className="font-semibold">{name}</span> <span className="font-semibold">commented</span>
+              <span className="font-semibold">{name}</span>{" "}
+              <span className="font-semibold">
+                {group.type === "retweet" ? "shared" : "commented"}
+              </span>
             </span>
           </div>
         </div>
@@ -1897,10 +1883,10 @@ function feedReducer(state: FeedState, action: FeedAction): FeedState {
 }
 
 /**
-  * Client component that displays a user's activity feed with virtualization and pagination
-  * Initial data is fetched on the server, and additional data is loaded as needed
-  */
-export function UserActivityFeed({
+ * Client component that displays a user's activity feed with virtualization and pagination
+ * Initial data is fetched on the server, and additional data is loaded as needed
+ */
+export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   userId,
   username,
   name,
@@ -1929,13 +1915,30 @@ export function UserActivityFeed({
   // For easier reference in the component
   const { activities, isLoading, hasMore, entryDetails, currentSkip, isInitialLoad } = state;
   
-  // Use a ref to track activities length changes without affecting dependencies
-  const activitiesLengthRef = useRef<number>(activities.length);
+  // Use a stable ref for values that shouldn't trigger dependency changes
+  const stableRefs = useRef({
+    userId,
+    apiEndpoint,
+    pageSize,
+    hasMore,
+    isLoading,
+    currentSkip,
+    activitiesLength: activities.length
+  });
   
-  // Update ref when activities change
+  // Update refs when their source values change
   useEffect(() => {
-    activitiesLengthRef.current = activities.length;
-  }, [activities]);
+    stableRefs.current = {
+      ...stableRefs.current,
+      userId,
+      apiEndpoint,
+      pageSize,
+      hasMore,
+      isLoading,
+      currentSkip,
+      activitiesLength: activities.length
+    };
+  }, [userId, apiEndpoint, pageSize, hasMore, isLoading, currentSkip, activities.length]);
 
   // --- Drawer state for comments (moved to top level) ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -1945,30 +1948,38 @@ export function UserActivityFeed({
     initialData?: { count: number };
   } | null>(null);
 
-  // Callback to open the comment drawer for a given entry (moved to top level)
-  // Memoize handleOpenCommentDrawer
+  // Stable callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
-  }, []); // Dependencies setCommentDrawerOpen and setSelectedCommentEntry are stable setters
+  }, []); // setState functions are stable
 
   // Get audio context at the component level
   const { playTrack, currentTrack } = useAudio();
 
-  // Get entry guids as primitive array of strings
+  // Get entry guids as primitive array of strings - memoize to prevent recalculations
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid),
     [activities]
   );
 
-  // Use our custom hook for metrics
+  // Use our custom hook for metrics with memoized dependencies
   const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
     entryGuids,
     initialEntryMetrics
   );
 
-  // Function to load more activities with better dependency management
+  // Function to load more activities with stabilized refs to avoid dependency issues
   const loadMoreActivities = useCallback(async () => {
+    const {
+      userId,
+      apiEndpoint,
+      pageSize,
+      hasMore,
+      isLoading,
+      currentSkip
+    } = stableRefs.current;
+    
     // Avoid redundant requests and early exit when needed
     if (!isActive || isLoading || !hasMore) {
       return;
@@ -2018,35 +2029,36 @@ export function UserActivityFeed({
         }
       });
 
-      // Use ref for accurate count without causing dependency issue
-      console.log(`📊 Updated state - total activities: ${activitiesLengthRef.current + data.activities.length}, hasMore: ${data.hasMore}`);
+      console.log(`📊 Updated state - total activities: ${stableRefs.current.activitiesLength + data.activities.length}, hasMore: ${data.hasMore}`);
     } catch (error) {
       console.error('❌ Error loading more activities:', error);
       dispatch({ type: 'LOAD_MORE_FAILURE' });
     }
-  }, [isActive, hasMore, currentSkip, pageSize, apiEndpoint, userId, isLoading]);
+  }, [isActive]); // Only isActive as dependency, everything else uses stable refs
 
-  // Check if we need to load more when the component is mounted or activities change
+  // Check if we need to load more - using stable ref pattern
   useEffect(() => {
-    // Function to check if we need to load more content
+    // Define the check function inside the effect to avoid dependency issues
     const checkContentHeight = () => {
-      // Check if the virtuoso container exists instead of loadMoreRef
+      // Check if we can load more
+      if (!stableRefs.current.hasMore || stableRefs.current.isLoading) return;
+      
+      // Check if the virtuoso container exists
       const virtuosoContainer = document.querySelector('[data-virtuoso-scroller="true"]');
-      if (!virtuosoContainer || !hasMore || isLoading) return;
+      if (!virtuosoContainer) return;
 
       const viewportHeight = window.innerHeight;
-      const containerScrollHeight = virtuosoContainer.scrollHeight; // Use scrollHeight of the scroller
+      const containerScrollHeight = virtuosoContainer.scrollHeight;
 
       // If the content is shorter than the viewport, load more
-      // Use the ref to check activities length to prevent dependency issues
-      if (containerScrollHeight <= viewportHeight && activitiesLengthRef.current > 0) {
+      if (containerScrollHeight <= viewportHeight && stableRefs.current.activitiesLength > 0) {
         console.log('📏 Content is shorter than viewport, loading more activities');
         loadMoreActivities();
       }
     };
 
     // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 500); // Slightly increased delay
+    const timer = setTimeout(checkContentHeight, 500);
 
     // Add resize listener for viewport changes
     window.addEventListener('resize', checkContentHeight);
@@ -2055,10 +2067,9 @@ export function UserActivityFeed({
       clearTimeout(timer);
       window.removeEventListener('resize', checkContentHeight);
     };
-    // Clean dependencies using the ref instead of activities.length
-  }, [hasMore, isLoading, loadMoreActivities]); // Dependencies are now correct
+  }, [loadMoreActivities]); // Only loadMoreActivities as dependency
 
-  // Initial data effect - moved to top level, always call it
+  // Initial data effect - with proper dependencies
   useEffect(() => {
     if (initialData?.activities) {
       console.log('📋 Initial activity data received from server:', {
@@ -2069,7 +2080,6 @@ export function UserActivityFeed({
         entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
       });
 
-      // Explicitly check if we have metrics in the initial data
       if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
         console.log('🔢 Initial metrics will be used for rendering');
       }
@@ -2083,11 +2093,11 @@ export function UserActivityFeed({
         }
       });
     }
-  }, [initialData]);
+  }, [initialData]); // Explicit dependency on initialData
 
-  // Memoize the Footer component - moved to top level
+  // Create a stable memoized Footer component
   const Footer = useMemo(() => {
-    // Define as named function for better debugging
+    // Named function for better debugging
     function VirtuosoFooter() {
       return (
         isLoading ? (
@@ -2101,12 +2111,12 @@ export function UserActivityFeed({
     }
     VirtuosoFooter.displayName = 'VirtuosoFooter';
     return VirtuosoFooter;
-  }, [isLoading, hasMore]); // Dependencies are the state values it uses
+  }, [isLoading, hasMore]);
 
-  // Memoize the item renderer - ensure it's at top level
+  // Memoize the item renderer callback with stable references
   const itemRenderer = useCallback((index: number, group: GroupedActivity) => (
     <ActivityGroupRenderer
-      key={`group-${group.entryGuid}-${group.type}-${index}`} // Use stable key with index
+      key={`group-${group.entryGuid}-${group.type}-${index}`} // Stable key with index
       group={group}
       entryDetails={entryDetails}
       username={username}
@@ -2117,21 +2127,30 @@ export function UserActivityFeed({
       currentTrack={currentTrack}
       playTrack={playTrack}
     />
-  ), [entryDetails, username, name, profileImage, getEntryMetrics, handleOpenCommentDrawer, currentTrack, playTrack]);
+  ), [
+    entryDetails,
+    username,
+    name,
+    profileImage,
+    getEntryMetrics,
+    handleOpenCommentDrawer,
+    currentTrack,
+    playTrack
+  ]);
 
-  // Restore the groupedActivities memoization - always call at top level
+  // Efficiently group activities by entryGuid and type
   const groupedActivities = useMemo(() => {
     // Create a map to store activities by entry GUID and type
     const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
 
-    // First pass: collect all activities by entry GUID and type
+    // First pass: filter out any activities that are not comments or retweets
     activities.forEach(activity => {
       const key = activity.entryGuid;
       if (!groupedMap.has(key)) {
         groupedMap.set(key, new Map());
       }
 
-      // Group only comments together, keep likes and retweets separate
+      // Group only comments together, keep retweets separate
       const typeKey = activity.type === 'comment' ? 'comment' : `${activity.type}-${activity._id}`;
 
       if (!groupedMap.get(key)!.has(typeKey)) {
@@ -2141,7 +2160,7 @@ export function UserActivityFeed({
     });
 
     // Second pass: create final structure
-    const result: Array<GroupedActivity> = []; // Use the defined type here
+    const result: Array<GroupedActivity> = [];
 
     groupedMap.forEach((typeMap, entryGuid) => {
       typeMap.forEach((activitiesForType, typeKey) => {
@@ -2158,7 +2177,7 @@ export function UserActivityFeed({
             type: 'comment'
           });
         } else {
-          // For likes and retweets, each is a separate entry
+          // For retweets, each is a separate entry
           sortedActivities.forEach(activity => {
             result.push({
               entryGuid,
@@ -2176,7 +2195,7 @@ export function UserActivityFeed({
     return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
   }, [activities]);
 
-  // Optimize Virtuoso implementation with memoized config - always define
+  // Memoize the Virtuoso configuration
   const virtuosoConfig = useMemo(() => ({
     useWindowScroll: true,
     data: groupedActivities,
@@ -2184,28 +2203,34 @@ export function UserActivityFeed({
     overscan: 200,
     itemContent: itemRenderer,
     components: {
-      Footer: Footer,
+      Footer,
     }
   }), [groupedActivities, loadMoreActivities, itemRenderer, Footer]);
 
-  // Loading state - use boolean expressions instead of early returns with hooks after
-  const isInitialLoading = (isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading);
-  const hasNoActivities = activities.length === 0 && !isLoading && !isInitialLoad;
+  // Memoize loading state calculations
+  const uiIsInitialLoading = useMemo(() => 
+    (isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading),
+    [isLoading, isInitialLoad, activities.length, isMetricsLoading]
+  );
+  
+  const uiHasNoActivities = useMemo(() => 
+    activities.length === 0 && !isLoading && !isInitialLoad,
+    [activities.length, isLoading, isInitialLoad]
+  );
 
   return (
     <div className="w-full">
-      {isInitialLoading ? (
+      {uiIsInitialLoading ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : hasNoActivities ? (
+      ) : uiHasNoActivities ? (
         <div className="text-center py-8 text-muted-foreground">
           <p>No activity found for this user.</p>
         </div>
       ) : (
         <>
           <Virtuoso {...virtuosoConfig} />
-          {/* Comment Drawer logic remains the same, ensure isOpen/setIsOpen are stable */}
           {selectedCommentEntry && (
             <CommentSectionClient
               entryGuid={selectedCommentEntry.entryGuid}
@@ -2219,7 +2244,35 @@ export function UserActivityFeed({
       )}
     </div>
   );
-} 
+}, (prevProps, nextProps) => {
+  // Custom prop comparison for the memo - rerender only if critical props change
+  // Basic equality checks for primitive props
+  if (prevProps.userId !== nextProps.userId) return false;
+  if (prevProps.username !== nextProps.username) return false;
+  if (prevProps.name !== nextProps.name) return false;
+  if (prevProps.profileImage !== nextProps.profileImage) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  if (prevProps.apiEndpoint !== nextProps.apiEndpoint) return false;
+  if (prevProps.isActive !== nextProps.isActive) return false;
+  
+  // Deep equality check for initialData
+  // Skip detailed comparison if both are null
+  if (!prevProps.initialData && !nextProps.initialData) return true;
+  if (!prevProps.initialData || !nextProps.initialData) return false;
+  
+  // Compare basic properties
+  if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
+  if (prevProps.initialData.totalCount !== nextProps.initialData.totalCount) return false;
+  
+  // We're not doing deep equality checks on large arrays and objects
+  // Just check if they have the same length as a heuristic
+  const prevActivitiesLength = prevProps.initialData.activities?.length || 0;
+  const nextActivitiesLength = nextProps.initialData.activities?.length || 0;
+  if (prevActivitiesLength !== nextActivitiesLength) return false;
+  
+  // If we've passed all checks, consider props equal
+  return true;
+});
 
-// Add display name to the UserActivityFeed component (at the end of file, line ~2146)
+// Add display name to the UserActivityFeed component
 UserActivityFeed.displayName = 'UserActivityFeed';

@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 
 // Types for activity items
 type ActivityItem = {
-  type: "like" | "comment" | "retweet";
+  type: "comment" | "retweet";
   timestamp: number;
   entryGuid: string;
   feedUrl: string;
