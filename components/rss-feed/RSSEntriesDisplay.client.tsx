@@ -175,7 +175,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                   fill
                   className="object-cover"
                   sizes="96px"
-                  loading="lazy"
                   priority={false}
                 />
               </AspectRatio>
@@ -457,7 +456,7 @@ function EntriesContentComponent({
             logger.debug(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isPending=${isPending}`);
           }
         }}
-        overscan={20}
+        overscan={200}
         initialTopMostItemIndex={0}
         itemContent={renderItem}
         components={{
