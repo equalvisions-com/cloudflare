@@ -462,7 +462,7 @@ function EntriesContentComponent({
         components={{
           Footer: () => 
             isPending && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-10">
+              <div ref={loadMoreRef} className="h-[100px] text-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin mx-auto" />
               </div>
             ) : <div ref={loadMoreRef} className="h-0" />
