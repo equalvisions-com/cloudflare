@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { MessageCircle, X, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
@@ -85,15 +85,14 @@ interface CommentWithReplies extends CommentFromAPI {
   replies: CommentFromAPI[];
 }
 
-// Create the base component that will be memoized
-const CommentSectionClientComponent = ({ 
+export function CommentSectionClient({ 
   entryGuid, 
   feedUrl,
   initialData = { count: 0 },
   isOpen: externalIsOpen,
   setIsOpen: externalSetIsOpen,
   buttonOnly = false
-}: CommentSectionProps) => {
+}: CommentSectionProps) {
   const [internalIsOpen, internalSetIsOpen] = useState(false);
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
   const setIsOpen = externalSetIsOpen !== undefined ? externalSetIsOpen : internalSetIsOpen;
@@ -171,7 +170,6 @@ const CommentSectionClientComponent = ({
   
   const addComment = useMutation(api.comments.addComment);
   
-  // Memoize the submit handler with useCallback
   const handleSubmit = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
@@ -202,8 +200,10 @@ const CommentSectionClientComponent = ({
       });
       
       // Successful submission - no need to do anything as Convex will update the UI
+      console.log('💬 Comment added successfully', result);
+      
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('❌ Error adding comment:', error);
       // Revert optimistic update on error
       if (isMountedRef.current) {
         setOptimisticCount(null);
@@ -214,118 +214,95 @@ const CommentSectionClientComponent = ({
         setIsSubmitting(false);
       }
     }
-  }, [
-    isAuthenticated, 
-    router, 
-    comment, 
-    isSubmitting, 
-    commentCount, 
-    replyToComment, 
-    addComment, 
-    entryGuid, 
-    feedUrl
-  ]);
+  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting, isAuthenticated, router]);
   
-  // Memoize the reply handler
-  const handleReply = useCallback((comment: CommentFromAPI) => {
+  // Function to handle initiating a reply to a comment
+  const handleReply = (comment: CommentFromAPI) => {
     setReplyToComment(comment);
-  }, []);
+  };
   
-  // Memoize the cancel reply handler
-  const cancelReply = useCallback(() => {
+  // Function to cancel reply
+  const cancelReply = () => {
     setReplyToComment(null);
-  }, []);
+  };
   
-  // Memoize the comment hierarchy transformation since it's a potentially expensive operation
-  const organizedComments = useMemo(() => {
+  // Group top-level comments and their replies
+  const organizeCommentsHierarchy = () => {
     if (!comments) return [];
     
-    // Create a map to quickly find parents
     const commentMap = new Map<string, CommentWithReplies>();
-    
-    // First, convert each comment to have a replies array and add to the map
-    comments.forEach(comment => {
-      // Skip deleted comments
-      if (deletedComments.has(comment._id.toString())) {
-        return;
-      }
-      
-      // Create the comment with an empty replies array
-      const commentWithReplies: CommentWithReplies = {
-        ...comment,
-        replies: []
-      };
-      
-      // Add to the map
-      commentMap.set(comment._id.toString(), commentWithReplies);
-    });
-    
-    // Top-level comments (those without a parent)
     const topLevelComments: CommentWithReplies[] = [];
     
-    // Now, organize comments into the hierarchy
+    // First pass: create enhanced comment objects and build map
     comments.forEach(comment => {
-      // Skip deleted comments
-      if (deletedComments.has(comment._id.toString())) {
-        return;
-      }
-      
-      // If this comment has a parent and the parent exists in the map
-      if (comment.parentId && commentMap.has(comment.parentId.toString())) {
-        // Add this comment to the parent's replies
-        const parent = commentMap.get(comment.parentId.toString());
-        if (parent && !deletedComments.has(parent._id.toString())) {
-          parent.replies.push(commentMap.get(comment._id.toString())!);
+      commentMap.set(comment._id, { ...comment, replies: [] });
+    });
+    
+    // Second pass: organize into hierarchy
+    comments.forEach(comment => {
+      if (comment.parentId) {
+        // This is a reply
+        const parent = commentMap.get(comment.parentId);
+        if (parent) {
+          parent.replies.push(comment);
         }
       } else {
         // This is a top-level comment
-        topLevelComments.push(commentMap.get(comment._id.toString())!);
+        const enhancedComment = commentMap.get(comment._id);
+        if (enhancedComment) {
+          topLevelComments.push(enhancedComment);
+        }
       }
     });
     
-    // Sort top-level comments by creation time (newest first)
-    topLevelComments.sort((a, b) => b._creationTime - a._creationTime);
-    
-    // Sort replies for each top-level comment (oldest first)
-    topLevelComments.forEach(comment => {
-      comment.replies.sort((a, b) => a._creationTime - b._creationTime);
-    });
-    
     return topLevelComments;
-  }, [comments, deletedComments]);
+  };
   
-  // Memoize the delete comment handler
-  const deleteComment = useCallback(async (commentId: Id<"comments">) => {
+  // Function to update the like count text
+  const updateCommentLikeCount = useCallback((commentId: string, count: number) => {
+    const commentLikeCountElement = commentLikeCountRefs.current.get(commentId);
+    if (commentLikeCountElement) {
+      if (count > 0) {
+        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
+        const countElement = commentLikeCountElement.querySelector('span');
+        if (countElement) {
+          countElement.textContent = countText;
+        }
+        commentLikeCountElement.classList.remove('hidden');
+      } else {
+        commentLikeCountElement.classList.add('hidden');
+      }
+    }
+  }, []);
+  
+  // Function to handle comment deletion - updated to use Convex mutation
+  const deleteCommentMutation = useMutation(api.comments.deleteComment);
+  
+  const deleteComment = async (commentId: Id<"comments">) => {
     try {
+      // Use Convex mutation instead of fetch
+      await deleteCommentMutation({ commentId });
+      // Mark this comment as deleted
       setDeletedComments(prev => {
         const newSet = new Set(prev);
         newSet.add(commentId.toString());
         return newSet;
       });
-      
-      // Here you would call your mutation to delete the comment
-      // Assuming a deleteComment mutation exists:
-      // await deleteCommentMutation({ commentId });
+      console.log('🗑️ Comment deleted successfully');
     } catch (error) {
-      console.error('Error deleting comment:', error);
-      // Revert local deletion on error
-      setDeletedComments(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(commentId.toString());
-        return newSet;
-      });
+      console.error('❌ Error deleting comment:', error);
     }
-  }, []);
+  };
   
-  // Memoize the like count ref setter
-  const setCommentLikeCountRef = useCallback((commentId: string, el: HTMLDivElement | null) => {
-    if (el) {
+  // Function to set reference for the like count element
+  const setCommentLikeCountRef = (commentId: string, el: HTMLDivElement | null) => {
+    if (el && commentId) {
       commentLikeCountRefs.current.set(commentId, el);
     }
-  }, []);
+  };
   
   // Helper to format time difference
-  const formatTimeDifference = useCallback((creationTime: number) => {
+  const formatTimeDifference = (creationTime: number) => {
     const now = new Date();
     const commentDate = new Date(creationTime);
     
@@ -351,10 +328,10 @@ const CommentSectionClientComponent = ({
     } else {
       return `${diffInMonths}mo`;
     }
-  }, []);
+  };
   
   // Toggle reply visibility for a comment
-  const toggleRepliesVisibility = useCallback((commentId: string) => {
+  const toggleRepliesVisibility = (commentId: string) => {
     setExpandedReplies(prev => {
       const newSet = new Set(prev);
       if (newSet.has(commentId)) {
@@ -364,28 +341,9 @@ const CommentSectionClientComponent = ({
       }
       return newSet;
     });
-  }, []);
+  };
   
-  // Memoize the update comment like count function
-  const updateCommentLikeCount = useCallback((commentId: string, count: number) => {
-    const countEl = commentLikeCountRefs.current.get(commentId);
-    if (countEl) {
-      // Update the count element
-      const pluralizedLikes = count === 1 ? 'Like' : 'Likes';
-      countEl.innerHTML = `<span>${count} ${pluralizedLikes}</span>`;
-      
-      // Show the element if it should be visible
-      if (count > 0) {
-        countEl.classList.remove('hidden');
-      } else {
-        countEl.classList.add('hidden');
-      }
-    }
-  }, []);
-  
-  // The renderComment function is potentially expensive because it creates JSX,
-  // but it uses other memoized functions and is called within the render,
-  // so we'll keep it as a regular function rather than memoizing it directly
+  // Render a single comment with its replies
   const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
     const hasReplies = 'replies' in comment && comment.replies.length > 0;
     const isDeleted = deletedComments.has(comment._id.toString());
@@ -410,9 +368,9 @@ const CommentSectionClientComponent = ({
     // Get username for profile link
     const username = comment.username || (comment.user?.username || '');
     
-    // Handle comment deletion - create a memoized handler for each comment
-    const handleDeleteComment = () => {
-      deleteComment(comment._id);
+    // Handle comment deletion
+    const handleDeleteComment = async () => {
+      await deleteComment(comment._id);
     };
     
     // If comment is deleted, don't render anything
@@ -470,7 +428,7 @@ const CommentSectionClientComponent = ({
                 {/* Reply button - only show on top-level comments, not replies */}
                 {!isReply && (
                   <button 
-                    onClick={() => handleReply(comment as CommentFromAPI)}
+                    onClick={() => handleReply(comment)}
                     className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
                   >
                     Reply
@@ -539,8 +497,8 @@ const CommentSectionClientComponent = ({
     );
   };
   
-  // Organize comments into a hierarchy - no longer a function call but a reference to the memoized value
-  const commentHierarchy = organizedComments;
+  // Organize comments into a hierarchy
+  const commentHierarchy = organizeCommentsHierarchy();
   
   // Only render the button if buttonOnly is true
   if (buttonOnly) {
@@ -623,7 +581,4 @@ const CommentSectionClientComponent = ({
       </Drawer>
     </>
   );
-};
-
-// Export memoized version of the component
-export const CommentSectionClient = memo(CommentSectionClientComponent); 
+} 
