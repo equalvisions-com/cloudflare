@@ -432,35 +432,40 @@ const ActivityCard = memo(({
 }) => {
   const { playTrack, currentTrack } = useAudio();
   
-  // Skip rendering if no entry details
-  if (!entryDetails) return null;
-  
-  // Get interactions for this entry
+  // Always call all hooks at the top level
+  // Get interactions for this entry - move outside of conditional
   const interactions = useMemo(() => 
-    getEntryMetrics(entryDetails.guid),
-    [entryDetails.guid, getEntryMetrics]
+    entryDetails ? getEntryMetrics(entryDetails.guid) : { 
+      likes: { isLiked: false, count: 0 },
+      comments: { count: 0 },
+      retweets: { isRetweeted: false, count: 0 }
+    },
+    [entryDetails, getEntryMetrics]
   );
   
-  // Format timestamp
-  const timestamp = useFormattedTimestamp(entryDetails.pub_date);
+  // Format timestamp - move outside of conditional  
+  const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
 
-  // Determine if entry is a podcast
-  const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
+  // Determine if entry is a podcast - move outside of conditional
+  const mediaType = entryDetails?.post_media_type || entryDetails?.mediaType;
   const isPodcast = useMemo(() => 
     mediaType?.toLowerCase() === 'podcast',
     [mediaType]
   );
   
-  // Handle podcast card click
+  // Handle podcast card click - move outside of conditional
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (isPodcast) {
+    if (isPodcast && entryDetails) {
       e.preventDefault();
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
     }
-  }, [isPodcast, entryDetails.link, entryDetails.title, entryDetails.image, playTrack]);
+  }, [isPodcast, entryDetails, playTrack]);
   
-  // Check if this podcast is currently playing
-  const isCurrentlyPlaying = isPodcast && currentTrack?.src === entryDetails.link;
+  // Check if this podcast is currently playing - move outside of conditional
+  const isCurrentlyPlaying = isPodcast && entryDetails && currentTrack?.src === entryDetails.link;
+  
+  // Skip rendering if no entry details
+  if (!entryDetails) return null;
   
   return (
     <article className="">
