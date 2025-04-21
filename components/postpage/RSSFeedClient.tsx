@@ -384,6 +384,31 @@ const areFeedContentPropsEqual = (prevProps: FeedContentProps, nextProps: FeedCo
   return true;
 };
 
+// Extract EmptyState as a separate component instead of inline JSX in useMemo
+const EmptyState = () => (
+  <div className="text-center py-8 text-muted-foreground">
+    No entries found for this feed.
+  </div>
+);
+EmptyState.displayName = 'EmptyState';
+
+// Create a separate Footer component
+const LoadingFooter = ({ loadMoreRef, isPending, hasMore }: { 
+  loadMoreRef: React.RefObject<HTMLDivElement>, 
+  isPending: boolean, 
+  hasMore: boolean 
+}) => {
+  if (isPending && hasMore) {
+    return (
+      <div ref={loadMoreRef} className="text-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+      </div>
+    );
+  }
+  return <div ref={loadMoreRef} className="h-0" />;
+};
+LoadingFooter.displayName = 'LoadingFooter';
+
 // Memoize the FeedContent component to prevent unnecessary re-renders
 const FeedContent = React.memo(function FeedContent({
   entries,
@@ -424,25 +449,16 @@ const FeedContent = React.memo(function FeedContent({
     );
   }, [entries, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer]);
 
-  // Memoize the Footer component to prevent unnecessary re-renders
-  const Footer = useMemo(() => {
-    return () => isPending && hasMore ? (
-      <div ref={loadMoreRef} className="text-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-      </div>
-    ) : <div ref={loadMoreRef} className="h-0" />;
-  }, [isPending, hasMore, loadMoreRef]);
-
-  // Memoize the empty state to prevent unnecessary re-renders
-  const EmptyState = useMemo(() => (
-    <div className="text-center py-8 text-muted-foreground">
-      No entries found for this feed.
-    </div>
-  ), []);
+  // Create a stable reference to the footer component props
+  const footerProps = useMemo(() => ({
+    loadMoreRef,
+    isPending,
+    hasMore
+  }), [loadMoreRef, isPending, hasMore]);
 
   return (
     <div className="space-y-0">
-      {entries.length === 0 ? EmptyState : (
+      {entries.length === 0 ? <EmptyState /> : (
         <Virtuoso
           useWindowScroll
           totalCount={entries.length}
@@ -451,7 +467,7 @@ const FeedContent = React.memo(function FeedContent({
           initialTopMostItemIndex={0}
           itemContent={renderItem}
           components={{
-            Footer: Footer
+            Footer: () => <LoadingFooter {...footerProps} />
           }}
         />
       )}
@@ -481,7 +497,9 @@ interface RSSFeedClientProps {
 export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [fetchError, setFetchError] = useState<Error | null>(null);
-  const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]); // Memoize constant values
+  
+  // Don't memoize simple values
+  const ITEMS_PER_REQUEST = pageSize;
   
   // Track all entries manually
   const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
@@ -522,16 +540,28 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     }
   }, [initialData]);
   
-  // Memoize URL creation for API requests
+  // Create stable reference for URL parameters using useMemo
+  const urlParams = useMemo(() => ({
+    postTitle,
+    feedUrl,
+    pageSize: ITEMS_PER_REQUEST,
+    totalEntries: initialData.totalEntries,
+    searchQuery: initialData.searchQuery,
+    mediaType
+  }), [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, initialData.searchQuery, mediaType]);
+  
+  // Memoize URL creation for API requests with stable params reference
   const createApiUrl = useCallback((nextPage: number) => {
+    const { postTitle, feedUrl, pageSize, totalEntries, searchQuery, mediaType } = urlParams;
+    
     const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
     baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
     baseUrl.searchParams.set('page', nextPage.toString());
-    baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
+    baseUrl.searchParams.set('pageSize', pageSize.toString());
     
     // Pass the cached total entries to avoid unnecessary COUNT queries
-    if (initialData.totalEntries) {
-      baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
+    if (totalEntries) {
+      baseUrl.searchParams.set('totalEntries', totalEntries.toString());
     }
     
     if (mediaType) {
@@ -539,15 +569,24 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     }
     
     // Pass search query if it exists
-    if (initialData.searchQuery) {
-      baseUrl.searchParams.set('q', encodeURIComponent(initialData.searchQuery));
+    if (searchQuery) {
+      baseUrl.searchParams.set('q', encodeURIComponent(searchQuery));
     }
     
     return baseUrl.toString();
-  }, [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, initialData.searchQuery, mediaType]);
+  }, [urlParams]);
   
-  // Memoize the transform function for API entries
+  // Create stable reference for entry transformation parameters
+  const transformParams = useMemo(() => ({
+    postTitle,
+    featuredImg,
+    mediaType
+  }), [postTitle, featuredImg, mediaType]);
+  
+  // Memoize the transform function for API entries with stable params
   const transformApiEntries = useCallback((apiEntries: APIRSSEntry[]) => {
+    const { postTitle, featuredImg, mediaType } = transformParams;
+    
     return apiEntries
       .filter(Boolean)
       .map((entry: APIRSSEntry) => ({
@@ -563,9 +602,21 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
           mediaType: mediaType || 'article'
         }
       }));
-  }, [postTitle, featuredImg, mediaType]);
+  }, [transformParams]);
+  
+  // Create stable reference for loading dependencies
+  const loadingDeps = useMemo(() => ({
+    isActive,
+    isLoading, 
+    hasMoreState,
+    currentPage,
+    createApiUrl,
+    transformApiEntries
+  }), [isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries]);
   
   const loadMoreEntries = useCallback(async () => {
+    const { isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries } = loadingDeps;
+    
     if (!isActive || isLoading || !hasMoreState) {
       console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
       return;
@@ -603,14 +654,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [
-    isActive, 
-    isLoading, 
-    hasMoreState, 
-    currentPage, 
-    createApiUrl, 
-    transformApiEntries
-  ]);
+  }, [loadingDeps]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 
@@ -618,13 +662,18 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     [allEntriesState]
   );
   
-  // Query data with proper memoization
-  const combinedData = useQuery(
-    api.entries.getFeedDataWithMetrics,
-    entryGuids.length > 0 
-      ? { entryGuids, feedUrls: [feedUrl] } 
-      : "skip"
+  // Create stable feedUrlArray for query
+  const feedUrlArray = useMemo(() => [feedUrl], [feedUrl]);
+  
+  // Use the combined query to fetch data, avoiding object literal in conditional
+  const queryEnabled = entryGuids.length > 0;
+  const queryArgs = useMemo(() => 
+    queryEnabled ? { entryGuids, feedUrls: feedUrlArray } : "skip",
+    [queryEnabled, entryGuids, feedUrlArray]
   );
+  
+  // Query data with proper memoization and stable arguments
+  const combinedData = useQuery(api.entries.getFeedDataWithMetrics, queryArgs);
   
   // Extract metrics from combined data with memoization
   const entryMetricsMap = useMemo(() => {
@@ -664,19 +713,29 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     });
   }, [allEntriesState, entryMetricsMap]);
   
-  // Memoize the content height check function
+  // Create stable reference for height check dependencies
+  const heightCheckDeps = useMemo(() => ({
+    hasMoreState,
+    isLoading,
+    allEntriesCount: allEntriesState.length,
+    loadMoreEntries
+  }), [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries]);
+  
+  // Memoize the content height check function with stable dependencies
   const checkContentHeight = useCallback(() => {
+    const { hasMoreState, isLoading, allEntriesCount, loadMoreEntries } = heightCheckDeps;
+    
     if (!loadMoreRef.current || !hasMoreState || isLoading) return;
     
     const viewportHeight = window.innerHeight;
     const documentHeight = document.documentElement.scrollHeight;
     
     // If the document is shorter than the viewport, load more
-    if (documentHeight <= viewportHeight && allEntriesState.length > 0) {
+    if (documentHeight <= viewportHeight && allEntriesCount > 0) {
       console.log('📏 Content is shorter than viewport, loading more entries');
       loadMoreEntries();
     }
-  }, [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries]);
+  }, [heightCheckDeps, loadMoreRef]);
   
   // Add a useEffect to check if we need to load more when the component is mounted
   useEffect(() => {
@@ -685,30 +744,26 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     return () => clearTimeout(timer);
   }, [checkContentHeight]);
   
-  // Memoize the error UI to prevent recreating it on every render
-  const errorUI = useMemo(() => {
-    if (!fetchError) return null;
-    
-    return (
-      <div className="text-center py-8 text-destructive">
-        <p className="mb-4">Error loading feed entries</p>
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            setFetchError(null);
-            setAllEntriesState(initialData.entries || []);
-            setCurrentPage(1);
-            setHasMoreState(initialData.hasMore || false);
-          }}
-        >
-          Try Again
-        </Button>
-      </div>
-    );
-  }, [fetchError, initialData]);
+  // Create error UI as a separate component function rather than using useMemo
+  const ErrorUI = () => (
+    <div className="text-center py-8 text-destructive">
+      <p className="mb-4">Error loading feed entries</p>
+      <Button 
+        variant="outline" 
+        onClick={() => {
+          setFetchError(null);
+          setAllEntriesState(initialData.entries || []);
+          setCurrentPage(1);
+          setHasMoreState(initialData.hasMore || false);
+        }}
+      >
+        Try Again
+      </Button>
+    </div>
+  );
   
   if (fetchError) {
-    return errorUI;
+    return <ErrorUI />;
   }
   
   return (
@@ -741,6 +796,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
 
 // Memoize the RSSFeedClient component for better performance when used in parent components
 const MemoizedRSSFeedClient = React.memo(RSSFeedClient);
+MemoizedRSSFeedClient.displayName = "MemoizedRSSFeedClient";
 
 // Export the memoized component with error boundary
 export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
