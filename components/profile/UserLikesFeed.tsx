@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -19,6 +19,7 @@ import { useAudio } from '@/components/audio-player/AudioContext';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { ErrorBoundary } from "react-error-boundary";
 
 // Types for activity items
 type ActivityItem = {
@@ -74,6 +75,17 @@ interface UserLikesFeedProps {
 
 // Custom hook for batch metrics - same as in UserActivityFeed
 function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
+  // Add mount tracking ref
+  const isMountedRef = useRef(true);
+  
+  // Set up mounted ref cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   // Track if we've already received initial metrics
   const hasInitialMetrics = useMemo(() => 
     Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
@@ -205,7 +217,7 @@ const useFormattedTimestamp = (pubDate?: string) => {
 };
 
 // Memoized media type badge component
-const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
+const MediaTypeBadge = memo(({ mediaType }: { mediaType?: string }) => {
   if (!mediaType) return null;
   
   const type = mediaType.toLowerCase();
@@ -220,7 +232,7 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
 MediaTypeBadge.displayName = 'MediaTypeBadge';
 
 // Memoized entry card content component
-const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
+const EntryCardContent = memo(({ entry }: { entry: RSSEntry }) => (
   <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
     <h3 className="text-base font-bold capitalize leading-[1.5]">
       {entry.title}
@@ -235,7 +247,7 @@ const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
 EntryCardContent.displayName = 'EntryCardContent';
 
 // Activity card with entry details
-const ActivityCard = React.memo(({ 
+const ActivityCard = memo(({ 
   activity, 
   entryDetails,
   getEntryMetrics,
@@ -453,12 +465,23 @@ const ActivityCard = React.memo(({
 });
 ActivityCard.displayName = 'ActivityCard';
 
-/**
- * Client component that displays a user's likes feed with virtualization and pagination
- * Initial data is fetched on the server, and additional data is loaded as needed
- */
-export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) {
+// Fallback UI for error boundary
+const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) => {
+  return (
+    <div className="p-4 text-red-500">
+      <p>Something went wrong:</p>
+      <pre>{error.message}</pre>
+      <Button onClick={resetErrorBoundary} className="mt-2">Try again</Button>
+    </div>
+  );
+};
+
+// Create a memoized version of the component with error boundary
+const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) => {
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
   const [activities, setActivities] = useState<ActivityItem[]>(
     initialData?.activities || []
   );
@@ -471,6 +494,17 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
   
   // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
@@ -494,12 +528,16 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
 
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    if (!isMountedRef.current) return;
+    
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
   }, []);
 
   // Log when initial data is received
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (initialData?.activities) {
       console.log('📋 Initial likes data received from server:', {
         activitiesCount: initialData.activities.length,
@@ -508,6 +546,7 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
         entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
         entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
       });
+      
       setActivities(initialData.activities);
       setEntryDetails(initialData.entryDetails || {});
       setHasMore(initialData.hasMore);
@@ -518,8 +557,8 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
 
   // Function to load more activities
   const loadMoreActivities = useCallback(async () => {
-    if (isLoading || !hasMore) {
-      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}`);
+    if (!isMountedRef.current || isLoading || !hasMore) {
+      console.log(`⚠️ Not loading more: isMountedRef=${isMountedRef.current}, isLoading=${isLoading}, hasMore=${hasMore}`);
       return;
     }
 
@@ -536,6 +575,10 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
       }
       
       const data = await result.json();
+      
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+      
       console.log(`📦 Received data from API:`, {
         activitiesCount: data.activities?.length || 0,
         hasMore: data.hasMore,
@@ -559,15 +602,17 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
     } catch (error) {
       console.error('❌ Error loading more likes:', error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [isLoading, hasMore, currentSkip, userId, pageSize, activities.length]);
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {
+    if (!isMountedRef.current || !loadMoreRef.current || !hasMore || isLoading) return;
+    
     const checkContentHeight = () => {
-      if (!loadMoreRef.current || !hasMore || isLoading) return;
-      
       const viewportHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       
@@ -637,5 +682,18 @@ export function UserLikesFeed({ userId, initialData, pageSize = 30 }: UserLikesF
         />
       )}
     </div>
+  );
+});
+UserLikesFeedComponent.displayName = 'UserLikesFeedComponent';
+
+/**
+ * Client component that displays a user's likes feed with virtualization and pagination
+ * Initial data is fetched on the server, and additional data is loaded as needed
+ */
+export function UserLikesFeed(props: UserLikesFeedProps) {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <UserLikesFeedComponent {...props} />
+    </ErrorBoundary>
   );
 } 

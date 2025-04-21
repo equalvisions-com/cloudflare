@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { CategorySlider, type Category } from './CategorySlider';
@@ -11,6 +11,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import useEmblaCarousel from 'embla-carousel-react';
+import type { EmblaOptionsType } from 'embla-carousel';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import AutoHeight from 'embla-carousel-auto-height';
 
@@ -35,11 +36,67 @@ interface CategoryData {
   }>;
 }
 
-export function CategorySwipeableWrapper({
+// Memoized search tabs component
+const SearchTabs = memo(({ 
+  searchTab, 
+  displayMediaType, 
+  entriesTabLabel, 
+  handleSearchTabChange 
+}: { 
+  searchTab: 'posts' | 'entries';
+  displayMediaType: string;
+  entriesTabLabel: string;
+  handleSearchTabChange: (tab: 'posts' | 'entries') => void;
+}) => (
+  <div className="flex mx-4 gap-6">
+    <button
+      className={cn(
+        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        searchTab === 'posts'
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+      onClick={() => handleSearchTabChange('posts')}
+    >
+      <span className="relative inline-flex pb-[12px]">
+        {displayMediaType}
+        <span className={cn(
+          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+          searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
+        )} />
+      </span>
+    </button>
+    <button
+      className={cn(
+        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        searchTab === 'entries'
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+      onClick={() => handleSearchTabChange('entries')}
+    >
+      <span className="relative inline-flex pb-[12px]">
+        {entriesTabLabel}
+        <span className={cn(
+          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
+          searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
+        )} />
+      </span>
+    </button>
+  </div>
+));
+
+SearchTabs.displayName = 'SearchTabs';
+
+// Convert to arrow function component for consistency
+const CategorySwipeableWrapperComponent = ({
   mediaType,
   className,
   showEntries = true,
-}: CategorySwipeableWrapperProps) {
+}: CategorySwipeableWrapperProps) => {
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
   // Get user profile data from context
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
   
@@ -78,6 +135,17 @@ export function CategorySwipeableWrapper({
   // Initialize ResizeObserver
   const observerRef = useRef<ResizeObserver | null>(null);
 
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Format media type for display (capitalize and pluralize)
   const displayMediaType = useMemo(() => {
     const capitalized = mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
@@ -96,27 +164,30 @@ export function CategorySwipeableWrapper({
     }
   }, [mediaType]);
 
+  // Memoize carousel options
+  const mobileCarouselOptions = useMemo(() => ({
+    loop: false,
+    skipSnaps: false,
+    align: 'start' as const,
+    containScroll: 'trimSnaps',
+    dragFree: false,
+    duration: 20, // Match SwipeableTabs
+    dragThreshold: 20,
+    axis: 'x',
+  }) as EmblaOptionsType, []);
+
+  const desktopCarouselOptions = useMemo(() => ({
+    loop: false,
+    skipSnaps: false,
+    align: 'start' as const,
+    containScroll: 'trimSnaps',
+    duration: 20, // Match SwipeableTabs
+    axis: 'x',
+  }) as EmblaOptionsType, []);
+
   // Add carousel state with same options as SwipeableTabs
   const [emblaRef, emblaApi] = useEmblaCarousel(
-    isMobile 
-      ? { 
-          loop: false,
-          skipSnaps: false,
-          align: 'start',
-          containScroll: 'trimSnaps',
-          dragFree: false,
-          duration: 20, // Match SwipeableTabs
-          dragThreshold: 20,
-          axis: 'x',
-        }
-      : {
-          loop: false,
-          skipSnaps: false,
-          align: 'start',
-          containScroll: 'trimSnaps',
-          duration: 20, // Match SwipeableTabs
-          axis: 'x',
-        },
+    isMobile ? mobileCarouselOptions : desktopCarouselOptions,
     [
       AutoHeight(),
       ...(isMobile ? [WheelGesturesPlugin()] : [])
@@ -129,14 +200,22 @@ export function CategorySwipeableWrapper({
     postsPerCategory: 10
   }) as CategoryData | undefined;
 
+  // Memoize the query parameters for search to prevent unnecessary request changes
+  const searchQueryParams = useMemo(() => {
+    if (searchQuery && searchTab === 'posts') {
+      return { 
+        query: searchQuery,
+        mediaType,
+        limit: 10
+      };
+    }
+    return "skip";
+  }, [searchQuery, searchTab, mediaType]);
+
   // Search query for posts across all categories
   const searchResults = useQuery(
     api.posts.searchPosts,
-    searchQuery && searchTab === 'posts' ? { 
-      query: searchQuery,
-      mediaType,
-      limit: 10
-    } : "skip"
+    searchQueryParams
   );
   
   // Prepare categories array with "Featured" as the first option
@@ -169,11 +248,13 @@ export function CategorySwipeableWrapper({
 
   // Handle search input change
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMountedRef.current) return;
     setPendingSearchQuery(e.target.value);
   }, []);
 
   // Handle search clear
   const handleSearchClear = useCallback(() => {
+    if (!isMountedRef.current) return;
     setPendingSearchQuery('');
     setSearchQuery('');
     setSelectedCategoryId('featured');
@@ -183,6 +264,8 @@ export function CategorySwipeableWrapper({
   // Handle search submission
   const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isMountedRef.current) return;
+    
     // Hide keyboard by blurring any active element
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -224,6 +307,8 @@ export function CategorySwipeableWrapper({
 
   // Initialize scroll positions for all categories to 0
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     allCategories.forEach(category => {
       if (scrollPositionsRef.current[category._id] === undefined) {
         scrollPositionsRef.current[category._id] = 0;
@@ -241,7 +326,10 @@ export function CategorySwipeableWrapper({
   
   // Add effect to check screen size and update isMobile state
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     const checkMobile = () => {
+      if (!isMountedRef.current) return;
       setIsMobile(window.innerWidth < 768);
     };
     
@@ -258,6 +346,8 @@ export function CategorySwipeableWrapper({
 
   // Save scroll position when user scrolls
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (searchQuery) {
       const handleScroll = () => {
         // Only save scroll position if we're not in the middle of restoring
@@ -287,6 +377,8 @@ export function CategorySwipeableWrapper({
 
   // Pre-measure slide heights to avoid layout shifts during animation
   const measureSlideHeights = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
     slideRefs.current.forEach((slide, index) => {
       if (slide && slide.offsetHeight > 0) {
         tabHeightsRef.current[allCategories[index]._id] = slide.offsetHeight;
@@ -296,6 +388,7 @@ export function CategorySwipeableWrapper({
 
   // ResizeObserver setup - match SwipeableTabs exactly
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!emblaApi || typeof window === 'undefined' || !allCategories.length) return;
 
     const categoryIndex = allCategories.findIndex(cat => cat._id === selectedCategoryId);
@@ -313,6 +406,8 @@ export function CategorySwipeableWrapper({
     
     // Function to track transition state
     const onTransitionStart = () => {
+      if (!isMountedRef.current) return;
+      
       isInTransition = true;
       
       // Apply fixed height to container during animation
@@ -334,43 +429,45 @@ export function CategorySwipeableWrapper({
     };
     
     const onTransitionEnd = () => {
+      if (!isMountedRef.current) return;
+      
       isInTransition = false;
       
       // After transition completes, let AutoHeight take over again
       const emblaContainer = emblaApi.containerNode();
       if (emblaContainer) {
         setTimeout(() => {
-          if (emblaContainer) {
-            // First, add a smooth transition for height
-            emblaContainer.style.transition = 'height 200ms ease-out';
+          if (!isMountedRef.current || !emblaContainer) return;
+          
+          // First, add a smooth transition for height
+          emblaContainer.style.transition = 'height 200ms ease-out';
+          
+          // Get the next category's height
+          const selectedIndex = emblaApi.selectedScrollSnap();
+          const selectedCategory = allCategories[selectedIndex];
+          const targetHeight = selectedCategory ? tabHeightsRef.current[selectedCategory._id] : undefined;
+          
+          if (targetHeight) {
+            // Apply the exact target height with a transition
+            emblaContainer.style.height = `${targetHeight}px`;
             
-            // Get the next category's height
-            const selectedIndex = emblaApi.selectedScrollSnap();
-            const selectedCategory = allCategories[selectedIndex];
-            const targetHeight = selectedCategory ? tabHeightsRef.current[selectedCategory._id] : undefined;
-            
-            if (targetHeight) {
-              // Apply the exact target height with a transition
-              emblaContainer.style.height = `${targetHeight}px`;
+            // After transition completes, remove fixed height and let AutoHeight take over
+            setTimeout(() => {
+              if (!isMountedRef.current || !emblaContainer) return;
               
-              // After transition completes, remove fixed height and let AutoHeight take over
-              setTimeout(() => {
-                if (emblaContainer) {
-                  emblaContainer.style.height = '';
-                  emblaContainer.style.transition = '';
-                  emblaApi.reInit();
-                  // Remeasure heights
-                  measureSlideHeights();
-                }
-              }, 200); // Match the SwipeableTabs transition duration
-            } else {
-              // Fallback if height not available
               emblaContainer.style.height = '';
               emblaContainer.style.transition = '';
               emblaApi.reInit();
               // Remeasure heights
               measureSlideHeights();
-            }
+            }, 200); // Match the SwipeableTabs transition duration
+          } else {
+            // Fallback if height not available
+            emblaContainer.style.height = '';
+            emblaContainer.style.transition = '';
+            emblaApi.reInit();
+            // Remeasure heights
+            measureSlideHeights();
           }
         }, 50); // Short delay after animation
       }
@@ -382,24 +479,27 @@ export function CategorySwipeableWrapper({
 
     // Create the observer instance
     const resizeObserver = new ResizeObserver(() => {
+      if (!isMountedRef.current) return;
+      
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
         // Wrap reInit in requestAnimationFrame
         window.requestAnimationFrame(() => {
-          if (emblaApi) {
-            // If in transition, delay reInit
-            if (isInTransition) {
-              // If animating, delay reInit until animation completes with a longer buffer
-              if (delayedReInitTimeout) {
-                clearTimeout(delayedReInitTimeout);
-              }
-              // Use a longer delay to ensure animation is truly complete
-              delayedReInitTimeout = setTimeout(() => {
-                if (emblaApi) emblaApi.reInit();
-              }, 300); // Buffer after animation to prevent visible snapping
-            } else {
-              emblaApi.reInit();
+          if (!isMountedRef.current || !emblaApi) return;
+          
+          // If in transition, delay reInit
+          if (isInTransition) {
+            // If animating, delay reInit until animation completes with a longer buffer
+            if (delayedReInitTimeout) {
+              clearTimeout(delayedReInitTimeout);
             }
+            // Use a longer delay to ensure animation is truly complete
+            delayedReInitTimeout = setTimeout(() => {
+              if (!isMountedRef.current || !emblaApi) return;
+              emblaApi.reInit();
+            }, 300); // Buffer after animation to prevent visible snapping
+          } else {
+            emblaApi.reInit();
           }
         });
       }, 250); // Slightly longer debounce
@@ -423,17 +523,22 @@ export function CategorySwipeableWrapper({
 
   // Effect to PAUSE/RESUME observer during interaction - EXACTLY like SwipeableTabs
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!emblaApi || !observerRef.current) return; 
 
     const disableObserver = () => {
+      if (!isMountedRef.current) return;
       observerRef.current?.disconnect();
     };
 
     const enableObserver = () => {
+      if (!isMountedRef.current) return;
       if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
 
       // Wait before reconnecting to avoid interrupting animation
       setTimeout(() => {
+        if (!isMountedRef.current || !emblaApi || !observerRef.current) return;
+        
         // Get the CURRENT selected index directly from emblaApi
         const currentSelectedIndex = emblaApi.selectedScrollSnap();
         const activeSlideNode = slideRefs.current[currentSelectedIndex];
@@ -461,6 +566,7 @@ export function CategorySwipeableWrapper({
 
   // Handle category selection from CategorySlider
   const handleCategorySelect = useCallback((categoryId: string) => {
+    if (!isMountedRef.current) return;
     if (!emblaApi || categoryId === selectedCategoryId) return;
 
     // Save current scroll position before jumping
@@ -478,9 +584,12 @@ export function CategorySwipeableWrapper({
 
   // Sync category selection with carousel
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!emblaApi) return;
     
     const onSelect = () => {
+      if (!isMountedRef.current) return;
+      
       const index = emblaApi.selectedScrollSnap();
       if (index >= 0 && index < allCategories.length) {
         const selectedCategory = allCategories[index];
@@ -514,14 +623,17 @@ export function CategorySwipeableWrapper({
 
   // Add effect to track interaction state for hiding inactive slides
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!emblaApi) return;
 
     const handlePointerDown = () => {
+      if (!isMountedRef.current) return;
       setIsInteracting(true);
     };
 
     // Set interacting to false ONLY when the animation settles
     const handleSettle = () => {
+      if (!isMountedRef.current) return;
       setIsInteracting(false);
     };
 
@@ -536,15 +648,19 @@ export function CategorySwipeableWrapper({
 
   // Transition state handling - exactly like SwipeableTabs
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!emblaApi) return;
 
     const handleTransitionStart = () => {
+      if (!isMountedRef.current) return;
       setIsTransitioning(true);
     };
 
     const handleTransitionEnd = () => {
+      if (!isMountedRef.current) return;
       // Add a small delay to ensure smooth transition
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         setIsTransitioning(false);
       }, 50);
     };
@@ -560,6 +676,8 @@ export function CategorySwipeableWrapper({
 
   // Handle search tab change
   const handleSearchTabChange = useCallback((tab: 'posts' | 'entries') => {
+    if (!isMountedRef.current) return;
+    
     // Don't do anything if it's the same tab
     if (tab === searchTab) return;
     
@@ -577,52 +695,15 @@ export function CategorySwipeableWrapper({
     
     // End transition after animation completes
     setTimeout(() => {
+      if (!isMountedRef.current) return;
       setIsTransitioning(false);
     }, 50);
   }, [searchTab, restoreScrollPosition]);
-
-  // SearchTabs component for search mode
-  const SearchTabs = useCallback(() => (
-    <div className="flex mx-4 gap-6">
-      <button
-        className={cn(
-          "flex-1 transition-all duration-200 relative font-medium text-sm",
-          searchTab === 'posts'
-            ? "text-primary"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-        onClick={() => handleSearchTabChange('posts')}
-      >
-        <span className="relative inline-flex pb-[12px]">
-          {displayMediaType}
-          <span className={cn(
-            "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-            searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
-          )} />
-        </span>
-      </button>
-      <button
-        className={cn(
-          "flex-1 transition-all duration-200 relative font-medium text-sm",
-          searchTab === 'entries'
-            ? "text-primary"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-        onClick={() => handleSearchTabChange('entries')}
-      >
-        <span className="relative inline-flex pb-[12px]">
-          {entriesTabLabel}
-          <span className={cn(
-            "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-            searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
-          )} />
-        </span>
-      </button>
-    </div>
-  ), [searchTab, displayMediaType, entriesTabLabel, handleSearchTabChange]);
   
   // Check for search query in sessionStorage when component mounts
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     // Only process if this matches our media type or no media type is specified
     const storedMediaType = sessionStorage.getItem('app_search_mediaType');
     if (storedMediaType && storedMediaType !== mediaType) {
@@ -692,7 +773,12 @@ export function CategorySwipeableWrapper({
 
         {/* Category or Search Tabs */}
         {searchQuery ? (
-          <SearchTabs />
+          <SearchTabs 
+            searchTab={searchTab}
+            displayMediaType={displayMediaType}
+            entriesTabLabel={entriesTabLabel}
+            handleSearchTabChange={handleSearchTabChange}
+          />
         ) : (
           <CategorySlider
             categories={allCategories}
@@ -815,4 +901,7 @@ export function CategorySwipeableWrapper({
       </div>
     </div>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const CategorySwipeableWrapper = memo(CategorySwipeableWrapperComponent); 

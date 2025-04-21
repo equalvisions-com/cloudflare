@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, KeyboardEvent, useCallback, memo, useMemo } from "react";
 import { Search as SearchIcon, X, Mail, Podcast, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,11 +35,11 @@ const storeSearchQuery = (query: string, mediaType?: string) => {
   sessionStorage.setItem('app_is_navigation', 'true');
 };
 
-export function SidebarSearch({
+const SidebarSearchComponent = ({
   className = "",
   onSearch,
   hideClearButton
-}: SidebarSearchProps) {
+}: SidebarSearchProps) => {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -47,13 +47,30 @@ export function SidebarSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   
-  const searchCategories = [
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
+  // Memoize search categories to prevent recreation on each render
+  const searchCategories = useMemo(() => [
     { id: "newsletter", label: "Newsletters", icon: Mail },
     { id: "podcast", label: "Podcasts", icon: Podcast },
     { id: "people", label: "Users", icon: Users },
-  ];
+  ], []);
   
-  const handleSearch = (category: string) => {
+  const handleSearch = useCallback((category: string) => {
+    if (!isMountedRef.current) return;
+    
     if (query.trim()) {
       // If onSearch is provided, use it (for backward compatibility)
       if (onSearch) {
@@ -80,11 +97,15 @@ export function SidebarSearch({
           router.push("/newsletters");
       }
       
-      setIsOpen(false);
+      if (isMountedRef.current) {
+        setIsOpen(false);
+      }
     }
-  };
+  }, [query, onSearch, router]);
   
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
     setQuery("");
     if (onSearch) onSearch("");
     setIsOpen(false);
@@ -93,21 +114,24 @@ export function SidebarSearch({
     sessionStorage.removeItem('app_search_query');
     sessionStorage.removeItem('app_search_mediaType');
     sessionStorage.removeItem('app_search_timestamp');
-  };
+  }, [onSearch]);
 
   // Handle form submission for general search
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isMountedRef.current) return;
+    
     if (query.trim()) {
       // Store search query without a specific media type
       storeSearchQuery(query.trim());
       router.push("/newsletters");
     }
-  };
+  }, [query, router]);
 
   // Handle keyboard navigation
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen) return;
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || !isMountedRef.current) return;
     
     switch (e.key) {
       case "ArrowDown":
@@ -145,10 +169,12 @@ export function SidebarSearch({
         setIsOpen(false);
         break;
     }
-  };
+  }, [isOpen, activeIndex, searchCategories, handleSearch]);
 
   // Reset active index when opening/closing dropdown
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (isOpen) {
       setActiveIndex(-1);
     }
@@ -157,6 +183,8 @@ export function SidebarSearch({
   // Close command menu when clicking outside
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
+      if (!isMountedRef.current) return;
+      
       if (commandRef.current && !commandRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -166,6 +194,39 @@ export function SidebarSearch({
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
+  }, []);
+  
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMountedRef.current) return;
+    
+    setQuery(e.target.value);
+    setIsOpen(e.target.value.length > 0);
+  }, []);
+  
+  const handleInputFocus = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    if (query.length > 0) {
+      setIsOpen(true);
+    }
+  }, [query]);
+  
+  const handleCategoryClick = useCallback((categoryId: string) => {
+    if (!isMountedRef.current) return;
+    
+    handleSearch(categoryId);
+  }, [handleSearch]);
+  
+  const handleCategoryMouseEnter = useCallback((index: number) => {
+    if (!isMountedRef.current) return;
+    
+    setActiveIndex(index);
+  }, []);
+  
+  const handleCategoryMouseLeave = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    setActiveIndex(-1);
   }, []);
   
   return (
@@ -183,15 +244,8 @@ export function SidebarSearch({
               placeholder="Search..."
               className="pl-9 pr-9 rounded-full shadow-none focus:ring-0 focus:ring-offset-0 active:ring-0 active:ring-offset-0 outline-none focus-visible:outline-none focus-visible:ring-0"
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setIsOpen(e.target.value.length > 0);
-              }}
-              onFocus={() => {
-                if (query.length > 0) {
-                  setIsOpen(true);
-                }
-              }}
+              onChange={handleInputChange}
+              onFocus={handleInputFocus}
               onKeyDown={handleKeyDown}
             />
             {query && !hideClearButton && (
@@ -218,9 +272,9 @@ export function SidebarSearch({
                     return (
                       <div 
                         key={category.id}
-                        onClick={() => handleSearch(category.id)}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onMouseLeave={() => setActiveIndex(-1)}
+                        onClick={() => handleCategoryClick(category.id)}
+                        onMouseEnter={() => handleCategoryMouseEnter(index)}
+                        onMouseLeave={handleCategoryMouseLeave}
                         className={`relative flex cursor-pointer select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none gap-2 transition-colors ${
                           activeIndex === index ? "bg-accent text-accent-foreground" : ""
                         }`}
@@ -238,4 +292,7 @@ export function SidebarSearch({
       </div>
     </div>
   );
-} 
+}
+
+// Export memoized component
+export const SidebarSearch = memo(SidebarSearchComponent); 

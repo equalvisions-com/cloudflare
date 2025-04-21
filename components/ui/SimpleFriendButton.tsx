@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -34,7 +34,7 @@ interface SimpleFriendButtonProps {
   friendsClassName?: string;
 }
 
-export function SimpleFriendButton({ 
+const SimpleFriendButtonComponent = ({ 
   username, 
   userId, 
   profileData, 
@@ -43,11 +43,25 @@ export function SimpleFriendButton({
   loadingClassName = "",
   pendingClassName = "text-muted-foreground",
   friendsClassName = "text-muted-foreground" 
-}: SimpleFriendButtonProps) {
+}: SimpleFriendButtonProps) => {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Only fetch friendship status if not provided from server and user is authenticated
   const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;
@@ -69,22 +83,26 @@ export function SimpleFriendButton({
 
   // Update local state when friendship status changes from query
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (friendshipStatus) {
       setCurrentStatus(friendshipStatus);
     }
   }, [friendshipStatus]);
 
   // Handle add friend action
-  const handleAddFriend = async () => {
+  const handleAddFriend = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
     }
     
+    if (!isMountedRef.current) return;
+    
     setIsActionLoading(true);
     try {
       const result = await sendRequest({ requesteeId: userId });
-      if (result) {
+      if (result && isMountedRef.current) {
         // Optimistically update UI with the returned friendship ID
         setCurrentStatus({
           exists: true,
@@ -96,59 +114,74 @@ export function SimpleFriendButton({
     } catch (error) {
       console.error("Failed to send friend request:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [isAuthenticated, router, userId, sendRequest]);
 
   // Handle accept friend request
-  const handleAcceptFriend = async () => {
+  const handleAcceptFriend = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
     }
     
-    if (!currentStatus?.friendshipId) return;
+    if (!currentStatus?.friendshipId || !isMountedRef.current) return;
     
     setIsActionLoading(true);
     try {
       await acceptRequest({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
-      setCurrentStatus({
-        ...currentStatus,
-        status: "accepted",
-      });
+      if (isMountedRef.current) {
+        setCurrentStatus({
+          ...currentStatus,
+          status: "accepted",
+        });
+      }
     } catch (error) {
       console.error("Failed to accept friend request:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [isAuthenticated, router, currentStatus, acceptRequest]);
 
   // Handle unfriend or cancel request
-  const handleUnfriend = async () => {
+  const handleUnfriend = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
     }
     
-    if (!currentStatus?.friendshipId) return;
+    if (!currentStatus?.friendshipId || !isMountedRef.current) return;
     
     setIsActionLoading(true);
     try {
       await deleteFriendship({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
-      setCurrentStatus({
-        exists: false,
-        status: null,
-        direction: null,
-        friendshipId: null,
-      });
+      if (isMountedRef.current) {
+        setCurrentStatus({
+          exists: false,
+          status: null,
+          direction: null,
+          friendshipId: null,
+        });
+      }
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [isAuthenticated, router, currentStatus, deleteFriendship]);
+
+  // Memoize the signin redirect handler
+  const handleSignInRedirect = useCallback(() => {
+    router.push("/signin");
+  }, [router]);
 
   // Show "Your Profile" button on own profile
   if (currentStatus?.status === "self" && isAuthenticated) {
@@ -177,7 +210,7 @@ export function SimpleFriendButton({
         variant="default" 
         size="sm" 
         className={cn(className, "border-0 shadow-none")}
-        onClick={() => router.push("/signin")}
+        onClick={handleSignInRedirect}
       >
         Add Friend
       </Button>
@@ -248,4 +281,7 @@ export function SimpleFriendButton({
       Add Friend
     </Button>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const SimpleFriendButton = memo(SimpleFriendButtonComponent); 

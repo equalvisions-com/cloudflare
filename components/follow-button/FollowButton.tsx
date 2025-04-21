@@ -7,7 +7,7 @@ import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useFollowActions } from "./actions";
 import useSWR, { mutate as globalMutate } from 'swr';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { cn } from "@/lib/utils";
 
 interface FollowButtonProps {
@@ -28,15 +28,16 @@ const fetcher = async (key: string) => {
   return res.json();
 };
 
-export function FollowButtonWithErrorBoundary(props: FollowButtonProps) {
+export const FollowButtonWithErrorBoundary = memo(function FollowButtonWithErrorBoundary(props: FollowButtonProps) {
   return (
     <ErrorBoundary>
       <FollowButton {...props} />
     </ErrorBoundary>
   );
-}
+});
 
-export function FollowButton({ 
+// Create the component implementation that will be memoized
+const FollowButtonComponent = ({ 
   postId, 
   feedUrl, 
   postTitle, 
@@ -44,10 +45,13 @@ export function FollowButton({
   isAuthenticated: serverIsAuthenticated,
   className,
   disableAutoFetch = false
-}: FollowButtonProps) {
+}: FollowButtonProps) => {
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
   const { followPost, unfollowPost } = useFollowActions();
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // Use server-provided auth state initially, then client state once available
   const isAuthenticated = clientIsAuthenticated ?? serverIsAuthenticated;
@@ -58,6 +62,17 @@ export function FollowButton({
   // Skip fetching if we're in a list context that already provided the follow state
   // or if fetching is explicitly disabled
   const shouldFetch = isAuthenticated && !disableAutoFetch;
+
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const { data, mutate } = useSWR(
     shouldFetch ? postId : null,
@@ -75,6 +90,8 @@ export function FollowButton({
 
   // Set loaded state once we have either SWR data or initial data
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (!isLoaded && (data || initialIsFollowing !== undefined)) {
       setIsLoaded(true);
     }
@@ -88,11 +105,14 @@ export function FollowButton({
   // Make sure we use the most accurate state available
   const isFollowing = data?.isFollowing ?? initialIsFollowing;
 
-  const handleClick = async () => {
+  // Memoize the click handler to prevent unnecessary recreations between renders
+  const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
       router.push("/signin");
       return;
     }
+
+    if (!isMountedRef.current) return;
 
     // Optimistic update
     const newState = { isFollowing: !isFollowing };
@@ -102,6 +122,8 @@ export function FollowButton({
       const success = isFollowing
         ? await unfollowPost(postId, postTitle)
         : await followPost(postId, feedUrl, postTitle);
+
+      if (!isMountedRef.current) return;
 
       if (success) {
         // After successful mutation, update all instances
@@ -119,9 +141,21 @@ export function FollowButton({
       }
     } catch (err) {
       console.error('Error updating follow status:', err);
-      await mutate(undefined, true);
+      if (isMountedRef.current) {
+        await mutate(undefined, true);
+      }
     }
-  };
+  }, [
+    isAuthenticated, 
+    router, 
+    isFollowing, 
+    mutate, 
+    unfollowPost, 
+    postId, 
+    postTitle, 
+    followPost, 
+    feedUrl
+  ]);
 
   return (
     <Button
@@ -137,4 +171,7 @@ export function FollowButton({
       {isFollowing ? "Following" : "Follow"}
     </Button>
   );
-}
+};
+
+// Export the memoized version of the component
+export const FollowButton = memo(FollowButtonComponent);

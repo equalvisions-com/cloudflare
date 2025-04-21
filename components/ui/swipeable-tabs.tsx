@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height'; // Re-add AutoHeight
@@ -89,16 +89,20 @@ const TabContent = React.memo(({
 });
 TabContent.displayName = 'TabContent';
 
-export function SwipeableTabs({
+// Main SwipeableTabs component implementation
+const SwipeableTabsComponent = ({
   tabs,
   defaultTabIndex = 0,
   className,
-  animationDuration = 20, // Reduced from 400 to 20 for faster animations
+  animationDuration = 20,
   onTabChange,
-}: SwipeableTabsProps) {
+}: SwipeableTabsProps) => {
   const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // Store scroll positions for each tab
   const scrollPositionsRef = useRef<Record<number, number>>({});
@@ -118,13 +122,270 @@ export function SwipeableTabs({
     time: Date.now() 
   });
   
+  // Refs for slides and observer
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
+  const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
+  const tabHeightsRef = useRef<Record<number, number>>({});
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
+  // Function for mobile detection
+  const checkMobile = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+  
+  // Memoize carousel options for better performance
+  const carouselOptions = useMemo(() => {
+    return isMobile 
+      ? { 
+          loop: false,
+          skipSnaps: false,
+          startIndex: defaultTabIndex,
+          align: 'start' as const,
+          containScroll: 'trimSnaps' as const,
+          dragFree: false,
+          duration: animationDuration,
+          dragThreshold: 20,
+          axis: 'x' as const,
+        }
+      : {
+          loop: false,
+          skipSnaps: false,
+          startIndex: defaultTabIndex,
+          align: 'start' as const,
+          containScroll: 'trimSnaps' as const,
+          duration: animationDuration,
+          axis: 'x' as const,
+        };
+  }, [isMobile, defaultTabIndex, animationDuration]);
+
+  // Initialize the Embla carousel with memoized options
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    carouselOptions, 
+    [
+      AutoHeight(),
+      ...(isMobile ? [WheelGesturesPlugin()] : [])
+    ]
+  );
+  
+  // Memoized function to measure slide heights
+  const measureSlideHeights = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    slideRefs.current.forEach((slide, index) => {
+      if (slide && slide.offsetHeight > 0) {
+        tabHeightsRef.current[index] = slide.offsetHeight;
+      }
+    });
+  }, []);
+  
+  // Function to handle tab change with debouncing
+  const handleTabChangeWithDebounce = useCallback((index: number) => {
+    if (!isMountedRef.current) return;
+    
+    // Skip if it's the same tab or if the change happened too recently (within 300ms)
+    const now = Date.now();
+    if (
+      index === lastTabChangeRef.current.index || 
+      (now - lastTabChangeRef.current.time < 300 && index !== selectedTab)
+    ) {
+      return;
+    }
+    
+    // Update the last tab change ref
+    lastTabChangeRef.current = { index, time: now };
+    
+    // Call the onTabChange callback if provided
+    if (onTabChange) {
+      onTabChange(index);
+    }
+  }, [onTabChange, selectedTab]);
+  
+  // Function to restore scroll position (always async)
+  const restoreScrollPosition = useCallback((index: number) => {
+    if (!isMountedRef.current) return;
+    
+    // Set flag to prevent scroll events during restoration
+    isRestoringScrollRef.current = true;
+    
+    // Get saved position (default to 0 if not set)
+    const savedPosition = scrollPositionsRef.current[index] ?? 0;
+    
+    // Always use requestAnimationFrame for smoothness
+    requestAnimationFrame(() => {
+      if (!isMountedRef.current) return;
+      
+      window.scrollTo(0, savedPosition);
+      // Reset flag after a short delay
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        isRestoringScrollRef.current = false;
+      }, 100);
+    });
+  }, []);
+  
+  // Handle tab click
+  const handleTabClick = useCallback(
+    (index: number) => {
+      if (!isMountedRef.current) return;
+      
+      if (!emblaApi || index === selectedTab) return;
+
+      // Save current scroll position before jumping
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
+
+      // Signal that the next 'select' event is from an instant jump
+      isInstantJumpRef.current = true; 
+
+      // Jump instantly
+      emblaApi.scrollTo(index, true);
+    },
+    [emblaApi, selectedTab]
+  );
+  
+  // Handlers for transition state
+  const handleTransitionStart = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setIsTransitioning(true);
+  }, []);
+  
+  const handleTransitionEnd = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    // Add a small delay to ensure smooth transition
+    setTimeout(() => {
+      if (!isMountedRef.current) return;
+      setIsTransitioning(false);
+    }, 50);
+  }, []);
+  
+  // Interaction state handlers
+  const handlePointerDown = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setIsInteracting(true);
+  }, []);
+  
+  const handleSettle = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setIsInteracting(false);
+  }, []);
+  
+  // Observer handlers
+  const disableObserver = useCallback(() => {
+    if (!isMountedRef.current) return;
+    observerRef.current?.disconnect();
+  }, []);
+  
+  const enableObserver = useCallback(() => {
+    if (!observerRef.current || typeof window === 'undefined' || !isMountedRef.current) return;
+    
+    if (!emblaApi) return;
+
+    // Wait a bit before reconnecting to avoid interrupting animation
+    setTimeout(() => {
+      if (!isMountedRef.current) return;
+      
+      // Get the CURRENT selected index directly from emblaApi
+      const currentSelectedIndex = emblaApi.selectedScrollSnap();
+      const activeSlideNode = slideRefs.current[currentSelectedIndex];
+
+      if (activeSlideNode && observerRef.current) {
+        // Ensure we don't observe multiple times if events fire closely
+        observerRef.current.disconnect(); 
+        observerRef.current.observe(activeSlideNode);
+      }
+    }, 250); // Wait 250ms after settle/pointerUp before re-enabling height adjustment
+  }, [emblaApi]);
+  
+  // Transition handlers for ResizeObserver effect
+  const onTransitionStart = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    if (!emblaApi) return;
+    
+    // Apply fixed height to container during animation
+    const emblaContainer = emblaApi.containerNode();
+    const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
+    if (emblaContainer && targetHeight) {
+      emblaContainer.style.height = `${targetHeight}px`;
+      emblaContainer.style.transition = 'none';
+    }
+  }, [emblaApi]);
+  
+  const onTransitionEnd = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    if (!emblaApi) return;
+    
+    // After transition completes, let AutoHeight take over again
+    const emblaContainer = emblaApi.containerNode();
+    if (emblaContainer) {
+      setTimeout(() => {
+        if (!isMountedRef.current || !emblaContainer) return;
+        
+        // First, add a smooth transition for height
+        emblaContainer.style.transition = 'height 200ms ease-out';
+        
+        // Get the next tab's height
+        const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
+        if (targetHeight) {
+          // Apply the exact target height with a transition
+          emblaContainer.style.height = `${targetHeight}px`;
+          
+          // After transition completes, remove fixed height and let AutoHeight take over
+          setTimeout(() => {
+            if (!isMountedRef.current || !emblaContainer) return;
+            
+            emblaContainer.style.height = '';
+            emblaContainer.style.transition = '';
+            emblaApi.reInit();
+            // Remeasure heights
+            measureSlideHeights();
+          }, 200); // Match the increased transition duration
+        } else {
+          // Fallback if height not available
+          emblaContainer.style.height = '';
+          emblaContainer.style.transition = '';
+          emblaApi.reInit();
+          // Remeasure heights
+          measureSlideHeights();
+        }
+      }, 50); // Short delay after animation
+    }
+  }, [emblaApi, measureSlideHeights]);
+  
+  // Handlers for preventing navigation
+  const preventWheelNavigation = useCallback((e: WheelEvent) => {
+    if (!isMountedRef.current) return;
+    
+    if (!emblaApi) return;
+    
+    const internalEngine = (emblaApi as any).internalEngine?.();
+    if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
+      return;
+    }
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && internalEngine.dragHandler.pointerDown()) {
+      e.preventDefault();
+    }
+  }, [emblaApi]);
+  
   // Create memoized component renderers
   const memoizedTabRenderers = useMemo(() => {
     return tabs.map((tab) => {
       // This function is stable across renders
-      const TabRenderer = () => { // Removed isActive parameter
+      const TabRenderer = () => {
         const TabComponent = tab.component;
-        return <TabComponent />; // Removed isActive prop
+        return <TabComponent />;
       };
       // Add display name to satisfy the linter
       TabRenderer.displayName = `TabRenderer_${tab.id}`;
@@ -134,6 +395,8 @@ export function SwipeableTabs({
   
   // Initialize scroll positions for all tabs to 0
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     tabs.forEach((_, index) => {
       if (scrollPositionsRef.current[index] === undefined) {
         scrollPositionsRef.current[index] = 0;
@@ -141,16 +404,9 @@ export function SwipeableTabs({
     });
   }, [tabs]);
   
-  // Use the AutoHeight plugin with default options
-  const slideRefs = useRef<(HTMLDivElement | null)[]>([]); // Ref to hold slide elements
-  const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
-  const tabHeightsRef = useRef<Record<number, number>>({});
-  
   // Add effect to check screen size and update isMobile state
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
+    if (!isMountedRef.current) return;
     
     // Check initially
     checkMobile();
@@ -161,70 +417,28 @@ export function SwipeableTabs({
     return () => {
       window.removeEventListener('resize', checkMobile);
     };
-  }, []);
-
-  // Initialize the Embla carousel with the current settings
-  const [emblaRef, emblaApi] = useEmblaCarousel(
-    isMobile 
-      ? { 
-          loop: false,
-          skipSnaps: false,
-          startIndex: defaultTabIndex,
-          align: 'start',
-          containScroll: 'trimSnaps',
-          dragFree: false,
-          duration: animationDuration,
-          dragThreshold: 20,
-          axis: 'x',
-        }
-      : {
-          loop: false,
-          skipSnaps: false,
-          startIndex: defaultTabIndex,
-          align: 'start',
-          containScroll: 'trimSnaps',
-          duration: animationDuration,
-          axis: 'x',
-        }, 
-    [
-      AutoHeight(),
-      ...(isMobile ? [WheelGesturesPlugin()] : [])
-    ]
-  );
+  }, [checkMobile]);
 
   // Ensure we initialize with the default tab
   useEffect(() => {
-    if (emblaApi) {
-      // This is needed to ensure proper initial selection
-      emblaApi.scrollTo(defaultTabIndex, true);
-      // Ensure proper selected tab state matches Embla's state
-      setSelectedTab(emblaApi.selectedScrollSnap());
-    }
+    if (!emblaApi || !isMountedRef.current) return;
+    
+    // This is needed to ensure proper initial selection
+    emblaApi.scrollTo(defaultTabIndex, true);
+    // Ensure proper selected tab state matches Embla's state
+    setSelectedTab(emblaApi.selectedScrollSnap());
   }, [emblaApi, defaultTabIndex]);
 
   // Disable all touch and pointer events on desktop - REVISED LOGIC
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!emblaApi || !isMountedRef.current) return;
 
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
 
-    // Function to prevent accidental swipes - keep this
-    const disableHorizontalSwipes = (e: Event) => {
-      if (!isMobile) { // Only prevent on desktop/iPad
-        // Check if the event target is within the scrollable content? Might be too complex.
-        // Let's keep preventing default for now, but remove pointer-events none.
-        // e.preventDefault(); // Revisit if still needed
-        // e.stopPropagation(); // Revisit if still needed
-      }
-    };
-
     // ALWAYS allow vertical panning and pinch zoom on the container
     viewportElement.style.touchAction = 'pan-y pinch-zoom';
     
-    // REMOVE the logic that adds pointer-events: none and listeners based on isMobile
-    // The pointerEvents style on the slide itself will handle active/inactive state.
-
     // Clean up touch-action if needed (though unlikely)
     return () => {
       if (viewportElement) {
@@ -235,6 +449,8 @@ export function SwipeableTabs({
 
   // Save scroll position when user scrolls
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     const handleScroll = () => {
       // Only save scroll position if we're not in the middle of restoring
       if (!isRestoringScrollRef.current) {
@@ -250,7 +466,7 @@ export function SwipeableTabs({
 
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!emblaApi || !isMountedRef.current) return;
     
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
@@ -268,6 +484,8 @@ export function SwipeableTabs({
       const startY = touch.clientY;
       
       const handleTouchMove = (e: TouchEvent) => {
+        if (!isMountedRef.current) return;
+        
         const internalEngine = (emblaApi as any).internalEngine?.();
          if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
            return;
@@ -293,17 +511,6 @@ export function SwipeableTabs({
       document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
-    // Prevent mousewheel horizontal navigation (for trackpads)
-    const preventWheelNavigation = (e: WheelEvent) => {
-      const internalEngine = (emblaApi as any).internalEngine?.();
-       if (!internalEngine || !internalEngine.dragHandler || !internalEngine.dragHandler.pointerDown?.()) {
-         return;
-      }
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && internalEngine.dragHandler.pointerDown()) {
-        e.preventDefault();
-      }
-    };
-    
     // Add event listeners with passive: false to allow preventDefault
     viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
     // Conditionally add wheel listener if WheelGesturesPlugin is used
@@ -317,11 +524,11 @@ export function SwipeableTabs({
          viewportElement.removeEventListener('wheel', preventWheelNavigation);
       }
     };
-  }, [emblaApi]);
+  }, [emblaApi, preventWheelNavigation]);
 
   // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
-    if (!emblaApi || typeof window === 'undefined') return;
+    if (!emblaApi || typeof window === 'undefined' || !isMountedRef.current) return;
 
     const activeSlideNode = slideRefs.current[selectedTab];
     if (!activeSlideNode) return;
@@ -330,76 +537,8 @@ export function SwipeableTabs({
     let isInTransition = false;
     let delayedReInitTimeout: ReturnType<typeof setTimeout> | null = null;
     
-    // Pre-measure slide heights to avoid layout shifts during animation
-    const measureSlideHeights = () => {
-      slideRefs.current.forEach((slide, index) => {
-        if (slide && slide.offsetHeight > 0) {
-          tabHeightsRef.current[index] = slide.offsetHeight;
-        }
-      });
-    };
-    
     // Call initially
     measureSlideHeights();
-    
-    // Function to track transition state
-    const onTransitionStart = () => {
-      isInTransition = true;
-      
-      // Apply fixed height to container during animation
-      const emblaContainer = emblaApi.containerNode();
-      const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
-      if (emblaContainer && targetHeight) {
-        emblaContainer.style.height = `${targetHeight}px`;
-        emblaContainer.style.transition = 'none';
-      }
-      
-      // Clear any pending reInit when a new transition starts
-      if (delayedReInitTimeout) {
-        clearTimeout(delayedReInitTimeout);
-        delayedReInitTimeout = null;
-      }
-    };
-    
-    const onTransitionEnd = () => {
-      isInTransition = false;
-      
-      // After transition completes, let AutoHeight take over again
-      const emblaContainer = emblaApi.containerNode();
-      if (emblaContainer) {
-        setTimeout(() => {
-          if (emblaContainer) {
-            // First, add a smooth transition for height
-            emblaContainer.style.transition = 'height 200ms ease-out';
-            
-            // Get the next tab's height
-            const targetHeight = tabHeightsRef.current[emblaApi.selectedScrollSnap()];
-            if (targetHeight) {
-              // Apply the exact target height with a transition
-              emblaContainer.style.height = `${targetHeight}px`;
-              
-              // After transition completes, remove fixed height and let AutoHeight take over
-              setTimeout(() => {
-                if (emblaContainer) {
-                  emblaContainer.style.height = '';
-                  emblaContainer.style.transition = '';
-                  emblaApi.reInit();
-                  // Remeasure heights
-                  measureSlideHeights();
-                }
-              }, 200); // Match the increased transition duration
-            } else {
-              // Fallback if height not available
-              emblaContainer.style.height = '';
-              emblaContainer.style.transition = '';
-              emblaApi.reInit();
-              // Remeasure heights
-              measureSlideHeights();
-            }
-          }
-        }, 50); // Short delay after animation
-      }
-    };
     
     // Add transition listeners
     emblaApi.on('settle', onTransitionEnd);
@@ -407,24 +546,27 @@ export function SwipeableTabs({
 
     // Create the observer instance
     const resizeObserver = new ResizeObserver(() => {
+      if (!isMountedRef.current) return;
+      
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
         // Wrap reInit in requestAnimationFrame
         window.requestAnimationFrame(() => {
-          if (emblaApi) {
-            // If in transition, delay reInit
-            if (isInTransition) {
-              // If animating, delay reInit until animation completes with a much longer buffer
-              if (delayedReInitTimeout) {
-                clearTimeout(delayedReInitTimeout);
-              }
-              // Use a much longer delay (300ms) to ensure animation is truly complete
-              delayedReInitTimeout = setTimeout(() => {
-                if (emblaApi) emblaApi.reInit();
-              }, 300); // Buffer after animation to prevent visible snapping
-            } else {
-              emblaApi.reInit();
+          if (!isMountedRef.current || !emblaApi) return;
+          
+          // If in transition, delay reInit
+          if (isInTransition) {
+            // If animating, delay reInit until animation completes with a much longer buffer
+            if (delayedReInitTimeout) {
+              clearTimeout(delayedReInitTimeout);
             }
+            // Use a much longer delay (300ms) to ensure animation is truly complete
+            delayedReInitTimeout = setTimeout(() => {
+              if (!isMountedRef.current || !emblaApi) return;
+              emblaApi.reInit();
+            }, 300); // Buffer after animation to prevent visible snapping
+          } else {
+            emblaApi.reInit();
           }
         });
       }, 250); // Slightly longer debounce
@@ -437,7 +579,6 @@ export function SwipeableTabs({
 
     // Cleanup: disconnect the observer when tab changes or component unmounts
     return () => {
-      // console.log('Disconnecting observer for tab', selectedTab); // Debug log
       resizeObserver.disconnect();
       observerRef.current = null; // Clear the ref
       if (debounceTimeout) clearTimeout(debounceTimeout);
@@ -445,37 +586,11 @@ export function SwipeableTabs({
       emblaApi.off('settle', onTransitionEnd);
       emblaApi.off('select', onTransitionStart);
     };
-  }, [emblaApi, selectedTab, animationDuration]); // Dependency on selectedTab ensures it observes the correct initial node
+  }, [emblaApi, selectedTab, animationDuration, measureSlideHeights, onTransitionStart, onTransitionEnd]);
 
   // --- Effect to PAUSE/RESUME observer during interaction ---
   useEffect(() => {
-    if (!emblaApi || !observerRef) return; // Need emblaApi and the observerRef
-
-    const disableObserver = () => {
-        // console.log('Pointer Down: Disconnecting observer'); // Debug log
-        observerRef.current?.disconnect();
-    };
-
-    const enableObserver = () => {
-        // console.log('Pointer Up / Settle: Attempting to reconnect observer'); // Debug log
-        if (!emblaApi || !observerRef.current || typeof window === 'undefined') return;
-
-        // Wait a bit before reconnecting to avoid interrupting animation
-        setTimeout(() => {
-          // Get the CURRENT selected index directly from emblaApi
-          const currentSelectedIndex = emblaApi.selectedScrollSnap();
-          const activeSlideNode = slideRefs.current[currentSelectedIndex];
-
-          if (activeSlideNode && observerRef.current) {
-            // console.log('Reconnecting observer to tab', currentSelectedIndex); // Debug log
-            // Ensure we don't observe multiple times if events fire closely
-            observerRef.current.disconnect(); 
-            observerRef.current.observe(activeSlideNode);
-          } else {
-            // console.log('Could not find active slide node for index', currentSelectedIndex); // Debug log
-          }
-        }, 250); // Wait 250ms after settle/pointerUp before re-enabling height adjustment
-    };
+    if (!emblaApi || !observerRef || !isMountedRef.current) return;
 
     // Add listeners
     emblaApi.on('pointerDown', disableObserver);
@@ -488,69 +603,15 @@ export function SwipeableTabs({
       emblaApi.off('pointerUp', enableObserver);
       emblaApi.off('settle', enableObserver);
     };
-    // Only depends on emblaApi itself, enableObserver has its own logic to find the right node
-  }, [emblaApi]);
-
-  // Function to handle tab change with debouncing
-  const handleTabChangeWithDebounce = useCallback((index: number) => {
-    // Skip if it's the same tab or if the change happened too recently (within 300ms)
-    const now = Date.now();
-    if (
-      index === lastTabChangeRef.current.index || 
-      (now - lastTabChangeRef.current.time < 300 && index !== selectedTab)
-    ) {
-      return;
-    }
-    
-    // Update the last tab change ref
-    lastTabChangeRef.current = { index, time: now };
-    
-    // Call the onTabChange callback if provided
-    if (onTabChange) {
-      onTabChange(index);
-    }
-  }, [onTabChange, selectedTab]);
-  
-  // Function to restore scroll position (always async)
-  const restoreScrollPosition = useCallback((index: number) => {
-    // Set flag to prevent scroll events during restoration
-    isRestoringScrollRef.current = true;
-    
-    // Get saved position (default to 0 if not set)
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
-    
-    // Always use requestAnimationFrame for smoothness
-    requestAnimationFrame(() => {
-      window.scrollTo(0, savedPosition);
-      // Reset flag after a short delay
-      setTimeout(() => {
-        isRestoringScrollRef.current = false;
-      }, 100);
-    });
-  }, []);
-
-  // Handle tab click
-  const handleTabClick = useCallback(
-    (index: number) => {
-      if (!emblaApi || index === selectedTab) return;
-
-      // Save current scroll position before jumping
-      scrollPositionsRef.current[selectedTab] = window.scrollY;
-
-      // Signal that the next 'select' event is from an instant jump
-      isInstantJumpRef.current = true; 
-
-      // Jump instantly
-      emblaApi.scrollTo(index, true);
-    },
-    [emblaApi, selectedTab]
-  );
+  }, [emblaApi, disableObserver, enableObserver]);
 
   // Sync tab selection with carousel
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!emblaApi || !isMountedRef.current) return;
     
     const onSelect = () => {
+      if (!isMountedRef.current) return;
+      
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
@@ -578,61 +639,32 @@ export function SwipeableTabs({
     return () => {
       emblaApi.off('select', onSelect);
     };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce]); 
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
   }, [defaultTabIndex]);
 
   // Add effect to track interaction state, linked to animation completion
   useEffect(() => {
-    if (!emblaApi) return;
-
-    // No need to clear timeouts anymore
-    // const clearInteractionTimeout = () => { ... };
-
-    const handlePointerDown = () => {
-      // clearInteractionTimeout(); -- REMOVED
-      setIsInteracting(true);
-    };
-
-    // REMOVED scheduleInteractionEnd function
-    // const scheduleInteractionEnd = () => { ... };
-
-    // Set interacting to false ONLY when the animation settles
-    const handleSettle = () => {
-      setIsInteracting(false);
-    };
+    if (!emblaApi || !isMountedRef.current) return;
 
     emblaApi.on('pointerDown', handlePointerDown);
-    // No longer need to listen to pointerUp for this logic
-    // emblaApi.on('pointerUp', scheduleInteractionEnd);
     emblaApi.on('settle', handleSettle); // Use settle event
 
     return () => {
-      // clearInteractionTimeout(); -- REMOVED
       emblaApi.off('pointerDown', handlePointerDown);
-      // emblaApi.off('pointerUp', scheduleInteractionEnd);
       emblaApi.off('settle', handleSettle);
     };
-  }, [emblaApi]);
+  }, [emblaApi, handlePointerDown, handleSettle]);
 
   // Update transition state handling
   useEffect(() => {
-    if (!emblaApi) return;
-
-    const handleTransitionStart = () => {
-      setIsTransitioning(true);
-    };
-
-    const handleTransitionEnd = () => {
-      // Add a small delay to ensure smooth transition
-      setTimeout(() => {
-        setIsTransitioning(false);
-      }, 50);
-    };
+    if (!emblaApi || !isMountedRef.current) return;
 
     emblaApi.on('settle', handleTransitionEnd);
     emblaApi.on('select', handleTransitionStart);
@@ -641,7 +673,7 @@ export function SwipeableTabs({
       emblaApi.off('settle', handleTransitionEnd);
       emblaApi.off('select', handleTransitionStart);
     };
-  }, [emblaApi]);
+  }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
 
   return (
     <div 
@@ -658,14 +690,13 @@ export function SwipeableTabs({
       <div 
         className={cn(
           "w-full overflow-hidden embla__swipeable_tabs"
-          // REMOVE: !isMobile && "pointer-events-none" 
         )}
         ref={emblaRef}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
           WebkitBackfaceVisibility: 'hidden',
-          touchAction: 'pan-y pinch-zoom' // APPLY CONSISTENTLY
+          touchAction: 'pan-y pinch-zoom'
         }}
       >
         <div className="flex items-start"
@@ -688,8 +719,8 @@ export function SwipeableTabs({
                   "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
                   isTransitioning && "transitioning"
                 )}
-                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }} // Correct ref assignment
-                aria-hidden={!isActive} // Add aria-hidden for accessibility
+                ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
+                aria-hidden={!isActive}
                 style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
@@ -712,4 +743,7 @@ export function SwipeableTabs({
       </div>
     </div>
   );
-} 
+};
+
+// Export memoized component
+export const SwipeableTabs = memo(SwipeableTabsComponent); 

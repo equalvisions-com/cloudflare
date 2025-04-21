@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, useRef, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -40,13 +40,27 @@ interface FriendButtonProps {
   initialFriendshipStatus?: FriendshipStatus | null; // Add prop for server-provided status
 }
 
-export function FriendButton({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) {
+const FriendButtonComponent = ({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) => {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
   const router = useRouter();
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Only fetch viewer if authenticated and we need it
   const needsViewerQuery = isAuthenticated && 
@@ -73,77 +87,110 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
 
   // Update local state when friendship status changes from query
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (friendshipStatus) {
       setCurrentStatus(friendshipStatus);
     }
   }, [friendshipStatus]);
 
   // Handle add friend action
-  const handleAddFriend = async () => {
-    if (!isAuthenticated) return;
+  const handleAddFriend = useCallback(async () => {
+    if (!isAuthenticated || !isMountedRef.current) return;
     
     setIsActionLoading(true);
     try {
       await sendRequest({ requesteeId: userId });
       // Optimistically update UI
-      setCurrentStatus({
-        exists: true,
-        status: "pending",
-        direction: "sent",
-        friendshipId: null, // We don't know the ID yet, will be updated on next query
-      });
+      if (isMountedRef.current) {
+        setCurrentStatus({
+          exists: true,
+          status: "pending",
+          direction: "sent",
+          friendshipId: null, // We don't know the ID yet, will be updated on next query
+        });
+      }
     } catch (error) {
       console.error("Failed to send friend request:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [isAuthenticated, sendRequest, userId]);
 
   // Handle accept friend request
-  const handleAcceptFriend = async () => {
-    if (!currentStatus?.friendshipId || !isAuthenticated) return;
+  const handleAcceptFriend = useCallback(async () => {
+    if (!currentStatus?.friendshipId || !isAuthenticated || !isMountedRef.current) return;
     
     setIsActionLoading(true);
     try {
       await acceptRequest({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
-      setCurrentStatus({
-        ...currentStatus,
-        status: "accepted",
-      });
-      updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
+      if (isMountedRef.current) {
+        setCurrentStatus({
+          ...currentStatus,
+          status: "accepted",
+        });
+        updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
+      }
     } catch (error) {
       console.error("Failed to accept friend request:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [currentStatus, isAuthenticated, acceptRequest, updatePendingFriendRequestCount, pendingFriendRequestCount]);
 
   // Handle unfriend or cancel request
-  const handleUnfriend = async () => {
-    if (!currentStatus?.friendshipId || !isAuthenticated) return;
+  const handleUnfriend = useCallback(async () => {
+    if (!currentStatus?.friendshipId || !isAuthenticated || !isMountedRef.current) return;
     
     setIsActionLoading(true);
     try {
       await deleteFriendship({ friendshipId: currentStatus.friendshipId });
       // Optimistically update UI
-      setCurrentStatus({
-        exists: false,
-        status: null,
-        direction: null,
-        friendshipId: null,
-      });
-      
-      // If we're declining a pending request, decrement the count
-      if (currentStatus.status === "pending" && currentStatus.direction === "received") {
-        updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
+      if (isMountedRef.current) {
+        setCurrentStatus({
+          exists: false,
+          status: null,
+          direction: null,
+          friendshipId: null,
+        });
+        
+        // If we're declining a pending request, decrement the count
+        if (currentStatus.status === "pending" && currentStatus.direction === "received") {
+          updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
+        }
       }
     } catch (error) {
       console.error("Failed to unfriend:", error);
     } finally {
-      setIsActionLoading(false);
+      if (isMountedRef.current) {
+        setIsActionLoading(false);
+      }
     }
-  };
+  }, [currentStatus, isAuthenticated, deleteFriendship, updatePendingFriendRequestCount, pendingFriendRequestCount]);
+
+  // Memoize the edit profile handler
+  const handleEditProfileClick = useCallback(() => {
+    if (isMountedRef.current) {
+      setIsEditModalOpen(true);
+    }
+  }, []);
+
+  // Memoize the modal close handler
+  const handleModalClose = useCallback(() => {
+    if (isMountedRef.current) {
+      setIsEditModalOpen(false);
+    }
+  }, []);
+
+  // Memoize the signin redirect handler
+  const handleSignInRedirect = useCallback(() => {
+    router.push("/signin");
+  }, [router]);
 
   // Show edit profile button on own profile
   if (currentStatus?.status === "self" && isAuthenticated) {
@@ -156,7 +203,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           variant="ghost" 
           size="sm" 
           className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground"
-          onClick={() => setIsEditModalOpen(true)}
+          onClick={handleEditProfileClick}
         >
           Edit Profile
         </Button>
@@ -165,7 +212,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           <Suspense fallback={null}>
             <EditProfileModal 
               isOpen={isEditModalOpen} 
-              onClose={() => setIsEditModalOpen(false)} 
+              onClose={handleModalClose} 
               userId={user._id}
               initialData={profileData}
             />
@@ -200,7 +247,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
           variant="ghost" 
           size="sm" 
           className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
-          onClick={() => router.push("/signin")}
+          onClick={handleSignInRedirect}
         >
           Add Friend
         </Button>
@@ -320,4 +367,7 @@ export function FriendButton({ username, userId, profileData, initialFriendshipS
       </Button>
     </div>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const FriendButton = memo(FriendButtonComponent); 

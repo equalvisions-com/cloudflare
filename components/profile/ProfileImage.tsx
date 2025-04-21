@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { User } from "lucide-react";
+import { memo, useMemo } from "react";
 
 interface ProfileImageProps {
   profileImage?: string | null;
@@ -11,12 +12,12 @@ interface ProfileImageProps {
   className?: string;
 }
 
-export function ProfileImage({ 
+const ProfileImageComponent = ({ 
   profileImage, 
   username, 
   size = "md", 
   className = "" 
-}: ProfileImageProps) {
+}: ProfileImageProps) => {
   // Size mappings
   const sizeClasses = {
     sm: "w-10 h-10",
@@ -34,8 +35,15 @@ export function ProfileImage({
     xl: "h-16 w-16"
   };
 
-  const sizeClass = sizeClasses[size];
-  const iconSize = iconSizes[size];
+  // Memoize size calculations to prevent recalculation on re-renders
+  const { sizeClass, iconSize, imageSizes } = useMemo(() => {
+    const sizeClass = sizeClasses[size];
+    const iconSize = iconSizes[size];
+    const sizeValue = parseInt(sizeClass.split("w-")[1]) * 4;
+    const imageSizes = `(max-width: 768px) ${sizeValue}px, ${sizeValue}px`;
+    
+    return { sizeClass, iconSize, imageSizes };
+  }, [size]);
   
   // If no profile image is provided, show a fallback
   if (!profileImage) {
@@ -55,11 +63,14 @@ export function ProfileImage({
           alt={`${username}'s profile picture`}
           fill
           className="object-cover"
-          sizes={`(max-width: 768px) ${parseInt(sizeClass.split("w-")[1]) * 4}px, ${parseInt(sizeClass.split("w-")[1]) * 4}px`}
+          sizes={imageSizes}
           loading="lazy"
           priority={false}
         />
       </AspectRatio>
     </div>
   );
-} 
+};
+
+// Export the memoized version of the component
+export const ProfileImage = memo(ProfileImageComponent); 

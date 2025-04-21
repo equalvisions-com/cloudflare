@@ -6,7 +6,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Home, Podcast, User, Mail, MessageCircle, Bell, LogIn, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, memo } from "react";
+import { useMemo, memo, useCallback, useRef, useEffect } from "react";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { Badge } from "@/components/ui/badge";
@@ -72,17 +72,33 @@ NavLink.displayName = 'NavLink';
 /**
  * Fixed-width sidebar for navigation
  */
-function Sidebar() {
+const SidebarComponent = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount, isBoarded } = useSidebar();
   const { handleSignOut } = useUserMenuState(displayName, profileImage, username);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Custom sign out handler with redirect
-  const handleSignOutWithRedirect = async () => {
+  const handleSignOutWithRedirect = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     await handleSignOut();
     router.push('/');
-  };
+  }, [handleSignOut, router]);
 
   // Memoize route matching logic
   const isRouteActive = useMemo(() => {
@@ -229,4 +245,7 @@ function Sidebar() {
       </CardContent>
     </Card>
   );
-} 
+};
+
+// Export the memoized version of the component
+const Sidebar = memo(SidebarComponent); 

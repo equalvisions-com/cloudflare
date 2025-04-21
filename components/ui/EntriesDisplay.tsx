@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef, memo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Loader2 } from 'lucide-react';
@@ -59,6 +59,20 @@ interface InteractionStates {
 
 // Custom hook for batch metrics
 function useEntriesMetrics(entryGuids: string[], isVisible: boolean) {
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   const batchMetricsQuery = useQuery(
     api.entries.batchGetEntriesMetrics,
     isVisible && entryGuids.length > 0 ? { entryGuids } : "skip"
@@ -94,18 +108,22 @@ function useEntriesMetrics(entryGuids: string[], isVisible: boolean) {
   };
 }
 
-export function EntriesDisplay({
+// Convert to an arrow function component for consistency
+const EntriesDisplayComponent = ({
   mediaType,
   searchQuery,
   className,
   isVisible = false,
-}: EntriesDisplayProps) {
+}: EntriesDisplayProps) => {
   const [entries, setEntries] = useState<RSSEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
   
   // --- Drawer state for comments ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -115,6 +133,17 @@ export function EntriesDisplay({
     initialData?: { count: number };
   } | null>(null);
 
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Get entry guids for metrics
   const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
   
@@ -123,13 +152,21 @@ export function EntriesDisplay({
 
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    if (!isMountedRef.current) return;
+    
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
   }, []);
 
+  // Memoize the comment drawer close handler
+  const handleCommentDrawerClose = useCallback((open: boolean) => {
+    if (!isMountedRef.current) return;
+    setCommentDrawerOpen(open);
+  }, []);
+
   // Memoize loadMore function
   const loadMore = useCallback(async () => {
-    if (!hasMore || isLoading || !isVisible) return;
+    if (!hasMore || isLoading || !isVisible || !isMountedRef.current) return;
 
     const nextPage = page + 1;
     setIsLoading(true);
@@ -138,18 +175,24 @@ export function EntriesDisplay({
       const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}`);
       const data = await response.json();
       
-      setEntries(prev => [...prev, ...data.entries]);
-      setHasMore(data.hasMore);
-      setPage(nextPage);
+      if (isMountedRef.current) {
+        setEntries(prev => [...prev, ...data.entries]);
+        setHasMore(data.hasMore);
+        setPage(nextPage);
+      }
     } catch (error) {
       console.error('Error loading more entries:', error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType]);
 
   // Reset state only when search query changes
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (searchQuery !== lastSearchQuery) {
       setEntries([]);
       setHasMore(true);
@@ -161,19 +204,26 @@ export function EntriesDisplay({
 
   // Initial search effect
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     const searchEntries = async () => {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=1`);
         const data = await response.json();
-        setEntries(data.entries);
-        setHasMore(data.hasMore);
-        setPage(1);
+        
+        if (isMountedRef.current) {
+          setEntries(data.entries);
+          setHasMore(data.hasMore);
+          setPage(1);
+        }
       } catch (error) {
         console.error('Error searching entries:', error);
       } finally {
-        setIsLoading(false);
-        setIsInitialLoad(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          setIsInitialLoad(false);
+        }
       }
     };
 
@@ -239,12 +289,15 @@ export function EntriesDisplay({
           feedUrl={selectedCommentEntry.feedUrl}
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+          setIsOpen={handleCommentDrawerClose}
         />
       )}
     </div>
   );
-}
+};
+
+// Export the memoized version of the component
+export const EntriesDisplay = memo(EntriesDisplayComponent);
 
 // Modified EntryCard to accept interactions prop and onOpenCommentDrawer
 const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: { 
@@ -254,6 +307,20 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
 }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
@@ -310,11 +377,27 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
 
   // Handle card click for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') {
-      e.preventDefault();
-      playTrack(entry.link, entry.title, entry.image || undefined);
-    }
-  }, [entry, playTrack]);
+    e.preventDefault();
+    playTrack(entry.link, entry.title, entry.image || undefined);
+  }, [entry.link, entry.title, entry.image, playTrack]);
+  
+  // Memoize the comment handler
+  const handleCommentClick = useCallback(() => {
+    onOpenCommentDrawer(entry.guid, entry.feed_url || '', interactions.comments);
+  }, [entry.guid, entry.feed_url, interactions.comments, onOpenCommentDrawer]);
+
+  const isPodcast = useMemo(() => {
+    return entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast';
+  }, [entry.post_media_type, entry.mediaType]);
+  
+  const isNewsletter = useMemo(() => {
+    return entry.post_media_type?.toLowerCase() === 'newsletter' || entry.mediaType?.toLowerCase() === 'newsletter';
+  }, [entry.post_media_type, entry.mediaType]);
+  
+  const mediaTypeFormatted = useMemo(() => {
+    const mediaType = entry.post_media_type || entry.mediaType || '';
+    return mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
+  }, [entry.post_media_type, entry.mediaType]);
 
   return (
     <article>
@@ -366,12 +449,9 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               )}
               {(entry.post_media_type || entry.mediaType) && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
-                  {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') && 
-                    <Podcast className="h-3 w-3" />}
-                  {(entry.post_media_type?.toLowerCase() === 'newsletter' || entry.mediaType?.toLowerCase() === 'newsletter') && 
-                    <Mail className="h-3 w-3" strokeWidth={2.5} />}
-                  {((entry.post_media_type || entry.mediaType) || '').charAt(0).toUpperCase() + 
-                   ((entry.post_media_type || entry.mediaType) || '').slice(1)}
+                  {isPodcast && <Podcast className="h-3 w-3" />}
+                  {isNewsletter && <Mail className="h-3 w-3" strokeWidth={2.5} />}
+                  {mediaTypeFormatted}
                 </span>
               )}
             </div>
@@ -379,7 +459,7 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
         </div>
         
         {/* Content */}
-        {(entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') ? (
+        {isPodcast ? (
           <div>
             <div 
               onClick={handleCardClick}
@@ -463,7 +543,7 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               initialData={interactions.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feed_url || '', interactions.comments)}>
+          <div onClick={handleCommentClick}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}

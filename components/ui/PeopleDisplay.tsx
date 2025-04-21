@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, memo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, memo, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -54,11 +54,12 @@ const NoUsersState = memo(({
 
 NoUsersState.displayName = 'NoUsersState';
 
-export function PeopleDisplay({
+// Convert to an arrow function component for consistency and prepare for memoization
+const PeopleDisplayComponent = ({
   initialUsers = [],
   className,
   searchQuery = '',
-}: PeopleDisplayProps) {
+}: PeopleDisplayProps) => {
   // Store users and pagination state
   const [users, setUsers] = useState<UserProfile[]>(initialUsers);
   const [nextCursor, setNextCursor] = useState<Id<"users"> | undefined>(undefined);
@@ -67,17 +68,40 @@ export function PeopleDisplay({
   const [hasMore, setHasMore] = useState(true);
   const { isAuthenticated } = useConvexAuth();
   
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
   // Reference for loading more users
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Memoize query parameters to prevent unnecessary re-renders
+  const queryParams = useMemo(() => {
+    return searchQuery 
+      ? { query: searchQuery, cursor: nextCursor, limit: 10 } 
+      : "skip";
+  }, [searchQuery, nextCursor]);
 
   // Query for users - search results
   const usersResult = useQuery(
     api.users.searchUsersOptimized,
-    searchQuery ? { query: searchQuery, cursor: nextCursor, limit: 10 } : "skip"
+    queryParams
   );
 
   // Reset state when search query changes
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (searchQuery) {
       setUsers([]);
       setNextCursor(undefined);
@@ -88,6 +112,8 @@ export function PeopleDisplay({
 
   // Load users when results come in
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (usersResult && isInitialLoad && searchQuery) {
       if (usersResult.users && usersResult.users.length > 0) {
         setUsers(usersResult.users);
@@ -101,12 +127,14 @@ export function PeopleDisplay({
 
   // Function to load more users
   const loadMore = useCallback(() => {
-    if (!hasMore || isLoading || !nextCursor || !searchQuery) return;
+    if (!hasMore || isLoading || !nextCursor || !searchQuery || !isMountedRef.current) return;
     setIsLoading(true);
   }, [hasMore, isLoading, nextCursor, searchQuery]);
 
   // Load more users when needed
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (usersResult && isLoading && !isInitialLoad && searchQuery) {
       if (usersResult.users && usersResult.users.length > 0) {
         setUsers(prev => [...prev, ...usersResult.users]);
@@ -118,6 +146,28 @@ export function PeopleDisplay({
       setIsLoading(false);
     }
   }, [usersResult, isLoading, isInitialLoad, searchQuery]);
+  
+  // Handle end reached for Virtuoso
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isLoading) {
+      loadMore();
+    }
+  }, [hasMore, isLoading, loadMore]);
+  
+  // Memoize the Footer component for Virtuoso
+  const Footer = useCallback(() => (
+    <div ref={loadMoreRef} className="py-4 text-center">
+      {isLoading ? (
+        <div className="flex items-center justify-center gap-2 py-10">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : hasMore ? (
+        <div className="h-8" />
+      ) : (
+        <div className="h-8" />
+      )}
+    </div>
+  ), [isLoading, hasMore, loadMoreRef]);
   
   // Initial loading state for search queries
   if (isInitialLoad && searchQuery && (!usersResult || !usersResult.users)) {
@@ -143,34 +193,21 @@ export function PeopleDisplay({
       <Virtuoso
         useWindowScroll
         data={users}
-        endReached={() => {
-          if (hasMore && !isLoading) {
-            loadMore();
-          }
-        }}
+        endReached={handleEndReached}
         overscan={100}
         itemContent={(index, user) => (
           <UserCard key={user.userId} user={user} />
         )}
         components={{
-          Footer: () => (
-            <div ref={loadMoreRef} className="py-4 text-center">
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-10">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : hasMore ? (
-                <div className="h-8" />
-              ) : (
-                <div className="h-8" />
-              )}
-            </div>
-          )
+          Footer
         }}
       />
     </div>
   );
-}
+};
+
+// Export the memoized version of the component
+export const PeopleDisplay = memo(PeopleDisplayComponent);
 
 // User card component - memoized with proper props comparison
 export const UserCard = memo(({ user }: { user: UserProfile }) => {

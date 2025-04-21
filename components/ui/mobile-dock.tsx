@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -47,10 +47,24 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
 
 NavItem.displayName = "NavItem";
 
-// The main component is also memoized to prevent unnecessary re-renders
-export const MobileDock = memo(function MobileDock({ className }: MobileDockProps) {
+// The main component with enhanced memoization
+const MobileDockComponent = ({ className }: MobileDockProps) => {
   const pathname = usePathname();
   const { username, isAuthenticated } = useSidebar();
+  
+  // Add a ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Set up the mounted ref
+  useEffect(() => {
+    // Set mounted flag to true
+    isMountedRef.current = true;
+    
+    // Cleanup function to set mounted flag to false when component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -78,6 +92,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
 
   // Memoize the isActive check function
   const checkIsActive = useCallback((href: string) => {
+    if (!isMountedRef.current) return false;
+    
     if (href === '/') return pathname === href;
     return pathname === href || pathname.startsWith(href + '/');
   }, [pathname]);
@@ -107,5 +123,8 @@ export const MobileDock = memo(function MobileDock({ className }: MobileDockProp
       </div>
     </nav>
   );
-});
+};
+
+// Export the memoized version of the component
+export const MobileDock = memo(MobileDockComponent);
 
