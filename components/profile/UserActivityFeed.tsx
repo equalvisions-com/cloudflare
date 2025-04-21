@@ -295,31 +295,43 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
   }, [repliesExpanded, fetchReplies, repliesLoaded, item.type, item._id]);
 
   // Extract ReplyRenderer to a separate component to avoid hook issues in loops
-  const ReplyRenderer = useCallback(({ reply, index }: { reply: Comment, index: number }) => {
+  const ReplyRenderer = React.memo(({ reply, index }: { reply: Comment, index: number }) => {
     // Check if this reply is deleted using the component-level state
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
 
     // Check if this reply belongs to the current user using ID-based authorization
     const isReplyFromCurrentUser = isAuthenticated && viewer && viewer._id === reply.userId;
 
-    // Function to delete a reply
-    const deleteReply = useCallback(() => {
-      if (!reply._id) return;
+    // Pre-define deleteReply function reference - moved outside the component
+    const deleteReplyRef = useRef<() => void>();
+    
+    // Use useEffect to update the function when dependencies change
+    useEffect(() => {
+      deleteReplyRef.current = () => {
+        if (!reply._id) return;
 
-      // Use the same Convex mutation for deleting comments
-      deleteCommentMutation({ commentId: reply._id })
-        .then(() => {
-          // Mark this reply as deleted using component-level state
-          setDeletedReplies((prev: Set<string>) => {
-            const newSet = new Set(prev);
-            newSet.add(reply._id.toString());
-            return newSet;
+        // Use the same Convex mutation for deleting comments
+        deleteCommentMutation({ commentId: reply._id })
+          .then(() => {
+            // Mark this reply as deleted using component-level state
+            setDeletedReplies((prev: Set<string>) => {
+              const newSet = new Set(prev);
+              newSet.add(reply._id.toString());
+              return newSet;
+            });
+          })
+          .catch(error => {
+            console.error('Error deleting reply:', error);
           });
-        })
-        .catch(error => {
-          console.error('Error deleting reply:', error);
-        });
-    }, [reply._id]);
+      };
+    }, [reply._id, deleteCommentMutation]);
+    
+    // Function to delete a reply that uses the ref
+    const deleteReply = () => {
+      if (deleteReplyRef.current) {
+        deleteReplyRef.current();
+      }
+    };
 
     // If reply is deleted, show a placeholder
     if (isReplyDeleted) {
@@ -473,7 +485,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
         </div>
       </div>
     );
-  }, [deletedReplies, isAuthenticated, viewer, deleteCommentMutation]);
+  });
+  ReplyRenderer.displayName = 'ReplyRenderer';
 
   // Render the replies section
   const renderRepliesSection = () => {
@@ -1441,53 +1454,60 @@ const ActivityGroupRenderer = React.memo(({
   playTrack
 }: ActivityGroupRendererProps) => { // Use the defined props type
 
+  // Always get entryDetail - move outside conditional
   const entryDetail = entryDetails[group.entryGuid];
-
-  if (!entryDetail) {
-    // Optionally render a placeholder or log an error
-     console.warn(`Entry detail not found for GUID: ${group.entryGuid}`);
-    return null;
-  }
-
-  // Extract primitive values for better memoization
-  const entryGuid = entryDetail.guid;
-  const feedUrl = entryDetail.feed_url || '';
-  const entryLink = entryDetail.link;
-  const entryTitle = entryDetail.title;
-  const entryImage = entryDetail.image;
-  const entryMediaType = entryDetail.post_media_type?.toLowerCase();
-  const entryAlternativeMediaType = entryDetail.mediaType?.toLowerCase();
+  
+  // Define default values for when entryDetail is missing
+  const entryGuid = entryDetail?.guid || '';
+  const feedUrl = entryDetail?.feed_url || '';
+  const entryLink = entryDetail?.link || '';
+  const entryTitle = entryDetail?.title || '';
+  const entryImage = entryDetail?.image;
+  const entryMediaType = entryDetail?.post_media_type?.toLowerCase() || '';
+  const entryAlternativeMediaType = entryDetail?.mediaType?.toLowerCase() || '';
   const isPodcast = entryMediaType === 'podcast' || entryAlternativeMediaType === 'podcast';
   const currentTrackSrc = currentTrack?.src;
   
-  // Use primitive properties for comparison
-  const isCurrentlyPlaying = currentTrackSrc === entryLink;
+  // Always call hooks, conditionally use results
+  const isCurrentlyPlaying = useMemo(() => 
+    currentTrackSrc === entryLink,
+    [currentTrackSrc, entryLink]
+  );
 
-  // Get metrics for this entry with better dependency
-  const interactions = getEntryMetrics(entryGuid);
+  // Always get metrics - move outside conditional
+  const interactions = useMemo(() => 
+    entryGuid ? getEntryMetrics(entryGuid) : undefined,
+    [entryGuid, getEntryMetrics]
+  );
 
-  // Use shared timestamp formatter - rename to rendererEntryTimestamp
+  // Always compute timestamps
   const rendererEntryTimestamp = useMemo(() => {
-    if (!entryDetail.pub_date) return '';
+    if (!entryDetail?.pub_date) return '';
     return formatTimeAgo(entryDetail.pub_date);
-  }, [entryDetail.pub_date]);
+  }, [entryDetail?.pub_date]);
 
-  // Handle card click for podcasts with primitive dependencies
+  // Handle card click - always define
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (isPodcast && entryLink) {
       e.preventDefault();
-      playTrack(entryLink, entryTitle || '', entryImage);
+      playTrack(entryLink, entryTitle, entryImage);
     }
   }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
 
-  // Memoize the comment drawer click handler for this specific group - rename to rendererHandleCommentClick
+  // Comment drawer handler - always define
   const rendererHandleCommentClick = useCallback(() => {
     if (entryGuid) {
       handleOpenCommentDrawer(entryGuid, feedUrl, interactions?.comments);
     }
   }, [entryGuid, feedUrl, interactions?.comments, handleOpenCommentDrawer]);
 
-  // If this is a like or retweet, or there's only one comment, render a regular ActivityCard
+  // Early return moved after all hook calls
+  if (!entryDetail) {
+    console.warn(`Entry detail not found for GUID: ${group.entryGuid}`);
+    return null;
+  }
+
+  // For single comment or other activities
   if (group.type !== 'comment' || group.comments.length <= 1) {
     return (
       <ActivityCard
@@ -2094,32 +2114,36 @@ export function UserActivityFeed({
     // Clean dependencies using the ref instead of activities.length
   }, [hasMore, isLoading, loadMoreActivities]); // Dependencies are now correct
 
-  // Loading state - only show for initial load and initial metrics fetch
-  if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
-     return (
-       <div className="flex justify-center items-center py-10">
-         <Loader2 className="h-6 w-6 animate-spin" />
-       </div>
-     );
-  }
+  // Initial data effect - moved to top level, always call it
+  useEffect(() => {
+    if (initialData?.activities) {
+      console.log('📋 Initial activity data received from server:', {
+        activitiesCount: initialData.activities.length,
+        totalCount: initialData.totalCount,
+        hasMore: initialData.hasMore,
+        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
+        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
+      });
 
-  // No activities state
-  if (activities.length === 0 && !isLoading && !isInitialLoad) { // Check !isInitialLoad too
-     return (
-       <div className="text-center py-8 text-muted-foreground">
-         <p>No activity found for this user.</p>
-       </div>
-     );
-  }
+      // Explicitly check if we have metrics in the initial data
+      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
+        console.log('🔢 Initial metrics will be used for rendering');
+      }
 
-  // --- Drawer state already handled ---
+      dispatch({
+        type: 'INITIAL_LOAD',
+        payload: {
+          activities: initialData.activities,
+          entryDetails: initialData.entryDetails || {},
+          hasMore: initialData.hasMore
+        }
+      });
+    }
+  }, [initialData]);
 
-  // --- REMOVED renderActivityGroup function definition ---
-
-
-   // Memoize the Footer component to prevent re-renders when only index/group changes in Virtuoso
-   const Footer = useMemo(() => {
-     return () => (
+  // Memoize the Footer component - moved to top level
+  const Footer = useMemo(() => {
+    return () => (
       isLoading ? (
         <div className="flex items-center justify-center gap-2 py-10">
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -2130,7 +2154,7 @@ export function UserActivityFeed({
     );
   }, [isLoading, hasMore]); // Dependencies are the state values it uses
 
-  // Memoize the item renderer to prevent recreating it on each render
+  // Memoize the item renderer - ensure it's at top level
   const itemRenderer = useCallback((index: number, group: GroupedActivity) => (
     <ActivityGroupRenderer
       key={`group-${group.entryGuid}-${group.type}-${index}`} // Use stable key with index
@@ -2146,7 +2170,7 @@ export function UserActivityFeed({
     />
   ), [entryDetails, username, name, profileImage, getEntryMetrics, handleOpenCommentDrawer, currentTrack, playTrack]);
 
-  // Restore the groupedActivities memoization
+  // Restore the groupedActivities memoization - always call at top level
   const groupedActivities = useMemo(() => {
     // Create a map to store activities by entry GUID and type
     const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
@@ -2203,34 +2227,7 @@ export function UserActivityFeed({
     return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
   }, [activities]);
 
-  // Log when initial data is received
-  useEffect(() => {
-    if (initialData?.activities) {
-      console.log('📋 Initial activity data received from server:', {
-        activitiesCount: initialData.activities.length,
-        totalCount: initialData.totalCount,
-        hasMore: initialData.hasMore,
-        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
-      });
-
-      // Explicitly check if we have metrics in the initial data
-      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
-        console.log('🔢 Initial metrics will be used for rendering');
-      }
-
-      dispatch({
-        type: 'INITIAL_LOAD',
-        payload: {
-          activities: initialData.activities,
-          entryDetails: initialData.entryDetails || {},
-          hasMore: initialData.hasMore
-        }
-      });
-    }
-  }, [initialData]);
-
-  // Optimize Virtuoso implementation with memoized config
+  // Optimize Virtuoso implementation with memoized config - always define
   const virtuosoConfig = useMemo(() => ({
     useWindowScroll: true,
     data: groupedActivities,
@@ -2242,18 +2239,34 @@ export function UserActivityFeed({
     }
   }), [groupedActivities, loadMoreActivities, itemRenderer, Footer]);
 
+  // Loading state - use boolean expressions instead of early returns with hooks after
+  const isInitialLoading = (isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading);
+  const hasNoActivities = activities.length === 0 && !isLoading && !isInitialLoad;
+
   return (
     <div className="w-full">
-      <Virtuoso {...virtuosoConfig} />
-      {/* Comment Drawer logic remains the same, ensure isOpen/setIsOpen are stable */}
-      {selectedCommentEntry && (
-        <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen} // Directly pass the state setter (stable)
-        />
+      {isInitialLoading ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : hasNoActivities ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <p>No activity found for this user.</p>
+        </div>
+      ) : (
+        <>
+          <Virtuoso {...virtuosoConfig} />
+          {/* Comment Drawer logic remains the same, ensure isOpen/setIsOpen are stable */}
+          {selectedCommentEntry && (
+            <CommentSectionClient
+              entryGuid={selectedCommentEntry.entryGuid}
+              feedUrl={selectedCommentEntry.feedUrl || ''}
+              initialData={selectedCommentEntry.initialData}
+              isOpen={commentDrawerOpen}
+              setIsOpen={setCommentDrawerOpen}
+            />
+          )}
+        </>
       )}
     </div>
   );
