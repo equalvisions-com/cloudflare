@@ -193,7 +193,8 @@ function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string,
   };
 }
 
-function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
+// Memoize ActivityIcon component for better performance
+const ActivityIcon = React.memo(({ type }: { type: "like" | "comment" | "retweet" }) => {
   switch (type) {
     case "like":
       return <Heart className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
@@ -202,10 +203,11 @@ function ActivityIcon({ type }: { type: "like" | "comment" | "retweet" }) {
     case "retweet":
       return <Repeat className="h-4 w-4 text-muted-foreground stroke-[2.5px]" />;
   }
-}
+});
+ActivityIcon.displayName = 'ActivityIcon';
 
 // Export ActivityDescription for reuse
-export function ActivityDescription({ item, username, name, profileImage, timestamp }: { 
+const ActivityDescription = React.memo(function ActivityDescriptionInner({ item, username, name, profileImage, timestamp }: { 
   item: ActivityItem; 
   username: string;
   name: string;
@@ -778,7 +780,8 @@ export function ActivityDescription({ item, username, name, profileImage, timest
         </span>
       );
   }
-}
+});
+ActivityDescription.displayName = 'ActivityDescription';
 
 // Activity card with entry details
 const ActivityCard = React.memo(({ 
@@ -1599,25 +1602,25 @@ export function UserActivityFeed({
   }, [isActive, isLoading, hasMore, currentSkip, userId, pageSize, activities.length, apiEndpoint]);
 
   // Check if we need to load more when the component is mounted
-  useEffect(() => {
-    const checkContentHeight = () => {
-      if (!loadMoreRef.current || !hasMore || isLoading) return;
-      
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && activities.length > 0) {
-        console.log('📏 Content is shorter than viewport, loading more activities');
-        loadMoreActivities();
-      }
-    };
+  const checkContentHeight = useCallback(() => {
+    if (!loadMoreRef.current || !hasMore || isLoading) return;
     
+    const viewportHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    
+    // If the document is shorter than the viewport, load more
+    if (documentHeight <= viewportHeight && activities.length > 0) {
+      console.log('📏 Content is shorter than viewport, loading more activities');
+      loadMoreActivities();
+    }
+  }, [hasMore, isLoading, activities.length, loadMoreActivities]);
+
+  useEffect(() => {
     // Run the check after a short delay to ensure the DOM has updated
     const timer = setTimeout(checkContentHeight, 1000);
     
     return () => clearTimeout(timer);
-  }, [activities.length, hasMore, isLoading, loadMoreActivities]);
+  }, [checkContentHeight]);
 
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
@@ -1637,22 +1640,8 @@ export function UserActivityFeed({
     );
   }
 
-  // --- Drawer state for comments ---
-  // const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  // const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-  //   entryGuid: string;
-  //   feedUrl: string;
-  //   initialData?: { count: number };
-  // } | null>(null);
-
-  // // Callback to open the comment drawer for a given entry
-  // const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-  //   setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-  //   setCommentDrawerOpen(true);
-  // }, []);
-
-  // Render a group of activities for the same entry
-  const renderActivityGroup = (group: {
+  // Render a group of activities for the same entry - memoized
+  const renderActivityGroup = useCallback((group: {
     entryGuid: string;
     firstActivity: ActivityItem;
     comments: ActivityItem[];
@@ -2032,7 +2021,20 @@ export function UserActivityFeed({
         </div>
       </article>
     );
-  };
+  }, [entryDetails, currentTrack, playTrack, username, name, profileImage, getEntryMetrics, handleOpenCommentDrawer]);
+
+  // Memoize the components for Virtuoso
+  const virtuosoComponents = useMemo(() => ({
+    Footer: () => (
+      isLoading ? (
+        <div className="flex items-center justify-center gap-2 py-10">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : hasMore ? (
+        <div className="h-8" />
+      ) : null
+    )
+  }), [isLoading, hasMore]);
 
   return (
     <div className="w-full">
@@ -2042,17 +2044,7 @@ export function UserActivityFeed({
         endReached={loadMoreActivities}
         overscan={200}
         itemContent={(index, group) => renderActivityGroup(group, index)}
-        components={{
-          Footer: () => (
-            isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-10">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : hasMore ? (
-              <div className="h-8" />
-            ) : null
-          )
-        }}
+        components={virtuosoComponents}
       />
       {selectedCommentEntry && (
         <CommentSectionClient
@@ -2065,4 +2057,6 @@ export function UserActivityFeed({
       )}
     </div>
   );
-} 
+}
+
+export { ActivityDescription };

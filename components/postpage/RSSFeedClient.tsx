@@ -67,10 +67,32 @@ interface APIRSSEntry {
   };
 }
 
+// Custom equality function for RSSEntry to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: RSSEntryProps, nextProps: RSSEntryProps) => {
+  // Compare essential props for rendering decisions
+  return (
+    prevProps.entryWithData.entry.guid === nextProps.entryWithData.entry.guid &&
+    prevProps.entryWithData.initialData.likes.count === nextProps.entryWithData.initialData.likes.count &&
+    prevProps.entryWithData.initialData.likes.isLiked === nextProps.entryWithData.initialData.likes.isLiked &&
+    prevProps.entryWithData.initialData.comments.count === nextProps.entryWithData.initialData.comments.count &&
+    prevProps.featuredImg === nextProps.featuredImg &&
+    prevProps.postTitle === nextProps.postTitle &&
+    prevProps.mediaType === nextProps.mediaType &&
+    prevProps.verified === nextProps.verified &&
+    // For retweets and bookmarks, check if they exist and then compare
+    ((!prevProps.entryWithData.initialData.retweets && !nextProps.entryWithData.initialData.retweets) ||
+      (prevProps.entryWithData.initialData.retweets?.count === nextProps.entryWithData.initialData.retweets?.count &&
+       prevProps.entryWithData.initialData.retweets?.isRetweeted === nextProps.entryWithData.initialData.retweets?.isRetweeted)) &&
+    ((!prevProps.entryWithData.initialData.bookmarks && !nextProps.entryWithData.initialData.bookmarks) ||
+      (prevProps.entryWithData.initialData.bookmarks?.isBookmarked === nextProps.entryWithData.initialData.bookmarks?.isBookmarked))
+  );
+};
+
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer }: RSSEntryProps): JSX.Element => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
+  // Memoize the timestamp calculation as it's a complex operation
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -114,8 +136,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entry.pubDate]);
+  }, [entry.pubDate]); // Only recalculate when pubDate changes
 
+  // Memoize handlers to prevent recreating them on every render
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (mediaType === 'podcast') {
       e.preventDefault();
@@ -126,6 +149,15 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   const handleOpenCommentDrawer = useCallback(() => {
     onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
   }, [entry.guid, entry.feedUrl, initialData.comments, onOpenCommentDrawer]);
+
+  // Memoize the formatted date to prevent recalculation
+  const formattedDate = useMemo(() => {
+    try {
+      return format(new Date(entry.pubDate), 'PPP p');
+    } catch (e) {
+      return '';
+    }
+  }, [entry.pubDate]);
 
   return (
     <article>
@@ -155,8 +187,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                     {postTitle}
                     {verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                   </h3>
-                  <span className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
-                    title={format(new Date(entry.pubDate), 'PPP p')}
+                  <span 
+                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
+                    title={formattedDate}
                   >
                     {timestamp}
                   </span>
@@ -256,7 +289,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               initialData={initialData.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments)}>
+          <div onClick={handleOpenCommentDrawer}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -296,7 +329,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
-});
+}, arePropsEqual); // Apply custom equality function
+
 RSSEntry.displayName = 'RSSEntry';
 
 interface EntryMetrics {
@@ -327,6 +361,29 @@ interface FeedContentProps {
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }
 
+// Custom equality function for FeedContent
+const areFeedContentPropsEqual = (prevProps: FeedContentProps, nextProps: FeedContentProps) => {
+  // Simple length check 
+  if (prevProps.entries.length !== nextProps.entries.length) {
+    return false;
+  }
+  
+  // Check if hasMore or isPending changed
+  if (prevProps.hasMore !== nextProps.hasMore || 
+      prevProps.isPending !== nextProps.isPending ||
+      prevProps.featuredImg !== nextProps.featuredImg ||
+      prevProps.postTitle !== nextProps.postTitle ||
+      prevProps.mediaType !== nextProps.mediaType ||
+      prevProps.verified !== nextProps.verified) {
+    return false;
+  }
+  
+  // Deep comparison not needed for most cases since entries are typically just appended
+  // and we already checked the length
+  
+  return true;
+};
+
 // Memoize the FeedContent component to prevent unnecessary re-renders
 const FeedContent = React.memo(function FeedContent({
   entries,
@@ -340,7 +397,15 @@ const FeedContent = React.memo(function FeedContent({
   verified,
   onOpenCommentDrawer
 }: FeedContentProps) {
-  // Render each entry
+  // Memoize the endReached callback
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isPending) {
+      console.log('🔄 Loading more entries...');
+      loadMore();
+    }
+  }, [hasMore, isPending, loadMore]);
+  
+  // Memoize the renderItem function to prevent recreation on every render
   const renderItem = useCallback((index: number) => {
     if (!entries || index >= entries.length) {
       return null;
@@ -359,39 +424,40 @@ const FeedContent = React.memo(function FeedContent({
     );
   }, [entries, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer]);
 
+  // Memoize the Footer component to prevent unnecessary re-renders
+  const Footer = useMemo(() => {
+    return () => isPending && hasMore ? (
+      <div ref={loadMoreRef} className="text-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+      </div>
+    ) : <div ref={loadMoreRef} className="h-0" />;
+  }, [isPending, hasMore, loadMoreRef]);
+
+  // Memoize the empty state to prevent unnecessary re-renders
+  const EmptyState = useMemo(() => (
+    <div className="text-center py-8 text-muted-foreground">
+      No entries found for this feed.
+    </div>
+  ), []);
+
   return (
     <div className="space-y-0">
-      {entries.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          No entries found for this feed.
-        </div>
-      ) : (
+      {entries.length === 0 ? EmptyState : (
         <Virtuoso
           useWindowScroll
           totalCount={entries.length}
           overscan={20}
-          endReached={() => {
-            console.log(`🏁 End reached, hasMore: ${hasMore}, isPending: ${isPending}`);
-            if (hasMore && !isPending) {
-              console.log('🔄 Loading more entries...');
-              loadMore();
-            }
-          }}
+          endReached={handleEndReached}
           initialTopMostItemIndex={0}
           itemContent={renderItem}
           components={{
-            Footer: () => 
-              isPending && hasMore ? (
-                <div ref={loadMoreRef} className="text-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                </div>
-              ) : <div ref={loadMoreRef} className="h-0" />
+            Footer: Footer
           }}
         />
       )}
     </div>
   );
-});
+}, areFeedContentPropsEqual); // Apply custom equality function
 
 // Add displayName for easier debugging
 FeedContent.displayName = 'FeedContent';
@@ -415,7 +481,7 @@ interface RSSFeedClientProps {
 export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [fetchError, setFetchError] = useState<Error | null>(null);
-  const ITEMS_PER_REQUEST = pageSize;
+  const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]); // Memoize constant values
   
   // Track all entries manually
   const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
@@ -454,7 +520,50 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       setHasMoreState(initialData.hasMore || false);
       setIsLoading(false);
     }
-  }, [initialData, initialData.searchQuery]); // Add searchQuery as a dependency to react to search changes
+  }, [initialData]);
+  
+  // Memoize URL creation for API requests
+  const createApiUrl = useCallback((nextPage: number) => {
+    const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
+    baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
+    baseUrl.searchParams.set('page', nextPage.toString());
+    baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
+    
+    // Pass the cached total entries to avoid unnecessary COUNT queries
+    if (initialData.totalEntries) {
+      baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
+    }
+    
+    if (mediaType) {
+      baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
+    }
+    
+    // Pass search query if it exists
+    if (initialData.searchQuery) {
+      baseUrl.searchParams.set('q', encodeURIComponent(initialData.searchQuery));
+    }
+    
+    return baseUrl.toString();
+  }, [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, initialData.searchQuery, mediaType]);
+  
+  // Memoize the transform function for API entries
+  const transformApiEntries = useCallback((apiEntries: APIRSSEntry[]) => {
+    return apiEntries
+      .filter(Boolean)
+      .map((entry: APIRSSEntry) => ({
+        entry: entry.entry,
+        initialData: entry.initialData || {
+          likes: { isLiked: false, count: 0 },
+          comments: { count: 0 },
+          retweets: { isRetweeted: false, count: 0 }
+        },
+        postMetadata: {
+          title: postTitle,
+          featuredImg: featuredImg || entry.entry.image || '',
+          mediaType: mediaType || 'article'
+        }
+      }));
+  }, [postTitle, featuredImg, mediaType]);
   
   const loadMoreEntries = useCallback(async () => {
     if (!isActive || isLoading || !hasMoreState) {
@@ -466,30 +575,10 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     const nextPage = currentPage + 1;
     
     try {
-      const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
-      baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
-      baseUrl.searchParams.set('page', nextPage.toString());
-      baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
-      
-      // Pass the cached total entries to avoid unnecessary COUNT queries
-      if (initialData.totalEntries) {
-        baseUrl.searchParams.set('totalEntries', initialData.totalEntries.toString());
-        console.log(`📊 Passing cached totalEntries: ${initialData.totalEntries}`);
-      }
-      
-      if (mediaType) {
-        baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
-      }
-      
-      // Pass search query if it exists
-      if (initialData.searchQuery) {
-        baseUrl.searchParams.set('q', encodeURIComponent(initialData.searchQuery));
-        console.log(`🔍 Including search query: ${initialData.searchQuery}`);
-      }
-      
+      const apiUrl = createApiUrl(nextPage);
       console.log(`📡 Fetching page ${nextPage} from API`);
       
-      const response = await fetch(baseUrl.toString());
+      const response = await fetch(apiUrl);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data = await response.json();
@@ -501,29 +590,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         return;
       }
       
-      const transformedEntries = data.entries
-        .filter(Boolean)
-        .map((entry: APIRSSEntry) => ({
-          entry: entry.entry,
-          initialData: entry.initialData || {
-            likes: { isLiked: false, count: 0 },
-            comments: { count: 0 },
-            retweets: { isRetweeted: false, count: 0 }
-          },
-          postMetadata: {
-            title: postTitle,
-            featuredImg: featuredImg || entry.entry.image || '',
-            mediaType: mediaType || 'article'
-          }
-        }));
-      
+      const transformedEntries = transformApiEntries(data.entries);
       console.log(`✅ Transformed ${transformedEntries.length} entries`);
       
       setAllEntriesState(prev => [...prev, ...transformedEntries]);
       setCurrentPage(nextPage);
       setHasMoreState(data.hasMore);
-      
-      console.log(`📊 Updated state - total entries: ${allEntriesState.length + transformedEntries.length}, hasMore: ${data.hasMore}`);
       
     } catch (error) {
       console.error('❌ Error loading more entries:', error);
@@ -531,7 +603,14 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMoreState, currentPage, postTitle, feedUrl, ITEMS_PER_REQUEST, mediaType, featuredImg, allEntriesState.length, initialData, isActive]);
+  }, [
+    isActive, 
+    isLoading, 
+    hasMoreState, 
+    currentPage, 
+    createApiUrl, 
+    transformApiEntries
+  ]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 
@@ -539,6 +618,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     [allEntriesState]
   );
   
+  // Query data with proper memoization
   const combinedData = useQuery(
     api.entries.getFeedDataWithMetrics,
     entryGuids.length > 0 
@@ -546,7 +626,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       : "skip"
   );
   
-  // Extract metrics from combined data
+  // Extract metrics from combined data with memoization
   const entryMetricsMap = useMemo(() => {
     if (!combinedData?.entryMetrics) return null;
     return Object.fromEntries(
@@ -554,7 +634,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     );
   }, [combinedData]);
   
-  // Extract post metadata from combined data
+  // Extract post metadata from combined data with memoization
   const postMetadata = useMemo(() => {
     if (!combinedData?.postMetadata || combinedData.postMetadata.length === 0) return null;
     
@@ -563,9 +643,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     return metadataItem?.metadata || null;
   }, [combinedData, feedUrl]);
   
-  // Apply metrics to entries
+  // Apply metrics to entries with memoization
   const enhancedEntries = useMemo(() => {
     if (!allEntriesState.length) return allEntriesState;
+    
+    if (!entryMetricsMap) return allEntriesState;
     
     return allEntriesState.map(entryWithData => {
       const enhanced = { ...entryWithData };
@@ -582,28 +664,31 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     });
   }, [allEntriesState, entryMetricsMap]);
   
+  // Memoize the content height check function
+  const checkContentHeight = useCallback(() => {
+    if (!loadMoreRef.current || !hasMoreState || isLoading) return;
+    
+    const viewportHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    
+    // If the document is shorter than the viewport, load more
+    if (documentHeight <= viewportHeight && allEntriesState.length > 0) {
+      console.log('📏 Content is shorter than viewport, loading more entries');
+      loadMoreEntries();
+    }
+  }, [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries]);
+  
   // Add a useEffect to check if we need to load more when the component is mounted
   useEffect(() => {
-    const checkContentHeight = () => {
-      if (!loadMoreRef.current || !hasMoreState || isLoading) return;
-      
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && allEntriesState.length > 0) {
-        console.log('📏 Content is shorter than viewport, loading more entries');
-        loadMoreEntries();
-      }
-    };
-    
     // Run the check after a short delay to ensure the DOM has updated
     const timer = setTimeout(checkContentHeight, 1000);
-    
     return () => clearTimeout(timer);
-  }, [allEntriesState.length, hasMoreState, isLoading, loadMoreEntries]);
+  }, [checkContentHeight]);
   
-  if (fetchError) {
+  // Memoize the error UI to prevent recreating it on every render
+  const errorUI = useMemo(() => {
+    if (!fetchError) return null;
+    
     return (
       <div className="text-center py-8 text-destructive">
         <p className="mb-4">Error loading feed entries</p>
@@ -620,6 +705,10 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         </Button>
       </div>
     );
+  }, [fetchError, initialData]);
+  
+  if (fetchError) {
+    return errorUI;
   }
   
   return (
@@ -650,10 +739,14 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   );
 }
 
+// Memoize the RSSFeedClient component for better performance when used in parent components
+const MemoizedRSSFeedClient = React.memo(RSSFeedClient);
+
+// Export the memoized component with error boundary
 export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
   return (
     <ErrorBoundary>
-      <RSSFeedClient {...props} />
+      <MemoizedRSSFeedClient {...props} />
     </ErrorBoundary>
   );
 }

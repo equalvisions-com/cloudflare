@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { MessageCircle, X, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
@@ -85,6 +85,251 @@ interface CommentWithReplies extends CommentFromAPI {
   replies: CommentFromAPI[];
 }
 
+// Memoized Comment component for better performance
+const Comment = memo(({ 
+  comment, 
+  isReply = false,
+  isAuthenticated,
+  viewer,
+  deletedComments,
+  expandedReplies,
+  onReply,
+  onDeleteComment,
+  onToggleReplies,
+  onSetCommentLikeCountRef,
+  onUpdateCommentLikeCount,
+}: { 
+  comment: CommentWithReplies | CommentFromAPI;
+  isReply?: boolean;
+  isAuthenticated: boolean;
+  viewer: any;
+  deletedComments: Set<string>;
+  expandedReplies: Set<string>;
+  onReply: (comment: CommentFromAPI) => void;
+  onDeleteComment: (commentId: Id<"comments">) => Promise<void>;
+  onToggleReplies: (commentId: string) => void;
+  onSetCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
+  onUpdateCommentLikeCount: (commentId: string, count: number) => void;
+}) => {
+  const hasReplies = 'replies' in comment && comment.replies.length > 0;
+  const isDeleted = deletedComments.has(comment._id.toString());
+  const areRepliesExpanded = expandedReplies.has(comment._id.toString());
+  
+  // Check if this comment belongs to the current user
+  const isCommentFromCurrentUser = isAuthenticated && viewer && 
+    (viewer._id === comment.userId);
+  
+  // Get profile image - check multiple possible locations based on data structure
+  const profileImageUrl = 
+    comment.user?.profileImage || // From profiles table
+    comment.user?.image ||        // From users table
+    null;                         // Fallback
+    
+  // Get display name from various possible locations
+  const displayName = 
+    comment.user?.name ||      // From profiles or users table
+    comment.username ||        // Fallback to username in comment
+    'Anonymous';               // Last resort fallback
+  
+  // Get username for profile link
+  const username = comment.username || (comment.user?.username || '');
+  
+  // Handle comment deletion
+  const handleDeleteComment = useCallback(async () => {
+    await onDeleteComment(comment._id);
+  }, [comment._id, onDeleteComment]);
+  
+  // Format time difference for this comment
+  const formattedTime = useMemo(() => {
+    const now = new Date();
+    const commentDate = new Date(comment._creationTime);
+    
+    // Ensure we're working with valid dates
+    if (isNaN(commentDate.getTime())) {
+      return '';
+    }
+
+    // Calculate time difference
+    const diffInMs = now.getTime() - commentDate.getTime();
+    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMonths = Math.floor(diffInDays / 30);
+    
+    // Format based on the time difference
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h`;
+    } else if (diffInDays < 30) {
+      return `${diffInDays}d`;
+    } else {
+      return `${diffInMonths}mo`;
+    }
+  }, [comment._creationTime]);
+  
+  // If comment is deleted, don't render anything
+  if (isDeleted) {
+    return null;
+  }
+  
+  return (
+    <div key={comment._id} className={`${isReply ? '' : 'border-t border-border'}`}>
+      <div className={`flex items-start gap-4 ${isReply ? 'pb-4' : 'py-4 pl-4'}`}>
+        {username ? (
+          <Link href={`/@${username}`} className="flex-shrink-0">
+            <ProfileImage 
+              profileImage={profileImageUrl}
+              username={comment.username}
+              size="md-lg"
+            />
+          </Link>
+        ) : (
+          <ProfileImage 
+            profileImage={profileImageUrl}
+            username={comment.username}
+            size="md-lg"
+            className="flex-shrink-0"
+          />
+        )}
+        <div className="flex-1 flex">
+          <div className="flex-1">
+            <div className="flex items-center mb-1">
+              {username ? (
+                <Link href={`/@${username}`} className="text-sm font-bold leading-none hover:underline">
+                  {displayName}
+                </Link>
+              ) : (
+                <span className="text-sm font-bold leading-none">{displayName}</span>
+              )}
+            </div>
+            <p className="text-sm">{comment.content}</p>
+            
+            {/* Actions row with timestamp and like count */}
+            <div className="flex items-center gap-4 mt-1">
+              {/* Timestamp */}
+              <div className="leading-none font-semibold text-muted-foreground text-xs">
+                {formattedTime}
+              </div>
+              
+              {/* Like count for comment */}
+              <div 
+                ref={(el) => onSetCommentLikeCountRef(comment._id.toString(), el)}
+                className="leading-none font-semibold text-muted-foreground text-xs hidden"
+              >
+                <span>0 Likes</span>
+              </div>
+              
+              {/* Reply button - only show on top-level comments, not replies */}
+              {!isReply && (
+                <button 
+                  onClick={() => onReply(comment)}
+                  className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
+                >
+                  Reply
+                </button>
+              )}
+              
+              {/* View/Hide Replies button - only show if comment has replies */}
+              {!isReply && hasReplies && (
+                <button 
+                  onClick={() => onToggleReplies(comment._id.toString())}
+                  className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
+                >
+                  {areRepliesExpanded 
+                    ? "Hide Replies" 
+                    : `View Replies (${(comment as CommentWithReplies).replies.length})`
+                  }
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex-shrink-0 flex items-center ml-2 pr-4">
+            <div className="flex flex-col items-end w-full">
+              {/* Add menu for comment owner at the top */}
+              {isCommentFromCurrentUser && (
+                <div className="mb-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={handleDeleteComment}
+                        className="text-red-500 focus:text-red-500 cursor-pointer"
+                      >
+                        Delete Comment
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+              
+              {/* Like button */}
+              <CommentLikeButton 
+                commentId={comment._id}
+                size="sm"
+                hideCount={true}
+                onCountChange={(count) => onUpdateCommentLikeCount(comment._id.toString(), count)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Display replies if this is a top-level comment with replies and replies are expanded */}
+      {hasReplies && areRepliesExpanded && (
+        <div style={{ paddingLeft: '44px' }}>
+          {(comment as CommentWithReplies).replies.map(reply => (
+            <Comment
+              key={reply._id}
+              comment={reply}
+              isReply={true}
+              isAuthenticated={isAuthenticated}
+              viewer={viewer}
+              deletedComments={deletedComments}
+              expandedReplies={expandedReplies}
+              onReply={onReply}
+              onDeleteComment={onDeleteComment}
+              onToggleReplies={onToggleReplies}
+              onSetCommentLikeCountRef={onSetCommentLikeCountRef}
+              onUpdateCommentLikeCount={onUpdateCommentLikeCount}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+Comment.displayName = 'Comment';
+
+// Memoized comment button component
+const CommentButton = memo(({ 
+  onClick, 
+  commentCount 
+}: { 
+  onClick: () => void, 
+  commentCount: number 
+}) => {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+      onClick={onClick}
+    >
+      <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
+      <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
+    </Button>
+  );
+});
+
+CommentButton.displayName = 'CommentButton';
+
 export function CommentSectionClient({ 
   entryGuid, 
   feedUrl,
@@ -148,7 +393,9 @@ export function CommentSectionClient({
   
   // Get the comment count, prioritizing optimistic updates
   // If metrics haven't loaded yet, use initialData to prevent flickering
-  const commentCount = optimisticCount ?? (metricsLoaded ? (metrics?.comments.count ?? initialData.count) : initialData.count);
+  const commentCount = useMemo(() => {
+    return optimisticCount ?? (metricsLoaded ? (metrics?.comments.count ?? initialData.count) : initialData.count);
+  }, [optimisticCount, metricsLoaded, metrics, initialData.count]);
   
   // Only reset optimistic count when real data arrives and matches our expected state
   useEffect(() => {
@@ -217,17 +464,17 @@ export function CommentSectionClient({
   }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting, isAuthenticated, router]);
   
   // Function to handle initiating a reply to a comment
-  const handleReply = (comment: CommentFromAPI) => {
+  const handleReply = useCallback((comment: CommentFromAPI) => {
     setReplyToComment(comment);
-  };
+  }, []);
   
   // Function to cancel reply
-  const cancelReply = () => {
+  const cancelReply = useCallback(() => {
     setReplyToComment(null);
-  };
+  }, []);
   
   // Group top-level comments and their replies
-  const organizeCommentsHierarchy = () => {
+  const organizeCommentsHierarchy = useCallback(() => {
     if (!comments) return [];
     
     const commentMap = new Map<string, CommentWithReplies>();
@@ -256,7 +503,7 @@ export function CommentSectionClient({
     });
     
     return topLevelComments;
-  };
+  }, [comments]);
   
   // Function to update the like count text
   const updateCommentLikeCount = useCallback((commentId: string, count: number) => {
@@ -278,7 +525,7 @@ export function CommentSectionClient({
   // Function to handle comment deletion - updated to use Convex mutation
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   
-  const deleteComment = async (commentId: Id<"comments">) => {
+  const deleteComment = useCallback(async (commentId: Id<"comments">) => {
     try {
       // Use Convex mutation instead of fetch
       await deleteCommentMutation({ commentId });
@@ -292,46 +539,17 @@ export function CommentSectionClient({
     } catch (error) {
       console.error('❌ Error deleting comment:', error);
     }
-  };
+  }, [deleteCommentMutation]);
   
   // Function to set reference for the like count element
-  const setCommentLikeCountRef = (commentId: string, el: HTMLDivElement | null) => {
+  const setCommentLikeCountRef = useCallback((commentId: string, el: HTMLDivElement | null) => {
     if (el && commentId) {
       commentLikeCountRefs.current.set(commentId, el);
     }
-  };
-  
-  // Helper to format time difference
-  const formatTimeDifference = (creationTime: number) => {
-    const now = new Date();
-    const commentDate = new Date(creationTime);
-    
-    // Ensure we're working with valid dates
-    if (isNaN(commentDate.getTime())) {
-      return '';
-    }
-
-    // Calculate time difference
-    const diffInMs = now.getTime() - commentDate.getTime();
-    const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInMonths = Math.floor(diffInDays / 30);
-    
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes}m`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours}h`;
-    } else if (diffInDays < 30) {
-      return `${diffInDays}d`;
-    } else {
-      return `${diffInMonths}mo`;
-    }
-  };
+  }, []);
   
   // Toggle reply visibility for a comment
-  const toggleRepliesVisibility = (commentId: string) => {
+  const toggleRepliesVisibility = useCallback((commentId: string) => {
     setExpandedReplies(prev => {
       const newSet = new Set(prev);
       if (newSet.has(commentId)) {
@@ -341,177 +559,20 @@ export function CommentSectionClient({
       }
       return newSet;
     });
-  };
+  }, []);
   
-  // Render a single comment with its replies
-  const renderComment = (comment: CommentWithReplies | CommentFromAPI, isReply = false) => {
-    const hasReplies = 'replies' in comment && comment.replies.length > 0;
-    const isDeleted = deletedComments.has(comment._id.toString());
-    const areRepliesExpanded = expandedReplies.has(comment._id.toString());
-    
-    // Check if this comment belongs to the current user
-    const isCommentFromCurrentUser = isAuthenticated && viewer && 
-      (viewer._id === comment.userId);
-    
-    // Get profile image - check multiple possible locations based on data structure
-    const profileImageUrl = 
-      comment.user?.profileImage || // From profiles table
-      comment.user?.image ||        // From users table
-      null;                         // Fallback
-      
-    // Get display name from various possible locations
-    const displayName = 
-      comment.user?.name ||      // From profiles or users table
-      comment.username ||        // Fallback to username in comment
-      'Anonymous';               // Last resort fallback
-    
-    // Get username for profile link
-    const username = comment.username || (comment.user?.username || '');
-    
-    // Handle comment deletion
-    const handleDeleteComment = async () => {
-      await deleteComment(comment._id);
-    };
-    
-    // If comment is deleted, don't render anything
-    if (isDeleted) {
-      return null;
-    }
-    
-    return (
-      <div key={comment._id} className={`${isReply ? '' : 'border-t border-border'}`}>
-        <div className={`flex items-start gap-4 ${isReply ? 'pb-4' : 'py-4 pl-4'}`}>
-          {username ? (
-            <Link href={`/@${username}`} className="flex-shrink-0">
-              <ProfileImage 
-                profileImage={profileImageUrl}
-                username={comment.username}
-                size="md-lg"
-              />
-            </Link>
-          ) : (
-            <ProfileImage 
-              profileImage={profileImageUrl}
-              username={comment.username}
-              size="md-lg"
-              className="flex-shrink-0"
-            />
-          )}
-          <div className="flex-1 flex">
-            <div className="flex-1">
-              <div className="flex items-center mb-1">
-                {username ? (
-                  <Link href={`/@${username}`} className="text-sm font-bold leading-none hover:underline">
-                    {displayName}
-                  </Link>
-                ) : (
-                  <span className="text-sm font-bold leading-none">{displayName}</span>
-                )}
-              </div>
-              <p className="text-sm">{comment.content}</p>
-              
-              {/* Actions row with timestamp and like count */}
-              <div className="flex items-center gap-4 mt-1">
-                {/* Timestamp */}
-                <div className="leading-none font-semibold text-muted-foreground text-xs">
-                  {formatTimeDifference(comment._creationTime)}
-                </div>
-                
-                {/* Like count for comment */}
-                <div 
-                  ref={(el) => setCommentLikeCountRef(comment._id.toString(), el)}
-                  className="leading-none font-semibold text-muted-foreground text-xs hidden"
-                >
-                  <span>0 Likes</span>
-                </div>
-                
-                {/* Reply button - only show on top-level comments, not replies */}
-                {!isReply && (
-                  <button 
-                    onClick={() => handleReply(comment)}
-                    className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
-                  >
-                    Reply
-                  </button>
-                )}
-                
-                {/* View/Hide Replies button - only show if comment has replies */}
-                {!isReply && hasReplies && (
-                  <button 
-                    onClick={() => toggleRepliesVisibility(comment._id.toString())}
-                    className="leading-none font-semibold text-muted-foreground text-xs cursor-pointer hover:underline"
-                  >
-                    {areRepliesExpanded 
-                      ? "Hide Replies" 
-                      : `View Replies (${(comment as CommentWithReplies).replies.length})`
-                    }
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex-shrink-0 flex items-center ml-2 pr-4">
-              <div className="flex flex-col items-end w-full">
-                {/* Add menu for comment owner at the top */}
-                {isCommentFromCurrentUser && (
-                  <div className="mb-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={handleDeleteComment}
-                          className="text-red-500 focus:text-red-500 cursor-pointer"
-                        >
-                          Delete Comment
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-                
-                {/* Like button */}
-                <CommentLikeButton 
-                  commentId={comment._id}
-                  size="sm"
-                  hideCount={true}
-                  onCountChange={(count) => updateCommentLikeCount(comment._id.toString(), count)}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Display replies if this is a top-level comment with replies and replies are expanded */}
-        {hasReplies && areRepliesExpanded && (
-          <div style={{ paddingLeft: '44px' }}>
-            {(comment as CommentWithReplies).replies.map(reply => 
-              renderComment(reply, true)
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Memoize the comment hierarchy
+  const commentHierarchy = useMemo(() => organizeCommentsHierarchy(), [organizeCommentsHierarchy]);
   
-  // Organize comments into a hierarchy
-  const commentHierarchy = organizeCommentsHierarchy();
+  // Memoize the handler for opening the drawer
+  const handleOpenDrawer = useCallback(() => {
+    setIsOpen(true);
+  }, [setIsOpen]);
   
   // Only render the button if buttonOnly is true
   if (buttonOnly) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
-        onClick={() => setIsOpen(true)}
-      >
-        <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
-        <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">{commentCount}</span>
-      </Button>
+      <CommentButton onClick={handleOpenDrawer} commentCount={commentCount} />
     );
   }
   
@@ -529,7 +590,21 @@ export function CommentSectionClient({
           <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
             <div className="mt-0">
               {commentHierarchy.length > 0 ? (
-                commentHierarchy.map(comment => renderComment(comment))
+                commentHierarchy.map(comment => (
+                  <Comment
+                    key={comment._id}
+                    comment={comment}
+                    isAuthenticated={isAuthenticated}
+                    viewer={viewer}
+                    deletedComments={deletedComments}
+                    expandedReplies={expandedReplies}
+                    onReply={handleReply}
+                    onDeleteComment={deleteComment}
+                    onToggleReplies={toggleRepliesVisibility}
+                    onSetCommentLikeCountRef={setCommentLikeCountRef}
+                    onUpdateCommentLikeCount={updateCommentLikeCount}
+                  />
+                ))
               ) : (
                 <p className="text-muted-foreground py-4 text-center">No comments yet. Be the first to comment!</p>
               )}

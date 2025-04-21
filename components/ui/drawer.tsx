@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 let openDrawerCount = 0;
 let lockedScrollY = 0;
 
-const Drawer = ({
+const Drawer = React.memo(({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
@@ -57,16 +57,18 @@ const Drawer = ({
       {...props}
     />
   );
-}
+})
 Drawer.displayName = "Drawer"
 
-const DrawerTrigger = DrawerPrimitive.Trigger
+const DrawerTrigger = React.memo(DrawerPrimitive.Trigger)
+DrawerTrigger.displayName = "DrawerTrigger"
 
 const DrawerPortal = DrawerPrimitive.Portal
 
-const DrawerClose = DrawerPrimitive.Close
+const DrawerClose = React.memo(DrawerPrimitive.Close)
+DrawerClose.displayName = "DrawerClose"
 
-const DrawerOverlay = React.forwardRef<
+const DrawerOverlay = React.memo(React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
@@ -75,10 +77,10 @@ const DrawerOverlay = React.forwardRef<
     className={cn("fixed inset-0 z-50 bg-black/80", className)}
     {...props}
   />
-))
+)))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
-const DrawerContent = React.forwardRef<
+const DrawerContent = React.memo(React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
@@ -96,10 +98,10 @@ const DrawerContent = React.forwardRef<
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
-))
+)))
 DrawerContent.displayName = "DrawerContent"
 
-const DrawerHeader = ({
+const DrawerHeader = React.memo(({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -107,10 +109,10 @@ const DrawerHeader = ({
     className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
     {...props}
   />
-)
+))
 DrawerHeader.displayName = "DrawerHeader"
 
-const DrawerFooter = ({
+const DrawerFooter = React.memo(({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -118,10 +120,10 @@ const DrawerFooter = ({
     className={cn("mt-auto flex flex-col gap-2 p-4", className)}
     {...props}
   />
-)
+))
 DrawerFooter.displayName = "DrawerFooter"
 
-const DrawerTitle = React.forwardRef<
+const DrawerTitle = React.memo(React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
 >(({ className, ...props }, ref) => (
@@ -133,10 +135,10 @@ const DrawerTitle = React.forwardRef<
     )}
     {...props}
   />
-))
+)))
 DrawerTitle.displayName = DrawerPrimitive.Title.displayName
 
-const DrawerDescription = React.forwardRef<
+const DrawerDescription = React.memo(React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
 >(({ className, ...props }, ref) => (
@@ -145,7 +147,7 @@ const DrawerDescription = React.forwardRef<
     className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
-))
+)))
 DrawerDescription.displayName = DrawerPrimitive.Description.displayName
 
 export {
