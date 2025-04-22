@@ -2,10 +2,19 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
-import { UserActivityFeed } from "@/components/profile/UserActivityFeed";
+import dynamic from 'next/dynamic';
 import { UserLikesFeed } from "@/components/profile/UserLikesFeed";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2 } from "lucide-react";
+import { SkeletonFeed } from "@/components/ui/skeleton-feed";
+
+// Dynamically import UserActivityFeed with loading state
+const UserActivityFeed = dynamic(
+  () => import('@/components/profile/UserActivityFeed').then(mod => ({ default: mod.UserActivityFeed })),
+  {
+    loading: () => <SkeletonFeed count={5} />,
+    ssr: false
+  }
+);
 
 // Types for activity items
 type ActivityItem = {
@@ -123,15 +132,15 @@ const LikesTabContent = React.memo(({
 }) => {
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className="">
+        <SkeletonFeed count={5} />
       </div>
     );
   }
 
   if (!likesData || likesData.activities.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="min-h-screen text-center py-8 text-muted-foreground">
         <p>No likes found for this user.</p>
       </div>
     );
