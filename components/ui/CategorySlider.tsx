@@ -40,7 +40,7 @@ export const CategorySliderSkeleton = () => {
   );
 };
 
-// Main component with lazy loading support
+// Main component with proper hook usage
 const CategorySliderComponent = ({
   categories,
   selectedCategoryId,
@@ -48,14 +48,9 @@ const CategorySliderComponent = ({
   className,
   isLoading = false,
 }: CategorySliderProps) => {
-  // If loading or categories are undefined, show skeleton
-  if (isLoading || !categories) {
-    return <CategorySliderSkeleton />;
-  }
-
   // Find the index of the selected category.
   const selectedIndex = useMemo(() => 
-    categories.findIndex(cat => cat._id === selectedCategoryId),
+    categories?.findIndex(cat => cat._id === selectedCategoryId) ?? -1,
     [categories, selectedCategoryId]
   );
   
@@ -84,6 +79,69 @@ const CategorySliderComponent = ({
 
   // Add indicator animation state
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Keep track of button refs for scrolling to the selected button.
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Scrolls to a specific category button only if it's not fully visible.
+  const scrollToCategory = useCallback((index: number) => {
+    if (!emblaApi) return;
+    
+    const selectedNode = buttonRefs.current[index];
+    if (!selectedNode) return;
+    
+    const emblaViewport = emblaApi.rootNode();
+    if (!emblaViewport) return;
+    
+    const containerRect = emblaViewport.getBoundingClientRect();
+    const selectedRect = selectedNode.getBoundingClientRect();
+    
+    // If button is not fully visible, scroll to it
+    if (
+      selectedRect.right > containerRect.right ||
+      selectedRect.left < containerRect.left
+    ) {
+      emblaApi.scrollTo(index);
+    }
+  }, [emblaApi]);
+
+  // Define a stable overscroll prevention callback.
+  const preventOverscroll = useCallback(() => {
+    if (!emblaApi) return;
+    const {
+      limit,
+      target,
+      location,
+      offsetLocation,
+      scrollTo,
+      translate,
+      scrollBody,
+    } = emblaApi.internalEngine();
+    
+    let edge: number | null = null;
+    if (limit.reachedMax(target.get())) {
+      edge = limit.max;
+    } else if (limit.reachedMin(target.get())) {
+      edge = limit.min;
+    }
+    
+    if (edge !== null) {
+      offsetLocation.set(edge);
+      location.set(edge);
+      target.set(edge);
+      translate.to(edge);
+      translate.toggleActive(false);
+      scrollBody.useDuration(0).useFriction(0);
+      scrollTo.distance(0, false);
+    } else {
+      translate.toggleActive(true);
+    }
+  }, [emblaApi]);
+
+  // Handle category selection.
+  const handleCategoryClick = useCallback((categoryId: string) => {
+    onSelectCategory(categoryId);
+  }, [onSelectCategory]);
 
   // Prevent browser back/forward navigation when interacting with the slider
   useEffect(() => {
@@ -155,64 +213,6 @@ const CategorySliderComponent = ({
     };
   }, [emblaApi]);
 
-  // Keep track of button refs for scrolling to the selected button.
-  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  // Scrolls to a specific category button only if it's not fully visible.
-  const scrollToCategory = useCallback((index: number) => {
-    if (!emblaApi) return;
-    
-    const selectedNode = buttonRefs.current[index];
-    if (!selectedNode) return;
-    
-    const emblaViewport = emblaApi.rootNode();
-    if (!emblaViewport) return;
-    
-    const containerRect = emblaViewport.getBoundingClientRect();
-    const selectedRect = selectedNode.getBoundingClientRect();
-    
-    // If button is not fully visible, scroll to it
-    if (
-      selectedRect.right > containerRect.right ||
-      selectedRect.left < containerRect.left
-    ) {
-      emblaApi.scrollTo(index);
-    }
-  }, [emblaApi]);
-
-  // Define a stable overscroll prevention callback.
-  const preventOverscroll = useCallback(() => {
-    if (!emblaApi) return;
-    const {
-      limit,
-      target,
-      location,
-      offsetLocation,
-      scrollTo,
-      translate,
-      scrollBody,
-    } = emblaApi.internalEngine();
-    
-    let edge: number | null = null;
-    if (limit.reachedMax(target.get())) {
-      edge = limit.max;
-    } else if (limit.reachedMin(target.get())) {
-      edge = limit.min;
-    }
-    
-    if (edge !== null) {
-      offsetLocation.set(edge);
-      location.set(edge);
-      target.set(edge);
-      translate.to(edge);
-      translate.toggleActive(false);
-      scrollBody.useDuration(0).useFriction(0);
-      scrollTo.distance(0, false);
-    } else {
-      translate.toggleActive(true);
-    }
-  }, [emblaApi]);
-
   // Bind overscroll prevention to scroll-related events.
   useEffect(() => {
     if (!emblaApi) return;
@@ -234,10 +234,10 @@ const CategorySliderComponent = ({
     }
   }, [emblaApi, selectedIndex, scrollToCategory]);
 
-  // Handle category selection.
-  const handleCategoryClick = useCallback((categoryId: string) => {
-    onSelectCategory(categoryId);
-  }, [onSelectCategory]);
+  // If loading or categories are undefined, show skeleton
+  if (isLoading || !categories) {
+    return <CategorySliderSkeleton />;
+  }
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
@@ -302,8 +302,35 @@ const CategorySliderComponent = ({
   );
 };
 
-// Use memo for memoization
-export const CategorySlider = React.memo(CategorySliderComponent);
+// Properly memoize component with displayName
+export const CategorySlider = React.memo(
+  CategorySliderComponent, 
+  (prevProps: CategorySliderProps, nextProps: CategorySliderProps): boolean => {
+    // Handle cases where one or both categories arrays might be undefined
+    const categoriesEqual = (): boolean => {
+      // If both are undefined, they're equal
+      if (!prevProps.categories && !nextProps.categories) return true;
+      
+      // If only one is undefined, they're not equal
+      if (!prevProps.categories || !nextProps.categories) return false;
+      
+      // If lengths don't match, they're not equal
+      if (prevProps.categories.length !== nextProps.categories.length) return false;
+      
+      // Compare each category by _id
+      return prevProps.categories.every(
+        (cat, i) => cat._id === nextProps.categories![i]._id
+      );
+    };
+
+    return (
+      prevProps.selectedCategoryId === nextProps.selectedCategoryId &&
+      prevProps.isLoading === nextProps.isLoading &&
+      categoriesEqual()
+    );
+  }
+);
+
 CategorySlider.displayName = 'CategorySlider';
 
 // Default export for dynamic import
