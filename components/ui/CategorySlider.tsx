@@ -38,8 +38,8 @@ export const CategorySlider = React.memo(({
     containScroll: 'keepSnaps' as const,
     dragFree: true, // Allow free-form dragging
     skipSnaps: false,
-    duration: 10, // Faster duration for smoother animation
-    inViewThreshold: 0.7, // Helps with smoother snapping
+    duration: 0, // Faster duration for smoother animation
+    inViewThreshold: 0, // Helps with smoother snapping
     slidesToScroll: 1
   }), []);
 
@@ -240,7 +240,7 @@ export const CategorySlider = React.memo(({
                 key={category._id}
                 ref={(el) => { buttonRefs.current[index] = el; }}
                 className={cn(
-                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-bold text-sm capitalize transform-gpu",
+                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-bold text-[15px] capitalize transform-gpu",
                   isSelected
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
@@ -257,7 +257,7 @@ export const CategorySlider = React.memo(({
                 {category.name}
                 <div 
                   className={cn(
-                    "absolute bottom-0 left-0 w-full h-[0.25rem] rounded-full transition-opacity bg-primary",
+                    "absolute bottom-[0px] left-0 w-full h-[1px] rounded-full transition-opacity bg-primary z-50",
                     isSelected ? "opacity-100" : "opacity-0"
                   )}
                   style={{

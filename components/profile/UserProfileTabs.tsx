@@ -3,13 +3,44 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import dynamic from 'next/dynamic';
-import { UserLikesFeed } from "@/components/profile/UserLikesFeed";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
+
+// Add global cache object to persist data across navigations
+const GLOBAL_CACHE: {
+  activityData: {
+    activities: ActivityItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, RSSEntry>;
+  } | null;
+  likesData: {
+    activities: ActivityItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, RSSEntry>;
+  } | null;
+  selectedTabIndex: number;
+  userIdCache: Id<"users"> | null;
+} = {
+  activityData: null,
+  likesData: null,
+  selectedTabIndex: 0,
+  userIdCache: null
+};
 
 // Dynamically import UserActivityFeed with loading state
 const UserActivityFeed = dynamic(
   () => import('@/components/profile/UserActivityFeed').then(mod => ({ default: mod.UserActivityFeed })),
+  {
+    loading: () => <SkeletonFeed count={5} />,
+    ssr: false
+  }
+);
+
+// Dynamically import UserLikesFeed with loading state
+const UserLikesFeed = dynamic(
+  () => import('@/components/profile/UserLikesFeed').then(mod => ({ default: mod.UserLikesFeed })),
   {
     loading: () => <SkeletonFeed count={5} />,
     ssr: false
@@ -140,7 +171,7 @@ const LikesTabContent = React.memo(({
 
   if (!likesData || likesData.activities.length === 0) {
     return (
-      <div className="min-h-screen text-center py-8 text-muted-foreground">
+      <div className="h-screen text-center py-8 text-muted-foreground">
         <p>No likes found for this user.</p>
       </div>
     );
@@ -161,22 +192,43 @@ export function UserProfileTabs({
   username,
   name,
   profileImage,
-  activityData, 
+  activityData: initialActivityData, 
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // Simplified state management
+  // Check if user ID has changed to invalidate cache
+  const userChanged = userId !== GLOBAL_CACHE.userIdCache;
+  if (userChanged) {
+    // Reset cache when viewing a different user's profile
+    GLOBAL_CACHE.activityData = null;
+    GLOBAL_CACHE.likesData = null;
+    GLOBAL_CACHE.selectedTabIndex = 0;
+    GLOBAL_CACHE.userIdCache = userId;
+  }
+
+  // Update activity data cache if we have new initial data
+  if (initialActivityData && (!GLOBAL_CACHE.activityData || userChanged)) {
+    GLOBAL_CACHE.activityData = initialActivityData;
+  }
+
+  // Update likes data cache if we have new initial data
+  if (initialLikesData && (!GLOBAL_CACHE.likesData || userChanged)) {
+    GLOBAL_CACHE.likesData = initialLikesData;
+  }
+
+  // Use cached data or fall back to initial props
   const [likesState, setLikesState] = useState<{
     data: FeedData | null;
     status: 'idle' | 'loading' | 'loaded' | 'error';
     error: Error | null;
   }>({
-    data: initialLikesData || null,
-    status: initialLikesData ? 'loaded' : 'idle',
+    data: GLOBAL_CACHE.likesData || initialLikesData || null,
+    status: (GLOBAL_CACHE.likesData || initialLikesData) ? 'loaded' : 'idle',
     error: null
   });
   
-  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
+  // Use cached selected tab index
+  const [selectedTabIndex, setSelectedTabIndex] = useState(userChanged ? 0 : GLOBAL_CACHE.selectedTabIndex);
   
   // Function to fetch likes data - stabilized with useCallback + fewer dependencies
   const fetchLikesData = useCallback(async () => {
@@ -195,6 +247,9 @@ export function UserProfileTabs({
       
       const data = await response.json();
       setLikesState({ data, status: 'loaded', error: null });
+      
+      // Update the global cache
+      GLOBAL_CACHE.likesData = data;
     } catch (error) {
       console.error('Error fetching likes data:', error);
       setLikesState({
@@ -208,6 +263,8 @@ export function UserProfileTabs({
   // Handle tab change
   const handleTabChange = useCallback((index: number) => {
     setSelectedTabIndex(index);
+    // Update the global cache
+    GLOBAL_CACHE.selectedTabIndex = index;
     
     // If switching to likes tab (index 1) and likes haven't been loaded
     if (index === 1 && likesState.status === 'idle') {
@@ -227,7 +284,7 @@ export function UserProfileTabs({
           username={username} 
           name={name}
           profileImage={profileImage}
-          activityData={activityData} 
+          activityData={GLOBAL_CACHE.activityData || initialActivityData} 
           pageSize={pageSize}
         />
       )
@@ -250,7 +307,7 @@ export function UserProfileTabs({
     username, 
     name, 
     profileImage, 
-    activityData, 
+    initialActivityData, 
     likesState.data, 
     likesState.status, 
     pageSize
@@ -261,6 +318,7 @@ export function UserProfileTabs({
       <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}
+        defaultTabIndex={selectedTabIndex}
       />
     </div>
   );

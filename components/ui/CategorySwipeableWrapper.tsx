@@ -1123,8 +1123,8 @@ const CategorySwipeableWrapperComponent = ({
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Only adjust opacity, not visibility to maintain DOM presence
-                  opacity: searchTab === 'posts' || isTransitioning ? 1 : 0.5,
-                  transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
+                  opacity: searchTab === 'posts' ? 1 : 0,
+                  transition: 'opacity 0s',
                   pointerEvents: searchTab === 'posts' ? 'auto' : 'none',
                   touchAction: 'pan-y',
                   // Add minimum height for initial rendering
@@ -1158,8 +1158,8 @@ const CategorySwipeableWrapperComponent = ({
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Only adjust opacity, not visibility to maintain DOM presence
-                  opacity: searchTab === 'entries' || isTransitioning ? 1 : 0.5,
-                  transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
+                  opacity: searchTab === 'entries' ? 1 : 0,
+                  transition: 'opacity 0s',
                   pointerEvents: searchTab === 'entries' ? 'auto' : 'none',
                   touchAction: 'pan-y',
                   // Add minimum height for initial rendering
@@ -1217,8 +1217,8 @@ const CategorySwipeableWrapperComponent = ({
                       transform: 'translate3d(0,0,0)',
                       WebkitBackfaceVisibility: 'hidden',
                       // Modified to maintain stability during transitions
-                      opacity: !isActive && isInteracting ? 0.5 : 1,
-                      transition: isTransitioning ? 'opacity 0.1s ease-out' : 'opacity 0s',
+                      opacity: isActive ? 1 : 0,
+                      transition: 'opacity 0s',
                       pointerEvents: isActive ? 'auto' : 'none',
                       touchAction: 'pan-y' 
                     }}
