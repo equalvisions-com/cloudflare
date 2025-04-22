@@ -13,6 +13,7 @@ import { FollowButton } from '@/components/follow-button/FollowButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Define the shape of a post from the database
 export interface Post {
@@ -42,6 +43,41 @@ interface PostsDisplayProps {
   className?: string;
   searchQuery?: string;
 }
+
+// Skeleton loader for PostsDisplay
+export const PostsDisplaySkeleton = ({ count = 5, className }: { count?: number, className?: string }) => {
+  return (
+    <div className={cn("w-full space-y-0", className)}>
+      {Array.from({ length: count }).map((_, index) => (
+        <Card key={index} className="overflow-hidden transition-all shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
+          <CardContent className="p-4 h-[116px]">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-[82px] h-[82px]">
+                <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+                  <Skeleton className="h-full w-full animate-pulse" />
+                </AspectRatio>
+              </div>
+              <div className="flex-1 min-w-0 space-y-2 pt-0">
+                <div className="flex justify-between items-start gap-4 mt-[-4px]">
+                  <div className="flex-1">
+                    <Skeleton className="h-5 w-3/4 mb-2 animate-pulse" />
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Skeleton className="h-[23px] w-16 rounded-md animate-pulse" />
+                  </div>
+                </div>
+                <div className="!mt-[3px] space-y-1.5">
+                  <Skeleton className="h-3.5 w-full animate-pulse" />
+                  <Skeleton className="h-3.5 w-5/6 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+};
 
 // Memoize no posts state component
 const NoPostsState = memo(({ 
@@ -241,6 +277,9 @@ const PostsDisplayComponent = ({
 
 // Export the memoized version of the component
 export const PostsDisplay = memo(PostsDisplayComponent);
+
+// Export the component as default as well for dynamic loading
+export default PostsDisplay;
 
 // Post card component - memoized with proper props comparison
 const PostCard = memo(({ post }: { post: Post }) => {

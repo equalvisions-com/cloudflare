@@ -29,24 +29,6 @@ const GLOBAL_CACHE: {
   userIdCache: null
 };
 
-// Dynamically import UserActivityFeed with loading state
-const UserActivityFeed = dynamic(
-  () => import('@/components/profile/UserActivityFeed').then(mod => ({ default: mod.UserActivityFeed })),
-  {
-    loading: () => <SkeletonFeed count={5} />,
-    ssr: false
-  }
-);
-
-// Dynamically import UserLikesFeed with loading state
-const UserLikesFeed = dynamic(
-  () => import('@/components/profile/UserLikesFeed').then(mod => ({ default: mod.UserLikesFeed })),
-  {
-    loading: () => <SkeletonFeed count={5} />,
-    ssr: false
-  }
-);
-
 // Types for activity items
 type ActivityItem = {
   type: "comment" | "retweet";
@@ -110,6 +92,80 @@ interface FeedData {
   hasMore: boolean;
   entryDetails: Record<string, RSSEntry>;
 }
+
+// Define the props interface for UserActivityFeed
+interface UserActivityFeedProps {
+  userId: Id<"users">;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  initialData: FeedData;
+  pageSize: number;
+  apiEndpoint: string;
+}
+
+// Define the props interface for UserLikesFeed
+interface UserLikesFeedProps {
+  userId: Id<"users">;
+  initialData: FeedData;
+  pageSize: number;
+}
+
+// Dynamically import UserActivityFeed with skeleton loader
+const DynamicUserActivityFeed = dynamic<UserActivityFeedProps>(
+  () => import('@/components/profile/UserActivityFeed').then(mod => ({ default: mod.UserActivityFeed })),
+  {
+    loading: () => <SkeletonFeed count={5} />,
+    ssr: false
+  }
+);
+
+// Create a wrapper component to ensure skeleton shows
+const UserActivityFeed = (props: UserActivityFeedProps) => {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+  
+  return <DynamicUserActivityFeed {...props} />;
+};
+
+// Dynamically import UserLikesFeed with skeleton loader
+const DynamicUserLikesFeed = dynamic<UserLikesFeedProps>(
+  () => import('@/components/profile/UserLikesFeed').then(mod => ({ default: mod.UserLikesFeed })),
+  {
+    loading: () => <SkeletonFeed count={5} />,
+    ssr: false
+  }
+);
+
+// Create a wrapper component to ensure skeleton shows
+const UserLikesFeed = (props: UserLikesFeedProps) => {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+  
+  return <DynamicUserLikesFeed {...props} />;
+};
 
 // Memoized component for the "Activity" tab content
 const ActivityTabContent = React.memo(({ 

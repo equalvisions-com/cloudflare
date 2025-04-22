@@ -20,23 +20,6 @@ const GLOBAL_CACHE = {
   activeTabIndex: 0
 };
 
-// Lazy load both components
-const RSSEntriesClientWithErrorBoundary = dynamic(
-  () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
-  { 
-    ssr: false,
-    loading: () => <SkeletonFeed count={5} />
-  }
-);
-
-const FeaturedFeedWrapper = dynamic(
-  () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
-  {
-    ssr: false,
-    loading: () => <SkeletonFeed count={5} />
-  }
-);
-
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
   guid: string;
@@ -104,6 +87,79 @@ interface FeedTabsContainerProps {
   } | null;
   pageSize?: number;
 }
+
+// Define interface for RSSEntriesClientWithErrorBoundary props
+interface RSSEntriesProps {
+  initialData: {
+    entries: any[]; // Using any to match the original component's expectations
+    totalEntries: number;
+    hasMore: boolean;
+    postTitles?: string[];
+  };
+  pageSize: number;
+}
+
+// Define interface for FeaturedFeedWrapper props
+interface FeaturedFeedProps {
+  initialData: {
+    entries: any[]; // Using any to match the original component's expectations
+    totalEntries: number;
+  };
+}
+
+// Dynamically import components with loading skeletons
+const RSSEntriesClientWithErrorBoundary = dynamic(
+  () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
+  { 
+    ssr: false,
+    loading: () => <SkeletonFeed count={5} />
+  }
+);
+
+const FeaturedFeedWrapper = dynamic(
+  () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
+  {
+    ssr: false,
+    loading: () => <SkeletonFeed count={5} />
+  }
+);
+
+// Wrapper components to guarantee skeletons show
+const SkeletonWrappedRSSEntries = (props: any) => {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+  
+  return <RSSEntriesClientWithErrorBoundary {...props} />;
+};
+
+const SkeletonWrappedFeaturedFeed = (props: any) => {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+  
+  return <FeaturedFeedWrapper {...props} />;
+};
 
 export function FeedTabsContainer({ 
   initialData, 
@@ -285,7 +341,7 @@ export function FeedTabsContainer({
         }
         
         return (
-          <FeaturedFeedWrapper
+          <SkeletonWrappedFeaturedFeed
             initialData={featuredData as any /* Adjust typing */}
           />
         );
@@ -315,7 +371,7 @@ export function FeedTabsContainer({
         }
         
         return (
-          <RSSEntriesClientWithErrorBoundary 
+          <SkeletonWrappedRSSEntries 
             initialData={rssData as any /* Adjust typing */} 
             pageSize={pageSize} 
           />

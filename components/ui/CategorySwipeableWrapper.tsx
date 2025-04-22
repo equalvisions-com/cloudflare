@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, memo, lazy, Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { CategorySlider, type Category } from './CategorySlider';
-import { PostsDisplay, type Post } from './PostsDisplay';
+import { type Category } from './CategorySlider';
+import dynamic from 'next/dynamic';
+import type { Post } from './PostsDisplay';
+import { PostsDisplaySkeleton } from './PostsDisplay';
 import { EntriesDisplay } from './EntriesDisplay';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
@@ -14,6 +16,49 @@ import useEmblaCarousel from 'embla-carousel-react';
 import type { EmblaOptionsType } from 'embla-carousel';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import AutoHeight from 'embla-carousel-auto-height';
+
+// Import the skeleton for fallback during lazy loading
+import { CategorySliderSkeleton } from './CategorySlider';
+
+// Define the props interface based on the original component
+interface PostsDisplayProps {
+  categoryId: string;
+  mediaType: string;
+  initialPosts?: Post[];
+  className?: string;
+  searchQuery?: string;
+}
+
+// Dynamically import PostsDisplay with a skeleton loader
+const DynamicPostsDisplay = dynamic<PostsDisplayProps>(
+  () => import('./PostsDisplay'),
+  {
+    loading: () => <PostsDisplaySkeleton count={10} />,
+    ssr: false // Set to false to ensure client-side loading with skeleton
+  }
+);
+
+// Create a wrapper component to pass props correctly
+const PostsDisplay = (props: PostsDisplayProps) => {
+  // Use a brief loading state to ensure skeleton shows
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Use requestAnimationFrame to show skeleton for just one frame
+    // This ensures skeleton shows before hydration without artificial delay
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <PostsDisplaySkeleton count={10} />;
+  }
+  
+  return <DynamicPostsDisplay {...props} />;
+};
 
 interface CategorySwipeableWrapperProps {
   mediaType: string;
@@ -87,6 +132,45 @@ const SearchTabs = memo(({
 ));
 
 SearchTabs.displayName = 'SearchTabs';
+
+// Define the CategorySliderProps interface
+interface CategorySliderProps {
+  categories: Category[] | undefined;
+  selectedCategoryId: string;
+  onSelectCategory: (categoryId: string) => void;
+  className?: string;
+  isLoading?: boolean;
+}
+
+// Lazy load the CategorySlider component with dynamic import
+const DynamicCategorySlider = dynamic<CategorySliderProps>(
+  () => import('./CategorySlider'),
+  {
+    loading: () => <CategorySliderSkeleton />,
+    ssr: false // Set to false to ensure client-side loading with skeleton
+  }
+);
+
+// Create a wrapper component to pass props correctly
+const CategorySlider = (props: CategorySliderProps) => {
+  // Use a brief loading state to ensure skeleton shows
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Use requestAnimationFrame to show skeleton for just one frame
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <CategorySliderSkeleton />;
+  }
+  
+  return <DynamicCategorySlider {...props} />;
+};
 
 // Convert to arrow function component for consistency
 const CategorySwipeableWrapperComponent = ({
@@ -215,6 +299,9 @@ const CategorySwipeableWrapperComponent = ({
     postsPerCategory: 10
   }) as CategoryData | undefined;
 
+  // Add loading state for categories
+  const isLoadingCategories = initialData === undefined;
+  
   // Memoize the query parameters for search to prevent unnecessary request changes
   const searchQueryParams = useMemo(() => {
     if (searchQuery && searchTab === 'posts') {
@@ -1078,6 +1165,7 @@ const CategorySwipeableWrapperComponent = ({
             categories={allCategories}
             selectedCategoryId={selectedCategoryId}
             onSelectCategory={handleCategorySelect}
+            isLoading={isLoadingCategories}
           />
         )}
       </div>

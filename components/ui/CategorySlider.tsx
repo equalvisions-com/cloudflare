@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { cn } from '@/lib/utils';
+import { Skeleton } from './skeleton';
 
 export interface Category {
   _id: string;
@@ -14,18 +15,44 @@ export interface Category {
 }
 
 interface CategorySliderProps {
-  categories: Category[];
+  categories: Category[] | undefined;
   selectedCategoryId: string;
   onSelectCategory: (categoryId: string) => void;
   className?: string;
+  isLoading?: boolean;
 }
 
-export const CategorySlider = React.memo(({
+// Skeleton loader component for the CategorySlider
+export const CategorySliderSkeleton = () => {
+  return (
+    <div className="grid w-full overflow-hidden">
+      <div className="overflow-hidden">
+        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-4">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-[15px] w-20 flex-none rounded-md"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main component with lazy loading support
+const CategorySliderComponent = ({
   categories,
   selectedCategoryId,
   onSelectCategory,
   className,
+  isLoading = false,
 }: CategorySliderProps) => {
+  // If loading or categories are undefined, show skeleton
+  if (isLoading || !categories) {
+    return <CategorySliderSkeleton />;
+  }
+
   // Find the index of the selected category.
   const selectedIndex = useMemo(() => 
     categories.findIndex(cat => cat._id === selectedCategoryId),
@@ -273,6 +300,11 @@ export const CategorySlider = React.memo(({
       </div>
     </div>
   );
-});
+};
 
+// Use memo for memoization
+export const CategorySlider = React.memo(CategorySliderComponent);
 CategorySlider.displayName = 'CategorySlider';
+
+// Default export for dynamic import
+export default CategorySlider;
