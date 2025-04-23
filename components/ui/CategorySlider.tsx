@@ -27,7 +27,7 @@ export const CategorySliderSkeleton = () => {
   return (
     <div className="grid w-full overflow-hidden">
       <div className="overflow-hidden">
-        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-4">
+        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[15px]">
           {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton
               key={index}
