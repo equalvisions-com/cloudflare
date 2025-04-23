@@ -177,7 +177,7 @@ function PostContent({ post, followState, rssData }: {
 }) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
-      <div className="flex flex-col items-center" style={{ gap: "16px" }}>
+      <div className="flex flex-col items-center" style={{ gap: "13px" }}>
         {post.featuredImg && (
           <div className="w-24 h-24">
             <AspectRatio ratio={1}>
@@ -193,7 +193,7 @@ function PostContent({ post, followState, rssData }: {
           </div>
         )}
         
-        <div className="flex flex-col items-center" style={{ gap: "9px" }}>
+        <div className="flex flex-col items-center" style={{ gap: "13px" }}>
           <h1 className="text-2xl font-extrabold leading-none tracking-tight text-center m-0 p-0">
             {post.title}
             {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
@@ -210,7 +210,7 @@ function PostContent({ post, followState, rssData }: {
         </div>
         
         {post.body && (
-          <div className="text-sm leading-5 text-muted-foreground text-center max-w-md" dangerouslySetInnerHTML={{ __html: post.body }} />
+          <div className="text-sm leading-5 text-muted-foreground text-center" dangerouslySetInnerHTML={{ __html: post.body }} />
         )}
         
         <div className="flex items-center gap-4">
