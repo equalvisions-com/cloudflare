@@ -12,7 +12,6 @@ import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2, UserCheck, UserX, UserMinus } from "lucide-react";
-import { MenuButton } from "@/components/ui/friend-menu-button";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 
@@ -195,18 +194,13 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   // Show edit profile button on own profile
   if (currentStatus?.status === "self" && isAuthenticated) {
     return (
-      <div className="flex items-center gap-2">
-        <MenuButton 
-          userId={userId}
-        />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground"
-          onClick={handleEditProfileClick}
-        >
-          Edit Profile
-        </Button>
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground"
+        onClick={handleEditProfileClick}
+      >
+        Edit Profile
         
         {isEditModalOpen && user && (
           <Suspense fallback={null}>
@@ -218,40 +212,30 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
             />
           </Suspense>
         )}
-      </div>
+      </Button>
     );
   }
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2">
-        <MenuButton 
-          userId={userId}
-        />
-        <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border !opacity-100 text-muted-foreground">
-          Loading
-        </Button>
-      </div>
+      <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border !opacity-100 text-muted-foreground">
+        Loading
+      </Button>
     );
   }
 
   // Not authenticated - show button that redirects to signin
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center gap-2">
-        <MenuButton 
-          userId={userId}
-        />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
-          onClick={handleSignInRedirect}
-        >
-          Add Friend
-        </Button>
-      </div>
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
+        onClick={handleSignInRedirect}
+      >
+        Add Friend
+      </Button>
     );
   }
 
@@ -259,87 +243,23 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   if (!currentStatus?.exists) {
     // Not friends - show add button
     return (
-      <div className="flex items-center gap-2">
-        <MenuButton 
-          userId={userId}
-        />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
-          onClick={handleAddFriend}
-        >
-          Add Friend
-        </Button>
-      </div>
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
+        onClick={handleAddFriend}
+      >
+        Add Friend
+      </Button>
     );
   } else if (currentStatus.status === "pending") {
     if (currentStatus.direction === "sent") {
       // Pending request sent by current user - show cancel option in dropdown
       return (
-        <div className="flex items-center gap-2">
-          <MenuButton 
-            userId={userId}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
-                Pending
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-red-500"
-                onClick={handleUnfriend}
-              >
-                <UserX className="mr-2 h-4 w-4" />
-                Cancel Request
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    } else {
-      // Pending request received - show accept/decline options in menu
-      return (
-        <div className="flex items-center gap-2">
-          <MenuButton 
-            userId={userId}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
-                Pending
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleAcceptFriend}>
-                <UserCheck className="mr-2 h-4 w-4" />
-                Accept Request
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-red-500"
-                onClick={handleUnfriend}
-              >
-                <UserX className="mr-2 h-4 w-4" />
-                Decline Request
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    }
-  } else if (currentStatus.status === "accepted") {
-    // Already friends - show unfriend option in dropdown
-    return (
-      <div className="flex items-center gap-2">
-        <MenuButton 
-          userId={userId}
-        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
-              Friends
+              Pending
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -347,25 +267,64 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
               className="text-red-500"
               onClick={handleUnfriend}
             >
-              <UserMinus className="mr-2 h-4 w-4" />
-              Remove Friend
+              <UserX className="mr-2 h-4 w-4" />
+              Cancel Request
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      );
+    } else {
+      // Pending request received - show accept/decline options in menu
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+              Pending
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleAcceptFriend}>
+              <UserCheck className="mr-2 h-4 w-4" />
+              Accept Request
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-red-500"
+              onClick={handleUnfriend}
+            >
+              <UserX className="mr-2 h-4 w-4" />
+              Decline Request
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+  } else if (currentStatus.status === "accepted") {
+    // Already friends - show unfriend option in dropdown
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+            Friends
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            className="text-red-500"
+            onClick={handleUnfriend}
+          >
+            <UserMinus className="mr-2 h-4 w-4" />
+            Remove Friend
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
   
   // Fallback for any other unhandled state
   return (
-    <div className="flex items-center gap-2">
-      <MenuButton 
-        userId={userId}
-      />
-      <Button variant="ghost" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
-        Add Friend
-      </Button>
-    </div>
+    <Button variant="ghost" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
+      Add Friend
+    </Button>
   );
 };
 

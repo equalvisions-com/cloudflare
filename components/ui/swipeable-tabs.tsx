@@ -35,7 +35,7 @@ const TabHeaders = React.memo(({
           key={tab.id}
           onClick={() => onTabClick(index)}
           className={cn(
-            'flex-1 py-3 text-center font-bold text-[15px] transition-colors relative',
+            'flex-1 py-3 text-center font-bold text-sm transition-colors relative',
             selectedTab === index 
               ? 'text-primary' 
               : 'text-muted-foreground hover:text-primary/80'

@@ -9,6 +9,7 @@ import { ProfileImage } from "@/components/profile/ProfileImage";
 import { FriendButton } from "@/components/profile/FriendButton";
 import { FriendsList } from "@/components/profile/FriendsList";
 import { FollowingList } from "@/components/profile/FollowingList";
+import { ShareButton } from "@/components/ui/share-button";
 import { Id } from "@/convex/_generated/dataModel";
 
 // Define FriendshipStatus type to match what FriendButton expects
@@ -173,14 +174,36 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       <div>
         <div>
           <div className="max-w-4xl mx-auto p-4">
-            <div className="flex flex-col items-start">
-              <div className="flex w-full items-start justify-between">
-                <ProfileImage 
-                  profileImage={profile.profileImage} 
-                  username={normalizedUsername}
-                  size="lg"
-                  className="mb-4"
-                />
+            <div className="flex flex-col items-center" style={{ gap: "16px" }}>
+              <ProfileImage 
+                profileImage={profile.profileImage} 
+                username={normalizedUsername}
+                size="lg"
+              />
+              
+              <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">{profile.name || normalizedUsername}</h1>
+                <p className="text-sm leading-none mt-2 text-muted-foreground font-medium">@{normalizedUsername}</p>
+                
+                <div className="flex gap-4 mt-4">
+                  <FollowingList 
+                    username={normalizedUsername} 
+                    initialCount={followingCount}
+                    initialFollowing={initialFollowing}
+                  />
+                  <FriendsList 
+                    username={normalizedUsername} 
+                    initialCount={friendCount}
+                    initialFriends={initialFriends}
+                  />
+                </div>
+                
+                {profile.bio && (
+                  <p className="text-sm text-muted-foreground mt-4 max-w-md">{profile.bio}</p>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-4">
                 <FriendButton
                   username={normalizedUsername}
                   userId={profile.userId}
@@ -192,25 +215,8 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                   }}
                   initialFriendshipStatus={friendshipStatus}
                 />
-              </div>
-              <div className="text-left">
-                <h1 className="text-2xl font-extrabold flex items-center leading-none tracking-tight">{profile.name || normalizedUsername}</h1>
-                <p className="text-sm leading-none mt-1 mb-2.5 text-muted-foreground font-medium">@{normalizedUsername}</p>
-                {profile.bio && (
-                  <p className="text-sm text-muted-foreground mb-2.5">{profile.bio}</p>
-                )}
-                <div className="flex gap-4">
-                  <FollowingList 
-                    username={normalizedUsername} 
-                    initialCount={followingCount}
-                    initialFollowing={initialFollowing}
-                  />
-                   <FriendsList 
-                    username={normalizedUsername} 
-                    initialCount={friendCount}
-                    initialFriends={initialFriends}
-                  />
-                </div>
+                
+                <ShareButton className="px-6 py-2" />
               </div>
             </div>
           </div>

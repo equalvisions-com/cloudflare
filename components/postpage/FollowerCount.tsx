@@ -42,7 +42,7 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
   };
 
   return (
-    <div className="max-w-4xl mt-2 text-sm flex items-center gap-4">
+    <div className="max-w-4xl text-sm flex items-center gap-4">
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
         <DrawerTrigger asChild>
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">

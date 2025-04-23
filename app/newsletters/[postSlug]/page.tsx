@@ -13,6 +13,7 @@ import { Doc, Id } from "@/convex/_generated/dataModel";
 import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { MenuButton } from "@/components/ui/menu-button";
+import { ShareButton } from "@/components/ui/share-button";
 import { BackButton } from "@/components/back-button";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { Podcast, Mail } from "lucide-react";
@@ -176,9 +177,9 @@ function PostContent({ post, followState, rssData }: {
 }) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex flex-col items-center" style={{ gap: "16px" }}>
         {post.featuredImg && (
-          <div className="w-24 h-24 shrink-0">
+          <div className="w-24 h-24">
             <AspectRatio ratio={1}>
               <Image
                 src={post.featuredImg}
@@ -191,29 +192,40 @@ function PostContent({ post, followState, rssData }: {
             </AspectRatio>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <MenuButton />
+        
+        <div className="flex flex-col items-center" style={{ gap: "9px" }}>
+          <h1 className="text-2xl font-extrabold leading-none tracking-tight text-center m-0 p-0">
+            {post.title}
+            {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+          </h1>
+          
+          <div className="leading-none p-0 m-0">
+            <FollowerCount 
+              followerCount={post.followerCount} 
+              postId={post._id} 
+              totalEntries={rssData?.totalEntries ?? null}
+              mediaType={post.mediaType}
+            />
+          </div>
+        </div>
+        
+        {post.body && (
+          <div className="text-sm leading-5 text-muted-foreground text-center max-w-md" dangerouslySetInnerHTML={{ __html: post.body }} />
+        )}
+        
+        <div className="flex items-center gap-4">
           <FollowButton
             postId={post._id}
             feedUrl={post.feedUrl}
             postTitle={post.title}
             initialIsFollowing={followState.isFollowing}
             isAuthenticated={followState.isAuthenticated}
+            className="rounded-full px-6 py-2"
           />
+          
+          <ShareButton className="px-6 py-2" />
         </div>
       </div>
-      <h1 className="text-2xl font-extrabold leading-none tracking-tight">
-        {post.title}
-        {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-      </h1>
-      
-      <div className="text-sm mb-3 mt-2 text-muted-foreground" dangerouslySetInnerHTML={{ __html: post.body }} />
-      <FollowerCount 
-        followerCount={post.followerCount} 
-        postId={post._id} 
-        totalEntries={rssData?.totalEntries ?? null}
-        mediaType={post.mediaType}
-      />
     </div>
   );
 }
@@ -232,7 +244,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
 
   return (
     <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostSearchHeader title={post.title} />
+      <PostSearchHeader title={post.title} mediaType={post.mediaType} />
       <PostContent post={post} followState={followState} rssData={rssData} />
       {rssData ? (
         <PostTabsWrapper

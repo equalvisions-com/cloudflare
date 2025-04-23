@@ -9,6 +9,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { PostSearchButton } from "@/components/ui/PostSearchButton";
 import { SignInButton } from "@/components/ui/SignInButton";
+import { MenuButton } from "@/components/ui/menu-button";
 
 export function PostHeaderUserMenu() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
@@ -25,13 +26,18 @@ export function PostHeaderUserMenu() {
   );
 }
 
-export function PostSearchHeader({ title }: { title: string }) {
+export function PostSearchHeader({ title, mediaType }: { title: string; mediaType?: string }) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useSidebar();
+  
+  // Format the media type for display
+  const displayText = mediaType ? 
+    mediaType.charAt(0).toUpperCase() + mediaType.slice(1) : 
+    title;
 
   const toggleSearch = () => {
     if (isSearching) {
@@ -118,9 +124,10 @@ export function PostSearchHeader({ title }: { title: string }) {
             </div>
           </div>
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
-            {title}
+            {displayText}
           </div>
-          <div className={`${isAuthenticated ? "w-10" : "w-20"} flex justify-end`}>
+          <div className={`${isAuthenticated ? "w-20" : "w-32"} flex justify-end items-center gap-2`}>
+            <MenuButton />
             <PostSearchButton onClick={toggleSearch} title={title} />
           </div>
         </div>
