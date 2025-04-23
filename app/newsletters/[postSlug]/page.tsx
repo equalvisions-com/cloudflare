@@ -177,53 +177,63 @@ function PostContent({ post, followState, rssData }: {
 }) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
-      <div className="flex flex-col items-center" style={{ gap: "13px" }}>
-        {post.featuredImg && (
-          <div className="w-24 h-24">
-            <AspectRatio ratio={1}>
-              <Image
-                src={post.featuredImg}
-                alt={post.title}
-                fill
-                sizes="96px"
-                className="object-cover rounded-lg"
-                priority
+      <div className="flex flex-col space-y-4 w-full">
+        {/* Header with image on right, text on left */}
+        <div className="flex justify-between items-start w-full">
+          {/* Left Column: Info */}
+          <div className="flex flex-col items-start text-left max-w-[70%] space-y-4">
+            <div>
+              <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
+                {post.title}
+                {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+              </h1>
+            </div>
+            
+            {/* Body content */}
+            {post.body && (
+              <div className="text-sm text-primary" dangerouslySetInnerHTML={{ __html: post.body }} />
+            )}
+            
+            {/* Follower Count */}
+            <div className="text-muted-foreground font-medium">
+              <FollowerCount 
+                followerCount={post.followerCount} 
+                postId={post._id} 
+                totalEntries={rssData?.totalEntries ?? null}
+                mediaType={post.mediaType}
               />
-            </AspectRatio>
+            </div>
           </div>
-        )}
-        
-        <div className="flex flex-col items-center" style={{ gap: "13px" }}>
-          <h1 className="text-2xl font-extrabold leading-none tracking-tight text-center m-0 p-0">
-            {post.title}
-            {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-          </h1>
           
-          <div className="leading-none p-0 m-0">
-            <FollowerCount 
-              followerCount={post.followerCount} 
-              postId={post._id} 
-              totalEntries={rssData?.totalEntries ?? null}
-              mediaType={post.mediaType}
-            />
-          </div>
+          {/* Right Column: Image */}
+          {post.featuredImg && (
+            <div className="w-24 h-24 flex-shrink-0">
+              <AspectRatio ratio={1}>
+                <Image
+                  src={post.featuredImg}
+                  alt={post.title}
+                  fill
+                  sizes="96px"
+                  className="object-cover rounded-lg"
+                  priority
+                />
+              </AspectRatio>
+            </div>
+          )}
         </div>
         
-        {post.body && (
-          <div className="text-sm leading-5 text-muted-foreground text-center" dangerouslySetInnerHTML={{ __html: post.body }} />
-        )}
-        
-        <div className="flex items-center gap-4">
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-4 w-full">
           <FollowButton
             postId={post._id}
             feedUrl={post.feedUrl}
             postTitle={post.title}
             initialIsFollowing={followState.isFollowing}
             isAuthenticated={followState.isAuthenticated}
-            className="rounded-full px-6 py-2"
+            className="w-full rounded-lg"
           />
           
-          <ShareButton className="px-6 py-2" />
+          <ShareButton className="w-full py-2 rounded-lg" />
         </div>
       </div>
     </div>

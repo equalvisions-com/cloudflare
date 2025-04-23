@@ -10,21 +10,6 @@ import dynamic from 'next/dynamic';
 // Type import needed for proper typing
 import type { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
 
-// Add global cache object to persist bookmarks data across navigations
-const GLOBAL_CACHE: {
-  bookmarksData: {
-    bookmarks: BookmarkItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-    entryMetrics: Record<string, InteractionStates>;
-  } | null;
-  userIdCache: Id<"users"> | null;
-} = {
-  bookmarksData: null,
-  userIdCache: null
-};
-
 // Dynamically import BookmarksFeed with correct typing
 const DynamicBookmarksFeed = dynamic(
   () => import("@/components/bookmarks/BookmarksFeed").then(mod => mod.BookmarksFeed),
@@ -56,48 +41,27 @@ const SkeletonWrappedBookmarksFeed = (props: any) => {
 export function BookmarksContentWrapper() {
   const { userId, isAuthenticated } = useSidebar();
   
-  // Check if user ID has changed to invalidate cache
-  const userChanged = userId !== GLOBAL_CACHE.userIdCache;
-  if (userChanged && userId) {
-    // Reset cache when viewing a different user's bookmarks
-    GLOBAL_CACHE.bookmarksData = null;
-    GLOBAL_CACHE.userIdCache = userId;
-  }
-  
-  // Initialize with cached data or null
+  // Initialize with the correct type structure
   const [initialData, setInitialData] = useState<{
     bookmarks: BookmarkItem[];
     totalCount: number;
     hasMore: boolean;
     entryDetails: Record<string, RSSEntry>;
     entryMetrics: Record<string, InteractionStates>;
-  } | null>(GLOBAL_CACHE.bookmarksData);
+  } | null>(null);
   
-  const [isLoading, setIsLoading] = useState(!GLOBAL_CACHE.bookmarksData);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Skip if we already have cached data for this user
-      if (GLOBAL_CACHE.bookmarksData && GLOBAL_CACHE.userIdCache === userId) {
-        setInitialData(GLOBAL_CACHE.bookmarksData);
-        setIsLoading(false);
-        return;
-      }
-      
-      // Skip if no userId
       if (!userId) {
         setIsLoading(false);
         return;
       }
 
       try {
-        console.log('Fetching bookmarks data from API...');
         const data = await getBookmarksData(userId, 0, 30);
-        // Set local state
         setInitialData(data as any);
-        // Update global cache
-        GLOBAL_CACHE.bookmarksData = data as any;
-        GLOBAL_CACHE.userIdCache = userId;
       } catch (error) {
         console.error("Error fetching bookmarks:", error);
       } finally {

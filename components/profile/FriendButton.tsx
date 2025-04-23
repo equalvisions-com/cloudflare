@@ -11,9 +11,10 @@ import {
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2, UserCheck, UserX, UserMinus } from "lucide-react";
+import { Loader2, UserCheck, UserX, UserMinus, UserPlus } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 // Lazy load the EditProfileModal component
 const EditProfileModal = lazy(() => import("./EditProfileModal").then(mod => ({ default: mod.EditProfileModal })));
@@ -37,9 +38,10 @@ interface FriendButtonProps {
   userId: Id<"users">;
   profileData: ProfileData;
   initialFriendshipStatus?: FriendshipStatus | null; // Add prop for server-provided status
+  className?: string; // Add optional className prop
 }
 
-const FriendButtonComponent = ({ username, userId, profileData, initialFriendshipStatus }: FriendButtonProps) => {
+const FriendButtonComponent = ({ username, userId, profileData, initialFriendshipStatus, className }: FriendButtonProps) => {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -197,7 +199,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       <Button 
         variant="ghost" 
         size="sm" 
-        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground"
+        className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground", className)}
         onClick={handleEditProfileClick}
       >
         Edit Profile
@@ -219,7 +221,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   // Loading state
   if (isLoading) {
     return (
-      <Button variant="ghost" size="sm" disabled className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border !opacity-100 text-muted-foreground">
+      <Button variant="ghost" size="sm" disabled className={cn("h-9 font-semibold text-sm px-4 py-2 rounded-lg shadow-none border !opacity-100 text-muted-foreground", className)}>
         Loading
       </Button>
     );
@@ -231,9 +233,10 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       <Button 
         variant="ghost" 
         size="sm" 
-        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
+        className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none", className)}
         onClick={handleSignInRedirect}
       >
+        <UserPlus className="h-4 w-4" />
         Add Friend
       </Button>
     );
@@ -246,9 +249,10 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       <Button 
         variant="ghost" 
         size="sm" 
-        className="rounded-full h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none"
+        className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-primary/90 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none", className)}
         onClick={handleAddFriend}
       >
+        <UserPlus className="h-4 w-4" />
         Add Friend
       </Button>
     );
@@ -258,7 +262,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+            <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
               Pending
             </Button>
           </DropdownMenuTrigger>
@@ -278,7 +282,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+            <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
               Pending
             </Button>
           </DropdownMenuTrigger>
@@ -303,7 +307,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-9 rounded-full bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground">
+          <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
             Friends
           </Button>
         </DropdownMenuTrigger>
@@ -322,7 +326,8 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   
   // Fallback for any other unhandled state
   return (
-    <Button variant="ghost" size="sm" className="h-9 font-semibold text-sm px-4 py-2 rounded-full shadow-none border-none">
+    <Button variant="ghost" size="sm" className={cn("h-9 font-semibold text-sm px-4 py-2 rounded-lg shadow-none border-none", className)}>
+      <UserPlus className="h-4 w-4" />
       Add Friend
     </Button>
   );

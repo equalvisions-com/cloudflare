@@ -370,7 +370,7 @@ export function UserProfileTabs({
   ]);
 
   return (
-    <div className="w-full border-t z-50">
+    <div className="w-full z-50">
       <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}

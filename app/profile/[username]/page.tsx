@@ -174,36 +174,50 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       <div>
         <div>
           <div className="max-w-4xl mx-auto p-4">
-            <div className="flex flex-col items-center" style={{ gap: "13px" }}>
-              <ProfileImage 
-                profileImage={profile.profileImage} 
-                username={normalizedUsername}
-                size="lg"
-              />
-              
-              <div className="flex flex-col items-center text-center">
-                <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">{profile.name || normalizedUsername}</h1>
-                <p className="text-sm leading-none mt-2 text-muted-foreground font-medium">@{normalizedUsername}</p>
+            <div className="flex flex-col space-y-4 w-full">
+              {/* Profile Header */}
+              <div className="flex justify-between items-start w-full">
+                {/* Left Column: Info */}
+                <div className="flex flex-col items-start text-left max-w-[70%] space-y-4">
+                  <div>
+                    <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
+                      {profile.name || normalizedUsername}
+                    </h1>
+                    <p className="text-sm leading-none mt-2 text-muted-foreground font-medium">
+                      @{normalizedUsername}
+                    </p>
+                  </div>
+                  
+                  {/* Bio (conditional) */}
+                  {profile.bio && (
+                    <p className="text-sm text-primary">{profile.bio}</p>
+                  )}
+                  
+                  {/* Follower/Friend Counts */}
+                  <div className="flex gap-4">
+                    <FollowingList 
+                      username={normalizedUsername} 
+                      initialCount={followingCount}
+                      initialFollowing={initialFollowing}
+                    />
+                    <FriendsList 
+                      username={normalizedUsername} 
+                      initialCount={friendCount}
+                      initialFriends={initialFriends}
+                    />
+                  </div>
+                </div>
+                
+                {/* Right Column: Profile Image */}
+                <ProfileImage 
+                  profileImage={profile.profileImage} 
+                  username={normalizedUsername}
+                  size="lg"
+                />
               </div>
               
-              <div className="flex gap-4">
-                <FollowingList 
-                  username={normalizedUsername} 
-                  initialCount={followingCount}
-                  initialFollowing={initialFollowing}
-                />
-                <FriendsList 
-                  username={normalizedUsername} 
-                  initialCount={friendCount}
-                  initialFriends={initialFriends}
-                />
-              </div>
-              
-              {profile.bio && (
-                <p className="text-sm text-muted-foreground">{profile.bio}</p>
-              )}
-              
-              <div className="flex items-center gap-4">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-4 w-full">
                 <FriendButton
                   username={normalizedUsername}
                   userId={profile.userId}
@@ -214,13 +228,15 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                     username: normalizedUsername
                   }}
                   initialFriendshipStatus={friendshipStatus}
+                  className="w-full"
                 />
                 
-                <ShareButton className="px-6 py-2" />
+                <ShareButton className="w-full py-2 rounded-lg" />
               </div>
             </div>
           </div>
           
+          {/* Profile Activity */}
           <ProfileActivityData 
             userId={profile.userId} 
             username={normalizedUsername}

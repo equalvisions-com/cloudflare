@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCallback, useState } from "react";
+import { Share } from "lucide-react";
 
 interface ShareButtonProps {
   onClick?: () => void;
@@ -53,11 +54,16 @@ export function ShareButton({ onClick, className, shareUrl, children }: ShareBut
       onClick={handleShare}
       disabled={isSharing}
       className={cn(
-        "rounded-full bg-[hsl(var(--background))] border shadow-none hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-muted-foreground hover:text-primary font-semibold",
+        "rounded-lg bg-[hsl(var(--background))] border shadow-none hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-muted-foreground hover:text-primary font-semibold",
         className
       )}
     >
-      {children || "Share"}
+      {children || (
+        <>
+          <Share className="h-4 w-4" />
+          Share
+        </>
+      )}
     </Button>
   );
 } 

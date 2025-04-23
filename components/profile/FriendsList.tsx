@@ -127,8 +127,8 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <Button variant="link" className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none hover:no-underline">
-          <span className="leading-none font-bold mr-[1px]">{count}</span><span className="leading-none font-semibold"> {count === 1 ? "Friend" : "Friends"}</span>
+        <Button variant="link" className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none hover:no-underline text-muted-foreground font-medium">
+          <span className="leading-none">{count}</span><span className="leading-none"> {count === 1 ? "Friend" : "Friends"}</span>
         </Button>
       </DrawerTrigger>
       <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
