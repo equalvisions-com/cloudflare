@@ -1,12 +1,40 @@
 "use client";
 
 import { Id } from "@/convex/_generated/dataModel";
-import { BookmarksFeed } from "@/components/bookmarks/BookmarksFeed";
 import { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import dynamic from 'next/dynamic';
+import { SkeletonFeed } from "@/components/ui/skeleton-feed";
+
+// Dynamically import BookmarksFeed with loading state
+const DynamicBookmarksFeed = dynamic(
+  () => import("@/components/bookmarks/BookmarksFeed").then(mod => ({ default: mod.BookmarksFeed })),
+  { 
+    ssr: false,
+    loading: () => <SkeletonFeed count={5} />
+  }
+);
+
+// Wrapper component to guarantee skeletons show
+const SkeletonWrappedBookmarksFeed = (props: any) => {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsLoading(false);
+    });
+    
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  
+  if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+  
+  return <DynamicBookmarksFeed {...props} />;
+};
 
 interface BookmarksContentProps {
   userId: Id<"users"> | null;
@@ -79,11 +107,7 @@ export const BookmarksContent = ({ userId, initialData }: BookmarksContentProps)
   // Show search results if available
   if (searchQuery) {
     if (isSearching) {
-      return (
-        <div className="flex justify-center items-center py-10">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      );
+      return <SkeletonFeed count={5} />;
     }
     
     if (searchResults) {
@@ -101,7 +125,7 @@ export const BookmarksContent = ({ userId, initialData }: BookmarksContentProps)
       }
       
       return (
-        <BookmarksFeed 
+        <SkeletonWrappedBookmarksFeed 
           userId={userId} 
           initialData={searchResults} 
           pageSize={30} 
@@ -115,6 +139,6 @@ export const BookmarksContent = ({ userId, initialData }: BookmarksContentProps)
 
   // Default: show all bookmarks
   return (
-    <BookmarksFeed userId={userId} initialData={initialData} pageSize={30} />
+    <SkeletonWrappedBookmarksFeed userId={userId} initialData={initialData} pageSize={30} />
   );
 }; 

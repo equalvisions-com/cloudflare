@@ -127,7 +127,9 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
             {displayText}
           </div>
           <div className="w-24 flex justify-end items-center gap-2">
-            <MenuButton />
+            <div className="hidden md:block">
+              <MenuButton />
+            </div>
             <PostSearchButton onClick={toggleSearch} title={title} />
           </div>
         </div>

@@ -152,7 +152,7 @@ export default function NotificationsClient() {
   return (
     <>
       {notifications.length === 0 ? (
-        <div className="p-8 rounded-lg bg-muted/50 text-center">
+        <div className="p-8 text-center">
           <div className="mx-auto h-10 w-10 text-muted-foreground mb-4 flex items-center justify-center">
             <CheckIcon className="h-6 w-6" />
           </div>
