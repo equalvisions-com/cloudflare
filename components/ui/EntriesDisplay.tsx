@@ -414,7 +414,6 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
                   fill
                   className="object-cover"
                   sizes="96px"
-                  loading="lazy"
                   priority={false}
                 />
               </AspectRatio>
@@ -475,7 +474,6 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>
@@ -511,7 +509,6 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 768px"
-                      loading="lazy"
                       priority={false}
                     />
                   </AspectRatio>

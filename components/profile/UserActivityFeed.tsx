@@ -1013,7 +1013,6 @@ const ActivityCard = React.memo(({
                         fill
                         className="object-cover"
                         sizes="96px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>
@@ -1095,8 +1094,7 @@ const ActivityCard = React.memo(({
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 100vw, 768px"
-                          loading="lazy"
-                          priority={false}
+                            priority={false}
                         />
                       </AspectRatio>
                     </CardHeader>
@@ -1131,7 +1129,6 @@ const ActivityCard = React.memo(({
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>
@@ -1185,7 +1182,6 @@ const ActivityCard = React.memo(({
                         fill
                         className="object-cover"
                         sizes="96px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>
@@ -1266,8 +1262,7 @@ const ActivityCard = React.memo(({
                               fill
                               className="object-cover"
                               sizes="(max-width: 768px) 100vw, 768px"
-                              loading="lazy"
-                              priority={false}
+                                    priority={false}
                             />
                           </AspectRatio>
                         </CardHeader>
@@ -1302,8 +1297,7 @@ const ActivityCard = React.memo(({
                             fill
                             className="object-cover"
                             sizes="(max-width: 768px) 100vw, 768px"
-                            loading="lazy"
-                            priority={false}
+                                priority={false}
                           />
                         </AspectRatio>
                       </CardHeader>
@@ -1593,7 +1587,6 @@ const ActivityGroupRenderer = React.memo(({
                       fill
                       className="object-cover"
                       sizes="96px"
-                      loading="lazy"
                       priority={false}
                     />
                   </AspectRatio>
@@ -1676,8 +1669,7 @@ const ActivityGroupRenderer = React.memo(({
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 100vw, 768px"
-                          loading="lazy"
-                          priority={false}
+                            priority={false}
                         />
                       </AspectRatio>
                     </CardHeader>
@@ -1712,7 +1704,6 @@ const ActivityGroupRenderer = React.memo(({
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>

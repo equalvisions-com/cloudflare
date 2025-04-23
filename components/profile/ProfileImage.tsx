@@ -64,7 +64,6 @@ const ProfileImageComponent = ({
           fill
           className="object-cover"
           sizes={imageSizes}
-          loading="lazy"
           priority={false}
         />
       </AspectRatio>

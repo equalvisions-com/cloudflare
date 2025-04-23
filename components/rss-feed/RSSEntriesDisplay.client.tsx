@@ -235,7 +235,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 768px"
-                        loading="lazy"
                         priority={false}
                       />
                     </AspectRatio>
@@ -271,7 +270,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 768px"
-                      loading="lazy"
                       priority={false}
                     />
                   </AspectRatio>
