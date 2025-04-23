@@ -40,20 +40,8 @@ const DynamicPostsDisplay = dynamic<PostsDisplayProps>(
 
 // Create a wrapper component to pass props correctly
 const PostsDisplay = (props: PostsDisplayProps) => {
-  // Use a brief loading state to ensure skeleton shows
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Use requestAnimationFrame to show skeleton for just one frame
-    // This ensures skeleton shows before hydration without artificial delay
-    const frame = requestAnimationFrame(() => {
-      setIsLoading(false);
-    });
-    
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  
-  if (isLoading) {
+  // Only show skeleton if no initial posts were provided
+  if (!props.initialPosts?.length) {
     return <PostsDisplaySkeleton count={10} />;
   }
   
@@ -153,19 +141,8 @@ const DynamicCategorySlider = dynamic<CategorySliderProps>(
 
 // Create a wrapper component to pass props correctly
 const CategorySlider = (props: CategorySliderProps) => {
-  // Use a brief loading state to ensure skeleton shows
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Use requestAnimationFrame to show skeleton for just one frame
-    const frame = requestAnimationFrame(() => {
-      setIsLoading(false);
-    });
-    
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  
-  if (isLoading) {
+  // Only show skeleton if categories aren't available yet
+  if (!props.categories?.length) {
     return <CategorySliderSkeleton />;
   }
   
