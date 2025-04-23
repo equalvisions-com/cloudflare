@@ -111,7 +111,7 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
         </div>
       ) : (
         <div className="flex items-center justify-between px-4">
-          <div className={`${isAuthenticated ? "w-10" : "w-20"} flex items-start justify-start`}>
+          <div className="w-24 flex items-start justify-start">
             <div className="hidden md:block">
               <BackButton />
             </div>
@@ -126,7 +126,7 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
           <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
             {displayText}
           </div>
-          <div className={`${isAuthenticated ? "w-20" : "w-32"} flex justify-end items-center gap-2`}>
+          <div className="w-24 flex justify-end items-center gap-2">
             <MenuButton />
             <PostSearchButton onClick={toggleSearch} title={title} />
           </div>

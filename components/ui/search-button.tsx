@@ -13,11 +13,11 @@ export function SearchButton({ onClick, className }: SearchButtonProps) {
       onClick={onClick}
       size="icon"
       className={cn(
-        "rounded-full bg-[hsl(var(--background))] shadow-none border hover:bg-accent",
+        "rounded-full bg-[hsl(var(--background))] shadow-none border hover:bg-accent w-9 h-9 p-0",
         className
       )}
     >
-      <Search className="h-4 w-4 text-muted-foreground" />
+      <Search className="h-4 w-4 text-muted-foreground ml-auto" />
     </Button>
   );
 } 
