@@ -267,7 +267,7 @@ const CategorySliderComponent = ({
                 key={category._id}
                 ref={(el) => { buttonRefs.current[index] = el; }}
                 className={cn(
-                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-bold text-[15px] capitalize transform-gpu",
+                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-semibold text-sm capitalize transform-gpu",
                   isSelected
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
