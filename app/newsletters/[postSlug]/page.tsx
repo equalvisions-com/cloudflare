@@ -19,6 +19,8 @@ import { PostSearchHeader } from "./PostHeaderClient";
 import { Podcast, Mail } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
+export const dynamic = 'force-dynamic';
+
 interface PostPageProps {
   params: Promise<{
     postSlug: string;

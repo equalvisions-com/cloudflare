@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from 'react'
 import { Wifi } from "lucide-react"
 import { Button } from "@/components/ui/button"

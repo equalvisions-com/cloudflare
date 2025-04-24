@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { SignInMethodDivider } from "@/components/ui/SignInMethodDivider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
