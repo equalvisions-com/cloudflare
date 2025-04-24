@@ -11,7 +11,7 @@ import {
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2, UserCheck, UserX, UserMinus, UserPlus, Clock } from "lucide-react";
+import { Loader2, UserCheck, UserX, UserMinus, UserPlus, Clock, UserCog, UserPen } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -202,6 +202,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground", className)}
         onClick={handleEditProfileClick}
       >
+        <UserPen className="h-4 w-4" />
         Edit Profile
         
         {isEditModalOpen && user && (
