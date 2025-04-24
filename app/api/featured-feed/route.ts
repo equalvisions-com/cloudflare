@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getInitialEntries } from "@/components/featured/FeaturedFeed";
 
+// Force Edge runtime to prevent static generation issues
+export const runtime = 'edge';
+
 export async function GET() {
   try {
     // Fetch the featured feed data

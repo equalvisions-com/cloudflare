@@ -11,6 +11,10 @@ const isOnboardingPage = createRouteMatcher(["/onboarding"]);
 const isProtectedRoute = createRouteMatcher(["/settings", "/alerts", "/bookmarks"]);
 const isProfileRoute = createRouteMatcher(["/@:username"]);
 const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
+const isDynamicContentRoute = createRouteMatcher([
+  "/newsletters/:postSlug*", 
+  "/podcasts/:postSlug*"
+]);
 
 // Helper to normalize username for internal routing
 const normalizeUsername = (username: string) => {
@@ -23,6 +27,13 @@ export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     // Get user profile with authentication and onboarding status first
     const { isAuthenticated, isBoarded } = await getUserProfile();
+    
+    // For all routes, ensure a specific cache-control header for dynamic content
+    // This helps prevent static generation issues during build
+    const response = NextResponse.next();
+    if (isDynamicContentRoute(request) || isSignInPage(request) || isOnboardingPage(request)) {
+      response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    }
 
     // Handle existing auth logic
     if (isSignInPage(request) && isAuthenticated) {
@@ -70,12 +81,24 @@ export default convexAuthNextjsMiddleware(
       url.pathname = normalizeUsername(username);
       return NextResponse.redirect(new URL(url.pathname, request.url), 301);
     }
+    
+    return response;
   },
   { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } }, // 30 days
 );
 
 export const config = {
   // The following matcher runs middleware on all routes
-  // except static assets.
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  // except static assets and includes specific API routes
+  matcher: [
+    // Include all pages that require dynamic rendering
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/',
+    '/api/featured-feed',
+    '/api/rss/:path*',
+    '/signin',
+    '/onboarding',
+    '/newsletters/:path*',
+    '/podcasts/:path*'
+  ],
 };

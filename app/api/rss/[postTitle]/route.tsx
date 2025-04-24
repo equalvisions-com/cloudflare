@@ -7,6 +7,9 @@ import type { RSSItem } from "@/lib/rss";
 import { executeRead } from '@/lib/database';
 import type { RSSEntryRow } from '@/lib/types';
 
+// Use Edge runtime for this API route
+export const runtime = 'edge';
+
 // Define interface for the joined query result
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
   feed_title: string;

@@ -2,6 +2,7 @@
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -20,11 +21,20 @@ import Image from "next/image";
 import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRSSKey } from '@/lib/rss';
+import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 
 // Define step types for onboarding
 type OnboardingStep = 'profile' | 'follow';
 
 export default function OnboardingPage() {
+  return (
+    <EdgeAuthWrapper>
+      <OnboardingPageContent />
+    </EdgeAuthWrapper>
+  );
+}
+
+function OnboardingPageContent() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('profile');
   const [name, setName] = useState('');

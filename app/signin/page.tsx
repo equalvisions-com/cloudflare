@@ -1,6 +1,7 @@
 "use client";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 import { SignInMethodDivider } from "@/components/ui/SignInMethodDivider";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
+import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 
 type AuthStep = 
   | "signIn" 
@@ -24,6 +26,14 @@ type AuthStep =
   | "resetVerification";
 
 export default function SignInPage() {
+  return (
+    <EdgeAuthWrapper>
+      <SignInPageContent />
+    </EdgeAuthWrapper>
+  );
+}
+
+function SignInPageContent() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
   const [activeTab, setActiveTab] = useState("sign-in");
