@@ -1,8 +1,18 @@
 'use client';
 
 import React from 'react';
-import { RSSFeedClient } from "@/components/postpage/RSSFeedClient";
+import dynamic from 'next/dynamic';
+import { SkeletonFeed } from "@/components/ui/skeleton-feed";
 import type { RSSItem } from "@/lib/rss";
+
+// Dynamically import RSSFeedClient with loading skeleton
+const RSSFeedClient = dynamic(
+  () => import("@/components/postpage/RSSFeedClient").then(mod => mod.RSSFeedClient),
+  {
+    ssr: false,
+    loading: () => <SkeletonFeed count={3} />
+  }
+);
 
 // Define RSSEntryWithData interface (consider moving to a shared types file)
 interface RSSEntryWithData {
@@ -53,7 +63,7 @@ const FeedTabContent = React.memo(({
   if (!rssData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-    
+        <SkeletonFeed count={3} />
       </div>
     );
   }
