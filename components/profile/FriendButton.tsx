@@ -11,7 +11,7 @@ import {
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2, UserCheck, UserX, UserMinus, UserPlus } from "lucide-react";
+import { Loader2, UserCheck, UserX, UserMinus, UserPlus, Clock } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -263,7 +263,10 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
-              Pending
+              <>
+                <Clock className="h-4 w-4" />
+                Pending
+              </>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -283,7 +286,10 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
-              Pending
+              <>
+                <Clock className="h-4 w-4" />
+                Pending
+              </>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -308,7 +314,10 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className={cn("h-9 rounded-lg bg-transparent text-muted-foreground font-semibold text-sm px-4 py-2 shadow-none border border-input hover:bg-accent hover:text-accent-foreground", className)}>
-            Friends
+            <>
+              <UserCheck className="h-4 w-4" />
+              Friends
+            </>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

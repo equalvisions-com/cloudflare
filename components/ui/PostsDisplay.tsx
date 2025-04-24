@@ -9,7 +9,7 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { FollowButton } from '@/components/follow-button/FollowButton';
+import { FollowButton } from '@/components/follow-button/CatFollowButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { VerifiedBadge } from "@/components/VerifiedBadge";

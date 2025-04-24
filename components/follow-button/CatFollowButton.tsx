@@ -9,7 +9,6 @@ import { useFollowActions } from "./actions";
 import useSWR, { mutate as globalMutate } from 'swr';
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { cn } from "@/lib/utils";
-import { Rss, Check } from "lucide-react";
 
 interface FollowButtonProps {
   postId: Id<"posts">;
@@ -169,10 +168,7 @@ const FollowButtonComponent = ({
       )}
       style={{ opacity: 1 }}
     >
-      <>
-        <Rss className="h-4 w-4" style={{ transform: 'scaleX(-1)' }} />
-        {isFollowing ? "Following" : "Follow"}
-      </>
+      {isFollowing ? "Following" : "Follow"}
     </Button>
   );
 };
