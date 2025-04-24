@@ -12,6 +12,9 @@ import ProfileSettingsClientWrapper from "@/components/settings/ProfileSettingsC
 import { BackButton } from '@/components/back-button';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic';
+
 // Header component for the settings page
 const SettingsHeader = () => {  
   return (

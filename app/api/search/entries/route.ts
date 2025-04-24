@@ -4,6 +4,9 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 
+// Use Edge runtime for this API route
+export const runtime = 'edge';
+
 const ENTRIES_PER_PAGE = 10;
 
 // Define the type for RSS entry rows

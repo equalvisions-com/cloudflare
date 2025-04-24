@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
 
+// Use Edge runtime for this API route
+export const runtime = 'edge';
+
 export async function GET() {
   try {
     // Fetch the RSS feed data

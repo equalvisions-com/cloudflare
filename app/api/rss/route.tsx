@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { getReadConnection } from '@/lib/database';
 
+// Use Edge runtime for this API route
+export const runtime = 'edge';
+
 // Define interfaces for our data types
 interface RSSEntryRow {
   guid: string;

@@ -1,33 +1,10 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
-
-// Add global cache object to persist data across navigations
-const GLOBAL_CACHE: {
-  activityData: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-  } | null;
-  likesData: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-  } | null;
-  selectedTabIndex: number;
-  userIdCache: Id<"users"> | null;
-} = {
-  activityData: null,
-  likesData: null,
-  selectedTabIndex: 0,
-  userIdCache: null
-};
 
 // Types for activity items
 type ActivityItem = {
@@ -252,41 +229,21 @@ export function UserProfileTabs({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // Check if user ID has changed to invalidate cache
-  const userChanged = userId !== GLOBAL_CACHE.userIdCache;
-  if (userChanged) {
-    // Reset cache when viewing a different user's profile
-    GLOBAL_CACHE.activityData = null;
-    GLOBAL_CACHE.likesData = null;
-    GLOBAL_CACHE.selectedTabIndex = 0;
-    GLOBAL_CACHE.userIdCache = userId;
-  }
-
-  // Update activity data cache if we have new initial data
-  if (initialActivityData && (!GLOBAL_CACHE.activityData || userChanged)) {
-    GLOBAL_CACHE.activityData = initialActivityData;
-  }
-
-  // Update likes data cache if we have new initial data
-  if (initialLikesData && (!GLOBAL_CACHE.likesData || userChanged)) {
-    GLOBAL_CACHE.likesData = initialLikesData;
-  }
-
-  // Use cached data or fall back to initial props
+  // Initialize state directly from props, not from cache
   const [likesState, setLikesState] = useState<{
     data: FeedData | null;
     status: 'idle' | 'loading' | 'loaded' | 'error';
     error: Error | null;
   }>({
-    data: GLOBAL_CACHE.likesData || initialLikesData || null,
-    status: (GLOBAL_CACHE.likesData || initialLikesData) ? 'loaded' : 'idle',
+    data: initialLikesData || null,
+    status: initialLikesData ? 'loaded' : 'idle',
     error: null
   });
   
-  // Use cached selected tab index
-  const [selectedTabIndex, setSelectedTabIndex] = useState(userChanged ? 0 : GLOBAL_CACHE.selectedTabIndex);
+  // Start with first tab always
+  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   
-  // Function to fetch likes data - stabilized with useCallback + fewer dependencies
+  // Function to fetch likes data - stabilized with useCallback
   const fetchLikesData = useCallback(async () => {
     // Only fetch if in idle state
     if (likesState.status !== 'idle') return;
@@ -303,9 +260,6 @@ export function UserProfileTabs({
       
       const data = await response.json();
       setLikesState({ data, status: 'loaded', error: null });
-      
-      // Update the global cache
-      GLOBAL_CACHE.likesData = data;
     } catch (error) {
       console.error('Error fetching likes data:', error);
       setLikesState({
@@ -314,13 +268,11 @@ export function UserProfileTabs({
         error: error instanceof Error ? error : new Error('Unknown error occurred')
       });
     }
-  }, [userId, pageSize, likesState.status]); // Added likesState.status to the dependencies
+  }, [userId, pageSize, likesState.status]);
 
-  // Handle tab change
+  // Handle tab change - now only updates local state
   const handleTabChange = useCallback((index: number) => {
     setSelectedTabIndex(index);
-    // Update the global cache
-    GLOBAL_CACHE.selectedTabIndex = index;
     
     // If switching to likes tab (index 1) and likes haven't been loaded
     if (index === 1 && likesState.status === 'idle') {
@@ -340,7 +292,7 @@ export function UserProfileTabs({
           username={username} 
           name={name}
           profileImage={profileImage}
-          activityData={GLOBAL_CACHE.activityData || initialActivityData} 
+          activityData={initialActivityData} 
           pageSize={pageSize}
         />
       )

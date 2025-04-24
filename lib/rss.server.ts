@@ -79,21 +79,7 @@ const parser = new XMLParser({
 
 // Removed direct PlanetScale connection since we now use the connection manager
 
-// Handle process termination
-process.on('exit', () => {
-  logger.info('Process exit: Application shutting down');
-});
-
-// Handle graceful shutdown for SIGINT and SIGTERM
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: Application shutting down');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: Application shutting down');
-  process.exit(0);
-});
+// Note: Process event handlers removed for Edge runtime compatibility
 
 // Add error handling for database operations
 // Use the new read/write functions based on the operation type
@@ -417,12 +403,12 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
             guid: itemGuid,
             pubDate: formatDate(item.pubDate || item.published || item.updated || new Date().toISOString()),
             image: itemImage || channelImage || undefined,
-            mediaType,
+            mediaType, // Ensure mediaType is always set from the parent function
             feedUrl: url // Add the feedUrl property which is required by the RSSItem interface
           };
           
           if (index < 2) {
-            logger.debug(`Sample item ${index}: title="${processedItem.title}", guid=${processedItem.guid}, link=${processedItem.link}, image=${processedItem.image}`);
+            logger.debug(`Sample item ${index}: title="${processedItem.title}", guid=${processedItem.guid}, link=${processedItem.link}, image=${processedItem.image}, mediaType=${processedItem.mediaType}`);
           }
           
           return processedItem;
@@ -436,7 +422,7 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
             guid: `error-${Date.now()}-${Math.random()}`,
             pubDate: new Date().toISOString(),
             image: channelImage || undefined,
-            mediaType,
+            mediaType, // Ensure even error items have the mediaType
             feedUrl: url // Add the feedUrl property here too
           };
         }
@@ -447,6 +433,15 @@ async function fetchAndParseFeed(url: string, mediaType?: string): Promise<RSSFe
         }
         return isValid;
       }); // Filter out invalid items
+      
+      // Ensure all items have the feed's mediaType if provided
+      if (mediaType) {
+        feed.items.forEach(item => {
+          if (!item.mediaType) {
+            item.mediaType = mediaType;
+          }
+        });
+      }
       
       logger.info(`Successfully parsed feed from ${url} with ${feed.items.length} valid items`);
       return feed;
@@ -1101,6 +1096,15 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     
     // Filter entries that don't exist yet
     const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
+    
+    // Ensure each entry has the mediaType explicitly set if provided
+    if (mediaType) {
+      newEntries.forEach(entry => {
+        if (!entry.mediaType) {
+          entry.mediaType = mediaType;
+        }
+      });
+    }
     
     if (newEntries.length === 0) {
       logger.debug(`No new entries to insert for feed ${feedId}`);

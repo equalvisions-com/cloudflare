@@ -10,6 +10,9 @@ import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsW
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import NotificationsClientWrapper from './NotificationsClientWrapper';
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Notifications",
   description: "View your friend requests and other notifications",

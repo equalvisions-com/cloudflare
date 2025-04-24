@@ -11,6 +11,9 @@ import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsW
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import { Suspense } from 'react';
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Chat',
   description: 'Chat with our AI assistant',
