@@ -177,25 +177,26 @@ function PostContent({ post, followState, rssData }: {
 }) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
-      <div className="flex flex-col space-y-4 w-full">
+      <div className="flex flex-col w-full" style={{ gap: '16px' }}>
         {/* Header with image on right, text on left */}
         <div className="flex justify-between items-start w-full">
-          {/* Left Column: Info */}
-          <div className="flex flex-col items-start text-left max-w-[70%] space-y-4">
-            <div>
-              <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
-                {post.title}
-                {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+          {/* Left Column: Groups with specific gaps */}
+          <div className="flex flex-col items-start text-left max-w-[70%]">
+            {/* Group 1: Title */}
+            <div className="w-full">
+              <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0 flex items-center">
+                <span>{post.title}</span>
+                {post.verified && <VerifiedBadge className="ml-1" />}
               </h1>
             </div>
             
-            {/* Body content */}
+            {/* Group 2: Bio (with 12px gap) */}
             {post.body && (
-              <div className="text-sm text-primary" dangerouslySetInnerHTML={{ __html: post.body }} />
+              <div className="w-full text-sm text-primary" style={{ marginTop: '11px' }} dangerouslySetInnerHTML={{ __html: post.body }} />
             )}
             
-            {/* Follower Count */}
-            <div className="text-muted-foreground font-medium">
+            {/* Group 3: Follower Count (with 12px gap) */}
+            <div className="w-full text-muted-foreground font-medium" style={{ marginTop: '12px' }}>
               <FollowerCount 
                 followerCount={post.followerCount} 
                 postId={post._id} 
@@ -222,8 +223,8 @@ function PostContent({ post, followState, rssData }: {
           )}
         </div>
         
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4 w-full">
+        {/* Group 4: Action Buttons (16px gap from the container) */}
+        <div className="grid grid-cols-2 gap-4 w-full" style={{ marginTop: '2px' }}>
           <FollowButton
             postId={post._id}
             feedUrl={post.feedUrl}

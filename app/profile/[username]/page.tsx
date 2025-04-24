@@ -174,37 +174,40 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       <div>
         <div>
           <div className="max-w-4xl mx-auto p-4">
-            <div className="flex flex-col space-y-4 w-full">
+            <div className="flex flex-col w-full" style={{ gap: '16px' }}>
               {/* Profile Header */}
               <div className="flex justify-between items-start w-full">
-                {/* Left Column: Info */}
-                <div className="flex flex-col items-start text-left max-w-[70%] space-y-4">
-                  <div>
+                {/* Left Column: Groups with specific gaps */}
+                <div className="flex flex-col items-start text-left max-w-[70%]">
+                  {/* Group 1: Title */}
+                  <div className="w-full">
                     <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
                       {profile.name || normalizedUsername}
                     </h1>
-                    <p className="text-sm leading-none mt-2 text-muted-foreground font-medium">
+                    <p className="text-sm leading-none mt-1 text-muted-foreground font-medium">
                       @{normalizedUsername}
                     </p>
                   </div>
                   
-                  {/* Bio (conditional) */}
+                  {/* Group 2: Bio (with 12px gap) */}
                   {profile.bio && (
-                    <p className="text-sm text-primary">{profile.bio}</p>
+                    <p className="w-full text-sm text-primary" style={{ marginTop: '10px' }}>{profile.bio}</p>
                   )}
                   
-                  {/* Follower/Friend Counts */}
-                  <div className="flex gap-4">
-                    <FollowingList 
-                      username={normalizedUsername} 
-                      initialCount={followingCount}
-                      initialFollowing={initialFollowing}
-                    />
-                    <FriendsList 
-                      username={normalizedUsername} 
-                      initialCount={friendCount}
-                      initialFriends={initialFriends}
-                    />
+                  {/* Group 3: Follower/Friend Counts (with 12px gap) */}
+                  <div className="w-full text-muted-foreground font-medium" style={{ marginTop: '10px' }}>
+                    <div className="flex gap-4">
+                      <FollowingList 
+                        username={normalizedUsername} 
+                        initialCount={followingCount}
+                        initialFollowing={initialFollowing}
+                      />
+                      <FriendsList 
+                        username={normalizedUsername} 
+                        initialCount={friendCount}
+                        initialFriends={initialFriends}
+                      />
+                    </div>
                   </div>
                 </div>
                 
@@ -216,7 +219,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 />
               </div>
               
-              {/* Action Buttons */}
+              {/* Group 4: Action Buttons (16px gap from container) */}
               <div className="grid grid-cols-2 gap-4 w-full">
                 <FriendButton
                   username={normalizedUsername}
