@@ -454,13 +454,52 @@ function EntriesContentComponent({
     if (hasMore && !isPending && !endReachedCalledRef.current) {
       logger.debug('📜 Virtuoso reached end of list, loading more entries');
       endReachedCalledRef.current = true;
-      loadMore();
+      // Small delay to prevent multiple calls
+      setTimeout(() => {
+        loadMore();
+      }, 100);
     } else if (endReachedCalledRef.current) {
       logger.debug('📜 Virtuoso endReached already called, waiting for completion');
     } else {
       logger.debug(`📜 Not loading more: hasMore=${hasMore}, isPending=${isPending}`);
     }
   }, [hasMore, isPending, loadMore]);
+  
+  // Create a manual load more handler
+  const handleManualLoadMore = useCallback(() => {
+    if (hasMore && !isPending) {
+      logger.debug('📜 Manual load more button clicked');
+      loadMore();
+    }
+  }, [hasMore, isPending, loadMore]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+          logger.debug('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMore();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreRef, hasMore, isPending, loadMore]);
   
   // Check if this is truly empty (not just initial loading)
   // Only show loading indicator if it's not initializing but the entries array is empty
@@ -476,22 +515,21 @@ function EntriesContentComponent({
   return (
     <div className="space-y-0">
       <Virtuoso
-        key={`virtuoso-${paginatedEntries.length}`}
         useWindowScroll
         totalCount={paginatedEntries.length}
-        endReached={handleEndReached}
-        overscan={500}
+        overscan={2000}
         initialTopMostItemIndex={0}
         itemContent={renderItem}
         components={{
-          Footer: () => 
-            isPending && hasMore ? (
-              <div ref={loadMoreRef} className="h-[100px] text-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-              </div>
-            ) : <div ref={loadMoreRef} className="h-0" />
+          Footer: () => null
         }}
       />
+      
+      {/* Fixed position load more container at bottom */}
+      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+        {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
+        {!hasMore && paginatedEntries.length > 0 && <div></div>}
+      </div>
     </div>
   );
 }
@@ -677,6 +715,9 @@ const RSSEntriesClientComponent = ({
     logger.debug(`📥 Loading more entries, current page: ${currentPageRef.current}, next page: ${currentPageRef.current + 1}, current entries: ${entriesStateRef.current.length}`);
     
     try {
+      // Store current scroll position before pagination
+      const scrollPosition = window.scrollY;
+      
       // Use ONLY the server-provided complete list of post titles
       // This is the most reliable source of truth for ALL followed feeds
       const postTitlesParam = JSON.stringify(postTitlesRef.current);
@@ -788,6 +829,8 @@ const RSSEntriesClientComponent = ({
       if (isMountedRef.current) {
         // Use our updateX functions to keep refs and state in sync
         const updatedEntries = [...entriesStateRef.current, ...transformedEntries];
+        
+        // Batch state updates to reduce re-renders
         updateEntriesState(updatedEntries);
         updatePageState(nextPage);
         updateHasMoreState(data.hasMore);

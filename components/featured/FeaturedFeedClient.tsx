@@ -350,21 +350,48 @@ const FeedContent = React.memo(({
     );
   }
 
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
+  // Reset the endReachedCalled flag when entries change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [visibleEntries.length]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMore();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreRef, hasMore, isLoading, loadMore]);
+
   return (
     <div className="space-y-0">
       <Virtuoso
         useWindowScroll
         totalCount={visibleEntries.length}
-        endReached={() => {
-          console.log(`🏁 Virtuoso endReached called, hasMore: ${hasMore}, isLoading: ${isLoading}, entries: ${visibleEntries.length}`);
-          if (hasMore && !isLoading) {
-            console.log('📥 Virtuoso end reached, loading more entries');
-            loadMore();
-          } else {
-            console.log(`⚠️ Not loading more from Virtuoso endReached: hasMore=${hasMore}, isLoading=${isLoading}`);
-          }
-        }}
-        overscan={20}
+        overscan={2000}
         initialTopMostItemIndex={0}
         itemContent={index => {
           const entryWithData = visibleEntries[index];
@@ -377,14 +404,15 @@ const FeedContent = React.memo(({
           );
         }}
         components={{
-          Footer: () => 
-            isLoading && hasMore ? (
-              <div ref={loadMoreRef} className="text-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-              </div>
-            ) : <div ref={loadMoreRef} className="h-0" />
+          Footer: () => null
         }}
       />
+      
+      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+        {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+        {!hasMore && visibleEntries.length > 0 && <div></div>}
+      </div>
     </div>
   );
 });

@@ -601,6 +601,14 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
   // Track if this is the initial load
   const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
   
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
+  // Reset the endReachedCalled flag when activities change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [activities.length]);
+  
   // Set up the mounted ref
   useEffect(() => {
     // Set mounted flag to true
@@ -694,6 +702,34 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
       }
     }
   }, [isLoading, hasMore, apiUrl]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMoreActivities();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, isLoading, loadMoreActivities]);
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {

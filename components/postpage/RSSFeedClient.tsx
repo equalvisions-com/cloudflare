@@ -419,13 +419,41 @@ const FeedContent = React.memo(function FeedContent({
   verified,
   onOpenCommentDrawer
 }: FeedContentProps) {
-  // Memoize the endReached callback
-  const handleEndReached = useCallback(() => {
-    if (hasMore && !isPending) {
-      console.log('🔄 Loading more entries...');
-      loadMore();
-    }
-  }, [hasMore, isPending, loadMore]);
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
+  // Reset the endReachedCalled flag when entries change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [entries.length]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMore();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreRef, hasMore, isPending, loadMore]);
   
   // Memoize the renderItem function to prevent recreation on every render
   const renderItem = useCallback((index: number) => {
@@ -446,27 +474,27 @@ const FeedContent = React.memo(function FeedContent({
     );
   }, [entries, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer]);
 
-  // Create a stable reference to the footer component props
-  const footerProps = useMemo(() => ({
-    loadMoreRef,
-    isPending,
-    hasMore
-  }), [loadMoreRef, isPending, hasMore]);
-
   return (
     <div className="space-y-0">
       {entries.length === 0 ? <EmptyState /> : (
-        <Virtuoso
-          useWindowScroll
-          totalCount={entries.length}
-          overscan={20}
-          endReached={handleEndReached}
-          initialTopMostItemIndex={0}
-          itemContent={renderItem}
-          components={{
-            Footer: () => <LoadingFooter {...footerProps} />
-          }}
-        />
+        <>
+          <Virtuoso
+            useWindowScroll
+            totalCount={entries.length}
+            overscan={2000}
+            initialTopMostItemIndex={0}
+            itemContent={renderItem}
+            components={{
+              Footer: () => null
+            }}
+          />
+          
+          {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+          <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+            {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
+            {!hasMore && entries.length > 0 && <div></div>}
+          </div>
+        </>
       )}
     </div>
   );

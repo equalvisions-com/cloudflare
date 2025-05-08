@@ -474,13 +474,48 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
     );
   }
 
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
+  // Reset the endReachedCalled flag when bookmarks change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [bookmarks.length]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current || isSearchResults) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMoreBookmarks();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreRef, hasMore, isLoading, loadMoreBookmarks, isSearchResults]);
+
   return (
     <div className="w-full">
       <Virtuoso
         useWindowScroll
         data={bookmarks}
-        endReached={isSearchResults ? undefined : loadMoreBookmarks}
-        overscan={20}
+        overscan={2000}
         itemContent={(index, bookmark) => (
           <BookmarkCard 
             key={bookmark._id} 
@@ -491,14 +526,16 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
           />
         )}
         components={{
-          Footer: () => 
-            isLoading && hasMore && !isSearchResults ? (
-              <div ref={loadMoreRef} className="text-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-              </div>
-            ) : <div ref={loadMoreRef} className="h-0" />
+          Footer: () => null
         }}
       />
+      
+      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+        {hasMore && isLoading && !isSearchResults && <Loader2 className="h-6 w-6 animate-spin" />}
+        {(!hasMore || isSearchResults) && bookmarks.length > 0 && <div></div>}
+      </div>
+      
       {selectedCommentEntry && (
         <CommentSectionClient
           entryGuid={selectedCommentEntry.entryGuid}

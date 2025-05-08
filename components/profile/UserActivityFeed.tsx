@@ -1960,6 +1960,17 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     initialEntryMetrics
   );
 
+  // Create a ref for the load more container
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
+  // Reset the endReachedCalled flag when activities change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [activities.length]);
+  
   // Function to load more activities with stabilized refs to avoid dependency issues
   const loadMoreActivities = useCallback(async () => {
     const {
@@ -2026,6 +2037,34 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       dispatch({ type: 'LOAD_MORE_FAILURE' });
     }
   }, [isActive]); // Only isActive as dependency, everything else uses stable refs
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMoreActivities();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, isLoading, loadMoreActivities]);
 
   // Check if we need to load more - using stable ref pattern
   useEffect(() => {
@@ -2187,16 +2226,15 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   }, [activities]);
 
   // Memoize the Virtuoso configuration
-  const virtuosoConfig = useMemo(() => ({
+  const updatedVirtuosoConfig = useMemo(() => ({
     useWindowScroll: true,
     data: groupedActivities,
-    endReached: loadMoreActivities,
-    overscan: 200,
+    overscan: 2000,
     itemContent: itemRenderer,
     components: {
-      Footer,
+      Footer: () => null
     }
-  }), [groupedActivities, loadMoreActivities, itemRenderer, Footer]);
+  }), [groupedActivities, itemRenderer]);
 
   // Memoize loading state calculations
   const uiIsInitialLoading = useMemo(() => 
@@ -2221,7 +2259,14 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
         </div>
       ) : (
         <>
-          <Virtuoso {...virtuosoConfig} />
+          <Virtuoso {...updatedVirtuosoConfig} />
+          
+          {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+          <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+            {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+            {!hasMore && groupedActivities.length > 0 && <div></div>}
+          </div>
+          
           {selectedCommentEntry && (
             <CommentSectionClient
               entryGuid={selectedCommentEntry.entryGuid}
