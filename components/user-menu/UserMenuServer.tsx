@@ -2,8 +2,24 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Suspense } from "react";
-import { UserMenuClient } from "./UserMenuClient";
+import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
+import { cookies } from "next/headers";
+
+// Define the prop types that our dynamic component will accept
+interface UserMenuClientProps {
+  displayName: string;
+  username: string;
+  isBoarded: boolean;
+  profileImage?: string;
+  pendingFriendRequestCount?: number;
+}
+
+// Import the client component dynamically to isolate edge runtime issues
+// Force TypeScript to recognize it has the right props
+const UserMenuClient = dynamic<UserMenuClientProps>(() => import('./UserMenuClientWrapper'), {
+  ssr: false
+});
 
 // Utility function to fetch the user profile
 export async function getUserProfile() {
@@ -48,7 +64,7 @@ export async function UserMenuServer() {
 
   return (
     <Suspense fallback={<UserMenuFallback />}>
-      <UserMenuClientWrapper 
+      <UserMenuClient 
         displayName={displayName}
         username={username}
         isBoarded={isBoarded} 
@@ -66,27 +82,4 @@ function UserMenuFallback() {
       Guest
     </div>
   );
-}
-
-// Wrapper to pass the initial display name to the client component
-function UserMenuClientWrapper({ 
-  displayName,
-  username,
-  isBoarded, 
-  profileImage,
-  pendingFriendRequestCount
-}: { 
-  displayName: string;
-  username: string;
-  isBoarded: boolean;
-  profileImage?: string;
-  pendingFriendRequestCount?: number;
-}) {
-  return <UserMenuClient 
-    initialDisplayName={displayName}
-    initialUsername={username}
-    isBoarded={isBoarded} 
-    initialProfileImage={profileImage}
-    pendingFriendRequestCount={pendingFriendRequestCount}
-  />;
 }

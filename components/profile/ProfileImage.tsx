@@ -18,25 +18,25 @@ const ProfileImageComponent = ({
   size = "md", 
   className = "" 
 }: ProfileImageProps) => {
-  // Size mappings
-  const sizeClasses = {
-    sm: "w-10 h-10",
-    md: "w-16 h-16",
-    "md-lg": "w-14 h-14",
-    lg: "w-24 h-24",
-    xl: "w-32 h-32"
-  };
-
-  const iconSizes = {
-    sm: "h-5 w-5",
-    md: "h-8 w-8",
-    "md-lg": "h-7 w-7",
-    lg: "h-14 w-14",
-    xl: "h-16 w-16"
-  };
-
   // Memoize size calculations to prevent recalculation on re-renders
   const { sizeClass, iconSize, imageSizes } = useMemo(() => {
+    // Size mappings moved inside useMemo to avoid recreation on each render
+    const sizeClasses = {
+      sm: "w-10 h-10",
+      md: "w-16 h-16",
+      "md-lg": "w-14 h-14",
+      lg: "w-24 h-24",
+      xl: "w-32 h-32"
+    };
+
+    const iconSizes = {
+      sm: "h-5 w-5",
+      md: "h-8 w-8",
+      "md-lg": "h-7 w-7",
+      lg: "h-14 w-14",
+      xl: "h-16 w-16"
+    };
+
     const sizeClass = sizeClasses[size];
     const iconSize = iconSizes[size];
     const sizeValue = parseInt(sizeClass.split("w-")[1]) * 4;

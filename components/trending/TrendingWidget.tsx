@@ -144,7 +144,8 @@ const TrendingItem = memo(({
                     alt={rssEntry.title}
                     fill
                     className="object-cover hover:opacity-90 transition-opacity"
-                    sizes="(max-width: 768px) 100vw, 40px"
+                    sizes="40px"
+                    priority={false}
                   />
                 </AspectRatio>
               </div>
@@ -161,7 +162,8 @@ const TrendingItem = memo(({
                     alt={rssEntry.title}
                     fill
                     className="object-cover hover:opacity-90 transition-opacity"
-                    sizes="(max-width: 768px) 100vw, 40px"
+                    sizes="40px"
+                    priority={false}
                   />
                 </AspectRatio>
               </a>
@@ -197,88 +199,62 @@ TrendingItem.displayName = 'TrendingItem';
 
 const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
   const [rssEntries, setRssEntries] = useState<{[feedUrl: string]: RSSEntry}>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRss, setIsLoadingRss] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [cacheStatus, setCacheStatus] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked');
   
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  // Fetch batched widget data from Convex without timestamp cache busting
-  const widgetData = useQuery(api.featured.getBatchedWidgetData, { 
-    featuredLimit: 6,
-    trendingLimit: 6
+  // Fetch the list of posts using the new public query
+  const trendingPostsSource = useQuery(api.widgets.getPublicWidgetPosts, { 
+    limit: 6 
   });
   
-  // Extract trending posts data and memoize to prevent dependency changes
-  const trendingPosts = useMemo(() => widgetData?.trendingPosts || [], [widgetData?.trendingPosts]);
+  // Handle loading state for the Convex query
+  const isLoadingPosts = trendingPostsSource === undefined;
   
   // Memoized handler for collapsible state
   const handleOpenChange = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
     setIsOpen(open);
   }, []);
   
   // Check cache on component mount (only once)
   useEffect(() => {
-    // Only run this once on mount
-    if (cacheStatus !== 'unchecked' || !isMountedRef.current) return;
-    
+    if (cacheStatus !== 'unchecked') return;
     try {
-      // Check if we're navigating between pages
       const isNavigation = sessionStorage.getItem('app_is_navigation') === 'true';
-      
-      // If we're navigating, clear the flag and rely on cache
       if (isNavigation) {
         sessionStorage.removeItem('app_is_navigation');
       }
-      
-      // Check if we have a valid cache
       if (hasValidCache()) {
         const cachedData = localStorage.getItem('trending_rss_cache');
-        if (isMountedRef.current) {
-          setRssEntries(JSON.parse(cachedData!));
-          setIsLoading(false);
-          setCacheStatus('valid');
-        }
+        setRssEntries(JSON.parse(cachedData!));
+        setIsLoadingRss(false);
+        setCacheStatus('valid');
       } else {
-        if (isMountedRef.current) {
-          setCacheStatus('invalid');
-        }
+        setCacheStatus('invalid');
       }
     } catch (error) {
       console.error('Error checking RSS cache:', error);
-      if (isMountedRef.current) {
-        setCacheStatus('invalid');
-      }
+      setCacheStatus('invalid');
     }
   }, [cacheStatus]);
   
-  // Extract feed URLs for fetching RSS entries
+  // Extract feed URLs for fetching RSS entries - depends on trendingPostsSource
   useEffect(() => {
-    // Don't fetch if we have a valid cache or no posts
-    if (cacheStatus === 'valid' || cacheStatus === 'unchecked' || !trendingPosts || trendingPosts.length === 0 || !isMountedRef.current) {
+    if (cacheStatus === 'valid' || cacheStatus === 'unchecked' || isLoadingPosts || !trendingPostsSource || trendingPostsSource.length === 0) {
       return;
     }
     
     const fetchRssEntries = async () => {
-      if (!isMountedRef.current) return;
-      
-      setIsLoading(true);
+      setIsLoadingRss(true);
       try {
-        const feedUrls = trendingPosts.map(post => post.feedUrl);
+        // Use feedUrls from the new query result
+        const feedUrls = trendingPostsSource.map(post => post.feedUrl).filter(Boolean) as string[];
         
+        if (feedUrls.length === 0) {
+          setIsLoadingRss(false);
+          return;
+        }
+
         const response = await fetch('/api/trending', {
           method: 'POST',
           headers: {
@@ -293,48 +269,51 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
         
         const data = await response.json();
         
-        if (isMountedRef.current) {
-          setRssEntries(data.entries);
-          
-          // Store in cache
-          try {
-            localStorage.setItem('trending_rss_cache', JSON.stringify(data.entries));
-            localStorage.setItem('trending_rss_timestamp', Date.now().toString());
-          } catch (error) {
-            console.error('Error caching RSS entries:', error);
-          }
+        setRssEntries(data.entries);
+        
+        try {
+          localStorage.setItem('trending_rss_cache', JSON.stringify(data.entries));
+          localStorage.setItem('trending_rss_timestamp', Date.now().toString());
+        } catch (error) {
+          console.error('Error caching RSS entries:', error);
         }
       } catch (error) {
         console.error('Error fetching RSS entries:', error);
       } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
+        setIsLoadingRss(false);
       }
     };
     
     fetchRssEntries();
-  }, [trendingPosts, cacheStatus]);
+    // Depend on the source posts list and cache status
+  }, [trendingPostsSource, isLoadingPosts, cacheStatus]);
   
   // Combine post data with RSS entries - memoized
-  const mergedItems = useMemo(() => trendingPosts
-    .map(post => {
-      const rssEntry = rssEntries[post.feedUrl];
-      return {
-        ...post,
-        rssEntry
-      };
-    })
-    .filter(item => item.rssEntry), // Only show items that have an RSS entry
-  [trendingPosts, rssEntries]);
+  const mergedItems = useMemo(() => {
+    // Guard against undefined source posts during initial load
+    if (!trendingPostsSource) return [];
+    
+    return trendingPostsSource
+      .map(post => {
+        const rssEntry = rssEntries[post.feedUrl];
+        return {
+          ...post,
+          rssEntry
+        };
+      })
+      .filter(item => item.rssEntry); // Only show items that have an RSS entry
+  }, [trendingPostsSource, rssEntries]);
   
   // Show first 3 posts initially - memoized
   const initialPosts = useMemo(() => mergedItems.slice(0, 3), [mergedItems]);
   const additionalPosts = useMemo(() => mergedItems.slice(3, 6), [mergedItems]);
   const hasMorePosts = useMemo(() => additionalPosts.length > 0, [additionalPosts]);
   
-  // If no data, show empty state with skeleton loader
-  if (!widgetData || mergedItems.length === 0) {
+  // Determine overall loading state
+  const isLoading = isLoadingPosts || (cacheStatus === 'invalid' && isLoadingRss);
+
+  // If loading or no data, show skeleton loader
+  if (isLoading) {
     return (
       <Card className={`shadow-none rounded-xl ${className}`}>
         <CardHeader className="pb-4">
@@ -353,6 +332,23 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
     );
   }
   
+  // If finished loading but no items merged (e.g., RSS fetch failed or returned empty)
+  if (!isLoading && mergedItems.length === 0) {
+    return (
+       <Card className={`shadow-none rounded-xl ${className}`}>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+            <span>What&apos;s trending</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <p className="text-sm text-muted-foreground">Nothing trending right now.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render the actual content
   return (
     <Card className={`shadow-none rounded-xl ${className}`}>
       <CardHeader className="pb-4">

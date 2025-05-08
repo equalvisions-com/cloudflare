@@ -27,7 +27,8 @@ interface MobileDockProps {
 // Memoized NavItem component to prevent unnecessary re-renders
 const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) => (
   <Link 
-    href={item.href} 
+    href={item.href}
+    prefetch={true}
     className={cn(
       "flex flex-col items-center justify-center px-2 pb-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
@@ -102,7 +103,7 @@ const MobileDockComponent = ({ className }: MobileDockProps) => {
     <nav 
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 content-center md:hidden",
-        "bg-background/85 backdrop-blur-md border-t border-border",
+        "bg-background/85 backdrop-blur-md border-border",
         "flex flex-col",
         className
       )}

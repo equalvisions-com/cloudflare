@@ -2,38 +2,73 @@ import {
   convexAuthNextjsMiddleware,
   createRouteMatcher,
   nextjsMiddlewareRedirect,
+  convexAuthNextjsToken,
 } from "@convex-dev/auth/nextjs/server";
-import { NextResponse } from 'next/server';
-import { getUserProfile } from '@/components/user-menu/UserMenuServer';
+import { NextResponse, NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isOnboardingPage = createRouteMatcher(["/onboarding"]);
 const isProtectedRoute = createRouteMatcher(["/settings", "/alerts", "/bookmarks"]);
-const isProfileRoute = createRouteMatcher(["/@:username"]);
-const isLegacyProfileRoute = createRouteMatcher(["/profile/@:username"]);
 const isDynamicContentRoute = createRouteMatcher([
   "/newsletters/:postSlug*", 
   "/podcasts/:postSlug*"
 ]);
 
-// Helper to normalize username for internal routing
-const normalizeUsername = (username: string) => {
-  // Remove @ if it exists, then add it back for consistency
-  // Store and look up usernames in lowercase
-  return '@' + username.replace(/^@/, '').toLowerCase();
-};
+// Lightweight onboarding status check that doesn't make Convex queries
+async function getBasicUserStatus(request: NextRequest) {
+  let isAuthenticated = false;
+  let isBoarded = false;
+  let skipOnboardingCheck = false;
+
+  try {
+    // Get token validation without making Convex API calls
+    const token = await convexAuthNextjsToken().catch(() => null);
+    isAuthenticated = !!token;
+
+    if (isAuthenticated) {
+      // During cold starts, use cookie as a hint but don't rely on it exclusively
+      const onboardedCookie = request.cookies.get('user_onboarded');
+      
+      if (onboardedCookie?.value === 'true') {
+        // If cookie says user is onboarded, trust it for now to prevent cold start errors
+        isBoarded = true;
+      } else if (onboardedCookie?.value === 'false') {
+        // If cookie explicitly says not onboarded, trust it for now
+        isBoarded = false;
+      } else {
+        // If no cookie or invalid value, we'll mark with a special flag
+        // This tells the layout to verify onboarding status from Convex
+        // but allows middleware to proceed without blocking during cold starts
+        skipOnboardingCheck = true;
+        isBoarded = true; // Assume true to avoid unnecessary redirects during cold starts
+      }
+    }
+  } catch (error) {
+    console.error("Error in basic user status check:", error);
+    // Default to not authenticated in case of errors
+    isAuthenticated = false;
+    skipOnboardingCheck = true; // Skip onboarding checks on errors
+  }
+
+  return { isAuthenticated, isBoarded, skipOnboardingCheck };
+}
 
 export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
-    // Get user profile with authentication and onboarding status first
-    const { isAuthenticated, isBoarded } = await getUserProfile();
+    // Use lightweight status check to avoid cold start 500 errors
+    const { isAuthenticated, isBoarded, skipOnboardingCheck } = await getBasicUserStatus(request);
     
-    // For all routes, ensure a specific cache-control header for dynamic content
-    // This helps prevent static generation issues during build
+    // For all routes, ensure specific cache-control header for dynamic content
     const response = NextResponse.next();
     if (isDynamicContentRoute(request) || isSignInPage(request) || isOnboardingPage(request)) {
       response.headers.set('Cache-Control', 'no-store, must-revalidate');
     }
+
+    // Add status flags as headers for client-side awareness during cold starts
+    response.headers.set('x-user-authenticated', isAuthenticated ? '1' : '0');
+    response.headers.set('x-user-onboarded', isBoarded ? '1' : '0');
+    response.headers.set('x-skip-onboarding-check', skipOnboardingCheck ? '1' : '0');
 
     // Handle existing auth logic
     if (isSignInPage(request) && isAuthenticated) {
@@ -42,7 +77,10 @@ export default convexAuthNextjsMiddleware(
     
     // Redirect from onboarding page if user is already onboarded or not authenticated
     if (isOnboardingPage(request) && (!isAuthenticated || isBoarded)) {
-      return nextjsMiddlewareRedirect(request, "/");
+      // Only redirect away from onboarding if we're confident about the onboarding status
+      if (!skipOnboardingCheck) {
+        return nextjsMiddlewareRedirect(request, "/");
+      }
     }
     
     if (isProtectedRoute(request) && !isAuthenticated) {
@@ -55,31 +93,10 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/onboarding");
     }
 
-    // Handle profile routes after onboarding check
-    if (isProfileRoute(request)) {
-      // First check if user needs onboarding
-      if (isAuthenticated && !isBoarded) {
-        return nextjsMiddlewareRedirect(request, "/onboarding");
-      }
-
-      // If onboarded, proceed with profile routing
-      const url = request.nextUrl.clone();
-      const username = url.pathname.substring(1); // remove leading slash
-      url.pathname = `/profile/${normalizeUsername(username)}`;
-      return NextResponse.rewrite(url);
-    }
-
-    // Handle legacy profile routes
-    if (isLegacyProfileRoute(request)) {
-      // First check if user needs onboarding
-      if (isAuthenticated && !isBoarded) {
-        return nextjsMiddlewareRedirect(request, "/onboarding");
-      }
-
-      const url = request.nextUrl.clone();
-      const username = url.pathname.replace('/profile/', '');
-      url.pathname = normalizeUsername(username);
-      return NextResponse.redirect(new URL(url.pathname, request.url), 301);
+    // For routes where onboarding status matters but we're unsure (no cookie),
+    // let the page render without middleware blocking, and component will handle it
+    if (skipOnboardingCheck) {
+      return response;
     }
     
     return response;

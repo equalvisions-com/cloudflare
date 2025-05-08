@@ -66,6 +66,7 @@ const errorLog = (message: string, error?: unknown) => {
 interface CountCacheEntry {
   count: number;
   timestamp: number;
+  feedCount: number;
 }
 
 const COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -97,11 +98,13 @@ function getCachedCount(postTitles: string[]): number | null {
 // Function to set cached count
 function setCachedCount(postTitles: string[], count: number): void {
   const cacheKey = [...postTitles].sort().join(',');
+  // Store the number of feeds along with the count to detect changes in feed count
   countCache.set(cacheKey, {
     count,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    feedCount: postTitles.length // Save the number of feeds used for this count
   });
-  devLog(`💾 Set count cache for key: ${cacheKey}, count: ${count}`);
+  devLog(`💾 Set count cache for key: ${cacheKey}, count: ${count}, feedCount: ${postTitles.length}`);
 }
 
 // Function to invalidate cached count (useful after feed refresh)
@@ -111,7 +114,16 @@ function invalidateCountCache(postTitles: string[]): void {
   devLog(`🗑️ Invalidated count cache for key: ${cacheKey}`);
 }
 
-export const getInitialEntries = cache(async () => {
+// Function to invalidate all count caches - use when user follows/unfollows feeds
+function invalidateAllCountCaches(): void {
+  countCache.clear();
+  devLog(`🗑️ Invalidated all count caches`);
+}
+
+// Export the function for use in API routes
+export { invalidateAllCountCaches };
+
+export const getInitialEntries = cache(async (skipRefresh = false) => {
   try {
     const token = await convexAuthNextjsToken();
     if (!token) {
@@ -128,6 +140,8 @@ export const getInitialEntries = cache(async () => {
     }
 
     // 2. Extract post titles and feed URLs correctly from the posts array
+    // CRITICAL: We extract ALL followed post titles here, regardless of pagination
+    // This ensures the client has the complete list for pagination requests
     const postTitles = rssKeysWithPosts.posts.map(post => post.title);
     const feedUrls = rssKeysWithPosts.posts.map(post => post.feedUrl);
     const mediaTypes = rssKeysWithPosts.posts.map(post => post.mediaType);
@@ -136,24 +150,15 @@ export const getInitialEntries = cache(async () => {
     devLog(`🔗 SERVER: Associated feed URLs:`, feedUrls);
     devLog(`🎯 SERVER: Associated media types:`, mediaTypes);
     
-    // 3. Check if any feeds need refreshing (4-hour revalidation) and create new feeds if needed
-    // Only check feeds that would appear on the first page to avoid unnecessary refreshes
-    devLog(`🔄 SERVER: Checking if feeds need refreshing only for first page titles`);
-    
+    // Define pageSize and page outside the conditional for use throughout the function
     const pageSize = 30; // Match the default pageSize in client
     const page = 1; // First page only
     
-    try {
-      await checkAndRefreshFeeds(postTitles, feedUrls, mediaTypes);
-      devLog(`✅ SERVER: Feed refresh check completed`);
-      
-      // Invalidate count cache after feed refresh to ensure fresh data
-      invalidateCountCache(postTitles);
-    } catch (refreshError) {
-      errorLog('⚠️ SERVER: Feed refresh check failed:', refreshError);
-      // Continue execution even if refresh fails
-    }
-    
+    // IMPORTANT: Always skip feed refresh/creation in the server component
+    // This ensures fast loading of existing content
+    // The refresh endpoint will handle creating and refreshing feeds
+    devLog(`⏩ SERVER: Skipping feed refresh - refresh endpoint will handle this`);
+
     // 4. Create a map of feed URLs to post metadata for O(1) lookups
     const postMetadataMap = new Map(
       rssKeysWithPosts.posts.map(post => [post.feedUrl, {
@@ -181,6 +186,17 @@ export const getInitialEntries = cache(async () => {
       ORDER BY e.pub_date DESC
       LIMIT ? OFFSET ?
     `;
+    
+    // Check if we have newly followed posts that require a fresh count
+    // For safety, always refresh counts when the feed count has changed
+    const cacheKey = [...postTitles].sort().join(',');
+    const cachedData = countCache.get(cacheKey);
+    
+    // If the number of feeds has changed, we need to invalidate the cache
+    if (cachedData && cachedData.feedCount !== postTitles.length) {
+      devLog(`🔄 SERVER: Feed count changed from ${cachedData.feedCount} to ${postTitles.length}, invalidating cache`);
+      invalidateCountCache(postTitles);
+    }
     
     // Use cached count if available
     let totalEntries = getCachedCount(postTitles);
@@ -285,7 +301,8 @@ export const getInitialEntries = cache(async () => {
         totalEntries,
         hasMore,
         postTitles,
-        feedUrls
+        feedUrls,
+        mediaTypes
       };
     } catch (dbError: unknown) {
       errorLog('❌ SERVER: Error querying PlanetScale:', dbError);
@@ -295,4 +312,9 @@ export const getInitialEntries = cache(async () => {
     errorLog('❌ SERVER: Error fetching initial entries:', error);
     return null;
   }
+});
+
+// Add a new export to get entries without refreshing
+export const getInitialEntriesWithoutRefresh = cache(async () => {
+  return getInitialEntries(true); // Skip refresh
 });

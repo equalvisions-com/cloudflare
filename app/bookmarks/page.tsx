@@ -12,6 +12,7 @@ import { BookmarksContentWrapper } from "./BookmarksContentWrapper";
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 export const metadata = {
   title: "Your Bookmarks | Grasper",

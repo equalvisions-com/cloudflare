@@ -12,6 +12,9 @@ import { FollowingList } from "@/components/profile/FollowingList";
 import { ShareButton } from "@/components/ui/share-button";
 import { Id } from "@/convex/_generated/dataModel";
 
+// Add the Edge Runtime configuration
+export const runtime = 'edge';
+
 // Define FriendshipStatus type to match what FriendButton expects
 type FriendshipStatus = {
   exists: boolean;
@@ -110,6 +113,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
 export default async function ProfilePage({ params }: ProfilePageProps) {
   const resolvedParams = await params;
   const username = resolvedParams?.username;
+  
   if (!username) {
     console.error("No username provided in params for ProfilePage");
     notFound();

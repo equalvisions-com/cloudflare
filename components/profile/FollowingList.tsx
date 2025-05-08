@@ -18,6 +18,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import { FollowButtonWithErrorBoundary } from "../follow-button/FollowButton";
 import { VerifiedBadge } from "../VerifiedBadge";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import Image from "next/image";
 
 interface FollowingListProps {
   username: string;
@@ -203,18 +205,22 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                   <div key={item.following._id.toString()} className="flex items-center justify-between gap-3 p-4 border-b border-border">
                     <Link
                       href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                      className="flex-shrink-0 h-10 w-10 rounded-md bg-muted overflow-hidden"
+                      className="flex-shrink-0 h-10 w-10 rounded-md bg-muted overflow-hidden relative"
                       onClick={() => setOpen(false)}
                     >
+                      <AspectRatio ratio={1}>
                       {item.post.featuredImg ? (
-                        <img
+                        <Image
                           src={item.post.featuredImg}
                           alt={item.post.title}
+                          fill
+                          sizes="40px"
                           className="h-full w-full object-cover"
                         />
                       ) : (
                          <div className="h-full w-full bg-muted"></div>
                       )}
+                      </AspectRatio>
                     </Link>
                     <div className="flex flex-col flex-1 min-w-0">
                       <Link

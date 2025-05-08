@@ -226,6 +226,7 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
                   alt={user.name || user.username}
                   fill
                   className="object-cover"
+                  sizes="64px"
                 />
               </AspectRatio>
             </div>

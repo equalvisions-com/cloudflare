@@ -4,19 +4,39 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Id } from "@/convex/_generated/dataModel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatRSSKey } from "@/lib/rss";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { mutate as globalMutate } from 'swr';
+import { FOLLOWED_POSTS_KEY } from "@/components/follow-button/FollowButton";
+import { MinusCircle, PlusCircle, Loader2 } from "lucide-react";
+
+// --- Define the type for the post prop more accurately based on the query result ---
+interface PublicPostData {
+  _id: Id<"posts">;
+  title: string;
+  postSlug: string;
+  categorySlug: string;
+  featuredImg: string;
+  feedUrl: string;
+  mediaType: string;
+  verified: boolean;
+}
+
+// --- Props for FeaturedPostItem including the externally determined follow state ---
+interface FeaturedPostItemProps {
+  post: PublicPostData;
+  isFollowing: boolean; // Provided by the parent widget
+}
 
 interface FeaturedPostsWidgetProps {
   className?: string;
@@ -42,69 +62,83 @@ const FeaturedPostSkeleton = memo(() => {
 
 FeaturedPostSkeleton.displayName = 'FeaturedPostSkeleton';
 
-// Memoized featured post item component with optimized follow button
-const FeaturedPostItem = memo(({ post }: { post: any & { verified?: boolean } }) => {
+// --- Simplified FeaturedPostItem relying on props for follow state ---
+const FeaturedPostItem = memo(({ post, isFollowing }: FeaturedPostItemProps) => {
   const router = useRouter();
-  const [isFollowing, setIsFollowing] = useState(post.isFollowing || false);
-  const [isAuthenticated] = useState(post.isAuthenticated);
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
+  // Get auth state for redirect logic
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const followMutation = useMutation(api.following.follow);
   const unfollowMutation = useMutation(api.following.unfollow);
-  
+
+  // State for optimistic UI
+  const [visualIsFollowing, setVisualIsFollowing] = useState<boolean | null>(null);
+  // State to prevent rapid clicks
+  const [isBusy, setIsBusy] = useState(false);
+  const lastClickTime = useRef(0);
+
+  // Reset visual state if the underlying prop changes while not busy
+  useEffect(() => {
+    if (!isBusy) {
+      setVisualIsFollowing(null);
+    }
+  }, [isFollowing, isBusy]);
+
   const handleFollowClick = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    
-    if (!isAuthenticated) {
-      router.push("/signin");
+    // Use isAuthLoading here
+    if (!isAuthenticated || isAuthLoading || isBusy) {
+      if (!isAuthenticated && !isAuthLoading) router.push("/signin");
       return;
     }
 
-    // Optimistic update
-    setIsFollowing((prev: boolean) => !prev);
+    const now = Date.now();
+    if (now - lastClickTime.current < 500) return;
+    lastClickTime.current = now;
+
+    setIsBusy(true);
+    // Use the prop `isFollowing` as the source of truth before the click
+    const currentlyFollowing = isFollowing;
+    setVisualIsFollowing(!currentlyFollowing); // Optimistic UI update
 
     try {
       const rssKey = formatRSSKey(post.title);
-      
-      if (isFollowing) {
-        // Unfollow
-        await unfollowMutation({
-          postId: post._id,
-          rssKey
-        });
+      if (currentlyFollowing) {
+        await unfollowMutation({ postId: post._id, rssKey });
       } else {
-        // Follow
-        await followMutation({
-          postId: post._id,
-          feedUrl: post.feedUrl || '',
-          rssKey
-        });
+        await followMutation({ postId: post._id, feedUrl: post.feedUrl || '', rssKey });
       }
-      
-      // Refresh router after mutation completes
-      router.refresh();
+
+      await globalMutate(FOLLOWED_POSTS_KEY);
+
     } catch (error) {
       console.error("Error updating follow state:", error);
-      // Revert optimistic update on error
-      if (isMountedRef.current) {
-        setIsFollowing(isFollowing);
-      }
+      setVisualIsFollowing(null); // Rollback optimistic UI on error
+    } finally {
+      // Allow time for mutation effects / potential prop updates before clearing busy
+      setTimeout(() => setIsBusy(false), 300);
     }
-  }, [isFollowing, isAuthenticated, post, router, followMutation, unfollowMutation]);
-  
+    // Dependencies: rely on props and auth state
+  }, [isAuthenticated, isAuthLoading, isBusy, isFollowing, post, router, followMutation, unfollowMutation]);
+
+  // Determine the state to display
+  const displayFollowing = visualIsFollowing !== null ? visualIsFollowing : isFollowing;
+
+  const buttonVariant = displayFollowing ? "ghost" : "default";
+  const buttonClasses = cn(
+    "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold",
+    displayFollowing && "text-muted-foreground border border-input",
+    // Disable if auth is loading or mutation is busy
+    (isAuthLoading || isBusy) && "opacity-50 pointer-events-none"
+  );
+
+  const buttonContent = useMemo(() => {
+    // Show loader ONLY if initial auth is loading (and not busy with a mutation)
+    if (isAuthLoading && !isBusy) { 
+      return <Loader2 className="h-3 w-3 animate-spin" />;
+    }
+    // Directly show the target state text based on optimistic/actual state
+    return displayFollowing ? "Following" : "Follow";
+  }, [isAuthLoading, isBusy, displayFollowing]);
+
   return (
     <li className="flex flex-col gap-2">
       <div className="flex gap-3">
@@ -117,7 +151,8 @@ const FeaturedPostItem = memo(({ post }: { post: any & { verified?: boolean } })
                   alt={post.title}
                   fill
                   className="object-cover hover:opacity-90 transition-opacity"
-                  sizes="(max-width: 768px) 100vw, 64px"
+                  sizes="40px"
+                  priority={false}
                 />
               </AspectRatio>
             </Link>
@@ -135,15 +170,14 @@ const FeaturedPostItem = memo(({ post }: { post: any & { verified?: boolean } })
               </Link>
             </div>
             <Button
-              variant={isFollowing ? "ghost" : "default"}
+              variant={buttonVariant}
               onClick={handleFollowClick}
-              className={cn(
-                "rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold",
-                isFollowing && "text-muted-foreground border border-input"
-              )}
+              disabled={isAuthLoading || isBusy}
+              className={buttonClasses}
               style={{ opacity: 1 }}
+              aria-live="polite"
             >
-              {isFollowing ? "Following" : "Follow"}
+              {buttonContent}
             </Button>
           </div>
         </div>
@@ -154,67 +188,50 @@ const FeaturedPostItem = memo(({ post }: { post: any & { verified?: boolean } })
 
 FeaturedPostItem.displayName = 'FeaturedPostItem';
 
-// Memoized main widget component
+// --- Main Widget Component - Fetches Posts and Follow States ---
 const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetProps) => {
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  // Set up random timestamp to bust the cache
-  const [timestamp, setTimestamp] = useState(() => Date.now());
-  
-  // Force refresh when component mounts or tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isMountedRef.current) {
-        setTimestamp(Date.now());
-      }
-    };
-    
-    // Update timestamp on mount
-    setTimestamp(Date.now());
-    
-    // Add visibility change listener for tab switches
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-  
-  // Fetch batched widget data from Convex instead of directly querying featured posts
-  const widgetData = useQuery(api.featured.getBatchedWidgetData, { 
-    featuredLimit: 6,
-    trendingLimit: 6,
-    timestamp
-  });
-  
-  // Extract featured posts from the batched data using useMemo
-  const featuredPosts = useMemo(() => widgetData?.featuredPosts || [], [widgetData]);
-  
+  const { isAuthenticated } = useConvexAuth();
+
+  // 1. Fetch the list of public posts
+  const featuredPosts = useQuery(api.widgets.getPublicWidgetPosts, { limit: 6 });
+  const isLoadingPosts = featuredPosts === undefined;
+
+  // 2. Prepare arguments for follow state query (only if posts are loaded and user is authenticated)
+  const postIdsToFetch = useMemo(() => {
+    if (!isAuthenticated || isLoadingPosts || !featuredPosts) return null;
+    return featuredPosts.map(p => p._id);
+  }, [isAuthenticated, isLoadingPosts, featuredPosts]);
+
+  // 3. Fetch follow states for the loaded posts
+  const followStatesResult = useQuery(
+    api.following.getFollowStates,
+    postIdsToFetch ? { postIds: postIdsToFetch } : "skip"
+  );
+  const isLoadingFollowStates = isAuthenticated && !isLoadingPosts && followStatesResult === undefined;
+
+  // 4. Combined Loading State: loading posts OR loading follow states (if auth)
+  const isLoading = isLoadingPosts || isLoadingFollowStates;
+
+  // 5. Create a map for easy lookup (only when data is available)
+  const followStateMap = useMemo(() => {
+    const map = new Map<Id<"posts">, boolean>();
+    if (featuredPosts && followStatesResult) {
+      featuredPosts.forEach((post, index) => {
+        map.set(post._id, followStatesResult[index] ?? false);
+      });
+    }
+    return map;
+  }, [featuredPosts, followStatesResult]);
+
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Show first 3 posts initially - using useMemo to avoid recalculation
-  const initialPosts = useMemo(() => featuredPosts.slice(0, 3), [featuredPosts]);
-  const additionalPosts = useMemo(() => featuredPosts.slice(3, 6), [featuredPosts]);
+
+  // Prepare posts for rendering (only when not loading)
+  const initialPosts = useMemo(() => isLoading ? [] : featuredPosts?.slice(0, 3) || [], [isLoading, featuredPosts]);
+  const additionalPosts = useMemo(() => isLoading ? [] : featuredPosts?.slice(3, 6) || [], [isLoading, featuredPosts]);
   const hasMorePosts = useMemo(() => additionalPosts.length > 0, [additionalPosts]);
 
-  // Memoized handler for collapsible state
-  const handleOpenChange = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
-    setIsOpen(open);
-  }, []);
-  
+  const handleOpenChange = useCallback((open: boolean) => setIsOpen(open), []);
+
   return (
     <Card className={`shadow-none rounded-xl ${className}`}>
       <CardHeader className="pb-4">
@@ -222,54 +239,54 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
           <span>Who to follow</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="4 pb-4">
-        {!featuredPosts.length && (
+      <CardContent className="px-4 pb-4">
+        {/* Show skeleton ONLY during the combined loading state */}
+        {isLoading && (
           <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <FeaturedPostSkeleton key={i} />
-            ))}
+            {[...Array(3)].map((_, i) => <FeaturedPostSkeleton key={i} />)}
           </div>
         )}
         
-        <Collapsible
-          open={isOpen}
-          onOpenChange={handleOpenChange}
-          className="space-y-4"
-        >
-          <ul className="space-y-4">
-            {initialPosts.map((post) => (
-              <FeaturedPostItem 
-                key={post._id}
-                post={post}
-              />
-            ))}
-          </ul>
-          
-          {hasMorePosts && (
-            <>
-              <CollapsibleContent className="space-y-4 mt-4">
-                <ul className="space-y-4">
-                  {additionalPosts.map((post) => (
-                    <FeaturedPostItem 
-                      key={post._id}
-                      post={post}
-                    />
-                  ))}
-                </ul>
-              </CollapsibleContent>
-              
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="link" 
-                  size="sm" 
-                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none"
-                >
-                  {isOpen ? "Show less" : "Show more"}
-                </Button>
-              </CollapsibleTrigger>
-            </>
-          )}
-        </Collapsible>
+        {/* Show message if loading finished but no posts */}
+        {!isLoading && featuredPosts && featuredPosts.length === 0 && (
+          <p className="text-sm text-muted-foreground">No featured posts found.</p>
+        )}
+
+        {/* Render list only when NOT loading and posts exist */}
+        {!isLoading && featuredPosts && featuredPosts.length > 0 && (
+          <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="space-y-4">
+            <ul className="space-y-4">
+              {initialPosts.map((post) => (
+                <FeaturedPostItem 
+                  key={post._id} 
+                  post={post} 
+                  // Pass the resolved follow state from the map
+                  isFollowing={followStateMap.get(post._id) ?? false} 
+                />
+              ))}
+            </ul>
+            {hasMorePosts && (
+              <>
+                <CollapsibleContent className="space-y-4 mt-4">
+                  <ul className="space-y-4">
+                    {additionalPosts.map((post) => (
+                      <FeaturedPostItem 
+                        key={post._id} 
+                        post={post} 
+                        isFollowing={followStateMap.get(post._id) ?? false} 
+                      />
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+                <CollapsibleTrigger asChild>
+                  <Button variant="link" size="sm" className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none">
+                    {isOpen ? "Show less" : "Show more"}
+                  </Button>
+                </CollapsibleTrigger>
+              </>
+            )}
+          </Collapsible>
+        )}
       </CardContent>
     </Card>
   );

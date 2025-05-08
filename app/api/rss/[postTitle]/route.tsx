@@ -59,7 +59,11 @@ export async function GET(
     // This prevents unnecessary refresh checks during pagination
     if (page === 1) {
       console.log(`🔄 API: Checking if feed needs refreshing (first page only): ${decodedTitle}`);
-      await checkAndRefreshFeeds([decodedTitle], [feedUrl]);
+      await checkAndRefreshFeeds(
+        [decodedTitle],
+        [feedUrl],
+        mediaType ? [mediaType] : undefined
+      );
     } else {
       console.log(`⏩ API: Skipping refresh check for page ${page} of ${decodedTitle}`);
     }

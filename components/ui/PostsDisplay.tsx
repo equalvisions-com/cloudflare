@@ -197,30 +197,6 @@ const PostsDisplayComponent = ({
     }
   }, [isInitialLoad, postsResult, processNewPosts]);
 
-  // Update posts with follow states - memoized function
-  const updatePostsWithFollowStates = useCallback((currentPosts: Post[], followStateMap: Map<string, boolean>) => {
-    if (!isMountedRef.current) return currentPosts;
-    
-    return currentPosts.map(post => {
-      const postIdStr = post._id.toString();
-      // If we have a follow state for this post, use it, otherwise keep the current value
-      const isFollowing = followStateMap.has(postIdStr) 
-        ? followStateMap.get(postIdStr) 
-        : post.isFollowing;
-      
-      // Only update if the follow state actually changed
-      if (post.isFollowing === isFollowing) {
-        return post;
-      }
-      
-      return {
-        ...post,
-        isAuthenticated,
-        isFollowing
-      };
-    });
-  }, [isAuthenticated]);
-
   // Update follow states when they load
   useEffect(() => {
     if (!isMountedRef.current) return;
@@ -230,16 +206,47 @@ const PostsDisplayComponent = ({
       const followStateMap = new Map();
       
       // For each post ID we queried, get its corresponding follow state
+      // We're only reading post IDs here which are stable during this effect
       posts.forEach((post, index) => {
         if (index < followStates.length) {
           followStateMap.set(post._id.toString(), followStates[index]);
         }
       });
       
-      // Update posts with their follow states
-      setPosts(currentPosts => updatePostsWithFollowStates(currentPosts, followStateMap));
+      // Update posts with their follow states using a functional update
+      // This pattern avoids needing the external posts variable in dependencies
+      setPosts(currentPosts => {
+        // If there are no changes needed, return same reference to avoid re-render
+        if (followStateMap.size === 0) return currentPosts;
+        
+        // Process each post to check if it needs updating
+        return currentPosts.map(post => {
+          const postIdStr = post._id.toString();
+          // If we have a follow state for this post, use it, otherwise keep current
+          const isFollowing = followStateMap.has(postIdStr)
+            ? followStateMap.get(postIdStr)
+            : post.isFollowing;
+          
+          // Only create new object if follow state changed
+          if (post.isFollowing === isFollowing) {
+            return post;
+          }
+          
+          // Return new post object with updated follow state
+          return {
+            ...post,
+            isAuthenticated,
+            isFollowing
+          };
+        });
+      });
     }
-  }, [followStates, updatePostsWithFollowStates, posts.length]);
+  // We intentionally exclude 'posts' from dependencies to prevent an infinite render loop
+  // The posts array is used to create followStateMap, and then we update posts,
+  // which would trigger this effect again if 'posts' was in the dependencies
+  // Instead, we use the functional update pattern with setPosts to safely access the latest posts state
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followStates, isAuthenticated, posts.length]);
 
   // Load more posts when bottom is reached
   useEffect(() => {

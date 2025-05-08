@@ -4,6 +4,8 @@ import { Id } from '@/convex/_generated/dataModel';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchMutation } from "convex/nextjs";
 
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     // Get the authentication token

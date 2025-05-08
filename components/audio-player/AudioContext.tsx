@@ -1,7 +1,17 @@
 'use client';
 
-import React, { createContext, useContext, useState, useRef } from 'react';
-import { Howl } from 'howler';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+// Remove the direct import of Howler
+// import { Howl } from 'howler';
+
+// Define Howl type for TypeScript
+interface HowlType {
+  play: () => void;
+  pause: () => void;
+  seek: (position?: number) => number;
+  unload: () => void;
+  duration: () => number;
+}
 
 interface AudioContextType {
   currentTrack: {
@@ -25,29 +35,51 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [seek, setSeek] = useState(0);
   const [duration, setDuration] = useState(0);
-  const howlerRef = useRef<Howl | null>(null);
+  const howlerRef = useRef<HowlType | null>(null);
+  const [howlerLoaded, setHowlerLoaded] = useState(false);
+  
+  // Dynamically import Howler only on client-side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('howler').then(() => {
+        setHowlerLoaded(true);
+      }).catch(err => {
+        console.error("Failed to load Howler:", err);
+      });
+    }
+  }, []);
 
   const playTrack = (src: string, title: string, image?: string) => {
+    // Only run on client side when Howler is loaded
+    if (typeof window === 'undefined' || !howlerLoaded) return;
+    
     // If there's an existing track, unload it
     if (howlerRef.current) {
       howlerRef.current.unload();
     }
 
     // Create new Howl instance
-    howlerRef.current = new Howl({
-      src: [src],
-      html5: true,
-      onload: () => {
-        setDuration(howlerRef.current?.duration() || 0);
-        howlerRef.current?.play();
-      },
-      onplay: () => setIsPlaying(true),
-      onpause: () => setIsPlaying(false),
-      onstop: () => setIsPlaying(false),
-      onend: () => setIsPlaying(false),
-    });
+    try {
+      // We need to dynamically require Howler here
+      const { Howl } = require('howler');
+      
+      howlerRef.current = new Howl({
+        src: [src],
+        html5: true,
+        onload: () => {
+          setDuration(howlerRef.current?.duration() || 0);
+          howlerRef.current?.play();
+        },
+        onplay: () => setIsPlaying(true),
+        onpause: () => setIsPlaying(false),
+        onstop: () => setIsPlaying(false),
+        onend: () => setIsPlaying(false),
+      });
 
-    setCurrentTrack({ src, title, image });
+      setCurrentTrack({ src, title, image });
+    } catch (err) {
+      console.error("Error creating Howl instance:", err);
+    }
   };
 
   const stopTrack = () => {
@@ -76,7 +108,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Update seek position
-  React.useEffect(() => {
+  useEffect(() => {
+    // Skip this effect on server-side
+    if (typeof window === 'undefined') return;
+    
     const interval = setInterval(() => {
       if (howlerRef.current && isPlaying) {
         setSeek(howlerRef.current.seek());
@@ -87,7 +122,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [isPlaying]);
 
   // Clean up on unmount
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (howlerRef.current) {
         howlerRef.current.unload();

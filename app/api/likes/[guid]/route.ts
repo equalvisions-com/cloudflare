@@ -3,6 +3,9 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
+// Add the Edge Runtime configuration
+export const runtime = 'edge';
+
 // Define the route context type with async params
 interface RouteContext {
   params: Promise<{ guid: string }>;

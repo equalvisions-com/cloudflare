@@ -47,7 +47,7 @@ export function PersistentPlayer() {
                   alt=""
                   fill
                   className="object-cover"
-                  sizes="64px"
+                  sizes="56px"
                 />
               </AspectRatio>
             </div>

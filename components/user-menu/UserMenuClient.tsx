@@ -13,8 +13,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { useUserMenuState } from "./useUserMenuState";
-import Image from "next/image";
-import { memo, useCallback, useRef, useEffect } from "react";
+import { memo, useCallback, useRef, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
+
+// Dynamically import the Image component with Edge compatibility
+const UserMenuImage = dynamic(() => import("./UserMenuImage"), {
+  ssr: false,
+  suspense: true
+});
 
 interface UserMenuClientProps {
   initialDisplayName?: string;
@@ -80,15 +86,11 @@ const UserMenuClientComponent = ({
               <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
             )}
             {profileImage ? (
-              <div className="h-9 w-9 overflow-hidden rounded-full">
-                <Image 
-                  src={profileImage} 
-                  alt={displayName} 
-                  width={36}
-                  height={36}
-                  className="h-full w-full object-cover"
-                />
-              </div>
+              <Suspense fallback={
+                <div className="h-9 w-9 rounded-full bg-secondary animate-pulse"></div>
+              }>
+                <UserMenuImage src={profileImage} alt={displayName || 'User'} />
+              </Suspense>
             ) : (
               <Button 
                 variant="secondary" 

@@ -16,6 +16,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import Image from 'next/image';
 
 // Define types for our notifications
 interface FriendshipData {
@@ -174,9 +175,11 @@ export default function NotificationsClient() {
                   <Link href={profileUrl} className="block">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                       {notification.profile.profileImage ? (
-                        <img 
+                        <Image 
                           src={notification.profile.profileImage} 
                           alt={notification.profile.username || "User"} 
+                          width={40}
+                          height={40}
                           className="h-full w-full object-cover"
                         />
                       ) : (

@@ -28,6 +28,7 @@ import type * as retweets from "../retweets.js";
 import type * as rssKeys from "../rssKeys.js";
 import type * as userActivity from "../userActivity.js";
 import type * as users from "../users.js";
+import type * as widgets from "../widgets.js";
 
 import type {
   ApiFromModules,
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   rssKeys: typeof rssKeys;
   userActivity: typeof userActivity;
   users: typeof users;
+  widgets: typeof widgets;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

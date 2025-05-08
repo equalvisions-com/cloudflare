@@ -33,9 +33,21 @@ export function MobileSearch({ className }: MobileSearchProps) {
 
   // Close search when pathname changes (navigation occurs)
   useEffect(() => {
-    if (isSearching) {
-      setIsSearching(false);
-    }
+    // Only run this effect to clear search when pathname changes,
+    // not when isSearching changes
+    const handlePathChange = () => {
+      if (isSearching) {
+        setIsSearching(false);
+      }
+    };
+    
+    // Call immediately for current pathname
+    handlePathChange();
+
+    // isSearching is used inside handlePathChange but we intentionally exclude it
+    // from dependencies because including it would toggle isSearching back to false
+    // immediately after it's set to true, breaking the search functionality
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // Custom handler for SidebarSearch to close MobileSearch on search execution

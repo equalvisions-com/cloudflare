@@ -966,6 +966,31 @@ export const completeOnboarding = mutation({
   },
 });
 
+// --- ADD NEW CONVEX ACTION --- 
+export const finalizeOnboardingAction = action({
+  args: {
+    // These args must match the completeOnboarding mutation
+    username: v.string(),
+    name: v.optional(v.union(v.string(), v.null())),
+    bio: v.optional(v.union(v.string(), v.null())),
+    profileImageKey: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    // This action runs server-side with auth context
+    // It calls the existing mutation internally
+    try {
+      await ctx.runMutation(api.users.completeOnboarding, args);
+      return { success: true };
+    } catch (error) {
+      console.error("Error in Convex finalizeOnboardingAction:", error);
+      // Propagate the error message
+      const errorMessage = error instanceof Error ? error.message : "Failed to complete onboarding in Convex action";
+      // Throwing here will make useAction hook catch it
+      throw new Error(errorMessage);
+    }
+  },
+});
+
 // Optimized version of searchUsers that uses field filtering
 export const searchUsersOptimized = query({
   args: { 

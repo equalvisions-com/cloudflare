@@ -1,13 +1,58 @@
 'use client';
 
+// REMOVE "use server" directive
+// "use server"; 
+
+// REMOVE cookie import
+// import { cookies } from 'next/headers';
+
+// --- REMOVE Server Action Definition --- 
+/*
+export async function finalizeOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
+  "use server"; // Ensure this action runs on the server
+  try {
+    // Set the cookie server-side
+    cookies().set('user_onboarded', 'true', {
+      path: '/',
+      httpOnly: true, // Recommended for security
+      secure: process.env.NODE_ENV === 'production', // Recommended for security
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: 'lax', // Recommended
+    });
+    return { success: true };
+
+  } catch (error: any) {
+    console.error('Error in finalizeOnboardingCookieAction:', error);
+    return { success: false, error: "Failed to set onboarding cookie" };
+  }
+}
+*/
+
+// Interface for profile data passed from client
+interface FinalizeOnboardingArgs {
+  username: string;
+  name?: string;
+  bio?: string;
+  profileImageKey?: string;
+}
+
+// --- Update the Client Component --- 
+
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+// Keep useAction for the *Convex* action
+import { useAction, useQuery, useMutation } from 'convex/react'; 
+import { api } from '@/convex/_generated/api'; // Keep this for Convex hooks
+import { Id } from '@/convex/_generated/dataModel';
+// ADD import for the Server Action from the new file
+import { finalizeOnboardingCookieAction } from './actions';
+// Remove the unused direct cookie setting import
+// import { setCookie } from 'cookies-next';
+
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useMutation, useAction, useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +63,6 @@ import { Loader2, Upload, Check, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
-import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRSSKey } from '@/lib/rss';
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
@@ -46,15 +90,17 @@ function OnboardingPageContent() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [profileImageKey, setProfileImageKey] = useState<string | null>(null);
   const [followedPosts, setFollowedPosts] = useState<string[]>([]);
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
   
-  // Mutations
-  const completeOnboarding = useMutation(api.users.completeOnboarding);
+  // Hook for the *Convex* action to update the database
+  const completeOnboardingDB = useAction(api.users.finalizeOnboardingAction);
+  
+  // Hooks for intermediate steps (keep these)
   const getProfileImageUploadUrl = useAction(api.users.getProfileImageUploadUrl);
   const followPost = useMutation(api.following.follow);
   const unfollowPost = useMutation(api.following.unfollow);
@@ -243,34 +289,44 @@ function OnboardingPageContent() {
     setIsSubmitting(true);
     
     try {
-      // Complete onboarding with profile data
-      await completeOnboarding(profileData);
+      // Step 1: Call the Convex action to update the database
+      await completeOnboardingDB(profileData);
       
-      // Show success message
+      // Step 2: Call the Next.js Server Action to set the cookie
+      const cookieResult = await finalizeOnboardingCookieAction();
+      
+      if (!cookieResult.success) {
+        // Log the cookie error but proceed - DB update was the critical part
+        console.error("Failed to set onboarding cookie, but DB was updated.", cookieResult.error);
+        // Optionally show a different toast? For now, just log.
+      }
+
+      // Show success toast
       toast({
         title: "Profile completed",
         description: "Welcome to Grasper!",
         variant: "default",
       });
       
-      // Clean up any object URLs we created
+      // Clean up object URLs
       if (previewImage && previewImage.startsWith('blob:')) {
         URL.revokeObjectURL(previewImage);
       }
       
-      // Redirect to home page after successful onboarding
+      // Redirect
       router.push('/');
-      router.refresh(); // Refresh to update auth state
+      router.refresh();
+
     } catch (error) {
+      // This will catch errors from the Convex action (completeOnboardingDB)
       console.error('Error completing onboarding:', error);
-      
       toast({
         title: "Could not complete onboarding",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
-      
-      setIsSubmitting(false);
+    } finally {
+       setIsSubmitting(false);
     }
   };
 
@@ -302,15 +358,19 @@ function OnboardingPageContent() {
                 />
                 <div className="w-20 h-20 border rounded-full overflow-hidden border">
                   {previewImage ? (
-                    <img 
+                    <Image 
                       src={previewImage} 
                       alt="Profile preview" 
+                      width={80} 
+                      height={80} 
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <img 
+                    <Image 
                       src="data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E"
                       alt="Default Profile"
+                      width={80}
+                      height={80}
                       className="w-full h-full"
                     />
                   )}

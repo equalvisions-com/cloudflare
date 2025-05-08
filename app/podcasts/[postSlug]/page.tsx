@@ -20,6 +20,7 @@ import { Podcast, Mail } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 interface PostPageProps {
   params: Promise<{

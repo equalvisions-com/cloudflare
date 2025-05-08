@@ -7,9 +7,12 @@ import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useFollowActions } from "./actions";
 import useSWR, { mutate as globalMutate } from 'swr';
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { cn } from "@/lib/utils";
-import { Rss, Check } from "lucide-react";
+import { MinusCircle, PlusCircle, Loader2 } from "lucide-react";
+
+// Global mutation key for followed posts - update to use the main /api/rss endpoint with refresh flag
+export const FOLLOWED_POSTS_KEY = '/api/rss?refresh=true';
 
 interface FollowButtonProps {
   postId: Id<"posts">;
@@ -24,9 +27,16 @@ interface FollowButtonProps {
 const fetcher = async (key: string) => {
   // Encode the key for use in URL
   const encodedKey = encodeURIComponent(key);
-  const res = await fetch(`/api/follows/${encodedKey}`);
-  if (!res.ok) throw new Error('Failed to fetch follow status');
-  return res.json();
+  
+  try {
+    const res = await fetch(`/api/follows/${encodedKey}`);
+    if (!res.ok) throw new Error('Failed to fetch follow status');
+    return res.json();
+  } catch (error) {
+    console.error('Error fetching follow status:', error);
+    // Return null to indicate an error occurred
+    return null;
+  }
 };
 
 export const FollowButtonWithErrorBoundary = memo(function FollowButtonWithErrorBoundary(props: FollowButtonProps) {
@@ -57,12 +67,27 @@ const FollowButtonComponent = ({
   // Use server-provided auth state initially, then client state once available
   const isAuthenticated = clientIsAuthenticated ?? serverIsAuthenticated;
   
-  // Track if we've loaded the initial state
-  const [isLoaded, setIsLoaded] = useState(false);
+  // Initialize as loaded when we have initial data to prevent hydration flicker
+  const [isLoaded, setIsLoaded] = useState(initialIsFollowing !== undefined);
 
-  // Skip fetching if we're in a list context that already provided the follow state
-  // or if fetching is explicitly disabled
-  const shouldFetch = isAuthenticated && !disableAutoFetch;
+  // Add busy state to prevent rapid clicking
+  const [isBusy, setIsBusy] = useState(false);
+  
+  // Add visual state to show the target state during loading
+  const [visualState, setVisualState] = useState<'following' | 'follow' | null>(null);
+  
+  // Track last operation time to prevent rapid successive clicks
+  const lastClickTime = useRef(0);
+
+  // Generate a stable key for SWR to prevent unnecessary revalidation
+  const cacheKey = useMemo(() => postId ? postId.toString() : null, [postId]);
+
+  // Skip fetching if:
+  // 1. We're not authenticated
+  // 2. Explicit disableAutoFetch is set
+  // 3. No postId cache key available
+  // 4. We're in server-side rendering context (trust server data)
+  const shouldFetch = isAuthenticated && !disableAutoFetch && !!cacheKey && typeof window !== 'undefined';
 
   // Set up the mounted ref
   useEffect(() => {
@@ -75,37 +100,47 @@ const FollowButtonComponent = ({
     };
   }, []);
 
-  const { data, mutate } = useSWR(
-    shouldFetch ? postId : null,
+  const { data, error, mutate, isValidating } = useSWR(
+    shouldFetch ? cacheKey : null,
     fetcher,
     {
       fallbackData: { isFollowing: initialIsFollowing },
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
       dedupingInterval: 60000, // Cache for 1 minute
-      revalidateIfStale: true,
-      revalidateOnMount: !disableAutoFetch, // Only revalidate if not in batch mode
+      revalidateIfStale: false, // Don't revalidate on stale automatically
+      revalidateOnMount: false, // Trust server data, don't revalidate on mount
       keepPreviousData: true,
+      suspense: false,
+      errorRetryCount: 2,
+      errorRetryInterval: 2000,
     }
   );
 
-  // Set loaded state once we have either SWR data or initial data
+  // Set loaded state once we have either SWR data, initial data, or we're in client mode
   useEffect(() => {
     if (!isMountedRef.current) return;
     
-    if (!isLoaded && (data || initialIsFollowing !== undefined)) {
+    // Mark as loaded on first client render or when data arrives
+    if (!isLoaded && (data !== undefined || disableAutoFetch || typeof window !== 'undefined')) {
       setIsLoaded(true);
     }
-    
-    // Only force revalidation if we're not in batch mode
-    if (shouldFetch && initialIsFollowing !== undefined && data?.isFollowing !== initialIsFollowing) {
-      mutate();
-    }
-  }, [data, initialIsFollowing, isLoaded, shouldFetch, mutate]);
+  }, [data, isLoaded, disableAutoFetch]);
 
   // Make sure we use the most accurate state available
+  // If data is null (error case) or undefined (loading), fall back to initialIsFollowing
   const isFollowing = data?.isFollowing ?? initialIsFollowing;
 
+  // Determine if button is in loading state - only show loading during client-side fetch
+  const isInitialLoading = !isLoaded && shouldFetch && isValidating && typeof window !== 'undefined';
+  
+  // Reset visual state when actual state changes
+  useEffect(() => {
+    if (visualState !== null) {
+      setVisualState(null);
+    }
+  }, [isFollowing]);
+  
   // Memoize the click handler to prevent unnecessary recreations between renders
   const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
@@ -113,13 +148,36 @@ const FollowButtonComponent = ({
       return;
     }
 
-    if (!isMountedRef.current) return;
+    // Don't allow clicks during initial loading or while busy
+    if (!isMountedRef.current || isInitialLoading || isBusy) return;
+    
+    // Prevent rapid clicks (debounce)
+    const now = Date.now();
+    if (now - lastClickTime.current < 500) {
+      return; // Ignore clicks that happen too quickly
+    }
+    lastClickTime.current = now;
+    
+    // Set busy state to prevent multiple operations
+    setIsBusy(true);
 
-    // Optimistic update
+    // Set visual state to show target state immediately
+    setVisualState(isFollowing ? 'follow' : 'following');
+
+    // Store current state for potential rollback
+    const previousState = { isFollowing };
+    // New state after action
     const newState = { isFollowing: !isFollowing };
-    await mutate(newState, false);
+    
+    // Track if we've already applied the optimistic update
+    let optimisticUpdateApplied = false;
 
     try {
+      // Apply optimistic update first
+      optimisticUpdateApplied = true;
+      await mutate(newState, false);
+      
+      // Perform the actual server operation
       const success = isFollowing
         ? await unfollowPost(postId, postTitle)
         : await followPost(postId, feedUrl, postTitle);
@@ -127,23 +185,32 @@ const FollowButtonComponent = ({
       if (!isMountedRef.current) return;
 
       if (success) {
-        // After successful mutation, update all instances
-        await mutate(newState, false);
-        
-        // Revalidate all relevant caches
+        // After successful mutation, update global state only
+        // No need to mutate local state again as it's already updated
         await Promise.all([
           globalMutate('/api/rss'),
+          globalMutate(FOLLOWED_POSTS_KEY),
           globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/follows')),
-          globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/profile')),
-          router.refresh()
+          globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/profile'))
         ]);
       } else {
+        // Only revalidate if the operation wasn't successful
         await mutate(undefined, true);
       }
     } catch (err) {
       console.error('Error updating follow status:', err);
+      // Roll back to previous state if there was an error
+      if (isMountedRef.current && optimisticUpdateApplied) {
+        await mutate(previousState, false);
+      }
+    } finally {
+      // Clear busy state after operation completes
       if (isMountedRef.current) {
-        await mutate(undefined, true);
+        // Add a small delay to ensure UI remains stable
+        setTimeout(() => {
+          setIsBusy(false);
+          setVisualState(null);
+        }, 300);
       }
     }
   }, [
@@ -155,24 +222,66 @@ const FollowButtonComponent = ({
     postId, 
     postTitle, 
     followPost, 
-    feedUrl
+    feedUrl,
+    isBusy,
+    isInitialLoading
   ]);
+
+  // Determine the display state based on visual state or actual state
+  const displayState = useMemo(() => {
+    // During initial loading, show a proper loading indicator
+    if (isInitialLoading) {
+      return 'loading';
+    }
+    
+    // If we have a visual state set (during loading), use that
+    if (visualState !== null) {
+      return visualState;
+    }
+    
+    // Otherwise use the actual state
+    return isFollowing ? 'following' : 'follow';
+  }, [isFollowing, visualState, isInitialLoading]);
+
+  // Memoize the button content to prevent unnecessary re-renders
+  const buttonContent = useMemo(() => {
+    if (displayState === 'loading') {
+      return (
+        <span className="flex items-center gap-1">
+          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          <span className="opacity-0">Loading</span>
+        </span>
+      );
+    }
+    
+    return (
+      <span className="flex items-center gap-1">
+        {displayState === 'following' ? 
+          <MinusCircle className="h-4 w-4 mr-1" /> : 
+          <PlusCircle className="h-4 w-4 mr-1" />
+        }
+        {displayState === 'following' ? "Following" : "Follow"}
+      </span>
+    );
+  }, [displayState]);
+
+  // Use a stable class name based on following state
+  const buttonClassName = useMemo(() => cn(
+    "rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none transition-all duration-200",
+    (displayState === 'following') && "text-muted-foreground border border-input",
+    (isInitialLoading) && "opacity-70 pointer-events-none",
+    className
+  ), [displayState, isInitialLoading, className]);
 
   return (
     <Button
-      variant={isFollowing ? "ghost" : "default"}
+      variant={displayState === 'following' ? "ghost" : "default"}
       onClick={handleClick}
-      className={cn(
-        "rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none",
-        isFollowing && "text-muted-foreground border border-input",
-        className
-      )}
+      disabled={isInitialLoading || isBusy}
+      className={buttonClassName}
       style={{ opacity: 1 }}
     >
-      <>
-        <Rss className="h-4 w-4" style={{ transform: 'scaleX(-1)' }} />
-        {isFollowing ? "Following" : "Follow"}
-      </>
+      {buttonContent}
     </Button>
   );
 };

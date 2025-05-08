@@ -16,6 +16,7 @@ import { useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2, Upload } from "lucide-react";
+import Image from 'next/image';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -199,9 +200,11 @@ export function EditProfileModal({
                   />
                   {previewImage && (
                     <div className="w-16 h-16 rounded-full overflow-hidden border">
-                      <img 
+                      <Image 
                         src={previewImage} 
                         alt="Profile preview" 
+                        width={64} 
+                        height={64} 
                         className="w-full h-full object-cover"
                       />
                     </div>

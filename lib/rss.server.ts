@@ -241,16 +241,7 @@ function createFallbackFeed(url: string, error: unknown, mediaType?: string): RS
     description: `There was an error fetching the feed: ${errorMessage}`,
     link: url,
     mediaType,
-    items: [{
-      title: 'Error fetching feed',
-      description: `There was an error fetching the feed from ${url}: ${errorMessage}`,
-      link: url,
-      guid: `error-${Date.now()}`,
-      pubDate: new Date().toISOString(),
-      image: undefined,
-      mediaType,
-      feedUrl: url
-    }]
+    items: []
   };
 }
 
@@ -1020,19 +1011,24 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
   try {
     // Check if feed exists
     const result = await executeQuery<RSSFeedRow>(
-      'SELECT id FROM rss_feeds WHERE feed_url = ?',
+      'SELECT id, media_type FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
     
     if (result.rows.length > 0) {
-      // If feed exists and mediaType is provided, update the mediaType
-      if (mediaType) {
+      const feedId = Number(result.rows[0].id);
+      
+      // If feed exists and mediaType is provided but different from stored value,
+      // update the mediaType
+      if (mediaType && (!result.rows[0].media_type || result.rows[0].media_type !== mediaType)) {
+        logger.debug(`Updating mediaType for feed ${feedId} from ${result.rows[0].media_type || 'null'} to ${mediaType}`);
         await executeQuery(
-          'UPDATE rss_feeds SET media_type = ? WHERE feed_url = ?',
-          [mediaType, feedUrl]
+          'UPDATE rss_feeds SET media_type = ?, updated_at = ? WHERE id = ?',
+          [mediaType, new Date().toISOString().slice(0, 19).replace('T', ' '), feedId]
         );
       }
-      return Number(result.rows[0].id);
+      
+      return feedId;
     }
     
     // Create new feed
@@ -1040,7 +1036,7 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now(); // Use milliseconds for last_fetched (bigint column)
     
-    logger.debug(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}`);
+    logger.debug(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}, mediaType: ${mediaType || 'null'}`);
     
     const insertResult = await executeQuery(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1156,7 +1152,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
           String(entry.description?.slice(0, 200) || ''),
           pubDateForMySQL,
           entry.image ? String(entry.image) : null,
-          entry.mediaType || mediaType || null,
+          mediaType || entry.mediaType || null,
           String(now),
           String(now)
         ];
@@ -1235,18 +1231,24 @@ export async function getRSSEntries(
     
     // Check if we have recent entries in the database
     const feedsResult = await executeQuery<RSSFeedRow>(
-      'SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE feed_url = ?',
+      'SELECT id, feed_url, title, updated_at, last_fetched, media_type FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
     
     const currentTime = Date.now();
     let feedId: number;
     let shouldFetchFresh = true;
+    let storedMediaType = mediaType;
     
     if (feedsResult.rows.length > 0) {
       // Use type assertion to ensure TypeScript knows rows is an array of RSSFeedRow
       const feeds = feedsResult.rows as RSSFeedRow[];
       feedId = Number(feeds[0].id);
+      // Use stored media_type if available and no mediaType was explicitly provided
+      if (!mediaType && feeds[0].media_type) {
+        storedMediaType = feeds[0].media_type;
+        logger.debug(`Using stored media_type: ${storedMediaType} for ${postTitle}`);
+      }
       // Check if feed was fetched recently (less than 4 hours ago)
       const lastFetchedMs = Number(feeds[0].last_fetched);
       const timeSinceLastFetch = currentTime - lastFetchedMs;
@@ -1295,11 +1297,11 @@ export async function getRSSEntries(
           
           if (shouldFetchFresh) {
             try {
-              const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
+              const freshFeed = await fetchAndParseFeed(feedUrl, storedMediaType);
               
               if (freshFeed.items.length > 0) {
                 logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
-                await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
+                await storeRSSEntriesWithTransaction(feedId, freshFeed.items, storedMediaType);
               } else {
                 logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
               }
@@ -1349,11 +1351,11 @@ export async function getRSSEntries(
       
       // If we have no entries in the database, try to fetch fresh data as a fallback
       try {
-        const freshFeed = await fetchAndParseFeed(feedUrl, mediaType);
+        const freshFeed = await fetchAndParseFeed(feedUrl, storedMediaType);
         
         if (freshFeed.items.length > 0) {
           logger.info(`Fallback: Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
-          await storeRSSEntriesWithTransaction(feedId, freshFeed.items, mediaType);
+          await storeRSSEntriesWithTransaction(feedId, freshFeed.items, storedMediaType);
           
           // Return the fresh items directly with mediaType
           return {
@@ -1387,7 +1389,7 @@ export async function getRSSEntries(
         description: entry.description || '',
         pubDate: entry.pub_date, // Use the date directly from the database
         image: entry.image || undefined,
-        mediaType: entry.media_type || undefined,
+        mediaType: entry.media_type || storedMediaType || undefined,
         feedUrl
       };
     });
@@ -1497,9 +1499,9 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Get feed information for all requested feeds
+    // Get feed information for all requested feeds - UPDATED: include media_type in the query
     const feedsResult = await executeQuery<RSSFeedRow>(
-      `SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`,
+      `SELECT id, feed_url, title, updated_at, last_fetched, media_type FROM rss_feeds WHERE title IN (${placeholders})`,
       [...postTitles]
     );
 
@@ -1588,6 +1590,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
             
             if (freshFeed.items.length > 0) {
               logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle}`);
+              // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
               await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
             } else {
               logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
@@ -1626,9 +1629,9 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Get feed information for all requested feeds
+    // Get feed information for all requested feeds - UPDATED: include media_type in the query
     const feedsResult = await executeQuery<RSSFeedRow>(
-      `SELECT id, feed_url, title, updated_at, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`,
+      `SELECT id, feed_url, title, updated_at, last_fetched, media_type FROM rss_feeds WHERE title IN (${placeholders})`,
       [...postTitles]
     );
     
@@ -1663,10 +1666,11 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       if (lockAcquired) {
         try {
           logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
-          const freshFeed = await fetchAndParseFeed(feed.feedUrl);
+          const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
           
           if (freshFeed.items.length > 0) {
-            await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items);
+            // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
+            await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
             logger.info(`Successfully refreshed feed: ${feed.postTitle} with ${freshFeed.items.length} items`);
           } else {
             logger.warn(`No new items found for feed: ${feed.postTitle}`);

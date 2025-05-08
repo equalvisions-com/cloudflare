@@ -11,6 +11,9 @@ import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsW
 import { LegalWidget } from '@/components/widgets/LegalWidget';
 import { Suspense } from 'react';
 
+// Add the Edge Runtime configuration at the top of the file
+export const runtime = 'edge';
+
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
 

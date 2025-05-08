@@ -171,7 +171,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                   alt=""
                   fill
                   className="object-cover"
-                  sizes="96px"
+                  sizes="48px"
                   priority={false}
                 />
               </AspectRatio>
@@ -220,7 +220,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                         alt=""
                         fill
                         className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 768px"
+                        sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
                       />
                     </AspectRatio>
@@ -255,7 +255,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                       alt=""
                       fill
                       className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 768px"
+                      sizes="(max-width: 516px) 100vw, 516px"
                       priority={false}
                     />
                   </AspectRatio>

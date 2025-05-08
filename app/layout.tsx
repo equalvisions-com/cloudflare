@@ -4,11 +4,23 @@ import "./globals.css";
 import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
-import { AudioProvider } from "@/components/audio-player/AudioContext";
-import { PersistentPlayer } from "@/components/audio-player/PersistentPlayer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import dynamic from "next/dynamic";
+
+// Dynamically import audio components with ssr disabled
+const AudioProvider = dynamic(
+  () => import("@/components/audio-player/AudioContext").then(mod => mod.AudioProvider),
+  { ssr: false }
+);
+
+const PersistentPlayer = dynamic(
+  () => import("@/components/audio-player/PersistentPlayer").then(mod => mod.PersistentPlayer),
+  { ssr: false }
+);
 
 // Define viewport export for Next.js App Router
 export const viewport: Viewport = {
@@ -37,14 +49,65 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+// Separate component for user data with Suspense
+const UserData = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
+      <p>Could not load user data. Please try refreshing the page.</p>
+    </div>}>
+      <Suspense fallback={<div className="min-h-screen"></div>}>
+        <UserDataLoader>
+          {children}
+        </UserDataLoader>
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+
+// Async component that loads user data
+async function UserDataLoader({ children }: { children: React.ReactNode }) {
+  // Add a timeout to prevent infinite loading during cold starts
+  const profilePromise = Promise.race([
+    getUserProfile(),
+    new Promise<any>((resolve) => setTimeout(() => {
+      // Return default values if profile loading times out
+      resolve({
+        displayName: "Guest", 
+        username: "Guest", 
+        isAuthenticated: false, 
+        isBoarded: false, 
+        profileImage: undefined, 
+        userId: null, 
+        pendingFriendRequestCount: 0
+      });
+    }, 5000)) // 5 second timeout
+  ]);
+  
+  const { displayName, username, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await profilePromise;
+  
+  // If we have user data from Convex, we can trust the isBoarded value
+  // This is the single source of truth
+  
+  return (
+    <SidebarProvider 
+      isAuthenticated={isAuthenticated} 
+      username={username}
+      displayName={displayName}
+      isBoarded={isBoarded}
+      profileImage={profileImage}
+      userId={userId}
+      pendingFriendRequestCount={pendingFriendRequestCount}
+    >
+      {children}
+    </SidebarProvider>
+  );
+}
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get all user profile information
-  const { displayName, username, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await getUserProfile();
-
   return (
     <ConvexAuthNextjsServerProvider>
       {/* `suppressHydrationWarning` only affects the html tag,
@@ -57,26 +120,20 @@ export default async function RootLayout({
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}
         >
           <ConvexClientProvider>
-            <ThemeProvider attribute="class">
+            <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
               <AudioProvider>
-                <SidebarProvider 
-                  isAuthenticated={isAuthenticated} 
-                  username={username}
-                  displayName={displayName}
-                  isBoarded={isBoarded}
-                  profileImage={profileImage}
-                  userId={userId}
-                  pendingFriendRequestCount={pendingFriendRequestCount}
-                >
+                <UserData>
                   <div className="">
                     <div className="hidden">
-                      <UserMenuServer />
+                      <Suspense fallback={null}>
+                        <UserMenuServer />
+                      </Suspense>
                     </div>
                     {children}
                   </div>
                   <PersistentPlayer />
                   <MobileDock />
-                </SidebarProvider>
+                </UserData>
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>

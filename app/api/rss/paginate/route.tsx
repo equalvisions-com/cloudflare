@@ -6,6 +6,10 @@ import type { RSSEntryRow } from '@/lib/types';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
+// Mark as dynamic to ensure fresh data for pagination
+export const dynamic = 'force-dynamic';
+// Disable revalidation
+export const revalidate = 0;
 
 // Define interface for the joined query result
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
@@ -56,15 +60,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ entries: [], hasMore: false, totalEntries: 0, postTitles: [] });
     }
 
-    // Only check if feeds need refreshing on the first page
-    // Skip refresh checks during pagination to improve performance
-    if (page === 1) {
-      console.log(`🔄 API: Checking if any feeds need refreshing (first page only)`);
-      await refreshExistingFeeds(postTitles);
-    } else {
-      console.log(`⏩ API: Skipping feed refresh check for page ${page}`);
-    }
-
+    // Skip refresh checks for all pages - the dedicated refresh-feeds endpoint now handles
+    // creating and refreshing feeds. This makes pagination much faster and smoother.
+    console.log(`⏩ API: Skipping feed refresh check - the refresh-feeds endpoint handles refreshing`);
+    
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
     
@@ -124,6 +123,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     const entries = entriesResult.rows as JoinedRSSEntry[];
     
+    // CRITICAL FIX: If we retrieve entries but our cached count says we shouldn't have any,
+    // or if we have more entries than expected, the cached count is wrong and needs recalculation
+    if (cachedTotalEntries !== null && 
+        ((offset >= totalEntries && entries.length > 0) || 
+         (totalEntries <= offset + entries.length && entries.length === pageSize))) {
+      
+      console.log(`⚠️ API: Count inconsistency detected! Cached count (${totalEntries}) but found ${entries.length} entries at offset ${offset}`);
+      
+      // Force recalculation of the total count
+      const countQuery = `
+        SELECT COUNT(e.id) as total
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE f.title IN (${placeholders})
+      `;
+      
+      const countResult = await executeRead(countQuery, [...postTitles]);
+      const recalculatedTotal = Number((countResult.rows[0] as { total: number }).total);
+      
+      console.log(`🔄 API: Recalculated total entries: ${recalculatedTotal} (was ${totalEntries})`);
+      totalEntries = recalculatedTotal;
+    }
+    
     console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
     console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
@@ -140,11 +162,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       feedUrl: entry.feed_url
     }));
     
-    // Determine if there are more entries
-    // Add a small buffer (2) to account for potential inconsistencies in cached counts
-    const hasMore = cachedTotalEntries !== null 
-      ? totalEntries > (offset + entries.length + 2) 
-      : totalEntries > (offset + entries.length);
+    // Determine if there are more entries - IMPROVED CALCULATION
+    // If we have a full page of results (pageSize), and our total suggests there are more,
+    // then we definitely have more entries
+    const hasMore = entries.length === pageSize && 
+                    totalEntries > (offset + entries.length);
     
     console.log(`🚀 API: Returning ${mappedEntries.length} merged entries for page ${page} (total: ${totalEntries}, hasMore: ${hasMore})`);
     
@@ -156,12 +178,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       postTitles
     };
     
-    // Set cache control headers for HTTP caching
+    // Set no-cache headers to ensure fresh results with every request
     const headers = new Headers();
-    headers.set('Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=86400');
-    headers.set('Vercel-CDN-Cache-Control', 'max-age=300');
-    headers.set('CDN-Cache-Control', 'max-age=300');
-    headers.set('Surrogate-Control', 'max-age=300');
+    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    headers.set('Pragma', 'no-cache');
+    headers.set('Expires', '0');
     
     return NextResponse.json(responseData, { headers });
     

@@ -13,19 +13,19 @@ export function LegalWidget({ className = "" }: LegalWidgetProps) {
       <CardContent className="px-4 py-4 rounded">
         <div className="text-xs text-muted-foreground">
           <div className="flex items-center gap-1 leading-none">
-          <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
+          <Link href="#" className="hover:underline hover:text-foreground transition-colors">
               Submit
             </Link>
             <span>•</span>
-            <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
               Advertise
             </Link>
             <span>•</span>
-            <Link href="/privacy" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
               Privacy
             </Link>
             <span>•</span>
-            <Link href="/terms" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
               Terms
             </Link>
         

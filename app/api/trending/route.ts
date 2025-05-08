@@ -25,6 +25,9 @@ interface EntriesByFeedUrl {
   };
 }
 
+// Add the Edge Runtime configuration
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     // Parse the request body to get feedUrls

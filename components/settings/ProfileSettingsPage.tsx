@@ -24,6 +24,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { Doc } from "@/convex/_generated/dataModel";
 import { Id } from "@/convex/_generated/dataModel";
+import Image from 'next/image';
 
 // Define props type for ProfileSettingsPage
 type ProfileSettingsPageProps = {
@@ -233,9 +234,11 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
                     />
                     {previewImage && (
                       <div className="w-16 h-16 rounded-full overflow-hidden border">
-                        <img 
+                        <Image 
                           src={previewImage} 
                           alt="Profile preview" 
+                          width={64}
+                          height={64}
                           className="w-full h-full object-cover"
                         />
                       </div>

@@ -45,7 +45,7 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
     <div className="max-w-4xl text-sm flex items-center gap-4">
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
         <DrawerTrigger asChild>
-          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
+          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none">
               <span className="leading-none font-medium mr-[-3px]">{followerCount}</span>{' '}
               <span className="leading-none font-medium">{followerCount === 1 ? 'Follower' : 'Followers'}</span>
           </Button>
@@ -101,7 +101,7 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
       </Drawer>
       {totalEntries ? (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group">
+          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none">
               <span className="leading-none font-medium mr-[-3px]">{totalEntries}</span>{' '}
               <span className="leading-none font-medium">{getContentLabel()}</span>
           </Button>

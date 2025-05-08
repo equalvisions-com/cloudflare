@@ -16,6 +16,7 @@ import useEmblaCarousel from 'embla-carousel-react';
 import type { EmblaOptionsType } from 'embla-carousel';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import AutoHeight from 'embla-carousel-auto-height';
+import { Loader2 } from 'lucide-react';
 
 // Import the skeleton for fallback during lazy loading
 import { CategorySliderSkeleton } from './CategorySlider';
@@ -40,8 +41,23 @@ const DynamicPostsDisplay = dynamic<PostsDisplayProps>(
 
 // Create a wrapper component to pass props correctly
 const PostsDisplay = (props: PostsDisplayProps) => {
+  // Track if search has been performed
+  const hasSearched = props.searchQuery && props.searchQuery.length > 0;
+  
   // Only show skeleton if no initial posts were provided
   if (!props.initialPosts?.length) {
+    // If this is a search with no results, show "no matches" message
+    if (hasSearched) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <p className="text-muted-foreground mb-2">No matches found</p>
+          <p className="text-sm text-muted-foreground">
+            Try different keywords or browse categories
+          </p>
+        </div>
+      );
+    }
+    // Otherwise show skeleton for initial loading
     return <PostsDisplaySkeleton count={10} />;
   }
   
@@ -81,40 +97,40 @@ const SearchTabs = memo(({
   entriesTabLabel: string;
   handleSearchTabChange: (tab: 'posts' | 'entries') => void;
 }) => (
-  <div className="flex mx-4 gap-6">
+  <div className="flex gap-0">
     <button
       className={cn(
-        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        "flex-1 transition-all duration-200 relative font-medium text-sm pb-[12px]",
         searchTab === 'posts'
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       )}
       onClick={() => handleSearchTabChange('posts')}
     >
-      <span className="relative inline-flex pb-[12px]">
+      <span className="relative inline-flex">
         {displayMediaType}
-        <span className={cn(
-          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-          searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
-        )} />
       </span>
+      <span className={cn(
+        "absolute bottom-0 left-0 w-full h-[1px] rounded-full transition-all duration-200",
+        searchTab === 'posts' ? "bg-primary opacity-100" : "opacity-0"
+      )} />
     </button>
     <button
       className={cn(
-        "flex-1 transition-all duration-200 relative font-medium text-sm",
+        "flex-1 transition-all duration-200 relative font-medium text-sm pb-[12px]",
         searchTab === 'entries'
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       )}
       onClick={() => handleSearchTabChange('entries')}
     >
-      <span className="relative inline-flex pb-[12px]">
+      <span className="relative inline-flex">
         {entriesTabLabel}
-        <span className={cn(
-          "absolute bottom-0 left-0 w-full h-[.25rem] rounded-full transition-all duration-200",
-          searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
-        )} />
       </span>
+      <span className={cn(
+        "absolute bottom-0 left-0 w-full h-[1px] rounded-full transition-all duration-200",
+        searchTab === 'entries' ? "bg-primary opacity-100" : "opacity-0"
+      )} />
     </button>
   </div>
 ));
@@ -168,6 +184,9 @@ const CategorySwipeableWrapperComponent = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
   const [searchTab, setSearchTab] = useState<'posts' | 'entries'>('posts');
+  
+  // Add state to track search loading
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   
   // Transitioning state
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -345,6 +364,8 @@ const CategorySwipeableWrapperComponent = ({
     if (pendingSearchQuery !== searchQuery) {
       // Add a short transition effect to make the state change more visible
       setIsTransitioning(true);
+      setIsSearchLoading(true); // Set loading true when search query changes
+      
       setTimeout(() => {
         if (!isMountedRef.current) return;
         setSearchQuery(pendingSearchQuery);
@@ -677,8 +698,22 @@ const CategorySwipeableWrapperComponent = ({
 
   // Handle category selection from CategorySlider
   const handleCategorySelect = useCallback((categoryId: string) => {
-    if (!isMountedRef.current) return;
-    if (!emblaApi || categoryId === selectedCategoryId) return;
+    if (!isMountedRef.current) {
+      return;
+    }
+    
+    // Log emblaApi status
+    if (emblaApi) {
+      // Original logic if emblaApi exists
+    } else {
+      // Log only if unavailable
+      console.warn('handleCategorySelect: emblaApi is not available!'); 
+      // Don't return yet, just log the warning
+    }
+    
+    if (categoryId === selectedCategoryId) {
+      return;
+    }
 
     // Save current scroll position before jumping
     scrollPositionsRef.current[selectedCategoryId] = window.scrollY;
@@ -689,7 +724,11 @@ const CategorySwipeableWrapperComponent = ({
     // Find category index and jump instantly
     const categoryIndex = allCategories.findIndex(cat => cat._id === categoryId);
     if (categoryIndex !== -1) {
-      emblaApi.scrollTo(categoryIndex, true);
+      if (emblaApi) { // Check again before using
+        emblaApi.scrollTo(categoryIndex, true); // Use skipInteraction: true for instant jump
+      } else {
+        console.warn('handleCategorySelect: emblaApi became null before scrollTo!');
+      }
     }
   }, [emblaApi, selectedCategoryId, allCategories]);
 
@@ -1091,6 +1130,19 @@ const CategorySwipeableWrapperComponent = ({
     };
   }, [searchContentLoaded, searchEmblaApi]);
 
+  // Add effect to turn off loading state when search results arrive or query clears
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    // If we have a search query and the results are defined (query completed)
+    if (searchQuery && searchResults !== undefined) {
+      setIsSearchLoading(false);
+    }
+    // If the search query becomes empty, we are no longer loading search results
+    if (!searchQuery) {
+       setIsSearchLoading(false);
+    }
+  }, [searchResults, searchQuery]);
+
   return (
     <div className={cn("w-full", className)}>
       {/* Sticky header container */}
@@ -1150,158 +1202,171 @@ const CategorySwipeableWrapperComponent = ({
       {/* Content display area */}
       <div className="relative transition-all w-full">
         {/* Search Results */}
-        {searchQuery && (
-          <div 
-            className="w-full overflow-hidden embla__swipeable_tabs"
-            ref={searchEmblaRef}
-            style={{ 
+        <div 
+          className="w-full overflow-hidden embla__swipeable_tabs"
+          ref={searchEmblaRef}
+          style={{ 
+            display: searchQuery ? 'block' : 'none', // Conditional display
+            willChange: 'transform',
+            WebkitPerspective: '1000',
+            WebkitBackfaceVisibility: 'hidden',
+            touchAction: 'pan-y pinch-zoom',
+            // Add minimum height during initial load to prevent clipping
+            minHeight: !searchContentLoaded ? '400px' : undefined
+          }}
+        >
+          <div className="flex items-start"
+            style={{
+              minHeight: tabHeightsRef.current[`search-${searchTab}`] 
+                ? `${tabHeightsRef.current[`search-${searchTab}`]}px` 
+                : !searchContentLoaded ? '400px' : undefined,
               willChange: 'transform',
-              WebkitPerspective: '1000',
-              WebkitBackfaceVisibility: 'hidden',
-              touchAction: 'pan-y pinch-zoom',
-              // Add minimum height during initial load to prevent clipping
-              minHeight: !searchContentLoaded ? '400px' : undefined
+              transition: isMobile ? `transform 20ms linear` : 'none'
             }}
-          >
-            <div className="flex items-start"
-              style={{
-                minHeight: tabHeightsRef.current[`search-${searchTab}`] 
-                  ? `${tabHeightsRef.current[`search-${searchTab}`]}px` 
-                  : !searchContentLoaded ? '400px' : undefined,
-                willChange: 'transform',
-                transition: isMobile ? `transform 20ms linear` : 'none'
+          > 
+            {/* Posts Search Tab */}
+            <div 
+              ref={(el: HTMLDivElement | null) => { 
+                searchSlideRefs.current[0] = el; 
+                // Update height when element is available
+                if (el && el.offsetHeight > 0) {
+                  tabHeightsRef.current['search-posts'] = el.offsetHeight;
+                }
               }}
-            > 
-              {/* Posts Search Tab */}
-              <div 
-                ref={(el: HTMLDivElement | null) => { 
-                  searchSlideRefs.current[0] = el; 
-                  // Update height when element is available
-                  if (el && el.offsetHeight > 0) {
-                    tabHeightsRef.current['search-posts'] = el.offsetHeight;
-                  }
-                }}
-                className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
-                aria-hidden={searchTab !== 'posts'} 
-                style={{
-                  willChange: 'transform', 
-                  transform: 'translate3d(0,0,0)',
-                  WebkitBackfaceVisibility: 'hidden',
-                  // Only adjust opacity, not visibility to maintain DOM presence
-                  opacity: searchTab === 'posts' ? 1 : 0,
-                  transition: 'opacity 0s',
-                  pointerEvents: searchTab === 'posts' ? 'auto' : 'none',
-                  touchAction: 'pan-y',
-                  // Add minimum height for initial rendering
-                  minHeight: !searchContentLoaded ? '400px' : undefined
-                }}
-              >
+              className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
+              aria-hidden={searchTab !== 'posts'} 
+              style={{
+                willChange: 'transform', 
+                transform: 'translate3d(0,0,0)',
+                WebkitBackfaceVisibility: 'hidden',
+                // Only adjust opacity, not visibility to maintain DOM presence
+                opacity: searchTab === 'posts' ? 1 : 0,
+                transition: 'opacity 0s',
+                pointerEvents: searchTab === 'posts' ? 'auto' : 'none',
+                touchAction: 'pan-y',
+                // Add minimum height for initial rendering
+                minHeight: !searchContentLoaded ? '400px' : undefined
+              }}
+            >
+              {/* Conditionally render Loader, No Results, or PostsDisplay */}
+              {isSearchLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : searchResults && searchResults.posts.length === 0 ? (
+                // Existing "No matches found" message
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <p className="text-muted-foreground mb-2">No matches found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Try different keywords or browse categories
+                  </p>
+                </div>
+              ) : (
+                // Display results only when not loading and results exist
                 <PostsDisplay
                   categoryId=""
                   mediaType={mediaType}
                   initialPosts={searchResults?.posts || []}
                   className=""
                   searchQuery={searchQuery}
-                  // Use a stable key that doesn't change with the search query
                   key={`posts-search-${mediaType}`}
                 />
-              </div>
-              
-              {/* Entries Search Tab */}
-              <div 
-                ref={(el: HTMLDivElement | null) => { 
-                  searchSlideRefs.current[1] = el;
-                  // Update height when element is available
-                  if (el && el.offsetHeight > 0) {
-                    tabHeightsRef.current['search-entries'] = el.offsetHeight;
-                  }
-                }}
-                className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
-                aria-hidden={searchTab !== 'entries'} 
-                style={{
-                  willChange: 'transform', 
-                  transform: 'translate3d(0,0,0)',
-                  WebkitBackfaceVisibility: 'hidden',
-                  // Only adjust opacity, not visibility to maintain DOM presence
-                  opacity: searchTab === 'entries' ? 1 : 0,
-                  transition: 'opacity 0s',
-                  pointerEvents: searchTab === 'entries' ? 'auto' : 'none',
-                  touchAction: 'pan-y',
-                  // Add minimum height for initial rendering
-                  minHeight: !searchContentLoaded ? '400px' : undefined
-                }}
-              >
-                <EntriesDisplay
-                  mediaType={mediaType}
-                  searchQuery={searchQuery}
-                  className=""
-                  isVisible={searchTab === 'entries' || isTransitioning}
-                  // Use a stable key that doesn't change with the search query
-                  key={`entries-search-${mediaType}`}
-                />
-              </div>
+              )}
+            </div>
+            
+            {/* Entries Search Tab */}
+            <div 
+              ref={(el: HTMLDivElement | null) => { 
+                searchSlideRefs.current[1] = el;
+                // Update height when element is available
+                if (el && el.offsetHeight > 0) {
+                  tabHeightsRef.current['search-entries'] = el.offsetHeight;
+                }
+              }}
+              className="min-w-0 flex-[0_0_100%] transform-gpu embla-slide"
+              aria-hidden={searchTab !== 'entries'} 
+              style={{
+                willChange: 'transform', 
+                transform: 'translate3d(0,0,0)',
+                WebkitBackfaceVisibility: 'hidden',
+                // Only adjust opacity, not visibility to maintain DOM presence
+                opacity: searchTab === 'entries' ? 1 : 0,
+                transition: 'opacity 0s',
+                pointerEvents: searchTab === 'entries' ? 'auto' : 'none',
+                touchAction: 'pan-y',
+                // Add minimum height for initial rendering
+                minHeight: !searchContentLoaded ? '400px' : undefined
+              }}
+            >
+              <EntriesDisplay
+                mediaType={mediaType}
+                searchQuery={searchQuery}
+                className=""
+                isVisible={searchTab === 'entries' || isTransitioning}
+                // Use a stable key that doesn't change with the search query
+                key={`entries-search-${mediaType}`}
+              />
             </div>
           </div>
-        )}
+        </div>
         
         {/* Category Content - Exactly like SwipeableTabs */}
-        {!searchQuery && (
-          <div 
-            className="w-full overflow-hidden embla__swipeable_tabs"
-            ref={emblaRef}
-            style={{ 
+        <div 
+          className="w-full overflow-hidden embla__swipeable_tabs"
+          ref={emblaRef}
+          style={{ 
+            display: !searchQuery ? 'block' : 'none', // Conditional display
+            willChange: 'transform',
+            WebkitPerspective: '1000',
+            WebkitBackfaceVisibility: 'hidden',
+            touchAction: 'pan-y pinch-zoom'
+          }}
+        >
+          <div className="flex items-start"
+            style={{
+              minHeight: tabHeightsRef.current[selectedCategoryId] 
+                ? `${tabHeightsRef.current[selectedCategoryId]}px` 
+                : undefined,
               willChange: 'transform',
-              WebkitPerspective: '1000',
-              WebkitBackfaceVisibility: 'hidden',
-              touchAction: 'pan-y pinch-zoom'
+              transition: isMobile ? `transform 20ms linear` : 'none'
             }}
-          >
-            <div className="flex items-start"
-              style={{
-                minHeight: tabHeightsRef.current[selectedCategoryId] 
-                  ? `${tabHeightsRef.current[selectedCategoryId]}px` 
-                  : undefined,
-                willChange: 'transform',
-                transition: isMobile ? `transform 20ms linear` : 'none'
-              }}
-            > 
-              {allCategories.map((category, index) => {
-                const isActive = category._id === selectedCategoryId;
-                
-                return (
-                  <div 
-                    key={category._id} 
-                    className={cn(
-                      "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
-                      isTransitioning && "transitioning"
-                    )}
-                    ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
-                    aria-hidden={!isActive} 
-                    style={{
-                      willChange: 'transform', 
-                      transform: 'translate3d(0,0,0)',
-                      WebkitBackfaceVisibility: 'hidden',
-                      // Modified to maintain stability during transitions
-                      opacity: isActive ? 1 : 0,
-                      transition: 'opacity 0s',
-                      pointerEvents: isActive ? 'auto' : 'none',
-                      touchAction: 'pan-y' 
-                    }}
-                  >
-                    <PostsDisplay
-                      categoryId={category._id}
-                      mediaType={mediaType}
-                      initialPosts={getInitialPostsForCategory(category._id)}
-                      className=""
-                      // Add key to prevent remounting when swiping
-                      key={`category-${category._id}-${mediaType}`}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+          > 
+            {allCategories.map((category, index) => {
+              const isActive = category._id === selectedCategoryId;
+              
+              return (
+                <div 
+                  key={category._id} 
+                  className={cn(
+                    "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
+                    isTransitioning && "transitioning"
+                  )}
+                  ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
+                  aria-hidden={!isActive} 
+                  style={{
+                    willChange: 'transform', 
+                    transform: 'translate3d(0,0,0)',
+                    WebkitBackfaceVisibility: 'hidden',
+                    // Modified to maintain stability during transitions
+                    opacity: isActive ? 1 : 0,
+                    transition: 'opacity 0s',
+                    pointerEvents: isActive ? 'auto' : 'none',
+                    touchAction: 'pan-y' 
+                  }}
+                >
+                  <PostsDisplay
+                    categoryId={category._id}
+                    mediaType={mediaType}
+                    initialPosts={getInitialPostsForCategory(category._id)}
+                    className=""
+                    // Add key to prevent remounting when swiping
+                    key={`category-${category._id}-${mediaType}`}
+                  />
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

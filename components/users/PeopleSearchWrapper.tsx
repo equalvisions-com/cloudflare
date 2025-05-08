@@ -8,6 +8,7 @@ import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenu
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { cn } from '@/lib/utils';
 
 // Component to display random users
 const RandomPeopleDisplay = memo(() => {
@@ -32,7 +33,7 @@ const RandomPeopleDisplay = memo(() => {
 RandomPeopleDisplay.displayName = 'RandomPeopleDisplay';
 
 export function PeopleSearchWrapper() {
-  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
   // State for search query
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
@@ -120,15 +121,20 @@ export function PeopleSearchWrapper() {
       {/* Search input */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-2 md:py-4">
         <form onSubmit={handleSearchSubmit} className="relative flex items-center gap-3.5">
-          <div className="flex-shrink-0 md:hidden">
-            <UserMenuClientWithErrorBoundary
-              initialDisplayName={displayName}
-              initialProfileImage={profileImage}
-              isBoarded={isBoarded}
-              pendingFriendRequestCount={pendingFriendRequestCount}
-            />
-          </div>
-          <div className="flex-1 min-w-0">
+          {isAuthenticated && (
+            <div className="flex-shrink-0 md:hidden">
+              <UserMenuClientWithErrorBoundary
+                initialDisplayName={displayName}
+                initialProfileImage={profileImage}
+                isBoarded={isBoarded}
+                pendingFriendRequestCount={pendingFriendRequestCount}
+              />
+            </div>
+          )}
+          <div className={cn(
+            "min-w-0", 
+            isAuthenticated ? "flex-1" : "w-full" // Full width if not authenticated
+          )}>
             <SearchInput
               value={pendingSearchQuery}
               onChange={handleSearchChange}

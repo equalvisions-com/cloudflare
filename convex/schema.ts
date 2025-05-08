@@ -18,7 +18,8 @@ export default defineSchema({
   })
   .index("by_feedUrl", ["feedUrl"])
   .index("by_category", ["categorySlug"])
-  .index("by_slug", ["categorySlug", "postSlug"]),
+  .index("by_slug", ["categorySlug", "postSlug"])
+  .index("by_featured", ["isFeatured"]),
 
   users: defineTable({
     email: v.optional(v.string()),

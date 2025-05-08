@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useRef, useState, useMemo, useCallback, useEffect, memo } from 'react';
-import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { ErrorBoundary as ErrorBoundaryUI } from "@/components/ui/error-boundary";
+import { ErrorBoundary } from 'react-error-boundary';
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
@@ -13,11 +14,12 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Podcast, Mail, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2, RefreshCw } from "lucide-react";
 import { Virtuoso } from 'react-virtuoso';
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { Button } from "@/components/ui/button";
 
 // Interface for post metadata
 interface PostMetadata {
@@ -56,7 +58,7 @@ interface FeaturedEntryProps {
 }
 
 // Memoize the FeaturedEntry component
-const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
+const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -143,8 +145,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                   alt=""
                   fill
                   className="object-cover"
-                  sizes="96px"
-                  priority={false}
+                  sizes="48px"
+                  priority={isPriority}
                 />
               </AspectRatio>
             </Link>
@@ -203,8 +205,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                         alt=""
                         fill
                         className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 768px"
-                        priority={false}
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={isPriority}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -238,8 +240,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                       alt=""
                       fill
                       className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 768px"
-                      priority={false}
+                      sizes="(max-width: 516px) 100vw, 516px"
+                      priority={isPriority}
                     />
                   </AspectRatio>
                 </CardHeader>
@@ -320,7 +322,8 @@ const FeedContent = React.memo(({
   hasMore,
   loadMore,
   isLoading,
-  onOpenCommentDrawer
+  onOpenCommentDrawer,
+  onRefresh
 }: { 
   entries: FeaturedEntryWithData[],
   visibleEntries: FeaturedEntryWithData[],
@@ -328,12 +331,21 @@ const FeedContent = React.memo(({
   hasMore: boolean,
   loadMore: () => void,
   isLoading: boolean,
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void,
+  onRefresh: () => void
 }) => {
   if (!entries.length) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        No featured entries found.
+      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-4">
+        <p>No featured entries found.</p>
+        <Button 
+          variant="outline" 
+          onClick={onRefresh}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
       </div>
     );
   }
@@ -360,6 +372,7 @@ const FeedContent = React.memo(({
             <FeaturedEntry
               entryWithData={entryWithData}
               onOpenCommentDrawer={onOpenCommentDrawer}
+              isPriority={index < 2} // Set priority for the first 2 entries
             />
           );
         }}
@@ -385,10 +398,44 @@ interface FeaturedFeedClientProps {
   pageSize?: number;
 }
 
-export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
+// Refreshable Error UI Component
+const RefreshableErrorFallback = ({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) => {
   return (
-    <ErrorBoundary>
-      <FeaturedFeedClient {...props} />
+    <div className="w-full flex flex-col items-center justify-center p-8 space-y-4">
+      <p className="text-muted-foreground text-center">Something went wrong loading the feed.</p>
+      <Button 
+        variant="outline" 
+        onClick={resetErrorBoundary}
+        className="flex items-center gap-2"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Refresh
+      </Button>
+    </div>
+  );
+};
+
+export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
+  const [key, setKey] = useState(0);
+  
+  // Reset key to force component remount
+  const handleReset = useCallback(() => {
+    setKey(prevKey => prevKey + 1);
+    // Force refresh the window if no other refresh method is available
+    window.location.reload();
+  }, []);
+  
+  return (
+    <ErrorBoundary 
+      FallbackComponent={RefreshableErrorFallback}
+      onReset={() => {
+        handleReset();
+      }}
+    >
+      <FeaturedFeedClient 
+        key={key} 
+        {...props} 
+      />
     </ErrorBoundary>
   );
 });
@@ -468,6 +515,13 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
     setCommentDrawerOpen(open);
   }, []);
 
+  // Handle refresh by resetting page
+  const handleRefresh = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setCurrentPage(1);
+    // Could trigger a data refetch here if needed
+  }, []);
+
   return (
     <div className="w-full">
       <FeedContent
@@ -478,6 +532,7 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
         loadMore={loadMore}
         isLoading={isLoading}
         onOpenCommentDrawer={handleOpenCommentDrawer}
+        onRefresh={handleRefresh}
       />
       {selectedCommentEntry && (
         <CommentSectionClient

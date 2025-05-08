@@ -8,6 +8,8 @@ interface RouteContext {
   params: Promise<{ postId: string }>;
 }
 
+export const runtime = 'edge';
+
 export async function GET(
   request: Request,
   context: RouteContext
