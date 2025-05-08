@@ -139,7 +139,7 @@ const FollowButtonComponent = ({
     if (visualState !== null) {
       setVisualState(null);
     }
-  }, [isFollowing]);
+  }, [isFollowing, visualState]);
   
   // Memoize the click handler to prevent unnecessary recreations between renders
   const handleClick = useCallback(async () => {

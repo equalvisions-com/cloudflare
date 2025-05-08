@@ -362,6 +362,9 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
     initialData?: { count: number };
   } | null>(null);
 
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
+  
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
@@ -386,8 +389,8 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       setIsInitialLoad(false);
     }
   }, [initialData]);
-
-  // Function to load more bookmarks
+  
+  // Function to load more bookmarks - MOVED UP before it's used in dependencies
   const loadMoreBookmarks = useCallback(async () => {
     if (isLoading || !hasMore || isSearchResults) {
       console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}, isSearchResults=${isSearchResults}`);
@@ -435,6 +438,39 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
     }
   }, [isLoading, hasMore, currentSkip, userId, pageSize, bookmarks.length, isSearchResults]);
 
+  // Reset the endReachedCalled flag when bookmarks change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [bookmarks.length]);
+  
+  // Setup intersection observer for load more detection
+  useEffect(() => {
+    if (!loadMoreRef.current || isSearchResults) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
+          console.log('📜 Load more element visible, triggering load');
+          endReachedCalledRef.current = true;
+          setTimeout(() => {
+            loadMoreBookmarks();
+          }, 100);
+        }
+      },
+      { 
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreRef, hasMore, isLoading, loadMoreBookmarks, isSearchResults]);
+
   // Check if we need to load more when the component is mounted
   useEffect(() => {
     const checkContentHeight = () => {
@@ -473,42 +509,6 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       </div>
     );
   }
-
-  // Add ref to prevent multiple endReached calls
-  const endReachedCalledRef = useRef(false);
-  
-  // Reset the endReachedCalled flag when bookmarks change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [bookmarks.length]);
-  
-  // Setup intersection observer for load more detection
-  useEffect(() => {
-    if (!loadMoreRef.current || isSearchResults) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMoreBookmarks();
-          }, 100);
-        }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMoreRef, hasMore, isLoading, loadMoreBookmarks, isSearchResults]);
 
   return (
     <div className="w-full">

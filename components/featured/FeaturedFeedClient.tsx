@@ -334,31 +334,15 @@ const FeedContent = React.memo(({
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void,
   onRefresh: () => void
 }) => {
-  if (!entries.length) {
-    return (
-      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-4">
-        <p>No featured entries found.</p>
-        <Button 
-          variant="outline" 
-          onClick={onRefresh}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
-    );
-  }
-
-  // Add ref to prevent multiple endReached calls
+  // Add ref to prevent multiple endReached calls - MOVED BEFORE CONDITIONAL
   const endReachedCalledRef = useRef(false);
   
-  // Reset the endReachedCalled flag when entries change
+  // Reset the endReachedCalled flag when entries change - MOVED BEFORE CONDITIONAL
   useEffect(() => {
     endReachedCalledRef.current = false;
   }, [visibleEntries.length]);
   
-  // Setup intersection observer for load more detection
+  // Setup intersection observer for load more detection - MOVED BEFORE CONDITIONAL
   useEffect(() => {
     if (!loadMoreRef.current) return;
     
@@ -385,6 +369,22 @@ const FeedContent = React.memo(({
       observer.disconnect();
     };
   }, [loadMoreRef, hasMore, isLoading, loadMore]);
+
+  if (!entries.length) {
+    return (
+      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-4">
+        <p>No featured entries found.</p>
+        <Button 
+          variant="outline" 
+          onClick={onRefresh}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-0">

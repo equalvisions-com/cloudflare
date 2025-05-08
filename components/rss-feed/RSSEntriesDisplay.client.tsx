@@ -1120,6 +1120,7 @@ const RSSEntriesClientComponent = ({
     isRefreshing, 
     hasRefreshed, 
     updateTotalEntriesState, 
+    updatePostTitlesState,
     postTitlesRef, 
     entriesStateRef
   ]);
@@ -1152,53 +1153,56 @@ const RSSEntriesClientComponent = ({
     setCommentDrawerOpen(true);
   }, []);
 
+  // Extract the onSuccess callback to include updatePostTitlesState in dependencies
+  const handleFollowedPostsUpdate = useCallback(async () => {
+    logger.debug('Followed posts update detected, refreshing feed data');
+    if (isMountedRef.current) {
+      // Fetch latest entries from server - but keep the old ones until we get new ones
+      try {
+        // Add cache busting parameter to ensure we get fresh data
+        const cacheKey = `${FOLLOWED_POSTS_KEY}${FOLLOWED_POSTS_KEY.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        const response = await fetch(cacheKey);
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        
+        const data = await response.json();
+        if (isMountedRef.current && data) {
+          // CRITICAL: Update our post titles list FIRST to ensure we have the complete list
+          // This is especially important after following new posts
+          if (data.postTitles) {
+            logger.debug(`📋 HIGH PRIORITY: Updating post titles after follow change - complete list: ${data.postTitles.length} titles`);
+            updatePostTitlesState(data.postTitles);
+          }
+          
+          // Update total entries count if available
+          if (data.totalEntries) {
+            logger.debug(`📊 Updating totalEntries after follow change: ${data.totalEntries}`);
+            updateTotalEntriesState(data.totalEntries);
+          }
+          
+          // Only update entries if we got some
+          if (data.entries && data.entries.length > 0) {
+            // Use our update functions to keep refs and state in sync
+            updateEntriesState(data.entries);
+            updatePageState(1);
+            updateHasMoreState(!!data.hasMore);
+            
+            // Reset hasRefreshed so we can refresh again if needed
+            setHasRefreshed(false);
+          }
+        }
+      } catch (error) {
+        logger.error('Error refreshing feed after follow status change:', error);
+      }
+    }
+  }, [updatePostTitlesState, updateTotalEntriesState, updateEntriesState, updatePageState, updateHasMoreState]);
+
   // Listen for global followed posts changes with improved handling
   useSWR(FOLLOWED_POSTS_KEY, null, {
     refreshInterval: 0,
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 0,
-    onSuccess: async () => {
-      logger.debug('Followed posts update detected, refreshing feed data');
-      if (isMountedRef.current) {
-        // Fetch latest entries from server - but keep the old ones until we get new ones
-        try {
-          // Add cache busting parameter to ensure we get fresh data
-          const cacheKey = `${FOLLOWED_POSTS_KEY}${FOLLOWED_POSTS_KEY.includes('?') ? '&' : '?'}t=${Date.now()}`;
-          const response = await fetch(cacheKey);
-          if (!response.ok) throw new Error(`API error: ${response.status}`);
-          
-          const data = await response.json();
-          if (isMountedRef.current && data) {
-            // CRITICAL: Update our post titles list FIRST to ensure we have the complete list
-            // This is especially important after following new posts
-            if (data.postTitles) {
-              logger.debug(`📋 HIGH PRIORITY: Updating post titles after follow change - complete list: ${data.postTitles.length} titles`);
-              updatePostTitlesState(data.postTitles);
-            }
-            
-            // Update total entries count if available
-            if (data.totalEntries) {
-              logger.debug(`📊 Updating totalEntries after follow change: ${data.totalEntries}`);
-              updateTotalEntriesState(data.totalEntries);
-            }
-            
-            // Only update entries if we got some
-            if (data.entries && data.entries.length > 0) {
-              // Use our update functions to keep refs and state in sync
-              updateEntriesState(data.entries);
-              updatePageState(1);
-              updateHasMoreState(!!data.hasMore);
-              
-              // Reset hasRefreshed so we can refresh again if needed
-              setHasRefreshed(false);
-            }
-          }
-        } catch (error) {
-          logger.error('Error refreshing feed after follow status change:', error);
-        }
-      }
-    }
+    onSuccess: handleFollowedPostsUpdate
   });
 
   // Add a combined function to handle all refresh attempts
