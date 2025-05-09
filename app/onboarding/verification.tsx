@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
+import AutoRedirect from './AutoRedirect';
 
 // Define type for the user profile response
 interface UserProfile {
@@ -18,8 +19,30 @@ interface UserProfile {
   [key: string]: any; // Allow other properties
 }
 
+// This is a proper server action that can set cookies and redirect
+export async function setOnboardedCookieAndRedirect(): Promise<void> {
+  'use server';
+  
+  try {
+    console.log("Setting onboarded cookie in server action");
+    // Set the cookie to true
+    cookies().set('user_onboarded', 'true', {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: 'lax',
+    });
+    
+    // This will redirect after the server action completes
+    redirect('/');
+  } catch (error) {
+    console.error("Error setting cookie in server action:", error);
+    // Let the component handle the error
+  }
+}
+
 // This is a server component for verifying onboarding status during cold starts
-// when the middleware could not make a definitive determination
 export default async function VerifyOnboardingStatus() {
   // We only run this check during cold starts when the middleware is uncertain
   // This runs server-side only
@@ -57,19 +80,11 @@ export default async function VerifyOnboardingStatus() {
       
       if (profile?.isBoarded) {
         // User is already onboarded according to database
-        console.log("User is already onboarded, setting cookie and redirecting");
+        console.log("User is already onboarded, using client component to handle redirect");
         
-        // Set the cookie to match the database state
-        cookies().set('user_onboarded', 'true', {
-          path: '/',
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 60 * 60 * 24 * 30, // 30 days
-          sameSite: 'lax',
-        });
-        
-        // Redirect to home
-        redirect('/');
+        // Use a client component to handle the redirect
+        // This approach avoids the server component cookie limitations
+        return <AutoRedirect />;
       } else {
         console.log("User not onboarded in database, continuing to onboarding flow");
       }
