@@ -288,20 +288,27 @@ export function FeedTabsContainer({
     }
   }, [rssData, isLoading, isAuthenticated, router]);
   
-  // Handle tab change
+  // Handle tab change from user interaction (clicking/swiping)
   const handleTabChange = useCallback((index: number) => {
-    console.log(`Tab changed to ${index === 0 ? 'Discover' : 'Following'}`);
-    
-    // If switching to the "Following" tab (index 1), check authentication
+    // If trying to access Following tab while not authenticated, redirect to sign in
     if (index === 1 && !isAuthenticated) {
-      console.log('User not authenticated, redirecting to sign-in page');
+      console.log('Tab change blocked - user not authenticated, redirecting to sign-in page');
       router.push('/signin');
-      return;
+      return; // Don't update tab state
     }
     
-    // Only update active tab index if not redirecting
+    // If authenticated or accessing Discover tab, update tab state
+    console.log(`Tab changed to ${index === 0 ? 'Discover' : 'Following'}`);
     setActiveTabIndex(index);
   }, [isAuthenticated, router]);
+  
+  // Safety mechanism: Redirect if user somehow ends up on Following tab while not authenticated
+  useEffect(() => {
+    if (activeTabIndex === 1 && !isAuthenticated) {
+      console.log('Safety redirect - unauthenticated user on Following tab');
+      router.push('/signin');
+    }
+  }, [activeTabIndex, isAuthenticated, router]);
   
   // Add a single useEffect to handle data fetching for the active tab
   useEffect(() => {
