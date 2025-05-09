@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, memo, useDeferredValue } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -83,6 +83,25 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
+  // Add click stabilizer to prevent scroll jumps
+  const handleStabilizedClick = useCallback((callback: (e: React.MouseEvent) => void) => {
+    return (e: React.MouseEvent) => {
+      // Stop propagation to prevent bubbling
+      e.stopPropagation();
+      
+      // Store current scroll position
+      const scrollPos = window.scrollY;
+      
+      // Execute the callback
+      callback(e);
+      
+      // Force scroll position to stay the same
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPos);
+      });
+    };
+  }, []);
+
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
@@ -155,15 +174,20 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
           : null
     : null;
 
+  // Wrap card click with stabilizer
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (safePostMetadata.mediaType === 'podcast') {
       e.preventDefault();
+      e.stopPropagation();
       playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
+  // Wrap card click with stabilizer
+  const stabilizedCardClick = handleStabilizedClick(handleCardClick);
+
   return (
-    <article>
+    <article onClick={(e) => e.stopPropagation()}>
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
@@ -224,7 +248,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         {safePostMetadata.mediaType === 'podcast' ? (
           <div>
             <div 
-              onClick={handleCardClick}
+              onClick={stabilizedCardClick}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
@@ -261,6 +285,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             target="_blank"
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
           >
             <Card className="rounded-xl border overflow-hidden shadow-none">
               {entry.image && (
@@ -292,7 +317,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         )}
         
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
           <div>
             <LikeButtonClient
               entryGuid={entry.guid}
@@ -303,7 +328,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               initialData={initialData.likes}
             />
           </div>
-          <div onClick={() => onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments)}>
+          <div onClick={(e) => {
+            e.stopPropagation();
+            onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
+          }}>
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -342,6 +370,22 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prevEntry = prevProps.entryWithData;
+  const nextEntry = nextProps.entryWithData;
+  
+  // Only re-render if these key properties have changed
+  if (prevEntry.entry.guid !== nextEntry.entry.guid) return false;
+  if (prevEntry.initialData.likes.count !== nextEntry.initialData.likes.count) return false;
+  if (prevEntry.initialData.likes.isLiked !== nextEntry.initialData.likes.isLiked) return false;
+  if (prevEntry.initialData.comments.count !== nextEntry.initialData.comments.count) return false;
+  if (prevEntry.initialData.retweets?.count !== nextEntry.initialData.retweets?.count) return false;
+  if (prevEntry.initialData.retweets?.isRetweeted !== nextEntry.initialData.retweets?.isRetweeted) return false;
+  if (prevEntry.initialData.bookmarks?.isBookmarked !== nextEntry.initialData.bookmarks?.isBookmarked) return false;
+  
+  // Return true to prevent re-render if nothing important changed
+  return true;
 });
 RSSEntry.displayName = 'RSSEntry';
 
@@ -388,6 +432,7 @@ interface EntriesContentProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
+    feedMetadataCache: Record<string, any>;
   };
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
@@ -425,28 +470,55 @@ function EntriesContentComponent({
       return null;
     }
 
-    const entryWithData = paginatedEntries[index];
+    // Make a shallow copy to avoid mutating the original
+    const entryWithData = {...paginatedEntries[index]};
+    
+    // Create a new initialData object instead of mutating directly
+    let updatedInitialData = {...entryWithData.initialData};
+    let updatedPostMetadata = {...entryWithData.postMetadata};
     
     // Use metrics from Convex query if available
     if (entryMetrics && entryWithData.entry.guid in entryMetrics) {
-      entryWithData.initialData = entryMetrics[entryWithData.entry.guid];
+      updatedInitialData = {...entryMetrics[entryWithData.entry.guid]};
     }
     
     // Use metadata from Convex query if available
     if (postMetadata && postMetadata.has(entryWithData.entry.feedUrl)) {
       const metadata = postMetadata.get(entryWithData.entry.feedUrl);
       if (metadata) {
-        entryWithData.postMetadata = {
-          ...entryWithData.postMetadata,
+        updatedPostMetadata = {
+          ...updatedPostMetadata,
           ...metadata
         };
       }
     }
+    // Check the cached metadata as fallback
+    else if (initialData.feedMetadataCache && 
+             entryWithData.entry.feedUrl in initialData.feedMetadataCache) {
+      const cachedMetadata = initialData.feedMetadataCache[entryWithData.entry.feedUrl];
+      if (cachedMetadata) {
+        updatedPostMetadata = {
+          ...updatedPostMetadata,
+          ...cachedMetadata
+        };
+      }
+    }
+    
+    // Create a new entry object with updated data instead of mutating
+    const finalEntryWithData = {
+      ...entryWithData,
+      initialData: updatedInitialData,
+      postMetadata: updatedPostMetadata
+    };
     
     return (
-      <RSSEntry key={entryWithData.entry.guid} entryWithData={entryWithData} onOpenCommentDrawer={onOpenCommentDrawer} />
+      <RSSEntry 
+        key={entryWithData.entry.guid} 
+        entryWithData={finalEntryWithData} 
+        onOpenCommentDrawer={onOpenCommentDrawer} 
+      />
     );
-  }, [paginatedEntries, entryMetrics, postMetadata, onOpenCommentDrawer]);
+  }, [paginatedEntries, entryMetrics, postMetadata, onOpenCommentDrawer, initialData.feedMetadataCache]);
   
   // Handle endReached separately to improve debugging
   const handleEndReached = useCallback(() => {
@@ -517,8 +589,8 @@ function EntriesContentComponent({
       <Virtuoso
         useWindowScroll
         totalCount={paginatedEntries.length}
-        overscan={2000}
         initialTopMostItemIndex={0}
+        overscan={2000}
         itemContent={renderItem}
         components={{
           Footer: () => null
@@ -534,8 +606,26 @@ function EntriesContentComponent({
   );
 }
 
-// Then apply React.memo with correct typing
-const EntriesContent = React.memo<EntriesContentProps>(EntriesContentComponent);
+// Then apply React.memo with correct typing and custom comparison
+const EntriesContent = React.memo<EntriesContentProps>(
+  EntriesContentComponent, 
+  (prevProps, nextProps) => {
+    // Only re-render if these critical properties change
+    if (prevProps.paginatedEntries.length !== nextProps.paginatedEntries.length) return false;
+    if (prevProps.hasMore !== nextProps.hasMore) return false;
+    if (prevProps.isPending !== nextProps.isPending) return false;
+    
+    // If entryMetrics changed in a meaningful way, re-render
+    if (
+      (!prevProps.entryMetrics && nextProps.entryMetrics) || 
+      (prevProps.entryMetrics && !nextProps.entryMetrics)
+    ) return false;
+    
+    // Skip deep comparison of entries if possible - assume they're immutable
+    // If all the above checks pass, prevent re-render
+    return true;
+  }
+);
 
 // Add displayName to avoid React DevTools issues
 EntriesContent.displayName = 'EntriesContent';
@@ -569,6 +659,9 @@ const RSSEntriesClientComponent = ({
   // Track all entries manually - store in a ref to prevent loss during tab switching
   const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>([]);
   const entriesStateRef = useRef<RSSEntryWithData[]>([]);
+  
+  // Add a persistent cache for feed metadata to ensure consistency during pagination
+  const feedMetadataCache = useRef<Record<string, any>>({});
   
   // Store pagination state in refs to preserve during tab switches
   const [currentPage, setCurrentPage] = useState(1);
@@ -666,6 +759,13 @@ const RSSEntriesClientComponent = ({
     } else {
       logger.warn('No mediaTypes provided by server!');
     }
+    
+    // Cache all feed metadata from initial entries for consistent rendering
+    initialData.entries.forEach(entry => {
+      if (entry.entry.feedUrl && entry.postMetadata) {
+        feedMetadataCache.current[entry.entry.feedUrl] = entry.postMetadata;
+      }
+    });
     
     // Initialize all our state
     updateEntriesState(initialData.entries);
@@ -796,34 +896,49 @@ const RSSEntriesClientComponent = ({
       const transformedEntries = data.entries
         .filter(Boolean)
         .map((entry: RSSItem) => {
-          // Helper function to find post metadata from initialData based on feedUrl
-          const findPostMetadataFromInitialData = (feedUrl: string) => {
-            if (!initialData || !initialData.entries || initialData.entries.length === 0) {
-              return null;
-            }
-            
-            // Find an entry with the same feedUrl in initialData
-            const matchingEntry = initialData.entries.find(
-              entry => entry && entry.entry && entry.entry.feedUrl === feedUrl
-            );
-            
-            if (matchingEntry && matchingEntry.postMetadata) {
-              return matchingEntry.postMetadata;
-            }
-            
-            return null;
-          };
-          
           // If it's a direct RSS item, wrap it with proper metadata
           if (entry && 'guid' in entry && entry.guid) {
             // Try to find post metadata from initialData based on feedUrl
             const feedUrl = 'feedUrl' in entry ? entry.feedUrl : '';
-            const existingMetadata = feedUrl ? findPostMetadataFromInitialData(feedUrl) : null;
+            
+            // First check our cached metadata
+            let existingMetadata = null;
+            if (feedUrl && feedMetadataCache.current[feedUrl]) {
+              existingMetadata = feedMetadataCache.current[feedUrl];
+            } else {
+              // Fallback to finding in initialData
+              if (initialData && initialData.entries && initialData.entries.length > 0) {
+                const matchingEntry = initialData.entries.find(
+                  e => e && e.entry && e.entry.feedUrl === feedUrl
+                );
+                
+                if (matchingEntry && matchingEntry.postMetadata) {
+                  existingMetadata = matchingEntry.postMetadata;
+                  // Cache this for future use
+                  feedMetadataCache.current[feedUrl] = existingMetadata;
+                }
+              }
+            }
             
             // Get title directly
             const entryTitle = entry.title || '';
             // Get feed title if available
             const feedTitle = entry.feedTitle || '';
+            
+            // Create final metadata
+            const finalMetadata = existingMetadata || {
+              title: feedTitle || entryTitle || '',
+              featuredImg: entry.image || '',
+              mediaType: entry.mediaType || '',
+              categorySlug: '',
+              postSlug: '',
+              verified: false // Default verified to false
+            };
+            
+            // Cache this metadata for future entries from this feed
+            if (feedUrl) {
+              feedMetadataCache.current[feedUrl] = finalMetadata;
+            }
             
             return {
               entry: entry,
@@ -833,14 +948,7 @@ const RSSEntriesClientComponent = ({
                 retweets: { isRetweeted: false, count: 0 },
                 bookmarks: { isBookmarked: false }
               },
-              postMetadata: existingMetadata || {
-                title: feedTitle || entryTitle || '',
-                featuredImg: entry.image || '',
-                mediaType: entry.mediaType || '',
-                categorySlug: '',
-                postSlug: '',
-                verified: false // Default verified to false
-              }
+              postMetadata: finalMetadata
             } as RSSEntryWithData;
           }
           
@@ -906,27 +1014,42 @@ const RSSEntriesClientComponent = ({
     isActive && entryGuids.length > 0 ? { entryGuids, feedUrls } : "skip"
   );
   
-  // Create a map for metrics lookups
+  // Defer data updates to prevent synchronous re-renders that may cause scroll jumps
+  const deferredCombinedData = useDeferredValue(combinedData);
+  
+  // Update metadata cache with any new data from the Convex query
+  useEffect(() => {
+    if (!deferredCombinedData?.postMetadata) return;
+    
+    deferredCombinedData.postMetadata.forEach(item => {
+      if (item.feedUrl && item.metadata) {
+        // Update our metadata cache with latest Convex data
+        feedMetadataCache.current[item.feedUrl] = item.metadata;
+      }
+    });
+  }, [deferredCombinedData]);
+  
+  // Create a map for metrics lookups with better memoization
   const metricsMap = useMemo(() => {
-    if (!combinedData) return new Map();
+    if (!deferredCombinedData?.entryMetrics?.length) return new Map();
     
     return new Map(
-      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
+      deferredCombinedData.entryMetrics.map(item => [item.guid, item.metrics])
     );
-  }, [combinedData]);
+  }, [deferredCombinedData?.entryMetrics]);
   
-  // Create a map for post metadata lookups
+  // Create a map for post metadata lookups with better memoization
   const postMetadataMap = useMemo(() => {
-    if (!combinedData || !combinedData.postMetadata) return new Map<string, InternalPostMetadata>();
+    if (!deferredCombinedData?.postMetadata?.length) return new Map<string, InternalPostMetadata>();
 
     return new Map<string, InternalPostMetadata>(
-      combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
+      deferredCombinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
     );
-  }, [combinedData]);
+  }, [deferredCombinedData?.postMetadata]);
   
-  // Get entry metrics map for use in rendering
+  // Get entry metrics map for use in rendering with better memoization
   const entryMetricsMap = useMemo(() => {
-    if (metricsMap.size === 0) return null;
+    if (!metricsMap || metricsMap.size === 0) return null;
     
     // Convert the map to a simple object for easier use in components
     const metricsObject: Record<string, EntryMetrics> = {};
@@ -1303,7 +1426,10 @@ const RSSEntriesClientComponent = ({
         loadMore={loadMoreEntries}
         entryMetrics={entryMetricsMap}
         postMetadata={postMetadataMap}
-        initialData={initialData}
+        initialData={{
+          ...initialData,
+          feedMetadataCache: feedMetadataCache.current
+        }}
         onOpenCommentDrawer={handleOpenCommentDrawer}
         isInitializing={!hasInitializedRef.current || allEntriesState.length === 0}
       />
