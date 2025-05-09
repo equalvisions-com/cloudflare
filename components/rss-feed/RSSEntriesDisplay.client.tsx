@@ -200,8 +200,17 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   });
 
   return (
-    <article onClick={(e) => e.stopPropagation()}>
-      <div className="p-4">
+    <article 
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }} 
+      className="relative"
+    >
+      <div className="p-4" onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}>
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
@@ -388,7 +397,14 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
       </div>
       
       {/* Comments Section */}
-      <div id={`comments-${entry.guid}`} className="border-t border-border" />
+      <div 
+        id={`comments-${entry.guid}`} 
+        className="border-t border-border" 
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
     </article>
   );
 }, (prevProps, nextProps) => {
