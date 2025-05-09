@@ -561,7 +561,7 @@ function EntriesContentComponent({
         }
       },
       { 
-        rootMargin: '200px',
+        rootMargin: '50px',
         threshold: 0.1
       }
     );

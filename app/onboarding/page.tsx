@@ -94,6 +94,18 @@ function OnboardingPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Add client-side onboarding check to redirect already onboarded users
+  useEffect(() => {
+    // Check for onboarded cookie without making any server calls
+    const onboardedCookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('user_onboarded='));
+      
+    if (onboardedCookie?.split('=')[1] === 'true') {
+      router.replace('/');
+    }
+  }, [router]);
+
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
   
