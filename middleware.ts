@@ -41,7 +41,10 @@ async function getBasicUserStatus(request: NextRequest) {
         // This tells the layout to verify onboarding status from Convex
         // but allows middleware to proceed without blocking during cold starts
         skipOnboardingCheck = true;
-        isBoarded = true; // Assume true to avoid unnecessary redirects during cold starts
+        
+        // CHANGE: For new users (no cookie), assume they are NOT onboarded
+        // This ensures they'll be redirected to the onboarding flow
+        isBoarded = false;
       }
     }
   } catch (error) {
