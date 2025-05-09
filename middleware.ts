@@ -75,12 +75,21 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/");
     }
     
-    // Redirect from onboarding page if user is already onboarded or not authenticated
-    if (isOnboardingPage(request) && (!isAuthenticated || isBoarded)) {
-      // Only redirect away from onboarding if we're confident about the onboarding status
-      if (!skipOnboardingCheck) {
+    // Updated onboarding page protection logic
+    if (isOnboardingPage(request)) {
+      // Always redirect non-authenticated users
+      if (!isAuthenticated) {
+        return nextjsMiddlewareRedirect(request, "/signin");
+      }
+      
+      // Only redirect if we have a confident "true" for onboarded
+      if (isBoarded && !skipOnboardingCheck) {
         return nextjsMiddlewareRedirect(request, "/");
       }
+      
+      // For uncertain states (cold starts), we'll set a header for the page to perform a secondary check
+      response.headers.set('x-check-onboarding', '1');
+      return response;
     }
     
     if (isProtectedRoute(request) && !isAuthenticated) {

@@ -16,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
-import { useRouter } from "next/navigation";
 
 type AuthStep = 
   | "signIn" 
@@ -181,23 +180,12 @@ function SignInPageContent() {
 
 function SignInWithGoogle() {
   const { signIn } = useAuthActions();
-  const router = useRouter();
-  
   return (
     <Button
       className="w-full flex-1 shadow-none font-semibold"
       variant="outline"
       type="button"
-      onClick={() => {
-        void signIn("google")
-          .then(() => {
-            router.push('/');
-            router.refresh();
-          })
-          .catch((error) => {
-            console.error("Google sign-in failed:", error);
-          });
-      }}
+      onClick={() => void signIn("google", { redirectTo: "/" })}
     >
       <svg viewBox="0 0 24 24" className="mr-2 h-4 w-4">
         <path fill="#EA4335" d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"></path>
@@ -217,7 +205,6 @@ function SignInWithPassword({
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
-  const router = useRouter();
 
   return (
     <form
@@ -226,12 +213,9 @@ function SignInWithPassword({
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         formData.set("flow", "signIn");
+        formData.set("redirectTo", "/");
         
         void signIn("password", formData)
-          .then(() => {
-            router.push('/');
-            router.refresh();
-          })
           .catch((error) => {
             console.error(error);
             toast({
@@ -311,7 +295,6 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
-  const router = useRouter();
 
   const validatePassword = (password: string) => {
     const hasMinLength = password.length >= 8;
@@ -331,6 +314,7 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         formData.set("flow", "signUp");
+        formData.set("redirectTo", "/");
         
         const password = formData.get("password") as string;
         if (!validatePassword(password)) {
@@ -347,8 +331,6 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         void signIn("password", formData)
           .then(() => {
             setSubmitting(false);
-            router.push('/');
-            router.refresh();
           })
           .catch((error) => {
             console.error(error);

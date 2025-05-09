@@ -36,6 +36,9 @@ interface FinalizeOnboardingArgs {
   profileImageKey?: string;
 }
 
+// --- Add Server Component for Extra Onboarding Verification --- 
+import VerifyOnboardingStatus from '@/app/onboarding/verification';
+
 // --- Update the Client Component --- 
 
 import { useState, useRef, useEffect } from 'react';
@@ -72,9 +75,12 @@ type OnboardingStep = 'profile' | 'follow';
 
 export default function OnboardingPage() {
   return (
-    <EdgeAuthWrapper>
-      <OnboardingPageContent />
-    </EdgeAuthWrapper>
+    <>
+      <VerifyOnboardingStatus />
+      <EdgeAuthWrapper>
+        <OnboardingPageContent />
+      </EdgeAuthWrapper>
+    </>
   );
 }
 
@@ -93,18 +99,6 @@ function OnboardingPageContent() {
   const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
-  // Add client-side onboarding check to redirect already onboarded users
-  useEffect(() => {
-    // Check for onboarded cookie without making any server calls
-    const onboardedCookie = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('user_onboarded='));
-      
-    if (onboardedCookie?.split('=')[1] === 'true') {
-      router.replace('/');
-    }
-  }, [router]);
 
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
