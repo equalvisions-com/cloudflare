@@ -86,7 +86,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   // Add click stabilizer to prevent scroll jumps
   const handleStabilizedClick = useCallback((callback: (e: React.MouseEvent) => void) => {
     return (e: React.MouseEvent) => {
-      // Stop propagation to prevent bubbling
+      // Prevent default and stop propagation
+      e.preventDefault();
       e.stopPropagation();
       
       // Store current scroll position
@@ -95,9 +96,14 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
       // Execute the callback
       callback(e);
       
-      // Force scroll position to stay the same
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollPos);
+      // Force scroll position to stay the same with a more reliable approach
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          window.scrollTo({
+            top: scrollPos,
+            behavior: 'instant' // Use instant to prevent smooth scrolling
+          });
+        });
       });
     };
   }, []);
@@ -177,14 +183,21 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   // Wrap card click with stabilizer
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (safePostMetadata.mediaType === 'podcast') {
-      e.preventDefault();
-      e.stopPropagation();
       playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  // Wrap card click with stabilizer
+  // Wrap all interactive clicks with stabilizer
   const stabilizedCardClick = handleStabilizedClick(handleCardClick);
+  const stabilizedLinkClick = handleStabilizedClick((e: React.MouseEvent) => {
+    // For external links, we need to manually navigate
+    if (e.currentTarget instanceof HTMLAnchorElement) {
+      const href = e.currentTarget.href;
+      if (href) {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
+    }
+  });
 
   return (
     <article onClick={(e) => e.stopPropagation()}>
@@ -193,7 +206,11 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {safePostMetadata.featuredImg && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
+            <Link 
+              href={postUrl} 
+              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+              onClick={stabilizedLinkClick}
+            >
               <AspectRatio ratio={1}>
                 <Image
                   src={safePostMetadata.featuredImg}
@@ -213,7 +230,11 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               {safePostMetadata.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
-                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
+                    <Link 
+                      href={postUrl} 
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={stabilizedLinkClick}
+                    >
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {safePostMetadata.title}
                         {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
@@ -285,7 +306,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             target="_blank"
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
-            onClick={(e) => e.stopPropagation()}
+            onClick={stabilizedLinkClick}
           >
             <Card className="rounded-xl border overflow-hidden shadow-none">
               {entry.image && (
