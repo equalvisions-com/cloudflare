@@ -137,7 +137,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     return {
       title: postMetadata?.title || feedTitle,
       featuredImg: postMetadata?.featuredImg || entry.image || '',
-      mediaType: postMetadata?.mediaType || 'article',
+      mediaType: postMetadata?.mediaType || entry.mediaType || '',
       categorySlug: postMetadata?.categorySlug || '',
       postSlug: postMetadata?.postSlug || '',
       verified: postMetadata?.verified || false
@@ -605,6 +605,9 @@ const RSSEntriesClientComponent = ({
   const [showNotification, setShowNotification] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
 
+  // Add state for mediaTypes
+  const mediaTypesRef = useRef<string[] | undefined>(initialData?.mediaTypes);
+
   // Update state and refs together for better consistency
   const updateEntriesState = useCallback((newEntries: RSSEntryWithData[]) => {
     entriesStateRef.current = newEntries;
@@ -652,8 +655,17 @@ const RSSEntriesClientComponent = ({
       entriesCount: initialData.entries.length,
       hasMore: initialData.hasMore,
       totalEntries: initialData.totalEntries,
-      postTitles: initialData.postTitles?.length || 0
+      postTitles: initialData.postTitles?.length || 0,
+      feedUrls: initialData.feedUrls?.length || 0, 
+      mediaTypes: initialData.mediaTypes?.length || 0
     });
+
+    // Log actual mediaTypes to help with debugging
+    if (initialData.mediaTypes && initialData.mediaTypes.length > 0) {
+      logger.debug('Server provided mediaTypes:', initialData.mediaTypes);
+    } else {
+      logger.warn('No mediaTypes provided by server!');
+    }
     
     // Initialize all our state
     updateEntriesState(initialData.entries);
@@ -668,6 +680,11 @@ const RSSEntriesClientComponent = ({
     // Update post titles
     if (initialData.postTitles) {
       updatePostTitlesState(initialData.postTitles);
+    }
+    
+    // Create a ref for mediaTypes to ensure persistence
+    if (initialData.mediaTypes) {
+      mediaTypesRef.current = initialData.mediaTypes;
     }
     
     // Mark as initialized so we don't reset when tabs switch
@@ -722,7 +739,10 @@ const RSSEntriesClientComponent = ({
       // This is the most reliable source of truth for ALL followed feeds
       const postTitlesParam = JSON.stringify(postTitlesRef.current);
       
-      logger.debug(`📋 Using ${postTitlesRef.current.length} post titles from server for pagination`);
+      // Also include feed URLs for proper pagination of newly created feeds
+      const feedUrlsParam = JSON.stringify(initialData?.feedUrls || []);
+      
+      logger.debug(`📋 Using ${postTitlesRef.current.length} post titles and ${initialData?.feedUrls?.length || 0} feed URLs from server for pagination`);
       
       // Make a direct fetch to the API
       const baseUrl = new URL('/api/rss/paginate', window.location.origin);
@@ -730,6 +750,11 @@ const RSSEntriesClientComponent = ({
       baseUrl.searchParams.set('page', nextPage.toString());
       baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
       baseUrl.searchParams.set('postTitles', postTitlesParam);
+      
+      // Add feedUrls to the query parameters
+      if (initialData?.feedUrls && initialData.feedUrls.length > 0) {
+        baseUrl.searchParams.set('feedUrls', feedUrlsParam);
+      }
       
       // Pass the total entries to avoid unnecessary COUNT queries on the server
       // Use our dynamically updated totalEntriesRef instead of the static initialData
@@ -811,7 +836,7 @@ const RSSEntriesClientComponent = ({
               postMetadata: existingMetadata || {
                 title: feedTitle || entryTitle || '',
                 featuredImg: entry.image || '',
-                mediaType: entry.mediaType || 'article',
+                mediaType: entry.mediaType || '',
                 categorySlug: '',
                 postSlug: '',
                 verified: false // Default verified to false
@@ -854,7 +879,8 @@ const RSSEntriesClientComponent = ({
     updateEntriesState, 
     updatePageState, 
     updateHasMoreState, 
-    updateTotalEntriesState, 
+    updateTotalEntriesState,
+    updatePostTitlesState, 
     postTitlesRef
   ]);
   
@@ -1012,9 +1038,13 @@ const RSSEntriesClientComponent = ({
     // Also use server-provided feed URLs
     const currentFeedUrls = initialData?.feedUrls || [];
     
+    // Ensure we pass the server-provided mediaTypes - use the ref to ensure persistence
+    const currentMediaTypes = mediaTypesRef.current || [];
+    
     logger.debug(`🔄 Refreshing using server-provided data:
     - Post titles: ${currentPostTitles.length}
-    - Feed URLs: ${currentFeedUrls.length}`);
+    - Feed URLs: ${currentFeedUrls.length}
+    - Media types: ${currentMediaTypes.length} - ${currentMediaTypes.join(', ')}`);
     
     // Find the newest entry from our existing entries to maintain chronological order
     // This prevents older entries from newly created feeds from appearing at the top
@@ -1063,7 +1093,7 @@ const RSSEntriesClientComponent = ({
         body: JSON.stringify({
           postTitles: currentPostTitles,
           feedUrls: currentFeedUrls,
-          mediaTypes: initialData?.mediaTypes || [],
+          mediaTypes: currentMediaTypes,
           existingGuids, // Send existing GUIDs to filter out duplicates
           newestEntryDate // Send the newest entry date for chronological filtering
         }),
@@ -1114,15 +1144,15 @@ const RSSEntriesClientComponent = ({
       setIsRefreshing(false);
     }
   }, [
-    initialData?.mediaTypes, 
     initialData?.entries, 
     initialData?.feedUrls, 
     isRefreshing, 
     hasRefreshed, 
     updateTotalEntriesState, 
     updatePostTitlesState,
-    postTitlesRef, 
-    entriesStateRef
+    postTitlesRef,
+    entriesStateRef,
+    mediaTypesRef
   ]);
 
   // Trigger one-time refresh after initial render - always refresh immediately

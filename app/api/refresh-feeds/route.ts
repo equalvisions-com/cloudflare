@@ -67,7 +67,14 @@ export async function POST(request: Request) {
     // Normalize the arrays to ensure they have matching lengths
     // Remove duplicates from feedUrls and mediaTypes
     const uniqueFeedUrls = feedUrls ? [...new Set(feedUrls)] : [];
-    const normalizedMediaTypes = Array.isArray(mediaTypes) ? mediaTypes : [];
+    const uniqueMediaTypes = mediaTypes && Array.isArray(mediaTypes) ? [...mediaTypes] : [];
+    
+    // Log the mediaTypes we received in the request
+    devLog('📊 API: Received mediaTypes array:', {
+      mediaTypesInRequest: mediaTypes, 
+      uniqueMediaTypes,
+      count: uniqueMediaTypes.length
+    });
     
     // Ensure we have valid postTitles and feedUrls arrays
     let normalizedPostTitles = postTitles && postTitles.length > 0 ? postTitles : [];
@@ -75,12 +82,14 @@ export async function POST(request: Request) {
     // If we have postTitles but no feedUrls, or if feedUrls is shorter than postTitles,
     // we'll need to handle this special case
     let normalizedFeedUrls: string[] = [];
-    let normalizedMediaTypesArray: string[] = [];
+    // Use a more specific type that accepts both string and null
+    let normalizedMediaTypesArray: Array<string | null> = [];
     
     if (normalizedPostTitles.length > 0) {
       // Case 1: We have postTitles, derive normalized arrays from them
       normalizedMediaTypesArray = normalizedPostTitles.map((title: string, index: number) => {
-        return normalizedMediaTypes[index] || 'article';
+        // Preserve original mediaType if available
+        return index < uniqueMediaTypes.length ? uniqueMediaTypes[index] : null;
       });
       
       if (uniqueFeedUrls.length > 0) {
@@ -108,14 +117,16 @@ export async function POST(request: Request) {
       normalizedFeedUrls = uniqueFeedUrls as string[];
       
       normalizedMediaTypesArray = (uniqueFeedUrls as string[]).map((url: string, index: number) => {
-        return normalizedMediaTypes[index] || 'article';
+        // Preserve original mediaType if available
+        return uniqueMediaTypes.length > index ? uniqueMediaTypes[index] : null;
       });
     }
     
     devLog('🔄 API: Using normalized arrays...', { 
       normalizedPostTitles, 
       normalizedFeedUrls,
-      normalizedMediaTypesArray
+      normalizedMediaTypesArray,
+      originalMediaTypes: uniqueMediaTypes // Log original for comparison
     });
     
     // Get information about which feeds need refreshing (for logging purposes only)
@@ -142,7 +153,11 @@ export async function POST(request: Request) {
     if (feedsToRefresh.length > 0 || newFeeds.length > 0) {
       // Always call checkAndRefreshFeeds to both refresh existing feeds AND create new ones
       devLog(`🔄 API: Checking and refreshing feeds, will create missing ones if needed`);
-      await checkAndRefreshFeeds(postTitles, normalizedFeedUrls, normalizedMediaTypesArray);
+      
+      // Convert array to all strings (replacing null with undefined) to match function signature
+      const stringMediaTypes = normalizedMediaTypesArray.map(mt => mt === null ? undefined : mt) as string[] | undefined;
+      
+      await checkAndRefreshFeeds(postTitles, normalizedFeedUrls, stringMediaTypes);
       refreshedAny = true;
     } else {
       devLog('⏭️ API: Skipping refresh - no feeds need refreshing and no new feeds');
@@ -526,7 +541,7 @@ async function getNewEntriesExcludingGuids(
       const fallbackMetadata = {
         title: entry.feedTitle || entry.title || '',
         featuredImg: entry.image || '',
-        mediaType: 'article',
+        mediaType: entry.mediaType || null,
         postSlug: '',
         categorySlug: '',
         verified: false

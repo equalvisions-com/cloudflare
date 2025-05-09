@@ -93,13 +93,75 @@ const executeQuery = async <T = Record<string, unknown>>(
     const isWriteOperation = isWrite || 
       /^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)/i.test(query.trim());
     
+    // For INSERT operations with IGNORE, check if we should use batching
+    if (isWriteOperation && query.toUpperCase().includes('INSERT IGNORE') && params.length > 100) {
+      logger.debug(`Large INSERT IGNORE detected (${params.length} params), using optimized execution`);
+      
+      // For large INSERT IGNORE operations, use a transaction with smaller batches
+      // to prevent "error: Query exceeds max parameter count" and other PlanetScale limits
+      
+      // Find parameter group size - number of ? placeholders for each row
+      const placeholderMatches = query.match(/\([^)]+\)/g);
+      if (placeholderMatches && placeholderMatches.length > 0) {
+        const firstPlaceholder = placeholderMatches[0];
+        const paramGroupSize = (firstPlaceholder.match(/\?/g) || []).length;
+        
+        if (paramGroupSize > 0) {
+          // Calculate how many complete groups we have
+          const rowCount = Math.floor(params.length / paramGroupSize);
+          
+          // Maximum batch size - roughly 500 parameters per batch (adjust based on PlanetScale limits)
+          const maxRowsPerBatch = Math.floor(500 / paramGroupSize);
+          
+          if (rowCount > maxRowsPerBatch) {
+            logger.debug(`Splitting INSERT into multiple batches (${rowCount} rows, ${paramGroupSize} params per row)`);
+            
+            // Split the query into batches
+            const baseQuery = query.substring(0, query.indexOf('VALUES') + 6);
+            let allRowsAffected = 0;
+            
+            // Process in batches
+            for (let i = 0; i < rowCount; i += maxRowsPerBatch) {
+              const batchSize = Math.min(maxRowsPerBatch, rowCount - i);
+              const batchPlaceholders = placeholderMatches.slice(0, batchSize).join(',');
+              const batchQuery = `${baseQuery} ${batchPlaceholders}`;
+              
+              // Extract parameters for this batch
+              const startParamIndex = i * paramGroupSize;
+              const endParamIndex = startParamIndex + (batchSize * paramGroupSize);
+              const batchParams = params.slice(startParamIndex, endParamIndex);
+              
+              // Execute this batch
+              const batchResult = await (isWriteOperation 
+                ? executeWrite(batchQuery, batchParams)
+                : executeRead(batchQuery, batchParams));
+              
+              allRowsAffected += batchResult.rowsAffected || 0;
+            }
+            
+            // Return a combined result
+            return {
+              rows: [] as T[],
+              rowsAffected: allRowsAffected,
+              insertId: 0, // Cannot reliably track insert IDs in batched operations
+              fields: []
+            } as unknown as PlanetScaleQueryResult<T>;
+          }
+        }
+      }
+    }
+    
+    // Standard execution path
     const result = isWriteOperation 
       ? await executeWrite(query, params)
       : await executeRead(query, params);
       
     return result as unknown as PlanetScaleQueryResult<T>;
   } catch (error) {
-    logger.error(`Database query error: ${error}`);
+    // Add more context to the error for debugging
+    const queryPreview = query.length > 100 ? `${query.substring(0, 100)}...` : query;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Database query error: ${errorMessage}. Query: ${queryPreview}`);
     throw error;
   }
 };
@@ -1036,8 +1098,10 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now(); // Use milliseconds for last_fetched (bigint column)
     
+    // Log the mediaType being used during feed creation
     logger.debug(`Creating new feed with date: ${now}, timestamp: ${currentTimeMs}, mediaType: ${mediaType || 'null'}`);
     
+    // Never default to 'article', use the actual mediaType value or null
     const insertResult = await executeQuery(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
@@ -1054,26 +1118,83 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
 async function executeBatchTransaction<T = ExecutedQuery>(
   operations: Array<{ query: string; params: unknown[] }>
 ): Promise<T[]> {
-  try {
-    // PlanetScale's transaction API is different from mysql2
-    const results: T[] = [];
-    
-    // Use the write connection for transactions
-    const conn = getWriteConnection();
-    
-    // Use the transaction method provided by PlanetScale
-    await conn.transaction(async (tx: any) => {
-      for (const op of operations) {
-        const result = await tx.execute(op.query, op.params);
-        results.push(result as unknown as T);
+  let retryCount = 0;
+  const maxRetries = 3;
+  const baseBackoffMs = 500;
+
+  while (true) {
+    try {
+      // PlanetScale's transaction API is different from mysql2
+      const results: T[] = [];
+      
+      // Use the write connection for transactions
+      const conn = getWriteConnection();
+      
+      // Start the transaction with a standard timeout (30s)
+      await conn.transaction(async (tx: any) => {
+        for (const op of operations) {
+          try {
+            const result = await tx.execute(op.query, op.params);
+            results.push(result as unknown as T);
+          } catch (opError) {
+            // Capture specific operation errors for better debugging
+            logger.error(
+              `Error in transaction operation: ${opError}. Query: ${op.query.substring(0, 100)}...`
+            );
+            throw opError; // Re-throw to rollback the transaction
+          }
+        }
+      });
+      
+      return results;
+    } catch (error) {
+      retryCount++;
+      const isTransient = isTransientError(error);
+      
+      // If this is a transient error and we haven't exceeded max retries
+      if (isTransient && retryCount <= maxRetries) {
+        // Calculate exponential backoff with jitter
+        const backoffTime = Math.floor(
+          baseBackoffMs * Math.pow(2, retryCount - 1) * (0.5 + Math.random())
+        );
+        
+        logger.warn(
+          `Transient database error detected, retrying in ${backoffTime}ms (attempt ${retryCount}/${maxRetries}): ${error}`
+        );
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, backoffTime));
+        continue; // Retry the operation
       }
-    });
-    
-    return results;
-  } catch (error) {
-    logger.error(`Transaction error: ${error}`);
-    throw error;
+      
+      // Non-transient error or max retries exceeded
+      logger.error(`Transaction error (attempt ${retryCount}/${maxRetries + 1}): ${error}`);
+      throw error;
+    }
   }
+}
+
+// Helper to identify transient database errors worth retrying
+function isTransientError(error: any): boolean {
+  if (!error) return false;
+  const errorMessage = String(error.message || error).toLowerCase();
+  
+  // Common PlanetScale-specific transient errors
+  return (
+    errorMessage.includes('too many connections') ||
+    errorMessage.includes('deadlock') ||
+    errorMessage.includes('lock wait timeout') ||
+    errorMessage.includes('connection reset') ||
+    errorMessage.includes('connection timeout') ||
+    errorMessage.includes('server closed the connection') ||
+    errorMessage.includes('write conflict') ||
+    errorMessage.includes('statement timeout') ||
+    errorMessage.includes('operation interrupted') ||
+    errorMessage.includes('circuit breaker') ||
+    errorMessage.includes('database is overloaded') ||
+    // Add any other transient errors you might be seeing
+    errorMessage.includes('temporary failure')
+  );
 }
 
 // Function to store RSS entries with transaction support
@@ -1081,17 +1202,40 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
   try {
     if (entries.length === 0) return;
     
-    // Get all existing entries in one query
-    const existingEntriesResult = await executeQuery<{ guid: string }>(
-      'SELECT guid FROM rss_entries WHERE feed_id = ?',
-      [feedId]
-    );
+    // Quick update if there are no entries to process
+    if (entries.length === 0) {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const currentTimeMs = Date.now();
+      await executeQuery(
+        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+        [now, currentTimeMs, feedId]
+      );
+      return;
+    }
     
-    // Create a Set for faster lookups
-    const existingGuids = new Set((existingEntriesResult.rows as Array<{ guid: string }>).map(row => row.guid));
+    // Optimize: Only query for existing GUIDs if we have a substantial number of entries
+    // For small batches, try direct inserts with IGNORE to handle duplicates
+    let newEntries = entries;
     
-    // Filter entries that don't exist yet
-    const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
+    // For larger batches, filter out existing entries to reduce insert attempts
+    if (entries.length > 50) {
+      // Get all existing entries in one query - only get the guids we're actually checking
+      const entryGuids = entries.map(entry => entry.guid);
+      const guidPlaceholders = entryGuids.map(() => '?').join(',');
+      
+      const existingEntriesResult = await executeQuery<{ guid: string }>(
+        `SELECT guid FROM rss_entries WHERE feed_id = ? AND guid IN (${guidPlaceholders})`,
+        [feedId, ...entryGuids]
+      );
+      
+      // Create a Set for faster lookups
+      const existingGuids = new Set((existingEntriesResult.rows as Array<{ guid: string }>).map(row => row.guid));
+      
+      // Filter entries that don't exist yet
+      newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
+      
+      logger.debug(`Filtered ${entries.length - newEntries.length} existing entries out of ${entries.length} total`);
+    }
     
     // Ensure each entry has the mediaType explicitly set if provided
     if (mediaType) {
@@ -1119,8 +1263,55 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now();
     
-    // Split into chunks of 100 entries to avoid too large queries
-    const chunkSize = 100;
+    // OPTIMIZATION: Process small batches differently
+    if (newEntries.length <= 25) {
+      // For small batches, use INSERT IGNORE in a single query for better performance
+      const placeholders = newEntries.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const values = newEntries.flatMap(entry => {
+        // Ensure pubDate is properly formatted for MySQL
+        let pubDateForMySQL: string;
+        try {
+          const date = new Date(entry.pubDate);
+          if (isNaN(date.getTime())) {
+            pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          } else {
+            pubDateForMySQL = date.toISOString().slice(0, 19).replace('T', ' ');
+          }
+        } catch {
+          pubDateForMySQL = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        }
+        
+        return [
+          Number(feedId),
+          String(entry.guid),
+          String(entry.title),
+          String(entry.link),
+          String(entry.description?.slice(0, 200) || ''),
+          pubDateForMySQL,
+          entry.image ? String(entry.image) : null,
+          mediaType || entry.mediaType || null,
+          String(now),
+          String(now)
+        ];
+      });
+      
+      // Use INSERT IGNORE to handle duplicates without errors
+      const query = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
+      
+      // Execute single query + update feed timestamp
+      await executeQuery(query, values, true);
+      await executeQuery(
+        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+        [now, currentTimeMs, feedId]
+      );
+      
+      logger.info(`Single-query inserted ${newEntries.length} entries for feed ${feedId}`);
+      return;
+    }
+    
+    // For larger batches, use chunking with transactions
+    // OPTIMIZATION: Increase chunk size from 100 to 250 entries per chunk
+    const chunkSize = 250;
     const chunks = [];
     
     for (let i = 0; i < newEntries.length; i += chunkSize) {
@@ -1159,7 +1350,8 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
       });
       
       return {
-        query: `INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`,
+        // Use INSERT IGNORE to handle duplicates without errors
+        query: `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`,
         params: values
       };
     });
@@ -1172,7 +1364,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     
     // Execute all operations in a transaction
     await executeBatchTransaction(operations);
-    logger.info(`Batch inserted ${newEntries.length} entries for feed ${feedId} in ${chunks.length} chunks`);
+    logger.info(`Batch inserted ${newEntries.length} entries for feed ${feedId} in ${chunks.length} chunks of ${chunkSize}`);
   } catch (error) {
     logger.error(`Error storing RSS entries with transaction for feed ${feedId}: ${error}`);
     throw error;
@@ -1300,7 +1492,7 @@ export async function getRSSEntries(
               const freshFeed = await fetchAndParseFeed(feedUrl, storedMediaType);
               
               if (freshFeed.items.length > 0) {
-                logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle}`);
+                logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle} with mediaType: ${storedMediaType || 'undefined'}`);
                 await storeRSSEntriesWithTransaction(feedId, freshFeed.items, storedMediaType);
               } else {
                 logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
@@ -1487,8 +1679,19 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
     return;
   }
 
-  if (postTitles.length !== feedUrls.length || (mediaTypes && mediaTypes.length !== feedUrls.length)) {
-    logger.error('Mismatch between postTitles, feedUrls, and mediaTypes arrays');
+  // Log the inputs to help with debugging
+  logger.debug(`checkAndRefreshFeeds called with:
+   - ${postTitles.length} postTitles
+   - ${feedUrls.length} feedUrls
+   - ${mediaTypes ? mediaTypes.length : 0} mediaTypes: ${mediaTypes ? JSON.stringify(mediaTypes) : '[]'}`);
+
+  if (postTitles.length !== feedUrls.length) {
+    logger.error(`Mismatch between postTitles (${postTitles.length}) and feedUrls (${feedUrls.length}) arrays`);
+    return;
+  }
+  
+  if (mediaTypes && mediaTypes.length > 0 && mediaTypes.length !== feedUrls.length) {
+    logger.error(`Mismatch between mediaTypes (${mediaTypes.length}) and feedUrls (${feedUrls.length}) arrays`);
     return;
   }
   
@@ -1514,19 +1717,28 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
     const newFeeds = postTitles.map((title, index) => ({
       title,
       feedUrl: feedUrls[index],
-      mediaType: mediaTypes?.[index]
+      mediaType: mediaTypes && mediaTypes[index] ? mediaTypes[index] : undefined
     })).filter(feed => !existingFeeds.has(feed.title));
 
     // Create new feeds
     for (const feed of newFeeds) {
       try {
-        logger.info(`Creating new feed: ${feed.title} (${feed.feedUrl})`);
+        logger.info(`Creating new feed: ${feed.title} (${feed.feedUrl}) with mediaType: ${feed.mediaType || 'undefined'}`);
         const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
         const feedId = await getOrCreateFeed(feed.feedUrl, feed.title, feed.mediaType);
         
         if (freshFeed.items.length > 0) {
+          // Explicitly set the mediaType on each item when creating the feed
+          if (feed.mediaType) {
+            freshFeed.items.forEach(item => {
+              if (!item.mediaType) {
+                item.mediaType = feed.mediaType;
+              }
+            });
+          }
+          
           await storeRSSEntriesWithTransaction(feedId, freshFeed.items, feed.mediaType);
-          logger.info(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items`);
+          logger.info(`Successfully created and populated new feed: ${feed.title} with ${freshFeed.items.length} items and mediaType: ${feed.mediaType || 'undefined'}`);
         } else {
           logger.warn(`Created new feed ${feed.title} but no items were found`);
         }
@@ -1589,7 +1801,7 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
             const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
             
             if (freshFeed.items.length > 0) {
-              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle}`);
+              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
               // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
               await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
             } else {
@@ -1666,23 +1878,39 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       if (lockAcquired) {
         try {
           logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
-          const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
           
-          if (freshFeed.items.length > 0) {
-            // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
-            await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
-            logger.info(`Successfully refreshed feed: ${feed.postTitle} with ${freshFeed.items.length} items`);
-          } else {
-            logger.warn(`No new items found for feed: ${feed.postTitle}`);
+          // Double-check if someone else refreshed while we were acquiring the lock
+          const refreshCheckResult = await executeQuery<RSSFeedRow>(
+            'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
+            [feed.feedUrl]
+          );
+          
+          if (refreshCheckResult.rows.length > 0) {
+            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
+            const lastFetchedMs = Number(refreshCheck[0].last_fetched);
+            const timeSinceLastFetch = currentTime - lastFetchedMs;
+            
+            if (timeSinceLastFetch < fourHoursInMs) {
+              // Someone else refreshed the data while we were acquiring the lock
+              logger.debug(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
+              continue; // Skip to the next feed
+            }
           }
           
-          // Update the last_fetched timestamp
-          await executeQuery(
-            'UPDATE rss_feeds SET last_fetched = ? WHERE id = ?',
-            [Date.now(), feed.feedId]
-          );
-        } catch (error) {
-          logger.error(`Error refreshing feed ${feed.postTitle}: ${error}`);
+          try {
+            const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
+            
+            if (freshFeed.items.length > 0) {
+              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
+              // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
+              await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
+            } else {
+              logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
+            }
+          } catch (fetchError) {
+            logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
+            // Continue to the next feed
+          }
         } finally {
           // Release the lock
           await releaseFeedRefreshLock(feed.feedUrl);

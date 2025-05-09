@@ -275,7 +275,7 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
         const fallbackMetadata = {
           title: entry.feedTitle || entry.title || '',
           featuredImg: entry.image as string || '',
-          mediaType: 'article',
+          mediaType: entry.mediaType || entry.media_type || null,
           postSlug: '',
           categorySlug: '',
           verified: false // Default verified to false in fallback

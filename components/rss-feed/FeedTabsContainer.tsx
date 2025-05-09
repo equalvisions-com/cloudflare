@@ -359,8 +359,9 @@ export function FeedTabsContainer({
           // If server feedUrls exist, use those directly instead of extracting from entries
           feedUrls: rssData.feedUrls || 
                     [...new Set(rssData.entries?.map((entry: any) => entry.entry.feedUrl) || [])],
+          // Always prioritize server-provided mediaTypes and avoid defaulting to 'article'
           mediaTypes: rssData.mediaTypes || 
-                     [...new Set(rssData.entries?.map((entry: any) => entry.postMetadata?.mediaType || 'article') || [])]
+                     [...new Set(rssData.entries?.map((entry: any) => entry.postMetadata?.mediaType || null).filter(Boolean) || [])]
         };
         
         return (
