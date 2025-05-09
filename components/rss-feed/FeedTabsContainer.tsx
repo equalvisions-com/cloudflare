@@ -187,11 +187,17 @@ export function FeedTabsContainer({
   // Track previous authentication state to detect changes
   const prevAuthRef = useRef(isAuthenticated);
   
+  // Track if we just signed out for redirect timing control
+  const justSignedOutRef = useRef(false);
+  
   // Reset to Discover tab when user signs out
   useEffect(() => {
     // Check if authentication status changed from authenticated to unauthenticated
     if (prevAuthRef.current && !isAuthenticated) {
       console.log('User signed out, resetting to Discover tab');
+      
+      // Set flag that we just signed out
+      justSignedOutRef.current = true;
       
       // Reset to Discover tab
       setActiveTabIndex(0);
@@ -208,6 +214,11 @@ export function FeedTabsContainer({
       // Reset loading and fetch states
       setIsLoading(false);
       rssFetchInProgress.current = false;
+      
+      // Clear the "just signed out" flag after a short delay
+      setTimeout(() => {
+        justSignedOutRef.current = false;
+      }, 500);
     }
     
     // Update the previous auth state
@@ -304,7 +315,11 @@ export function FeedTabsContainer({
   
   // Safety mechanism: Redirect if user somehow ends up on Following tab while not authenticated
   useEffect(() => {
-    if (activeTabIndex === 1 && !isAuthenticated) {
+    // Only redirect if:
+    // 1. User is on Following tab
+    // 2. User is not authenticated
+    // 3. We didn't just sign out (to avoid redirect race condition)
+    if (activeTabIndex === 1 && !isAuthenticated && !justSignedOutRef.current) {
       console.log('Safety redirect - unauthenticated user on Following tab');
       router.push('/signin');
     }
