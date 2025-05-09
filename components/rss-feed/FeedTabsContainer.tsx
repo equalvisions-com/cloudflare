@@ -187,17 +187,11 @@ export function FeedTabsContainer({
   // Track previous authentication state to detect changes
   const prevAuthRef = useRef(isAuthenticated);
   
-  // Track if we just signed out for redirect timing control
-  const justSignedOutRef = useRef(false);
-  
   // Reset to Discover tab when user signs out
   useEffect(() => {
     // Check if authentication status changed from authenticated to unauthenticated
     if (prevAuthRef.current && !isAuthenticated) {
       console.log('User signed out, resetting to Discover tab');
-      
-      // Set flag that we just signed out
-      justSignedOutRef.current = true;
       
       // Reset to Discover tab
       setActiveTabIndex(0);
@@ -214,11 +208,6 @@ export function FeedTabsContainer({
       // Reset loading and fetch states
       setIsLoading(false);
       rssFetchInProgress.current = false;
-      
-      // Clear the "just signed out" flag after a short delay
-      setTimeout(() => {
-        justSignedOutRef.current = false;
-      }, 500);
     }
     
     // Update the previous auth state
@@ -299,31 +288,20 @@ export function FeedTabsContainer({
     }
   }, [rssData, isLoading, isAuthenticated, router]);
   
-  // Handle tab change from user interaction (clicking/swiping)
+  // Handle tab change
   const handleTabChange = useCallback((index: number) => {
-    // If trying to access Following tab while not authenticated, redirect to sign in
+    console.log(`Tab changed to ${index === 0 ? 'Discover' : 'Following'}`);
+    
+    // If switching to the "Following" tab (index 1), check authentication
     if (index === 1 && !isAuthenticated) {
-      console.log('Tab change blocked - user not authenticated, redirecting to sign-in page');
+      console.log('User not authenticated, redirecting to sign-in page');
       router.push('/signin');
-      return; // Don't update tab state
+      return;
     }
     
-    // If authenticated or accessing Discover tab, update tab state
-    console.log(`Tab changed to ${index === 0 ? 'Discover' : 'Following'}`);
+    // Only update active tab index if not redirecting
     setActiveTabIndex(index);
   }, [isAuthenticated, router]);
-  
-  // Safety mechanism: Redirect if user somehow ends up on Following tab while not authenticated
-  useEffect(() => {
-    // Only redirect if:
-    // 1. User is on Following tab
-    // 2. User is not authenticated
-    // 3. We didn't just sign out (to avoid redirect race condition)
-    if (activeTabIndex === 1 && !isAuthenticated && !justSignedOutRef.current) {
-      console.log('Safety redirect - unauthenticated user on Following tab');
-      router.push('/signin');
-    }
-  }, [activeTabIndex, isAuthenticated, router]);
   
   // Add a single useEffect to handle data fetching for the active tab
   useEffect(() => {
