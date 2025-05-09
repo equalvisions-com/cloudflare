@@ -36,8 +36,11 @@ interface FinalizeOnboardingArgs {
   profileImageKey?: string;
 }
 
-// --- Add Server Component for Extra Onboarding Verification --- 
-import VerifyOnboardingStatus from '@/app/onboarding/verification';
+// --- We'll use Server Components differently --- 
+// Don't directly import server components in client components
+// Instead we'll use them in the layout structure
+// Delete this line:
+// import VerifyOnboardingStatus from '@/app/onboarding/verification';
 
 // --- Update the Client Component --- 
 
@@ -73,14 +76,12 @@ import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 // Define step types for onboarding
 type OnboardingStep = 'profile' | 'follow';
 
+// Use default export for the client component
 export default function OnboardingPage() {
   return (
-    <>
-      <VerifyOnboardingStatus />
-      <EdgeAuthWrapper>
-        <OnboardingPageContent />
-      </EdgeAuthWrapper>
-    </>
+    <EdgeAuthWrapper>
+      <OnboardingPageContent />
+    </EdgeAuthWrapper>
   );
 }
 
