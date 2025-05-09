@@ -181,6 +181,39 @@ export function FeedTabsContainer({
   const featuredFetchInProgress = useRef(false);
   const rssFetchInProgress = useRef(false);
   
+  // Abort controller for API requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Track previous authentication state to detect changes
+  const prevAuthRef = useRef(isAuthenticated);
+  
+  // Reset to Discover tab when user signs out
+  useEffect(() => {
+    // Check if authentication status changed from authenticated to unauthenticated
+    if (prevAuthRef.current && !isAuthenticated) {
+      console.log('User signed out, resetting to Discover tab');
+      
+      // Reset to Discover tab
+      setActiveTabIndex(0);
+      
+      // Abort any in-flight requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      // Clear RSS data to prevent further requests
+      setRssData(null);
+      
+      // Reset loading and fetch states
+      setIsLoading(false);
+      rssFetchInProgress.current = false;
+    }
+    
+    // Update the previous auth state
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+  
   // Function to fetch featured data
   const fetchFeaturedData = useCallback(async () => {
     // Skip if data is already loaded, loading is in progress, or a fetch has been initiated
@@ -222,6 +255,10 @@ export function FeedTabsContainer({
       return;
     }
     
+    // Create a new AbortController for this request
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     // Set ref to indicate fetch is in progress
     rssFetchInProgress.current = true;
     setIsLoading(true);
@@ -229,20 +266,25 @@ export function FeedTabsContainer({
     
     try {
       console.log('Fetching RSS data...');
-      const response = await fetch('/api/rss-feed');
+      const response = await fetch('/api/rss-feed', { signal });
       if (!response.ok) {
         throw new Error('Failed to fetch RSS feed data');
       }
       
       const data = await response.json();
       setRssData(data);
-    } catch (err) {
-      console.error('Error fetching RSS data:', err);
-      setError('Failed to load RSS feed data. Please try again.');
+    } catch (err: any) {
+      // Don't set error if it was aborted (user signed out)
+      if (err.name !== 'AbortError') {
+        console.error('Error fetching RSS data:', err);
+        setError('Failed to load RSS feed data. Please try again.');
+      }
     } finally {
-      setIsLoading(false);
-      // Reset the ref
-      rssFetchInProgress.current = false;
+      if (!signal.aborted) {
+        setIsLoading(false);
+        // Reset the ref
+        rssFetchInProgress.current = false;
+      }
     }
   }, [rssData, isLoading, isAuthenticated, router]);
   
@@ -294,6 +336,14 @@ export function FeedTabsContainer({
     };
     
     fetchDataForActiveTab();
+    
+    // Cleanup function to abort any in-progress fetch when tab changes
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabIndex]);
   
