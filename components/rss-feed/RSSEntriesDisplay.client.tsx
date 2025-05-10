@@ -83,31 +83,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
-  // Add click stabilizer to prevent scroll jumps
-  const handleStabilizedClick = useCallback((callback: (e: React.MouseEvent) => void) => {
-    return (e: React.MouseEvent) => {
-      // Prevent default and stop propagation
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // Store current scroll position
-      const scrollPos = window.scrollY;
-      
-      // Execute the callback
-      callback(e);
-      
-      // Force scroll position to stay the same with a more reliable approach
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          window.scrollTo({
-            top: scrollPos,
-            behavior: 'instant' // Use instant to prevent smooth scrolling
-          });
-        });
-      });
-    };
-  }, []);
-
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
@@ -180,46 +155,27 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
           : null
     : null;
 
-  // Wrap card click with stabilizer
+  // Direct click handler without scroll stabilization
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (safePostMetadata.mediaType === 'podcast') {
+      e.preventDefault();
+      e.stopPropagation();
       playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  // Wrap all interactive clicks with stabilizer
-  const stabilizedCardClick = handleStabilizedClick(handleCardClick);
-  const stabilizedLinkClick = handleStabilizedClick((e: React.MouseEvent) => {
-    // For external links, we need to manually navigate
-    if (e.currentTarget instanceof HTMLAnchorElement) {
-      const href = e.currentTarget.href;
-      if (href) {
-        window.open(href, '_blank', 'noopener,noreferrer');
-      }
-    }
-  });
-
   return (
     <article 
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }} 
-      className="relative"
+      onClick={(e) => e.stopPropagation()} 
+      className="outline-none focus:outline-none focus-visible:outline-none"
+      tabIndex={-1}
     >
-      <div className="p-4" onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}>
+      <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {safePostMetadata.featuredImg && postUrl && (
-            <Link 
-              href={postUrl} 
-              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-              onClick={stabilizedLinkClick}
-            >
+            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
                 <Image
                   src={safePostMetadata.featuredImg}
@@ -239,11 +195,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               {safePostMetadata.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
-                    <Link 
-                      href={postUrl} 
-                      className="hover:opacity-80 transition-opacity"
-                      onClick={stabilizedLinkClick}
-                    >
+                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                         {safePostMetadata.title}
                         {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
@@ -278,7 +230,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         {safePostMetadata.mediaType === 'podcast' ? (
           <div>
             <div 
-              onClick={stabilizedCardClick}
+              onClick={handleCardClick}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
@@ -315,7 +267,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             target="_blank"
             rel="noopener noreferrer"
             className="block hover:opacity-80 transition-opacity"
-            onClick={stabilizedLinkClick}
+            onClick={(e) => e.stopPropagation()}
           >
             <Card className="rounded-xl border overflow-hidden shadow-none">
               {entry.image && (
@@ -397,14 +349,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
       </div>
       
       {/* Comments Section */}
-      <div 
-        id={`comments-${entry.guid}`} 
-        className="border-t border-border" 
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      />
+      <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
 }, (prevProps, nextProps) => {
@@ -496,19 +441,23 @@ function EntriesContentComponent({
   // Add ref for tracking if endReached was already called
   const endReachedCalledRef = useRef(false);
   
+  // Create a stable ref for entriesData to avoid unnecessary virtuoso recreations
+  const entriesDataRef = useRef(paginatedEntries);
+  
+  // Only update the ref when entries actually change (not on every render)
+  useEffect(() => {
+    entriesDataRef.current = paginatedEntries;
+  }, [paginatedEntries]);
+  
   // Reset the endReachedCalled flag when entries change
   useEffect(() => {
     endReachedCalledRef.current = false;
   }, [paginatedEntries.length]);
   
-  // Define the renderItem callback outside of any conditionals
-  const renderItem = useCallback((index: number) => {
-    if (!paginatedEntries || index >= paginatedEntries.length) {
-      return null;
-    }
-
+  // Use a ref to store the itemContent callback to ensure stability
+  const itemContentCallback = useCallback((index: number, item: RSSEntryWithData) => {
     // Make a shallow copy to avoid mutating the original
-    const entryWithData = {...paginatedEntries[index]};
+    const entryWithData = {...item};
     
     // Create a new initialData object instead of mutating directly
     let updatedInitialData = {...entryWithData.initialData};
@@ -550,12 +499,11 @@ function EntriesContentComponent({
     
     return (
       <RSSEntry 
-        key={entryWithData.entry.guid} 
         entryWithData={finalEntryWithData} 
         onOpenCommentDrawer={onOpenCommentDrawer} 
       />
     );
-  }, [paginatedEntries, entryMetrics, postMetadata, onOpenCommentDrawer, initialData.feedMetadataCache]);
+  }, [entryMetrics, postMetadata, initialData.feedMetadataCache, onOpenCommentDrawer]);
   
   // Handle endReached separately to improve debugging
   const handleEndReached = useCallback(() => {
@@ -610,8 +558,50 @@ function EntriesContentComponent({
     };
   }, [loadMoreRef, hasMore, isPending, loadMore]);
   
+  // Store a reference to the first instance - will only log on initial creation
+  const hasLoggedInitialCreateRef = useRef(false);
+  
+  // Memoize the Virtuoso component with minimal dependencies
+  const virtuosoComponent = useMemo(() => {
+    // Skip rendering Virtuoso if we have no entries yet
+    if (paginatedEntries.length === 0 && !isInitializing) {
+      return null;
+    }
+    
+    // Only log the first time to avoid duplicate messages
+    if (!hasLoggedInitialCreateRef.current) {
+      logger.debug('🎯 Creating Virtuoso component instance', {
+        entriesCount: paginatedEntries.length,
+        timestamp: new Date().toISOString(),
+      });
+      hasLoggedInitialCreateRef.current = true;
+    }
+    
+    // When entries are available, render Virtuoso
+    return (
+      <Virtuoso
+        useWindowScroll
+        data={paginatedEntries}
+        computeItemKey={(_, item) => item.entry.guid}
+        itemContent={itemContentCallback}
+        overscan={2000}
+        components={{
+          Footer: () => null
+        }}
+        // Add focus prevention styling
+        style={{ 
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation'
+        }}
+        className="focus:outline-none focus-visible:outline-none"
+      />
+    );
+  // ⚠️ IMPORTANT: Use minimal dependencies to prevent recreation
+  // DO NOT include paginatedEntries in the dependency array
+  }, [itemContentCallback, isInitializing]);
+
   // Check if this is truly empty (not just initial loading)
-  // Only show loading indicator if it's not initializing but the entries array is empty
   if (paginatedEntries.length === 0 && !isInitializing) {
     return (
       <div className="flex justify-center items-center py-10">
@@ -620,19 +610,10 @@ function EntriesContentComponent({
     );
   }
 
-  // If we have entries or we're still initializing, render the list
+  // Render the memoized Virtuoso component and load more indicator
   return (
     <div className="space-y-0">
-      <Virtuoso
-        useWindowScroll
-        totalCount={paginatedEntries.length}
-        initialTopMostItemIndex={0}
-        overscan={2000}
-        itemContent={renderItem}
-        components={{
-          Footer: () => null
-        }}
-      />
+      {virtuosoComponent}
       
       {/* Fixed position load more container at bottom */}
       <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
@@ -777,6 +758,81 @@ const RSSEntriesClientComponent = ({
     };
   }, []);
 
+  // Add a global mousedown handler to prevent focus on non-interactive elements
+  useEffect(() => {
+    if (!isActive) return;
+    
+    // Define handler for mousedown events - capture in the capture phase before focus can happen
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Don't interfere with interactive elements
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // This is crucial - prevent default focus behavior
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Actively remove focus from any element that might have received it
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Define a handler for all click events in the feed to prevent focus
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only apply to elements inside our list
+      const isInFeed = target.closest('.rss-feed-container');
+      if (!isInFeed) return;
+      
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // Prevent focus and clear active element
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Add passive scroll handler to improve performance
+    const handleScroll = () => {
+      // Clear any focus that might have been set during scroll
+      if (document.activeElement instanceof HTMLElement && 
+          document.activeElement.tagName !== 'BODY') {
+        document.activeElement.blur();
+      }
+    };
+    
+    // Use capture phase to intercept before default browser behavior
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('click', handleDocumentClick, true);
+    // Passive event listener improves scroll performance
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('click', handleDocumentClick, true);
+      document.removeEventListener('scroll', handleScroll);
+    };
+  }, [isActive]);
+
   // Initialize with initial data only once
   useEffect(() => {
     if (!initialData?.entries?.length || hasInitializedRef.current) return;
@@ -869,9 +925,6 @@ const RSSEntriesClientComponent = ({
     logger.debug(`📥 Loading more entries, current page: ${currentPageRef.current}, next page: ${currentPageRef.current + 1}, current entries: ${entriesStateRef.current.length}`);
     
     try {
-      // Store current scroll position before pagination
-      const scrollPosition = window.scrollY;
-      
       // Use ONLY the server-provided complete list of post titles
       // This is the most reliable source of truth for ALL followed feeds
       const postTitlesParam = JSON.stringify(postTitlesRef.current);
@@ -1123,9 +1176,6 @@ const RSSEntriesClientComponent = ({
     logger.debug(`Handling ${entries.length} new entries automatically`);
     
     try {
-      // Store current scroll position
-      const scrollPosition = window.scrollY;
-      
       // Get current entries from ref for consistency
       const currentEntries = entriesStateRef.current;
       
@@ -1158,11 +1208,6 @@ const RSSEntriesClientComponent = ({
       
       // Prepend sorted new entries to the existing ones using our update function to keep refs in sync
       updateEntriesState([...sortedNewEntries, ...currentEntries]);
-      
-      // After state update, restore scroll position to keep user's place
-      setTimeout(() => {
-        window.scrollTo(0, scrollPosition);
-      }, 50);
       
       // Set a timer to hide the notification after a few seconds
       setTimeout(() => {
@@ -1430,7 +1475,7 @@ const RSSEntriesClientComponent = ({
   
   // Return the EntriesContent directly
   return (
-    <div className="w-full">
+    <div className="w-full rss-feed-container">
       {/* Floating notification for new posts */}
       {showNotification && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out">
