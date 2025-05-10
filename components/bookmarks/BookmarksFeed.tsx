@@ -122,10 +122,30 @@ const BookmarkCard = React.memo(({
     }
   }, [entryDetails, playTrack]);
   
+  // Add handler to prevent focus when clicking non-interactive elements
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
+  
   if (!entryDetails) {
     // Fallback to basic bookmark data if entry details aren't available
     return (
-      <article className="p-4 border-b border-gray-100">
+      <article 
+        className="p-4 border-b border-gray-100" 
+        tabIndex={-1}
+        onMouseDown={handleNonInteractiveMouseDown}
+      >
         <Link href={bookmark.link} target="_blank">
           <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 mb-1">{bookmark.title}</h3>
         </Link>
@@ -142,7 +162,11 @@ const BookmarkCard = React.memo(({
   const isPodcast = mediaType?.toLowerCase() === 'podcast';
   
   return (
-    <article className="">
+    <article 
+      className="" 
+      tabIndex={-1}
+      onMouseDown={handleNonInteractiveMouseDown}
+    >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
@@ -371,6 +395,79 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
     setCommentDrawerOpen(true);
   }, []);
 
+  // Add a global mousedown handler to prevent focus on non-interactive elements
+  useEffect(() => {
+    // Define handler for mousedown events - capture in the capture phase before focus can happen
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Don't interfere with interactive elements
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // This is crucial - prevent default focus behavior
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Actively remove focus from any element that might have received it
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Define a handler for all click events in the feed to prevent focus
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only apply to elements inside our list
+      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
+      if (!isInFeed) return;
+      
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // Prevent focus and clear active element
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Add passive scroll handler to improve performance
+    const handleScroll = () => {
+      // Clear any focus that might have been set during scroll
+      if (document.activeElement instanceof HTMLElement && 
+          document.activeElement.tagName !== 'BODY') {
+        document.activeElement.blur();
+      }
+    };
+    
+    // Use capture phase to intercept before default browser behavior
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('click', handleDocumentClick, true);
+    // Passive event listener improves scroll performance
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('click', handleDocumentClick, true);
+      document.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   // Log when initial data is received
   useEffect(() => {
     if (initialData?.bookmarks) {
@@ -528,6 +625,13 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
         components={{
           Footer: () => null
         }}
+        style={{ 
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation'
+        }}
+        className="focus:outline-none focus-visible:outline-none"
+        computeItemKey={(_, item) => item.entryGuid || item._id}
       />
       
       {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}

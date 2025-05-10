@@ -914,11 +914,31 @@ const ActivityCard = React.memo(({
     }
   }, [entryGuid, feedUrl, interactions?.comments, onOpenCommentDrawer]);
 
+  // Add handler to prevent focus when clicking non-interactive elements
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
+
   // If we don't have entry details, show a simplified card
   if (!entryDetail) {
     // Memoize the simple card content if necessary, but often not needed for simple displays
     return (
-      <div className="p-4 rounded-lg shadow-sm mb-4">
+      <div 
+        className="p-4 rounded-lg shadow-sm mb-4"
+        tabIndex={-1}
+        onMouseDown={handleNonInteractiveMouseDown}
+      >
         <div className="flex items-start">
           {activity.type !== "comment" && (
             <div className="mt-1 mr-3">
@@ -954,7 +974,12 @@ const ActivityCard = React.memo(({
   // With entry details, show a rich card similar to EntriesDisplay
   return (
     // Use activity._id or a combination for the key if possible, or index as fallback
-    <article key={activity._id?.toString() || activity.entryGuid} className={activity.type === "comment" ? "relative" : ""}>
+    <article 
+      key={activity._id ? activity._id.toString() : activity.entryGuid} 
+      className={activity.type === "comment" ? "relative" : ""}
+      tabIndex={-1}
+      onMouseDown={handleNonInteractiveMouseDown}
+    >
       {/* Removed vertical line for comments */}
 
       <div className="p-4">
@@ -1534,10 +1559,30 @@ const ActivityGroupRenderer = React.memo(({
     handleOpenCommentDrawer(entryDetail.guid, entryDetail.feed_url || '', interactions?.comments);
   }, [entryDetail.guid, entryDetail.feed_url, interactions, handleOpenCommentDrawer]);
 
+  // Add handler to prevent focus when clicking non-interactive elements
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
 
   return (
     // Use a unique key for the group
-    <article key={`group-${group.entryGuid}-${group.type}`} className="relative">
+    <article 
+      key={`group-${group.entryGuid}-${group.type}`} 
+      className="relative"
+      tabIndex={-1}
+      onMouseDown={handleNonInteractiveMouseDown}
+    >
       {/* ... Rest of ActivityGroupRenderer JSX ... */}
       <div className="p-4">
         {/* Activity header with icon and description */}
@@ -1931,6 +1976,81 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     };
   }, [userId, apiEndpoint, pageSize, hasMore, isLoading, currentSkip, activities.length]);
 
+  // Add a global mousedown handler to prevent focus on non-interactive elements
+  useEffect(() => {
+    if (!isActive) return;
+    
+    // Define handler for mousedown events - capture in the capture phase before focus can happen
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Don't interfere with interactive elements
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // This is crucial - prevent default focus behavior
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Actively remove focus from any element that might have received it
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Define a handler for all click events in the feed to prevent focus
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only apply to elements inside our list
+      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
+      if (!isInFeed) return;
+      
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // Prevent focus and clear active element
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Add passive scroll handler to improve performance
+    const handleScroll = () => {
+      // Clear any focus that might have been set during scroll
+      if (document.activeElement instanceof HTMLElement && 
+          document.activeElement.tagName !== 'BODY') {
+        document.activeElement.blur();
+      }
+    };
+    
+    // Use capture phase to intercept before default browser behavior
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('click', handleDocumentClick, true);
+    // Passive event listener improves scroll performance
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('click', handleDocumentClick, true);
+      document.removeEventListener('scroll', handleScroll);
+    };
+  }, [isActive]);
+
   // --- Drawer state for comments (moved to top level) ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
@@ -2146,7 +2266,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   // Memoize the item renderer callback with stable references
   const itemRenderer = useCallback((index: number, group: GroupedActivity) => (
     <ActivityGroupRenderer
-      key={`group-${group.entryGuid}-${group.type}-${index}`} // Stable key with index
+      key={`group-${group.entryGuid}-${group.type}`} // Remove index from key
       group={group}
       entryDetails={entryDetails}
       username={username}
@@ -2233,7 +2353,16 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     itemContent: itemRenderer,
     components: {
       Footer: () => null
-    }
+    },
+    // Add focus prevention styling
+    style: { 
+      outline: 'none',
+      WebkitTapHighlightColor: 'transparent',
+      touchAction: 'manipulation'
+    },
+    className: "focus:outline-none focus-visible:outline-none",
+    // Add proper item keying to prevent DOM recycling issues
+    computeItemKey: (_: number, group: GroupedActivity) => `${group.entryGuid}-${group.type}`
   }), [groupedActivities, itemRenderer]);
 
   // Memoize loading state calculations

@@ -463,11 +463,31 @@ const ActivityCard = memo(({
   // Check if this podcast is currently playing - move outside of conditional
   const isCurrentlyPlaying = isPodcast && entryDetails && currentTrack?.src === entryDetails.link;
   
+  // Add handler to prevent focus when clicking non-interactive elements
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
+  
   // Skip rendering if no entry details
   if (!entryDetails) return null;
   
   return (
-    <article className="">
+    <article 
+      className="" 
+      tabIndex={-1}
+      onMouseDown={handleNonInteractiveMouseDown}
+    >
       <div className="p-4">
         <EntryCardHeader 
           activity={activity} 
@@ -570,18 +590,6 @@ const EmptyState = memo(() => (
 ));
 EmptyState.displayName = 'EmptyState';
 
-// Footer component for virtualized list
-const VirtuosoFooter = memo(({ isLoading, loadMoreRef }: { isLoading: boolean, loadMoreRef: React.RefObject<HTMLDivElement> }) => (
-  isLoading ? (
-    <div ref={loadMoreRef} className="text-center py-10">
-      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-    </div>
-  ) : (
-    <div ref={loadMoreRef} className="h-0" />
-  )
-));
-VirtuosoFooter.displayName = 'VirtuosoFooter';
-
 // Create a memoized version of the component with error boundary
 const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) => {
   // Add a ref to track if component is mounted to prevent state updates after unmount
@@ -617,6 +625,79 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
+    };
+  }, []);
+
+  // Add a global mousedown handler to prevent focus on non-interactive elements
+  useEffect(() => {
+    // Define handler for mousedown events - capture in the capture phase before focus can happen
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Don't interfere with interactive elements
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // This is crucial - prevent default focus behavior
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Actively remove focus from any element that might have received it
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Define a handler for all click events in the feed to prevent focus
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only apply to elements inside our list
+      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
+      if (!isInFeed) return;
+      
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // Prevent focus and clear active element
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Add passive scroll handler to improve performance
+    const handleScroll = () => {
+      // Clear any focus that might have been set during scroll
+      if (document.activeElement instanceof HTMLElement && 
+          document.activeElement.tagName !== 'BODY') {
+        document.activeElement.blur();
+      }
+    };
+    
+    // Use capture phase to intercept before default browser behavior
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('click', handleDocumentClick, true);
+    // Passive event listener improves scroll performance
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('click', handleDocumentClick, true);
+      document.removeEventListener('scroll', handleScroll);
     };
   }, []);
   
@@ -754,18 +835,12 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
   // Memoize the item renderer function
   const renderItem = useCallback((index: number, activity: ActivityItem) => (
     <ActivityCard 
-      key={activity._id} 
       activity={activity} 
       entryDetails={entryDetails[activity.entryGuid]}
       getEntryMetrics={getEntryMetrics}
       onOpenCommentDrawer={handleOpenCommentDrawer}
     />
   ), [entryDetails, getEntryMetrics, handleOpenCommentDrawer]);
-
-  // Memoize the footer component
-  const footer = useMemo(() => (
-    <VirtuosoFooter isLoading={isLoading && hasMore} loadMoreRef={loadMoreRef} />
-  ), [isLoading, hasMore]);
 
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
@@ -782,13 +857,26 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
       <Virtuoso
         useWindowScroll
         data={activities}
-        endReached={loadMoreActivities}
         overscan={20}
         itemContent={renderItem}
         components={{
-          Footer: () => footer
+          Footer: () => null
         }}
+        style={{ 
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation'
+        }}
+        className="focus:outline-none focus-visible:outline-none"
+        computeItemKey={(_, item) => item.entryGuid || item._id}
       />
+      
+      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+        {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+        {!hasMore && activities.length > 0 && <div></div>}
+      </div>
+      
       {selectedCommentEntry && (
         <CommentSectionClient
           entryGuid={selectedCommentEntry.entryGuid}

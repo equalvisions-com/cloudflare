@@ -131,8 +131,28 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
     onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
   }, [onOpenCommentDrawer, entry.guid, entry.feed_url, initialData.comments]);
 
+  // Add handler to prevent focus when clicking non-interactive elements
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
+
   return (
-    <article>
+    <article 
+      tabIndex={-1} 
+      onMouseDown={handleNonInteractiveMouseDown}
+      className="focus:outline-none"
+    >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
@@ -390,22 +410,25 @@ const FeedContent = React.memo(({
     <div className="space-y-0">
       <Virtuoso
         useWindowScroll
-        totalCount={visibleEntries.length}
+        data={visibleEntries}
         overscan={2000}
-        initialTopMostItemIndex={0}
-        itemContent={index => {
-          const entryWithData = visibleEntries[index];
-          return (
-            <FeaturedEntry
-              entryWithData={entryWithData}
-              onOpenCommentDrawer={onOpenCommentDrawer}
-              isPriority={index < 2} // Set priority for the first 2 entries
-            />
-          );
-        }}
+        itemContent={(index, entryWithData) => (
+          <FeaturedEntry
+            entryWithData={entryWithData}
+            onOpenCommentDrawer={onOpenCommentDrawer}
+            isPriority={index < 2} // Set priority for the first 2 entries
+          />
+        )}
         components={{
           Footer: () => null
         }}
+        style={{ 
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation'
+        }}
+        className="focus:outline-none focus-visible:outline-none"
+        computeItemKey={(_, item) => item.entry.guid}
       />
       
       {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
@@ -493,6 +516,79 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
+    };
+  }, []);
+
+  // Add a global mousedown handler to prevent focus on non-interactive elements
+  useEffect(() => {
+    // Define handler for mousedown events - capture in the capture phase before focus can happen
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Don't interfere with interactive elements
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // This is crucial - prevent default focus behavior
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Actively remove focus from any element that might have received it
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Define a handler for all click events in the feed to prevent focus
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only apply to elements inside our list
+      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
+      if (!isInFeed) return;
+      
+      const isInteractive = 
+        target.tagName === 'BUTTON' || 
+        target.tagName === 'A' || 
+        target.tagName === 'INPUT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input');
+      
+      if (!isInteractive) {
+        // Prevent focus and clear active element
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }
+    };
+    
+    // Add passive scroll handler to improve performance
+    const handleScroll = () => {
+      // Clear any focus that might have been set during scroll
+      if (document.activeElement instanceof HTMLElement && 
+          document.activeElement.tagName !== 'BODY') {
+        document.activeElement.blur();
+      }
+    };
+    
+    // Use capture phase to intercept before default browser behavior
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('click', handleDocumentClick, true);
+    // Passive event listener improves scroll performance
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('click', handleDocumentClick, true);
+      document.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
