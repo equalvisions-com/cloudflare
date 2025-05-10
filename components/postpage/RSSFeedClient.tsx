@@ -694,8 +694,9 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     hasMoreState,
     currentPage,
     createApiUrl,
-    transformApiEntries
-  }), [isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries]);
+    transformApiEntries,
+    ITEMS_PER_REQUEST
+  }), [isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries, ITEMS_PER_REQUEST]);
   
   const loadMoreEntries = useCallback(async () => {
     const { isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries } = loadingDeps;

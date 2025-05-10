@@ -2526,3 +2526,5 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
 
 // Add display name to the UserActivityFeed component
 UserActivityFeed.displayName = 'UserActivityFeed';
+
+ActivityGroupRenderer.displayName = 'ActivityGroupRenderer';
