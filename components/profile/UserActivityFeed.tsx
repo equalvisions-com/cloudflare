@@ -24,7 +24,29 @@ import { CommentLikeButton } from "@/components/comment-section/CommentLikeButto
 import { Textarea } from "@/components/ui/textarea";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 // Types for activity items
 type ActivityItem = {
@@ -903,9 +925,30 @@ const ActivityCard = React.memo(({
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (isPodcast && entryLink) {
       e.preventDefault();
+      e.stopPropagation();
       playTrack(entryLink, entryTitle || '', entryImage);
     }
   }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
+  
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
 
   // Memoize the comment drawer click handler
   const handleCommentClick = useCallback(() => {
@@ -976,9 +1019,13 @@ const ActivityCard = React.memo(({
     // Use activity._id or a combination for the key if possible, or index as fallback
     <article 
       key={activity._id ? activity._id.toString() : activity.entryGuid} 
-      className={activity.type === "comment" ? "relative" : ""}
+      className={`${activity.type === "comment" ? "relative" : ""} outline-none focus:outline-none focus-visible:outline-none`}
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }}
       tabIndex={-1}
-      onMouseDown={handleNonInteractiveMouseDown}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       {/* Removed vertical line for comments */}
 
@@ -1030,6 +1077,7 @@ const ActivityCard = React.memo(({
                     rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
                       ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
                   >
                     <AspectRatio ratio={1}>
                       <Image
@@ -1067,6 +1115,7 @@ const ActivityCard = React.memo(({
                     rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
                       ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
                   >
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
@@ -1143,6 +1192,7 @@ const ActivityCard = React.memo(({
               target="_blank"
               rel="noopener noreferrer"
               className="block hover:opacity-80 transition-opacity"
+              onMouseDown={handleLinkInteraction}
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
                 {entryDetail.image && (
@@ -1199,6 +1249,7 @@ const ActivityCard = React.memo(({
                     rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
                   >
                     <AspectRatio ratio={1}>
                       <Image
@@ -1235,6 +1286,7 @@ const ActivityCard = React.memo(({
                         rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' || 
                                                    entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
                     >
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                         {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
@@ -1311,6 +1363,7 @@ const ActivityCard = React.memo(({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block hover:opacity-80 transition-opacity"
+                  onMouseDown={handleLinkInteraction}
                 >
                   <Card className="rounded-xl border overflow-hidden shadow-none">
                     {entryDetail.image && (
@@ -1345,48 +1398,59 @@ const ActivityCard = React.memo(({
         )}
 
          {/* Move engagement buttons below the card but within the article container */}
-         <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
+         <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
+              // Ensure interactions is stable or default value is memoized
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
-          </div>
-          <div onClick={handleCommentClick}>
+          </NoFocusWrapper>
+           {/* Use stable handleGroupCommentClick */}
+          <NoFocusWrapper 
+            className="flex items-center" 
+            onClick={handleCommentClick}
+          >
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
+               // Ensure interactions is stable or default value is memoized
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
+               // Ensure interactions is stable or default value is memoized
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={{ isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entryDetail.link}
-              title={entryDetail.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={{ isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entryDetail.link}
+                title={entryDetail.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
@@ -1492,6 +1556,7 @@ const ActivityGroupRenderer = React.memo(({
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (isPodcast && entryLink) {
       e.preventDefault();
+      e.stopPropagation();
       playTrack(entryLink, entryTitle, entryImage);
     }
   }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
@@ -1575,6 +1640,29 @@ const ActivityGroupRenderer = React.memo(({
     }
   }, []);
 
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Prevent propagation to stop the event from reaching parent elements
+    e.stopPropagation();
+    
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
+
   return (
     // Use a unique key for the group
     <article 
@@ -1582,6 +1670,22 @@ const ActivityGroupRenderer = React.memo(({
       className="relative"
       tabIndex={-1}
       onMouseDown={handleNonInteractiveMouseDown}
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+        
+        // Clear focus after click completes
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }}
+      style={{
+        WebkitTapHighlightColor: 'transparent',
+        outlineStyle: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation'
+      }}
     >
       {/* ... Rest of ActivityGroupRenderer JSX ... */}
       <div className="p-4">
@@ -1607,35 +1711,39 @@ const ActivityGroupRenderer = React.memo(({
           <div className="flex-shrink-0 relative">
             {(entryDetail.post_featured_img || entryDetail.image) && (
               <div className="w-12 h-12 relative z-10">
-                <Link
-                  href={entryDetail.post_slug ?
-                    (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
-                      `/newsletters/${entryDetail.post_slug}` :
-                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
-                        `/podcasts/${entryDetail.post_slug}` :
-                        entryDetail.category_slug ?
-                          `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
-                          entryDetail.link) :
+                <NoFocusLinkWrapper>
+                  <Link
+                    href={entryDetail.post_slug ?
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                        `/newsletters/${entryDetail.post_slug}` :
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                          `/podcasts/${entryDetail.post_slug}` :
+                          entryDetail.category_slug ?
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                            entryDetail.link) :
                         entryDetail.link}
-                  className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-                  target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
-                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
-                      ? "_self" : "_blank"}
-                  rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
-                                             entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
-                    ? "" : "noopener noreferrer"}
-                >
-                  <AspectRatio ratio={1}>
-                    <Image
-                      src={entryDetail.post_featured_img || entryDetail.image || ''}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="48px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </Link>
+                    className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <AspectRatio ratio={1}>
+                      <Image
+                        src={entryDetail.post_featured_img || entryDetail.image || ''}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </Link>
+                </NoFocusLinkWrapper>
               </div>
             )}
           </div>
@@ -1644,29 +1752,33 @@ const ActivityGroupRenderer = React.memo(({
           <div className="flex-grow">
             <div className="w-full">
               <div className="flex items-start justify-between gap-2">
-                <Link
-                  href={entryDetail.post_slug ?
-                    (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
-                      `/newsletters/${entryDetail.post_slug}` :
-                      entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
-                        `/podcasts/${entryDetail.post_slug}` :
-                        entryDetail.category_slug ?
-                          `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
-                          entryDetail.link) :
+                <NoFocusLinkWrapper>
+                  <Link
+                    href={entryDetail.post_slug ?
+                      (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ?
+                        `/newsletters/${entryDetail.post_slug}` :
+                        entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast' ?
+                          `/podcasts/${entryDetail.post_slug}` :
+                          entryDetail.category_slug ?
+                            `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
+                            entryDetail.link) :
                         entryDetail.link}
-                  className="hover:opacity-80 transition-opacity"
-                  target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
-                                                entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
-                      ? "_self" : "_blank"}
-                  rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
-                                             entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
-                    ? "" : "noopener noreferrer"}
-                >
-                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
-                    {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
-                    {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                  </h3>
-                </Link>
+                    className="hover:opacity-80 transition-opacity"
+                    target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                                  entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                        ? "_self" : "_blank"}
+                    rel={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
+                                               entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
+                      ? "" : "noopener noreferrer"}
+                    onMouseDown={handleLinkInteraction}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                      {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
+                      {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                    </h3>
+                  </Link>
+                </NoFocusLinkWrapper>
                 <span
                   className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                   title={entryDetail.pub_date ?
@@ -1700,11 +1812,51 @@ const ActivityGroupRenderer = React.memo(({
           {/* Use the memoized handleCardClick */}
           {(entryDetail.post_media_type?.toLowerCase() === 'podcast' || entryDetail.mediaType?.toLowerCase() === 'podcast') ? (
             <div>
-              <div
-                onClick={handleCardClick}
-                className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              <NoFocusWrapper>
+                <div
+                  onClick={handleCardClick}
+                  className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+                >
+                  <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                    {entryDetail.image && (
+                      <CardHeader className="p-0">
+                        <AspectRatio ratio={2/1}>
+                          <Image
+                            src={entryDetail.image}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 516px) 100vw, 516px"
+                            priority={false}
+                          />
+                        </AspectRatio>
+                      </CardHeader>
+                    )}
+                    <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                      <h3 className="text-base font-bold capitalize leading-[1.5]">
+                        {entryDetail.title}
+                      </h3>
+                      {entryDetail.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                          {entryDetail.description}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </NoFocusWrapper>
+            </div>
+          ) : (
+            <NoFocusWrapper>
+              <a
+                href={entryDetail.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity"
+                onMouseDown={handleLinkInteraction}
+                onClick={(e) => e.stopPropagation()}
               >
-                <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
+                <Card className="rounded-xl border overflow-hidden shadow-none">
                   {entryDetail.image && (
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
@@ -1714,12 +1866,12 @@ const ActivityGroupRenderer = React.memo(({
                           fill
                           className="object-cover"
                           sizes="(max-width: 516px) 100vw, 516px"
-                            priority={false}
+                          priority={false}
                         />
                       </AspectRatio>
                     </CardHeader>
                   )}
-                  <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
+                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                     <h3 className="text-base font-bold capitalize leading-[1.5]">
                       {entryDetail.title}
                     </h3>
@@ -1730,47 +1882,13 @@ const ActivityGroupRenderer = React.memo(({
                     )}
                   </CardContent>
                 </Card>
-              </div>
-            </div>
-          ) : (
-            <a
-              href={entryDetail.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block hover:opacity-80 transition-opacity"
-            >
-              <Card className="rounded-xl border overflow-hidden shadow-none">
-                {entryDetail.image && (
-                  <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        src={entryDetail.image}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={false}
-                      />
-                    </AspectRatio>
-                  </CardHeader>
-                )}
-                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                  <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {entryDetail.title}
-                  </h3>
-                  {entryDetail.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {entryDetail.description}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </a>
+              </a>
+            </NoFocusWrapper>
           )}
         </div>
-           {/* Add engagement buttons below the card */}
-           <div className="flex justify-between items-center mt-4 h-[16px]">
-           <div>
+        {/* Add engagement buttons below the card */}
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
@@ -1780,41 +1898,48 @@ const ActivityGroupRenderer = React.memo(({
               // Ensure interactions is stable or default value is memoized
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
-          </div>
-           {/* Use stable handleGroupCommentClick */}
-          <div onClick={group_handleCommentClick}>
+          </NoFocusWrapper>
+          {/* Use stable handleGroupCommentClick */}
+          <NoFocusWrapper 
+            className="flex items-center" 
+            onClick={group_handleCommentClick}
+          >
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-               // Ensure interactions is stable or default value is memoized
+              // Ensure interactions is stable or default value is memoized
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-               // Ensure interactions is stable or default value is memoized
+              // Ensure interactions is stable or default value is memoized
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entryDetail.guid}
-              feedUrl={entryDetail.feed_url || ''}
-              title={entryDetail.title}
-              pubDate={entryDetail.pub_date}
-              link={entryDetail.link}
-              initialData={{ isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entryDetail.link}
-              title={entryDetail.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entryDetail.guid}
+                feedUrl={entryDetail.feed_url || ''}
+                title={entryDetail.title}
+                pubDate={entryDetail.pub_date}
+                link={entryDetail.link}
+                initialData={{ isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entryDetail.link}
+                title={entryDetail.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
@@ -1855,8 +1980,7 @@ const ActivityGroupRenderer = React.memo(({
     </article>
   );
 });
-ActivityGroupRenderer.displayName = 'ActivityGroupRenderer';
-// *** NEW COMPONENT END ***
+// ... existing code ...
 
 // Add this reducer below the GroupedActivity type
 /**
@@ -1976,80 +2100,34 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     };
   }, [userId, apiEndpoint, pageSize, hasMore, isLoading, currentSkip, activities.length]);
 
-  // Add a global mousedown handler to prevent focus on non-interactive elements
+  // Initial data effect - with proper dependencies
   useEffect(() => {
-    if (!isActive) return;
-    
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
+    if (initialData?.activities) {
+      logger.debug('Initial activity data received from server:', {
+        activitiesCount: initialData.activities.length,
+        totalCount: initialData.totalCount,
+        hasMore: initialData.hasMore,
+        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
+        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
+      });
+
+      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
+        logger.debug('Initial metrics will be used for rendering');
+      }
+
+      dispatch({
+        type: 'INITIAL_LOAD',
+        payload: {
+          activities: initialData.activities,
+          entryDetails: initialData.entryDetails || {},
+          hasMore: initialData.hasMore
         }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
-      if (!isInFeed) return;
-      
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, [isActive]);
+      });
+    }
+  }, [initialData]); // Explicit dependency on initialData
+
+  // Use the shared focus prevention hook to prevent scrolling issues
+  useFeedFocusPrevention(isActive, '.user-activity-feed-container');
 
   // --- Drawer state for comments (moved to top level) ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -2104,6 +2182,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     
     // Avoid redundant requests and early exit when needed
     if (!isActive || isLoading || !hasMore) {
+      logger.debug(`⛔ Not loading more activities: isActive=${isActive}, isLoading=${isLoading}, hasMore=${hasMore}`);
       return;
     }
 
@@ -2111,7 +2190,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     dispatch({ type: 'LOAD_MORE_START' });
 
     try {
-      console.log(`📡 Fetching more activities from API, skip=${currentSkip}, limit=${pageSize}`);
+      logger.debug(`🔄 Fetching more activities, skip=${currentSkip}, limit=${pageSize}`);
 
       // Use the API route to fetch the next page
       const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
@@ -2121,15 +2200,13 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       }
 
       const data = await result.json();
-      console.log(`📦 Received data from API:`, {
+      logger.debug(`📦 Received activities data:`, {
         activitiesCount: data.activities?.length || 0,
-        hasMore: data.hasMore,
-        entryDetailsCount: Object.keys(data.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(data.entryMetrics || {}).length
+        hasMore: data.hasMore
       });
 
       if (!data.activities?.length) {
-        console.log('⚠️ No activities returned from API');
+        logger.debug('⚠️ No activities returned from API');
         dispatch({ 
           type: 'LOAD_MORE_SUCCESS', 
           payload: { 
@@ -2151,101 +2228,45 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
         }
       });
 
-      console.log(`📊 Updated state - total activities: ${stableRefs.current.activitiesLength + data.activities.length}, hasMore: ${data.hasMore}`);
+      logger.debug(`✅ Total activities now: ${stableRefs.current.activitiesLength + data.activities.length}`);
     } catch (error) {
-      console.error('❌ Error loading more activities:', error);
+      logger.error('❌ Error loading more activities:', error);
       dispatch({ type: 'LOAD_MORE_FAILURE' });
     }
   }, [isActive]); // Only isActive as dependency, everything else uses stable refs
   
-  // Setup intersection observer for load more detection
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMoreActivities();
-          }, 100);
-        }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, isLoading, loadMoreActivities]);
+  // Use the shared delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
+    enabled: hasMore && !isLoading,
+    isLoading,
+    hasMore,
+    rootMargin: '800px', // Increased from 300px to 800px in the shared utility
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
 
-  // Check if we need to load more - using stable ref pattern
+  // Check if we need to load more when the component is mounted
   useEffect(() => {
-    // Define the check function inside the effect to avoid dependency issues
+    if (!hasMore || isLoading || !loadMoreRef.current) return;
+    
     const checkContentHeight = () => {
-      // Check if we can load more
-      if (!stableRefs.current.hasMore || stableRefs.current.isLoading) return;
-      
-      // Check if the virtuoso container exists
-      const virtuosoContainer = document.querySelector('[data-virtuoso-scroller="true"]');
-      if (!virtuosoContainer) return;
-
       const viewportHeight = window.innerHeight;
-      const containerScrollHeight = virtuosoContainer.scrollHeight;
-
-      // If the content is shorter than the viewport, load more
-      if (containerScrollHeight <= viewportHeight && stableRefs.current.activitiesLength > 0) {
-        console.log('📏 Content is shorter than viewport, loading more activities');
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If the document is shorter than the viewport, load more
+      if (documentHeight <= viewportHeight && activities.length > 0) {
+        logger.debug('📏 Content is shorter than viewport, loading more activities automatically');
         loadMoreActivities();
       }
     };
-
-    // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 500);
-
-    // Add resize listener for viewport changes
-    window.addEventListener('resize', checkContentHeight);
     
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', checkContentHeight);
-    };
-  }, [loadMoreActivities]); // Only loadMoreActivities as dependency
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
+    
+    return () => clearTimeout(timer);
+  }, [activities.length, hasMore, isLoading, loadMoreActivities]);
 
-  // Initial data effect - with proper dependencies
-  useEffect(() => {
-    if (initialData?.activities) {
-      console.log('📋 Initial activity data received from server:', {
-        activitiesCount: initialData.activities.length,
-        totalCount: initialData.totalCount,
-        hasMore: initialData.hasMore,
-        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
-      });
-
-      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
-        console.log('🔢 Initial metrics will be used for rendering');
-      }
-
-      dispatch({
-        type: 'INITIAL_LOAD',
-        payload: {
-          activities: initialData.activities,
-          entryDetails: initialData.entryDetails || {},
-          hasMore: initialData.hasMore
-        }
-      });
-    }
-  }, [initialData]); // Explicit dependency on initialData
-
-  // Create a stable memoized Footer component
+  // Memoize the Footer component
   const Footer = useMemo(() => {
     // Named function for better debugging
     function VirtuosoFooter() {
@@ -2263,8 +2284,8 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     return VirtuosoFooter;
   }, [isLoading, hasMore]);
 
-  // Memoize the item renderer callback with stable references
-  const itemRenderer = useCallback((index: number, group: GroupedActivity) => (
+  // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
+  const itemContentCallback = useCallback((index: number, group: GroupedActivity) => (
     <ActivityGroupRenderer
       key={`group-${group.entryGuid}-${group.type}`} // Remove index from key
       group={group}
@@ -2350,7 +2371,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     useWindowScroll: true,
     data: groupedActivities,
     overscan: 2000,
-    itemContent: itemRenderer,
+    itemContent: itemContentCallback,
     components: {
       Footer: () => null
     },
@@ -2363,7 +2384,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     className: "focus:outline-none focus-visible:outline-none",
     // Add proper item keying to prevent DOM recycling issues
     computeItemKey: (_: number, group: GroupedActivity) => `${group.entryGuid}-${group.type}`
-  }), [groupedActivities, itemRenderer]);
+  }), [groupedActivities, itemContentCallback]);
 
   // Memoize loading state calculations
   const uiIsInitialLoading = useMemo(() => 
@@ -2377,7 +2398,34 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   );
 
   return (
-    <div className="w-full">
+    <div 
+      className="w-full user-activity-feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent',
+        outlineStyle: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation'
+      }}
+      tabIndex={-1}
+      onMouseDown={(e) => {
+        // Prevent focus on non-interactive elements
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName !== 'BUTTON' && 
+          target.tagName !== 'A' && 
+          target.tagName !== 'INPUT' && 
+          !target.closest('button') && 
+          !target.closest('a') && 
+          !target.closest('input')
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
       {uiIsInitialLoading ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -2388,11 +2436,48 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
         </div>
       ) : (
         <>
-          <Virtuoso {...updatedVirtuosoConfig} />
+          <Virtuoso 
+            useWindowScroll
+            data={groupedActivities}
+            overscan={2000}
+            itemContent={itemContentCallback}
+            components={{
+              Footer: () => null
+            }}
+            style={{ 
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation',
+              WebkitUserSelect: 'none',
+              userSelect: 'none'
+            }}
+            className="outline-none focus:outline-none focus-visible:outline-none"
+            computeItemKey={(_, group) => `${group.entryGuid}-${group.type}`}
+            tabIndex={-1}
+            increaseViewportBy={800}
+            followOutput="auto"
+            atTopThreshold={100}
+            atBottomThreshold={100}
+            defaultItemHeight={400}
+            totalListHeightChanged={(height) => {
+              // When list height changes, check for short content
+              if (height < window.innerHeight && hasMore && !isLoading) {
+                loadMoreActivities();
+              }
+            }}
+          />
           
           {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
-          <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-            {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+          <div 
+            ref={loadMoreRef} 
+            className="h-52 flex items-center justify-center mb-20"
+            tabIndex={-1}
+          >
+            {hasMore && isLoading && (
+              <NoFocusWrapper className="flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </NoFocusWrapper>
+            )}
             {!hasMore && groupedActivities.length > 0 && <div></div>}
           </div>
           
@@ -2409,7 +2494,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       )}
     </div>
   );
-}, (prevProps, nextProps) => {
+}, (prevProps: UserActivityFeedProps, nextProps: UserActivityFeedProps): boolean => {
   // Custom prop comparison for the memo - rerender only if critical props change
   // Basic equality checks for primitive props
   if (prevProps.userId !== nextProps.userId) return false;

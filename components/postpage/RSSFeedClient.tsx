@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -20,6 +21,29 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 interface RSSEntryWithData {
   entry: RSSItem;
@@ -92,6 +116,27 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
+  // Helper function to prevent scroll jumping on link interaction
+  // This works by preventing the default focus behavior that causes scrolling
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
+
   // Memoize the timestamp calculation as it's a complex operation
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
@@ -142,29 +187,15 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (mediaType === 'podcast') {
       e.preventDefault();
-      playTrack(entry.link, decode(entry.title), entry.image);
+      e.stopPropagation();
+      playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [mediaType, entry.link, entry.title, entry.image, playTrack]);
 
+  // Memoize the comment handler
   const handleOpenCommentDrawer = useCallback(() => {
     onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
   }, [entry.guid, entry.feedUrl, initialData.comments, onOpenCommentDrawer]);
-
-  // Add handler to prevent focus when clicking non-interactive elements
-  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName !== 'BUTTON' && 
-      target.tagName !== 'A' && 
-      target.tagName !== 'INPUT' && 
-      !target.closest('button') && 
-      !target.closest('a') && 
-      !target.closest('input')
-    ) {
-      e.preventDefault();
-    }
-  }, []);
 
   // Memoize the formatted date to prevent recalculation
   const formattedDate = useMemo(() => {
@@ -176,13 +207,19 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   }, [entry.pubDate]);
 
   return (
-    <article
+    <article 
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }} 
+      className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      onMouseDown={handleNonInteractiveMouseDown}
-      className="focus:outline-none"
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="p-4">
+        {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
+          {/* Featured Image */}
           {featuredImg && (
             <div className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
               <AspectRatio ratio={1}>
@@ -198,6 +235,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
             </div>
           )}
           
+          {/* Title and Timestamp */}
           <div className="flex-grow">
             <div className="w-full">
               {postTitle && (
@@ -225,11 +263,16 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
           </div>
         </div>
         
+        {/* Content */}
         {mediaType === 'podcast' ? (
           <div>
-            <div 
-              onClick={handleCardClick}
+            <NoFocusWrapper 
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
@@ -257,46 +300,55 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                   )}
                 </CardContent>
               </Card>
-            </div>
+            </NoFocusWrapper>
           </div>
         ) : (
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entry.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entry.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                <h3 className="text-base font-bold capitalize leading-[1.5]">
-                  {decode(entry.title)}
-                </h3>
-                {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                    {decode(entry.description)}
-                  </p>
+            <a
+              href={entry.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
                 )}
-              </CardContent>
-            </Card>
-          </a>
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {decode(entry.title)}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
         
-        <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
+        {/* Horizontal Interaction Buttons */}
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -305,18 +357,22 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               link={entry.link}
               initialData={initialData.likes}
             />
-          </div>
-          <div onClick={handleOpenCommentDrawer}>
+          </NoFocusWrapper>
+          <NoFocusWrapper 
+            className="flex items-center" 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenCommentDrawer();
+            }}
+          >
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
               initialData={initialData.comments}
               buttonOnly={true}
-              setIsOpen={undefined}
-              isOpen={undefined}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -325,24 +381,29 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               link={entry.link}
               initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feedUrl}
-              title={entry.title}
-              pubDate={entry.pubDate}
-              link={entry.link}
-              initialData={initialData.bookmarks || { isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entry.link}
-              title={entry.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entry.guid}
+                feedUrl={entry.feedUrl}
+                title={entry.title}
+                pubDate={entry.pubDate}
+                link={entry.link}
+                initialData={initialData.bookmarks || { isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entry.link}
+                title={entry.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
       
+      {/* Comments Section */}
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
@@ -403,30 +464,13 @@ const areFeedContentPropsEqual = (prevProps: FeedContentProps, nextProps: FeedCo
   return true;
 };
 
-// Extract EmptyState as a separate component instead of inline JSX in useMemo
+// Extract EmptyState as a separate component
 const EmptyState = () => (
   <div className="text-center py-8 text-muted-foreground">
     No entries found for this feed.
   </div>
 );
 EmptyState.displayName = 'EmptyState';
-
-// Create a separate Footer component
-const LoadingFooter = ({ loadMoreRef, isPending, hasMore }: { 
-  loadMoreRef: React.RefObject<HTMLDivElement>, 
-  isPending: boolean, 
-  hasMore: boolean 
-}) => {
-  if (isPending && hasMore) {
-    return (
-      <div ref={loadMoreRef} className="text-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-      </div>
-    );
-  }
-  return <div ref={loadMoreRef} className="h-0" />;
-};
-LoadingFooter.displayName = 'LoadingFooter';
 
 // Memoize the FeedContent component to prevent unnecessary re-renders
 const FeedContent = React.memo(function FeedContent({
@@ -450,49 +494,26 @@ const FeedContent = React.memo(function FeedContent({
     endReachedCalledRef.current = false;
   }, [entries.length]);
   
-  // Setup intersection observer for load more detection with a significant delay
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    // Wait 3 seconds before establishing the observer
-    // This prevents any initial load from triggering
-    const timer = setTimeout(() => {
-      // Store the reference to the DOM element to ensure it exists when observer runs
-      const loadMoreElement = loadMoreRef.current;
-      
-      // Skip if element no longer exists
-      if (!loadMoreElement) return;
-      
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
-            console.log('📜 Load more element visible, triggering load');
-            endReachedCalledRef.current = true;
-            loadMore();
-          }
-        },
-        { 
-          rootMargin: '200px',
-          threshold: 0.1
-        }
-      );
-      
-      // Safe to observe now that we've checked it exists
-      observer.observe(loadMoreElement);
-      
-      return () => {
-        observer.disconnect();
-      };
-    }, 3000); // 3 second delay to prevent initial page load triggering
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [loadMoreRef, hasMore, isPending, loadMore]);
+  // Use the shared delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: hasMore && !isPending,
+    isLoading: isPending,
+    hasMore,
+    rootMargin: '800px',
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
   
   return (
-    <div className="space-y-0">
+    <div 
+      className="space-y-0 rss-feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       {entries.length === 0 ? <EmptyState /> : (
         <>
           <Virtuoso
@@ -521,7 +542,7 @@ const FeedContent = React.memo(function FeedContent({
             computeItemKey={(_, item) => item.entry.guid}
           />
           
-          {/* Restore original height but keep the delay fix */}
+          {/* Load more indicator */}
           <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
             {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
             {!hasMore && entries.length > 0 && <div></div>}
@@ -574,80 +595,8 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     initialData?: { count: number };
   } | null>(null);
 
-  // Add a global mousedown handler to prevent focus on non-interactive elements
-  useEffect(() => {
-    if (!isActive) return;
-    
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
-      if (!isInFeed) return;
-      
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, [isActive]);
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive, '.rss-feed-container');
 
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
@@ -658,7 +607,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   // Debug log the initial data
   useEffect(() => {
     if (initialData) {
-      console.log('📋 Initial data received in client:', {
+      logger.debug('Initial data received in client:', {
         entriesCount: initialData.entries?.length || 0,
         hasMore: initialData.hasMore,
         totalEntries: initialData.totalEntries,
@@ -752,7 +701,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     const { isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries } = loadingDeps;
     
     if (!isActive || isLoading || !hasMoreState) {
-      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
+      logger.debug(`Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
       return;
     }
     
@@ -761,29 +710,29 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     try {
       const apiUrl = createApiUrl(nextPage);
-      console.log(`📡 Fetching page ${nextPage} from API`);
+      logger.debug(`Fetching page ${nextPage} from API`);
       
       const response = await fetch(apiUrl);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data = await response.json();
-      console.log(`📦 Received data from API - entries: ${data.entries?.length || 0}, hasMore: ${data.hasMore}, total: ${data.totalEntries}`);
+      logger.debug(`Received data from API - entries: ${data.entries?.length || 0}, hasMore: ${data.hasMore}, total: ${data.totalEntries}`);
       
       if (!data.entries?.length) {
-        console.log('⚠️ No entries returned from API');
+        logger.debug('No entries returned from API');
         setIsLoading(false);
         return;
       }
       
       const transformedEntries = transformApiEntries(data.entries);
-      console.log(`✅ Transformed ${transformedEntries.length} entries`);
+      logger.debug(`Transformed ${transformedEntries.length} entries`);
       
       setAllEntriesState(prev => [...prev, ...transformedEntries]);
       setCurrentPage(nextPage);
       setHasMoreState(data.hasMore);
       
     } catch (error) {
-      console.error('❌ Error loading more entries:', error);
+      logger.error('Error loading more entries:', error);
       setFetchError(error instanceof Error ? error : new Error(String(error)));
     } finally {
       setIsLoading(false);
@@ -864,14 +813,14 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     // Skip auto-loading on initial render to prevent layout shift
     if (isInitialRender) {
-      console.log('📏 Skipping auto-load on initial render to prevent layout shift');
+      logger.debug('Skipping auto-load on initial render to prevent layout shift');
       setIsInitialRender(false);
       return;
     }
     
     // Only proceed with auto-loading if we have at least page size of entries already viewed
     if (allEntriesCount < ITEMS_PER_REQUEST) {
-      console.log(`📏 Not enough entries viewed yet (${allEntriesCount}/${ITEMS_PER_REQUEST}), skipping auto-load`);
+      logger.debug(`Not enough entries viewed yet (${allEntriesCount}/${ITEMS_PER_REQUEST}), skipping auto-load`);
       return;
     }
     
@@ -880,7 +829,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     // If the document is shorter than the viewport, load more
     if (documentHeight <= viewportHeight && allEntriesCount > 0) {
-      console.log('📏 Content is shorter than viewport, loading more entries');
+      logger.debug('Content is shorter than viewport, loading more entries');
       loadMoreEntries();
     }
   }, [heightCheckDeps, loadMoreRef]);
@@ -888,11 +837,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   // Add a useEffect to check if we need to load more when the component is mounted
   useEffect(() => {
     // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 1000);
+    const timer = setTimeout(checkContentHeight, 200);
     return () => clearTimeout(timer);
   }, [checkContentHeight]);
   
-  // Create error UI as a separate component function rather than using useMemo
+  // Create error UI as a separate component
   const ErrorUI = () => (
     <div className="text-center py-8 text-destructive">
       <p className="mb-4">Error loading feed entries</p>
@@ -915,7 +864,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   }
   
   return (
-    <div className="w-full">
+    <div className="w-full rss-feed-container">
       <FeedContent
         entries={enhancedEntries}
         hasMore={hasMoreState}

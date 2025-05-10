@@ -20,6 +20,29 @@ import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 // Interface for post metadata
 interface PostMetadata {
@@ -61,6 +84,26 @@ interface FeaturedEntryProps {
 const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
@@ -123,53 +166,49 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (postMetadata.mediaType?.toLowerCase() === 'podcast') {
       e.preventDefault();
-      playTrack(entry.link, decode(entry.title), entry.image);
+      e.stopPropagation();
+      playTrack(entry.link, decode(entry.title), entry.image || undefined);
     }
   }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  const handleOpenComment = useCallback(() => {
+  const handleOpenComment = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
   }, [onOpenCommentDrawer, entry.guid, entry.feed_url, initialData.comments]);
 
-  // Add handler to prevent focus when clicking non-interactive elements
-  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName !== 'BUTTON' && 
-      target.tagName !== 'A' && 
-      target.tagName !== 'INPUT' && 
-      !target.closest('button') && 
-      !target.closest('a') && 
-      !target.closest('input')
-    ) {
-      e.preventDefault();
-    }
-  }, []);
-
   return (
     <article 
-      tabIndex={-1} 
-      onMouseDown={handleNonInteractiveMouseDown}
-      className="focus:outline-none"
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }} 
+      className="outline-none focus:outline-none focus-visible:outline-none"
+      tabIndex={-1}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {postMetadata.featuredImg && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
-              <AspectRatio ratio={1}>
-                <Image
-                  src={postMetadata.featuredImg}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                  priority={isPriority}
-                />
-              </AspectRatio>
-            </Link>
+            <NoFocusLinkWrapper 
+              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+              onClick={handleLinkInteraction}
+              onTouchStart={handleLinkInteraction}
+            >
+              <Link href={postUrl}>
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={postMetadata.featuredImg}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                    priority={isPriority}
+                  />
+                </AspectRatio>
+              </Link>
+            </NoFocusLinkWrapper>
           )}
           
           {/* Title and Timestamp */}
@@ -178,12 +217,18 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               {postMetadata.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
-                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                      <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                        {postMetadata.title}
-                        {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                      </h3>
-                    </Link>
+                    <NoFocusLinkWrapper 
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={handleLinkInteraction}
+                      onTouchStart={handleLinkInteraction}
+                    >
+                      <Link href={postUrl}>
+                        <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                          {postMetadata.title}
+                          {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                        </h3>
+                      </Link>
+                    </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-sm font-bold text-primary leading-tight">
                       {postMetadata.title}
@@ -212,9 +257,13 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
         {/* Content */}
         {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
           <div>
-            <div 
-              onClick={handleCardClick}
+            <NoFocusWrapper 
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
@@ -242,47 +291,55 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                   )}
                 </CardContent>
               </Card>
-            </div>
+            </NoFocusWrapper>
           </div>
         ) : (
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entry.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entry.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={isPriority}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                <h3 className="text-base font-bold capitalize leading-[1.5]">
-                  {decode(entry.title)}
-                </h3>
-                {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                    {decode(entry.description)}
-                  </p>
+            <a
+              href={entry.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={isPriority}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
                 )}
-              </CardContent>
-            </Card>
-          </a>
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {decode(entry.title)}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
         
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
@@ -291,16 +348,19 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               link={entry.link}
               initialData={initialData.likes}
             />
-          </div>
-          <div onClick={handleOpenComment}>
+          </NoFocusWrapper>
+          <NoFocusWrapper 
+            className="flex items-center"
+            onClick={handleOpenComment}
+          >
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
               initialData={initialData.comments}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
@@ -309,20 +369,24 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               link={entry.link}
               initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feed_url}
-              title={entry.title}
-              pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.bookmarks || { isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entry.link}
-              title={entry.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entry.guid}
+                feedUrl={entry.feed_url}
+                title={entry.title}
+                pubDate={entry.pub_date}
+                link={entry.link}
+                initialData={initialData.bookmarks || { isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entry.link}
+                title={entry.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
@@ -362,33 +426,27 @@ const FeedContent = React.memo(({
     endReachedCalledRef.current = false;
   }, [visibleEntries.length]);
   
-  // Setup intersection observer for load more detection - MOVED BEFORE CONDITIONAL
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMore();
-          }, 100);
-        }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
+  // Use the shared hook for intersection observer with 3-second delay
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: hasMore && !isLoading,
+    isLoading,
+    hasMore,
+    rootMargin: '300px',
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
+
+  // Implement the itemContentCallback using the standard pattern
+  const itemContentCallback = useCallback((index: number, entryWithData: FeaturedEntryWithData) => {
+    // Create a consistent interface for the FeaturedEntry component
+    return (
+      <FeaturedEntry
+        entryWithData={entryWithData}
+        onOpenCommentDrawer={onOpenCommentDrawer}
+        isPriority={index < 2} // Set priority for the first 2 entries
+      />
     );
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMoreRef, hasMore, isLoading, loadMore]);
+  }, [onOpenCommentDrawer]);
 
   if (!entries.length) {
     return (
@@ -407,18 +465,20 @@ const FeedContent = React.memo(({
   }
 
   return (
-    <div className="space-y-0">
+    <div 
+      className="space-y-0 feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       <Virtuoso
         useWindowScroll
         data={visibleEntries}
         overscan={2000}
-        itemContent={(index, entryWithData) => (
-          <FeaturedEntry
-            entryWithData={entryWithData}
-            onOpenCommentDrawer={onOpenCommentDrawer}
-            isPriority={index < 2} // Set priority for the first 2 entries
-          />
-        )}
+        itemContent={itemContentCallback}
         components={{
           Footer: () => null
         }}
@@ -519,84 +579,14 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
     };
   }, []);
 
-  // Add a global mousedown handler to prevent focus on non-interactive elements
-  useEffect(() => {
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
-      if (!isInFeed) return;
-      
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(true, '.feed-container');
 
   // Log to confirm we're using prefetched data from LayoutManager
   useEffect(() => {
     if (!isMountedRef.current) return;
     
-    console.log('FeaturedFeedClient: Using prefetched data from LayoutManager', {
+    logger.debug('FeaturedFeedClient: Using prefetched data from LayoutManager', {
       entriesCount: initialData?.entries?.length || 0
     });
   }, [initialData]);
@@ -614,16 +604,39 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
     if (hasMore && !isLoading) {
       if (!isMountedRef.current) return;
       
+      logger.debug('🔄 Loading more featured entries, current page:', currentPage);
       setIsLoading(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
         if (isMountedRef.current) {
           setCurrentPage(prev => prev + 1);
           setIsLoading(false);
+          logger.debug('✅ Finished loading more featured entries');
         }
       }, 300);
     }
-  }, [hasMore, isLoading]);
+  }, [hasMore, isLoading, currentPage]);
+  
+  // Check if we need to load more when component mounts or content is short
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    const checkContentHeight = () => {
+      const viewportHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If content is shorter than viewport and we have more entries to load, load them
+      if (documentHeight <= viewportHeight && visibleEntries.length > 0 && hasMore && !isLoading) {
+        logger.debug('📏 Content is shorter than viewport, loading more entries automatically');
+        loadMore();
+      }
+    };
+    
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
+    
+    return () => clearTimeout(timer);
+  }, [visibleEntries.length, hasMore, isLoading, loadMore]);
   
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
@@ -647,7 +660,7 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
   }, []);
 
   return (
-    <div className="w-full">
+    <div className="w-full feed-container">
       <FeedContent
         entries={initialData.entries}
         visibleEntries={visibleEntries}

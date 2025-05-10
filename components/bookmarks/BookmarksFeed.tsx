@@ -17,6 +17,29 @@ import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButto
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 // Memoized timestamp formatter (copied from UserLikesFeed)
 const useFormattedTimestamp = (pubDate?: string) => {
@@ -115,28 +138,33 @@ const BookmarkCard = React.memo(({
   
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
 
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
+
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
+      e.stopPropagation();
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
     }
   }, [entryDetails, playTrack]);
-  
-  // Add handler to prevent focus when clicking non-interactive elements
-  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName !== 'BUTTON' && 
-      target.tagName !== 'A' && 
-      target.tagName !== 'INPUT' && 
-      !target.closest('button') && 
-      !target.closest('a') && 
-      !target.closest('input')
-    ) {
-      e.preventDefault();
-    }
-  }, []);
   
   if (!entryDetails) {
     // Fallback to basic bookmark data if entry details aren't available
@@ -144,11 +172,18 @@ const BookmarkCard = React.memo(({
       <article 
         className="p-4 border-b border-gray-100" 
         tabIndex={-1}
-        onMouseDown={handleNonInteractiveMouseDown}
+        onClick={(e) => e.stopPropagation()}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-        <Link href={bookmark.link} target="_blank">
-          <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 mb-1">{bookmark.title}</h3>
-        </Link>
+        <NoFocusLinkWrapper
+          className="block"
+          onClick={handleLinkInteraction}
+          onTouchStart={handleLinkInteraction}
+        >
+          <Link href={bookmark.link} target="_blank">
+            <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 mb-1">{bookmark.title}</h3>
+          </Link>
+        </NoFocusLinkWrapper>
         <div className="flex items-center justify-between mt-2">
           <div className="text-xs text-gray-500">
             Published: {new Date(bookmark.pubDate).toLocaleDateString()}
@@ -163,65 +198,79 @@ const BookmarkCard = React.memo(({
   
   return (
     <article 
-      className="" 
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }} 
+      className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      onMouseDown={handleNonInteractiveMouseDown}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {(entryDetails.post_featured_img || entryDetails.image) && (
-            <Link 
-              href={entryDetails.post_slug ? 
-                (entryDetails.post_media_type === 'newsletter' ? 
-                  `/newsletters/${entryDetails.post_slug}` : 
-                  entryDetails.post_media_type === 'podcast' ? 
-                    `/podcasts/${entryDetails.post_slug}` : 
-                    entryDetails.category_slug ? 
-                      `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                      entryDetails.link) : 
-                entryDetails.link}
+            <NoFocusLinkWrapper 
               className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
-              target={entryDetails.post_slug ? "_self" : "_blank"}
-              rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
+              onClick={handleLinkInteraction}
+              onTouchStart={handleLinkInteraction}
             >
-              <AspectRatio ratio={1}>
-                <Image
-                  src={entryDetails.post_featured_img || entryDetails.image || ''}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                  priority={false}
-                />
-              </AspectRatio>
-            </Link>
+              <Link 
+                href={entryDetails.post_slug ? 
+                  (entryDetails.post_media_type === 'newsletter' ? 
+                    `/newsletters/${entryDetails.post_slug}` : 
+                    entryDetails.post_media_type === 'podcast' ? 
+                      `/podcasts/${entryDetails.post_slug}` : 
+                      entryDetails.category_slug ? 
+                        `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                        entryDetails.link) : 
+                  entryDetails.link}
+                target={entryDetails.post_slug ? "_self" : "_blank"}
+                rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
+              >
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={entryDetails.post_featured_img || entryDetails.image || ''}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </Link>
+            </NoFocusLinkWrapper>
           )}
           
           {/* Title and Timestamp */}
           <div className="flex-grow">
             <div className="w-full">
               <div className="flex items-start justify-between gap-2">
-                <Link 
-                  href={entryDetails.post_slug ? 
-                    (entryDetails.post_media_type === 'newsletter' ? 
-                      `/newsletters/${entryDetails.post_slug}` : 
-                      entryDetails.post_media_type === 'podcast' ? 
-                        `/podcasts/${entryDetails.post_slug}` : 
-                        entryDetails.category_slug ? 
-                          `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
-                          entryDetails.link) : 
-                    entryDetails.link}
+                <NoFocusLinkWrapper
                   className="hover:opacity-80 transition-opacity"
-                  target={entryDetails.post_slug ? "_self" : "_blank"}
-                  rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  onClick={handleLinkInteraction}
+                  onTouchStart={handleLinkInteraction}
                 >
-                  <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                    {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
-                    {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                  </h3>
-                </Link>
+                  <Link 
+                    href={entryDetails.post_slug ? 
+                      (entryDetails.post_media_type === 'newsletter' ? 
+                        `/newsletters/${entryDetails.post_slug}` : 
+                        entryDetails.post_media_type === 'podcast' ? 
+                          `/podcasts/${entryDetails.post_slug}` : 
+                          entryDetails.category_slug ? 
+                            `/${entryDetails.category_slug}/${entryDetails.post_slug}` : 
+                            entryDetails.link) : 
+                      entryDetails.link}
+                    target={entryDetails.post_slug ? "_self" : "_blank"}
+                    rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
+                  >
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                      {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
+                      {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                    </h3>
+                  </Link>
+                </NoFocusLinkWrapper>
                 <span 
                   className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
                   title={entryDetails.pub_date ? 
@@ -240,9 +289,13 @@ const BookmarkCard = React.memo(({
         {/* Entry Content Card */}
         {isPodcast ? (
           <div>
-            <div 
-              onClick={handleCardClick}
+            <NoFocusWrapper 
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entryDetails.image && (
@@ -261,38 +314,46 @@ const BookmarkCard = React.memo(({
                 )}
                 <EntryCardContent entry={entryDetails} />
               </Card>
-            </div>
+            </NoFocusWrapper>
           </div>
         ) : (
-          <a
-            href={entryDetails.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entryDetails.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entryDetails.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <EntryCardContent entry={entryDetails} />
-            </Card>
-          </a>
+            <a
+              href={entryDetails.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entryDetails.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entryDetails.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <EntryCardContent entry={entryDetails} />
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
 
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
@@ -301,16 +362,22 @@ const BookmarkCard = React.memo(({
               link={entryDetails.link}
               initialData={interactions?.likes || { isLiked: false, count: 0 }}
             />
-          </div>
-          <div onClick={() => onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions?.comments)}>
+          </NoFocusWrapper>
+          <NoFocusWrapper 
+            className="flex items-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions?.comments);
+            }}
+          >
             <CommentSectionClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
@@ -319,20 +386,24 @@ const BookmarkCard = React.memo(({
               link={entryDetails.link}
               initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entryDetails.guid}
-              feedUrl={entryDetails.feed_url || ''}
-              title={entryDetails.title}
-              pubDate={entryDetails.pub_date}
-              link={entryDetails.link}
-              initialData={{ isBookmarked: true }} // Always true since these are bookmarks
-            />
-            <ShareButtonClient
-              url={entryDetails.link}
-              title={entryDetails.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entryDetails.guid}
+                feedUrl={entryDetails.feed_url || ''}
+                title={entryDetails.title}
+                pubDate={entryDetails.pub_date}
+                link={entryDetails.link}
+                initialData={{ isBookmarked: true }} // Always true since these are bookmarks
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entryDetails.link}
+                title={entryDetails.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
@@ -373,6 +444,9 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   );
   const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Track skip with a ref to avoid closure problems
+  const currentSkipRef = useRef<number>(initialData?.bookmarks.length || 0);
   const [currentSkip, setCurrentSkip] = useState(initialData?.bookmarks.length || 0);
   
   // Track if this is the initial load
@@ -389,89 +463,19 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   // Add ref to prevent multiple endReached calls
   const endReachedCalledRef = useRef(false);
   
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(true, '.bookmarks-feed-container');
+  
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
     setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
     setCommentDrawerOpen(true);
   }, []);
 
-  // Add a global mousedown handler to prevent focus on non-interactive elements
-  useEffect(() => {
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
-      if (!isInFeed) return;
-      
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
   // Log when initial data is received
   useEffect(() => {
     if (initialData?.bookmarks) {
-      console.log('📋 Initial bookmarks data received from server:', {
+      logger.debug('Initial bookmarks data received from server:', {
         bookmarksCount: initialData.bookmarks.length,
         totalCount: initialData.totalCount,
         hasMore: initialData.hasMore,
@@ -483,6 +487,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       setEntryMetrics(initialData.entryMetrics || {});
       setHasMore(initialData.hasMore);
       setCurrentSkip(initialData.bookmarks.length);
+      currentSkipRef.current = initialData.bookmarks.length;
       setIsInitialLoad(false);
     }
   }, [initialData]);
@@ -490,83 +495,69 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   // Function to load more bookmarks - MOVED UP before it's used in dependencies
   const loadMoreBookmarks = useCallback(async () => {
     if (isLoading || !hasMore || isSearchResults) {
-      console.log(`⚠️ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}, isSearchResults=${isSearchResults}`);
+      logger.debug(`⛔ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}, isSearchResults=${isSearchResults}`);
       return;
     }
 
     setIsLoading(true);
     
     try {
-      console.log(`📡 Fetching more bookmarks from API, skip=${currentSkip}, limit=${pageSize}`);
+      const skipValue = currentSkipRef.current;
+      logger.debug(`🔄 Fetching more bookmarks, skip=${skipValue}, limit=${pageSize}`);
       
       // Use the API route to fetch the next page
-      const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
+      const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${skipValue}&limit=${pageSize}`);
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
       }
       
       const data = await result.json();
-      console.log(`📦 Received data from API:`, {
+      logger.debug(`📦 Received bookmarks data:`, {
         bookmarksCount: data.bookmarks?.length || 0,
-        hasMore: data.hasMore,
-        entryDetailsCount: Object.keys(data.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(data.entryMetrics || {}).length
+        hasMore: data.hasMore
       });
       
       if (!data.bookmarks?.length) {
-        console.log('⚠️ No bookmarks returned from API');
+        logger.debug('⚠️ No bookmarks returned from API');
         setHasMore(false);
         setIsLoading(false);
         return;
       }
       
+      // Update both the ref and the state for the new skip value
+      const newSkip = skipValue + data.bookmarks.length;
+      currentSkipRef.current = newSkip;
+      setCurrentSkip(newSkip);
+      logger.debug(`⬆️ Updated skip from ${skipValue} to ${newSkip}`);
+      
       setBookmarks(prev => [...prev, ...data.bookmarks]);
       setEntryDetails(prev => ({...prev, ...data.entryDetails}));
       setEntryMetrics(prev => ({...prev, ...data.entryMetrics}));
-      setCurrentSkip(prev => prev + data.bookmarks.length);
       setHasMore(data.hasMore);
       
-      console.log(`📊 Updated state - total bookmarks: ${bookmarks.length + data.bookmarks.length}, hasMore: ${data.hasMore}`);
+      logger.debug(`✅ Total bookmarks now: ${bookmarks.length + data.bookmarks.length}`);
     } catch (error) {
-      console.error('❌ Error loading more bookmarks:', error);
+      logger.error('❌ Error loading more bookmarks:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMore, currentSkip, userId, pageSize, bookmarks.length, isSearchResults]);
+  }, [isLoading, hasMore, userId, pageSize, bookmarks.length, isSearchResults]);
 
   // Reset the endReachedCalled flag when bookmarks change
   useEffect(() => {
     endReachedCalledRef.current = false;
   }, [bookmarks.length]);
   
-  // Setup intersection observer for load more detection
-  useEffect(() => {
-    if (!loadMoreRef.current || isSearchResults) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMoreBookmarks();
-          }, 100);
-        }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMoreRef, hasMore, isLoading, loadMoreBookmarks, isSearchResults]);
+  // Use the shared delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMoreBookmarks, {
+    enabled: hasMore && !isLoading && !isSearchResults,
+    isLoading,
+    hasMore,
+    rootMargin: '300px',
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {
@@ -578,16 +569,29 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       
       // If the document is shorter than the viewport, load more
       if (documentHeight <= viewportHeight && bookmarks.length > 0) {
-        console.log('📏 Content is shorter than viewport, loading more bookmarks');
+        logger.debug('📏 Content is shorter than viewport, loading more bookmarks automatically');
         loadMoreBookmarks();
       }
     };
     
-    // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 1000);
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
     
     return () => clearTimeout(timer);
   }, [bookmarks.length, hasMore, isLoading, loadMoreBookmarks]);
+
+  // Implement the itemContentCallback using the standard pattern
+  const itemContentCallback = useCallback((index: number, bookmark: BookmarkItem) => {
+    return (
+      <BookmarkCard 
+        key={bookmark._id} 
+        bookmark={bookmark} 
+        entryDetails={entryDetails[bookmark.entryGuid]}
+        interactions={entryMetrics[bookmark.entryGuid]}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
+      />
+    );
+  }, [entryDetails, entryMetrics, handleOpenCommentDrawer]);
 
   // Loading state - only show for initial load
   if (isLoading && isInitialLoad) {
@@ -608,20 +612,20 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   }
 
   return (
-    <div className="w-full">
+    <div 
+      className="w-full bookmarks-feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       <Virtuoso
         useWindowScroll
         data={bookmarks}
         overscan={2000}
-        itemContent={(index, bookmark) => (
-          <BookmarkCard 
-            key={bookmark._id} 
-            bookmark={bookmark} 
-            entryDetails={entryDetails[bookmark.entryGuid]}
-            interactions={entryMetrics[bookmark.entryGuid]}
-            onOpenCommentDrawer={handleOpenCommentDrawer}
-          />
-        )}
+        itemContent={itemContentCallback}
         components={{
           Footer: () => null
         }}

@@ -21,6 +21,29 @@ import { Virtuoso } from 'react-virtuoso';
 import { useAudio } from '@/components/audio-player/AudioContext';
 import { decode } from 'html-entities';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 // Define the shape of an RSS entry
 interface RSSEntry {
@@ -48,6 +71,7 @@ interface EntriesDisplayProps {
   searchQuery: string;
   className?: string;
   isVisible?: boolean;
+  pageSize?: number;
 }
 
 // This interface is now used directly where needed
@@ -114,6 +138,7 @@ const EntriesDisplayComponent = ({
   searchQuery,
   className,
   isVisible = false,
+  pageSize = 30,
 }: EntriesDisplayProps) => {
   const [entries, setEntries] = useState<RSSEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,6 +146,10 @@ const EntriesDisplayComponent = ({
   const [page, setPage] = useState(1);
   const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // Add ref to prevent multiple endReached calls
+  const endReachedCalledRef = useRef(false);
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -144,6 +173,14 @@ const EntriesDisplayComponent = ({
     };
   }, []);
 
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isVisible, '.entries-display-container');
+
+  // Reset the endReachedCalled flag when entries change
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [entries.length]);
+
   // Get entry guids for metrics
   const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
   
@@ -166,28 +203,45 @@ const EntriesDisplayComponent = ({
 
   // Memoize loadMore function
   const loadMore = useCallback(async () => {
-    if (!hasMore || isLoading || !isVisible || !isMountedRef.current) return;
+    if (!hasMore || isLoading || !isVisible || !isMountedRef.current || endReachedCalledRef.current) return;
 
+    endReachedCalledRef.current = true;
     const nextPage = page + 1;
     setIsLoading(true);
     
     try {
-      const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}`);
+      logger.debug(`Fetching more entries from API, page=${nextPage}, mediaType=${mediaType}, query=${searchQuery}, pageSize=${pageSize}`);
+      const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}&pageSize=${pageSize}`);
       const data = await response.json();
       
       if (isMountedRef.current) {
+        logger.debug(`Received data from API:`, {
+          entriesCount: data.entries?.length || 0,
+          hasMore: data.hasMore
+        });
+        
         setEntries(prev => [...prev, ...data.entries]);
         setHasMore(data.hasMore);
         setPage(nextPage);
       }
     } catch (error) {
-      console.error('Error loading more entries:', error);
+      logger.error('Error loading more entries:', error);
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
-  }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType]);
+  }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType, pageSize]);
+
+  // Use the shared delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: hasMore && !isLoading && isVisible,
+    isLoading,
+    hasMore,
+    rootMargin: '800px',
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
 
   // Reset state only when search query changes
   useEffect(() => {
@@ -209,16 +263,22 @@ const EntriesDisplayComponent = ({
     const searchEntries = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=1`);
+        logger.debug(`Initial search for query=${searchQuery}, mediaType=${mediaType}, pageSize=${pageSize}`);
+        const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=1&pageSize=${pageSize}`);
         const data = await response.json();
         
         if (isMountedRef.current) {
+          logger.debug(`Received initial search results:`, {
+            entriesCount: data.entries?.length || 0,
+            hasMore: data.hasMore
+          });
+          
           setEntries(data.entries);
           setHasMore(data.hasMore);
           setPage(1);
         }
       } catch (error) {
-        console.error('Error searching entries:', error);
+        logger.error('Error searching entries:', error);
       } finally {
         if (isMountedRef.current) {
           setIsLoading(false);
@@ -231,7 +291,43 @@ const EntriesDisplayComponent = ({
       searchEntries();
       setLastSearchQuery(searchQuery);
     }
-  }, [searchQuery, mediaType, isVisible, lastSearchQuery, entries.length]);
+  }, [searchQuery, mediaType, isVisible, lastSearchQuery, entries.length, pageSize]);
+
+  // Check if we need to load more when the component is mounted
+  useEffect(() => {
+    if (!isMountedRef.current || !loadMoreRef.current || !hasMore || isLoading || !isVisible) return;
+    
+    const checkContentHeight = () => {
+      const viewportHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If the document is shorter than the viewport, load more
+      if (documentHeight <= viewportHeight && entries.length > 0 && !endReachedCalledRef.current) {
+        logger.debug('Content is shorter than viewport, loading more entries');
+        loadMore();
+      }
+    };
+    
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
+    
+    return () => clearTimeout(timer);
+  }, [entries.length, hasMore, isLoading, loadMore, isVisible]);
+
+  // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
+  const itemContentCallback = useCallback((index: number, entry: RSSEntry) => {
+    // Get the metrics for this entry
+    const metrics = getEntryMetrics(entry.guid);
+    
+    // Create a consistent interface for the EntryCard
+    return (
+      <EntryCard 
+        entry={entry} 
+        interactions={metrics}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
+      />
+    );
+  }, [getEntryMetrics, handleOpenCommentDrawer]);
 
   // Don't render anything if tab is not visible
   if (!isVisible) {
@@ -257,32 +353,44 @@ const EntriesDisplayComponent = ({
   }
 
   return (
-    <div className={className}>
+    <div 
+      className={cn("w-full entries-display-container", className)}
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       <Virtuoso
         useWindowScroll
-        totalCount={entries.length}
-        endReached={loadMore}
-        overscan={20}
-        itemContent={index => {
-          const entry = entries[index];
-          return (
-            <EntryCard 
-              key={entry.guid} 
-              entry={entry} 
-              interactions={getEntryMetrics(entry.guid)}
-              onOpenCommentDrawer={handleOpenCommentDrawer}
-            />
-          );
-        }}
+        data={entries}
+        overscan={2000}
+        itemContent={itemContentCallback}
         components={{
-          Footer: () => 
-            isLoading && hasMore ? (
-              <div className="text-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-              </div>
-            ) : <div className="h-0" />
+          Footer: () => null
         }}
+        style={{ 
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
+          WebkitUserSelect: 'none',
+          userSelect: 'none'
+        }}
+        className="focus:outline-none focus-visible:outline-none"
+        computeItemKey={(_, item) => item.guid}
       />
+      
+      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+        {hasMore && isLoading && (
+          <NoFocusWrapper className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </NoFocusWrapper>
+        )}
+        {!hasMore && entries.length > 0 && <div></div>}
+      </div>
+      
       {selectedCommentEntry && (
         <CommentSectionClient
           entryGuid={selectedCommentEntry.entryGuid}
@@ -320,6 +428,26 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
     return () => {
       isMountedRef.current = false;
     };
+  }, []);
+
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
   }, []);
 
   const timestamp = useMemo(() => {
@@ -378,11 +506,13 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
   // Handle card click for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     playTrack(entry.link, entry.title, entry.image || undefined);
   }, [entry.link, entry.title, entry.image, playTrack]);
   
   // Memoize the comment handler
-  const handleCommentClick = useCallback(() => {
+  const handleCommentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     onOpenCommentDrawer(entry.guid, entry.feed_url || '', interactions.comments);
   }, [entry.guid, entry.feed_url, interactions.comments, onOpenCommentDrawer]);
 
@@ -400,24 +530,38 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
   }, [entry.post_media_type, entry.mediaType]);
 
   return (
-    <article>
+    <article
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }}
+      className="outline-none focus:outline-none focus-visible:outline-none"
+      tabIndex={-1}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+    >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {(entry.post_featured_img || entry.image) && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
-              <AspectRatio ratio={1}>
-                <Image
-                  src={entry.post_featured_img || entry.image || ''}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                  priority={false}
-                />
-              </AspectRatio>
-            </Link>
+            <NoFocusLinkWrapper
+              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+              onClick={handleLinkInteraction}
+              onTouchStart={handleLinkInteraction}
+            >
+              <Link href={postUrl}>
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={entry.post_featured_img || entry.image || ''}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </Link>
+            </NoFocusLinkWrapper>
           )}
           
           {/* Title and Timestamp */}
@@ -426,12 +570,18 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               {(entry.post_title || entry.title) && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
-                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                      <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                        {entry.post_title || entry.title}
-                        {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                      </h3>
-                    </Link>
+                    <NoFocusLinkWrapper
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={handleLinkInteraction}
+                      onTouchStart={handleLinkInteraction}
+                    >
+                      <Link href={postUrl}>
+                        <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                          {entry.post_title || entry.title}
+                          {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                        </h3>
+                      </Link>
+                    </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entry.post_title || entry.title}
@@ -460,9 +610,13 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
         {/* Content */}
         {isPodcast ? (
           <div>
-            <div 
-              onClick={handleCardClick}
+            <NoFocusWrapper
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
@@ -490,47 +644,55 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
                   )}
                 </CardContent>
               </Card>
-            </div>
+            </NoFocusWrapper>
           </div>
         ) : (
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entry.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entry.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                <h3 className="text-base font-bold capitalize leading-[1.5]">
-                  {entry.title}
-                </h3>
-                {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                    {entry.description}
-                  </p>
+            <a
+              href={entry.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
                 )}
-              </CardContent>
-            </Card>
-          </a>
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {entry.title}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {entry.description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
 
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]">
-          <div>
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
@@ -539,16 +701,19 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               link={entry.link}
               initialData={interactions.likes}
             />
-          </div>
-          <div onClick={handleCommentClick}>
+          </NoFocusWrapper>
+          <NoFocusWrapper 
+            className="flex items-center"
+            onClick={handleCommentClick}
+          >
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
               initialData={interactions.comments}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
@@ -557,20 +722,24 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               link={entry.link}
               initialData={interactions.retweets}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feed_url || ''}
-              title={entry.title}
-              pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={{ isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entry.link}
-              title={entry.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entry.guid}
+                feedUrl={entry.feed_url || ''}
+                title={entry.title}
+                pubDate={entry.pub_date}
+                link={entry.link}
+                initialData={{ isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entry.link}
+                title={entry.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>

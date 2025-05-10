@@ -20,6 +20,29 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { ErrorBoundary } from "react-error-boundary";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+
+// Add a consistent logging utility
+const logger = {
+  debug: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📋 ${message}`, data !== undefined ? data : '');
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  warn: (message: string, data?: unknown) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    }
+  },
+  error: (message: string, error?: unknown) => {
+    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  }
+};
 
 // Types for activity items
 type ActivityItem = {
@@ -250,11 +273,15 @@ EntryCardContent.displayName = 'EntryCardContent';
 const EntryLink = memo(({ 
   entryDetails, 
   children,
-  className
+  className,
+  onClick,
+  onTouchStart
 }: { 
   entryDetails: RSSEntry; 
   children: React.ReactNode;
   className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  onTouchStart?: (e: React.TouchEvent) => void;
 }) => {
   const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
   const isNewsletter = mediaType === 'newsletter';
@@ -278,6 +305,8 @@ const EntryLink = memo(({
       className={className}
       target={isInternalContent ? "_self" : "_blank"}
       rel={isInternalContent ? "" : "noopener noreferrer"}
+      onClick={onClick}
+      onTouchStart={onTouchStart}
     >
       {children}
     </Link>
@@ -296,13 +325,14 @@ const InteractionButtons = memo(({
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   // Handle opening comment drawer
-  const handleOpenDrawer = useCallback(() => {
+  const handleOpenDrawer = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     onOpenCommentDrawer(entryDetails.guid, entryDetails.feed_url || '', interactions.comments);
   }, [entryDetails.guid, entryDetails.feed_url, interactions.comments, onOpenCommentDrawer]);
   
   return (
-    <div className="flex justify-between items-center mt-4 h-[16px]">
-      <div>
+    <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+      <NoFocusWrapper className="flex items-center">
         <LikeButtonClient
           entryGuid={entryDetails.guid}
           feedUrl={entryDetails.feed_url || ''}
@@ -311,16 +341,19 @@ const InteractionButtons = memo(({
           link={entryDetails.link}
           initialData={interactions.likes}
         />
-      </div>
-      <div onClick={handleOpenDrawer}>
+      </NoFocusWrapper>
+      <NoFocusWrapper 
+        className="flex items-center"
+        onClick={handleOpenDrawer}
+      >
         <CommentSectionClient
           entryGuid={entryDetails.guid}
           feedUrl={entryDetails.feed_url || ''}
           initialData={interactions.comments}
           buttonOnly={true}
         />
-      </div>
-      <div>
+      </NoFocusWrapper>
+      <NoFocusWrapper className="flex items-center">
         <RetweetButtonClientWithErrorBoundary
           entryGuid={entryDetails.guid}
           feedUrl={entryDetails.feed_url || ''}
@@ -329,20 +362,24 @@ const InteractionButtons = memo(({
           link={entryDetails.link}
           initialData={interactions.retweets}
         />
-      </div>
+      </NoFocusWrapper>
       <div className="flex items-center gap-4">
-        <BookmarkButtonClient
-          entryGuid={entryDetails.guid}
-          feedUrl={entryDetails.feed_url || ''}
-          title={entryDetails.title}
-          pubDate={entryDetails.pub_date}
-          link={entryDetails.link}
-          initialData={{ isBookmarked: false }}
-        />
-        <ShareButtonClient
-          url={entryDetails.link}
-          title={entryDetails.title}
-        />
+        <NoFocusWrapper className="flex items-center">
+          <BookmarkButtonClient
+            entryGuid={entryDetails.guid}
+            feedUrl={entryDetails.feed_url || ''}
+            title={entryDetails.title}
+            pubDate={entryDetails.pub_date}
+            link={entryDetails.link}
+            initialData={{ isBookmarked: false }}
+          />
+        </NoFocusWrapper>
+        <NoFocusWrapper className="flex items-center">
+          <ShareButtonClient
+            url={entryDetails.link}
+            title={entryDetails.title}
+          />
+        </NoFocusWrapper>
       </div>
     </div>
   );
@@ -353,11 +390,13 @@ InteractionButtons.displayName = 'InteractionButtons';
 const EntryCardHeader = memo(({ 
   activity, 
   entryDetails,
-  timestamp
+  timestamp,
+  handleLinkInteraction
 }: { 
   activity: ActivityItem; 
   entryDetails: RSSEntry;
   timestamp: string;
+  handleLinkInteraction: (e: React.MouseEvent | React.TouchEvent) => void;
 }) => {
   const displayTitle = useMemo(() => (
     entryDetails.post_title || entryDetails.feed_title || entryDetails.title
@@ -369,36 +408,46 @@ const EntryCardHeader = memo(({
     <div className="flex items-center gap-4 mb-4">
       {/* Featured Image */}
       {(entryDetails.post_featured_img || entryDetails.image) && (
-        <EntryLink 
-          entryDetails={entryDetails}
+        <NoFocusLinkWrapper 
           className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+          onClick={handleLinkInteraction}
+          onTouchStart={handleLinkInteraction}
         >
-          <AspectRatio ratio={1}>
-            <Image
-              src={entryDetails.post_featured_img || entryDetails.image || ''}
-              alt=""
-              fill
-              className="object-cover"
-              sizes="48px"
-              priority={false}
-            />
-          </AspectRatio>
-        </EntryLink>
+          <EntryLink 
+            entryDetails={entryDetails}
+          >
+            <AspectRatio ratio={1}>
+              <Image
+                src={entryDetails.post_featured_img || entryDetails.image || ''}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="48px"
+                priority={false}
+              />
+            </AspectRatio>
+          </EntryLink>
+        </NoFocusLinkWrapper>
       )}
       
       {/* Title and Timestamp */}
       <div className="flex-grow">
         <div className="w-full">
           <div className="flex items-start justify-between gap-2">
-            <EntryLink 
-              entryDetails={entryDetails}
+            <NoFocusLinkWrapper 
               className="hover:opacity-80 transition-opacity"
+              onClick={handleLinkInteraction}
+              onTouchStart={handleLinkInteraction}
             >
-              <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
-                {displayTitle}
-                {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-              </h3>
-            </EntryLink>
+              <EntryLink 
+                entryDetails={entryDetails}
+              >
+                <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                  {displayTitle}
+                  {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                </h3>
+              </EntryLink>
+            </NoFocusLinkWrapper>
             <span 
               className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
               title={entryDetails.pub_date ? 
@@ -431,6 +480,26 @@ const ActivityCard = memo(({
 }) => {
   const { playTrack, currentTrack } = useAudio();
   
+  // Helper function to prevent scroll jumping on link interaction
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
+  
   // Always call all hooks at the top level
   // Get interactions for this entry - move outside of conditional
   const interactions = useMemo(() => 
@@ -456,6 +525,7 @@ const ActivityCard = memo(({
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (isPodcast && entryDetails) {
       e.preventDefault();
+      e.stopPropagation();
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
     }
   }, [isPodcast, entryDetails, playTrack]);
@@ -463,44 +533,37 @@ const ActivityCard = memo(({
   // Check if this podcast is currently playing - move outside of conditional
   const isCurrentlyPlaying = isPodcast && entryDetails && currentTrack?.src === entryDetails.link;
   
-  // Add handler to prevent focus when clicking non-interactive elements
-  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName !== 'BUTTON' && 
-      target.tagName !== 'A' && 
-      target.tagName !== 'INPUT' && 
-      !target.closest('button') && 
-      !target.closest('a') && 
-      !target.closest('input')
-    ) {
-      e.preventDefault();
-    }
-  }, []);
-  
   // Skip rendering if no entry details
   if (!entryDetails) return null;
   
   return (
     <article 
-      className="" 
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }} 
+      className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      onMouseDown={handleNonInteractiveMouseDown}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="p-4">
         <EntryCardHeader 
           activity={activity} 
           entryDetails={entryDetails} 
           timestamp={timestamp} 
+          handleLinkInteraction={handleLinkInteraction}
         />
 
         {/* Entry Content Card */}
         {isPodcast ? (
           <div>
-            <div 
-              onClick={handleCardClick}
+            <NoFocusWrapper 
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entryDetails.image && (
@@ -519,33 +582,41 @@ const ActivityCard = memo(({
                 )}
                 <EntryCardContent entry={entryDetails} />
               </Card>
-            </div>
+            </NoFocusWrapper>
           </div>
         ) : (
-          <a
-            href={entryDetails.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entryDetails.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entryDetails.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <EntryCardContent entry={entryDetails} />
-            </Card>
-          </a>
+            <a
+              href={entryDetails.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entryDetails.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entryDetails.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
+                )}
+                <EntryCardContent entry={entryDetails} />
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
 
         {/* Interaction Buttons */}
@@ -604,6 +675,9 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
   );
   const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Track skip with a ref to avoid closure problems
+  const currentSkipRef = useRef<number>(initialData?.activities.length || 0);
   const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
   
   // Track if this is the initial load
@@ -628,79 +702,9 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
     };
   }, []);
 
-  // Add a global mousedown handler to prevent focus on non-interactive elements
-  useEffect(() => {
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('[data-virtuoso-scroller="true"]');
-      if (!isInFeed) return;
-      
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-  
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(true, '.user-likes-feed-container');
+
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid), 
@@ -737,80 +741,82 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
     setEntryDetails(initialData.entryDetails || {});
     setHasMore(initialData.hasMore);
     setCurrentSkip(initialData.activities.length);
+    currentSkipRef.current = initialData.activities.length;
     setIsInitialLoad(false);
   }, [initialData]);
 
   // Create the API URL for loading more items
   const apiUrl = useMemo(() => 
-    `/api/likes?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`,
-    [userId, currentSkip, pageSize]
+    `/api/likes?userId=${userId}&skip=${currentSkipRef.current}&limit=${pageSize}`,
+    [userId, pageSize]
   );
 
   // Function to load more activities
   const loadMoreActivities = useCallback(async () => {
-    if (!isMountedRef.current || isLoading || !hasMore) return;
+    if (!isMountedRef.current || isLoading || !hasMore) {
+      logger.debug(`⛔ Not loading more likes: isLoading=${isLoading}, hasMore=${hasMore}`);
+      return;
+    }
 
     setIsLoading(true);
     
     try {
+      // Get current skip value from ref to ensure it's up-to-date
+      const skipValue = currentSkipRef.current;
+      logger.debug(`🔄 Fetching more likes, skip=${skipValue}, limit=${pageSize}`);
+      
       // Use the API route to fetch the next page
-      const result = await fetch(apiUrl);
+      const result = await fetch(`/api/likes?userId=${userId}&skip=${skipValue}&limit=${pageSize}`);
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
       }
       
       const data = await result.json();
+      logger.debug(`📦 Received likes data:`, {
+        activitiesCount: data.activities?.length || 0,
+        hasMore: data.hasMore
+      });
       
       // Check if component is still mounted before updating state
       if (!isMountedRef.current) return;
       
       if (!data.activities?.length) {
+        logger.debug('⚠️ No likes returned from API');
         setHasMore(false);
         setIsLoading(false);
         return;
       }
       
+      // Update both the ref and the state for the new skip value
+      const newSkip = skipValue + data.activities.length;
+      currentSkipRef.current = newSkip;
+      setCurrentSkip(newSkip);
+      logger.debug(`⬆️ Updated skip from ${skipValue} to ${newSkip}`);
+      
       setActivities(prev => [...prev, ...data.activities]);
       setEntryDetails(prev => ({...prev, ...data.entryDetails}));
-      setCurrentSkip(prev => prev + data.activities.length);
       setHasMore(data.hasMore);
+      
+      logger.debug(`✅ Total likes now: ${activities.length + data.activities.length}`);
     } catch (error) {
-      console.error('❌ Error loading more likes:', error);
+      logger.error('❌ Error loading more likes:', error);
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
-  }, [isLoading, hasMore, apiUrl]);
+  }, [isLoading, hasMore, userId, pageSize, activities.length]);
   
-  // Setup intersection observer for load more detection
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMoreActivities();
-          }, 100);
-        }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, isLoading, loadMoreActivities]);
+  // Use the shared hook for delayed intersection observer
+  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
+    enabled: hasMore && !isLoading,
+    isLoading,
+    hasMore,
+    rootMargin: '800px', // Increased from 300px to 800px in the shared utility
+    threshold: 0.1,
+    delay: 3000 // 3 second delay to prevent initial page load triggering
+  });
 
   // Check if we need to load more when the component is mounted
   useEffect(() => {
@@ -822,25 +828,29 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
       
       // If the document is shorter than the viewport, load more
       if (documentHeight <= viewportHeight && activities.length > 0) {
+        logger.debug('📏 Content is shorter than viewport, loading more likes automatically');
         loadMoreActivities();
       }
     };
     
-    // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 1000);
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
     
     return () => clearTimeout(timer);
   }, [activities.length, hasMore, isLoading, loadMoreActivities]);
 
-  // Memoize the item renderer function
-  const renderItem = useCallback((index: number, activity: ActivityItem) => (
-    <ActivityCard 
-      activity={activity} 
-      entryDetails={entryDetails[activity.entryGuid]}
-      getEntryMetrics={getEntryMetrics}
-      onOpenCommentDrawer={handleOpenCommentDrawer}
-    />
-  ), [entryDetails, getEntryMetrics, handleOpenCommentDrawer]);
+  // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
+  const itemContentCallback = useCallback((index: number, activity: ActivityItem) => {
+    // Get the details for this activity
+    return (
+      <ActivityCard 
+        activity={activity} 
+        entryDetails={entryDetails[activity.entryGuid]}
+        getEntryMetrics={getEntryMetrics}
+        onOpenCommentDrawer={handleOpenCommentDrawer}
+      />
+    );
+  }, [entryDetails, getEntryMetrics, handleOpenCommentDrawer]);
 
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
@@ -853,12 +863,20 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
   }
 
   return (
-    <div className="w-full">
+    <div 
+      className="w-full user-likes-feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       <Virtuoso
         useWindowScroll
         data={activities}
-        overscan={20}
-        itemContent={renderItem}
+        overscan={2000}
+        itemContent={itemContentCallback}
         components={{
           Footer: () => null
         }}

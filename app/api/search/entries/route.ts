@@ -7,7 +7,7 @@ import { Doc } from "@/convex/_generated/dataModel";
 // Use Edge runtime for this API route
 export const runtime = 'edge';
 
-const ENTRIES_PER_PAGE = 10;
+const DEFAULT_ENTRIES_PER_PAGE = 30; // Changed from 10 to 30 to match other feed components
 
 // Define the type for RSS entry rows
 interface RSSEntryRow {
@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('query');
     const mediaType = searchParams.get('mediaType');
     const page = parseInt(searchParams.get('page') || '1');
+    // Get pageSize from query params and parse as integer, default to DEFAULT_ENTRIES_PER_PAGE
+    const pageSize = parseInt(searchParams.get('pageSize') || String(DEFAULT_ENTRIES_PER_PAGE));
 
     if (!query || !mediaType) {
       return NextResponse.json(
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate offset for pagination
-    const offset = (page - 1) * ENTRIES_PER_PAGE;
+    const offset = (page - 1) * pageSize;
 
     // Get the entries with feed data from PlanetScale using read replica
     const entries = await executeRead(
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
         mediaType,
         `%${query}%`,
         `%${query}%`,
-        ENTRIES_PER_PAGE + 1, // Get one extra to check if there are more
+        pageSize + 1, // Get one extra to check if there are more
         offset,
       ]
     );
@@ -73,10 +75,10 @@ export async function GET(request: NextRequest) {
     );
 
     // Check if there are more entries
-    const hasMore = entryRows.length > ENTRIES_PER_PAGE;
+    const hasMore = entryRows.length > pageSize;
 
     // Map post metadata to entries
-    const entriesWithMetadata = entryRows.slice(0, ENTRIES_PER_PAGE).map(entry => {
+    const entriesWithMetadata = entryRows.slice(0, pageSize).map(entry => {
       const postMetadata = postMetadataMap.get(entry.feed_title);
       
       return {

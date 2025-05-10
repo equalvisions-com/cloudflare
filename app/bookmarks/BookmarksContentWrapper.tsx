@@ -93,11 +93,9 @@ export function BookmarksContentWrapper() {
 
   // Only render BookmarksFeed when we have a userId
   return (
-    <div className="sm:pb-[128px] md:pb-0">
       <SkeletonWrappedBookmarksFeed 
         userId={userId}
         initialData={initialData} 
       />
-    </div>
   );
 } 

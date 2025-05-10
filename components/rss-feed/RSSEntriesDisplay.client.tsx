@@ -23,6 +23,8 @@ import { api } from "@/convex/_generated/api";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import useSWR from 'swr';
 import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
+import { NoFocusWrapper } from "@/utils/NoFocusButton";
+import { NoFocusLinkWrapper, NoFocusAnchor } from "@/utils/NoFocusLink";
 
 // Add a consistent logging utility
 const logger = {
@@ -82,6 +84,27 @@ interface RSSEntryProps {
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
+  // Helper function to prevent scroll jumping on link interaction
+  // This works by preventing the default focus behavior that causes scrolling
+  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
+    const target = e.currentTarget as HTMLElement;
+    
+    // Use a one-time event listener that removes itself after execution
+    target.addEventListener('focusin', (focusEvent) => {
+      focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
+          activeElement.blur();
+        }, 0);
+      }
+    }, { once: true });
+  }, []);
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
@@ -166,27 +189,36 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   return (
     <article 
-      onClick={(e) => e.stopPropagation()} 
+      onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
+        e.stopPropagation();
+      }} 
       className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
           {safePostMetadata.featuredImg && postUrl && (
-            <Link href={postUrl} className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity">
-              <AspectRatio ratio={1}>
-                <Image
-                  src={safePostMetadata.featuredImg}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                  priority={false}
-                />
-              </AspectRatio>
-            </Link>
+            <NoFocusLinkWrapper className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+              onClick={handleLinkInteraction}
+              onTouchStart={handleLinkInteraction}
+            >
+              <Link href={postUrl}>
+                <AspectRatio ratio={1}>
+                  <Image
+                    src={safePostMetadata.featuredImg}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                    priority={false}
+                  />
+                </AspectRatio>
+              </Link>
+            </NoFocusLinkWrapper>
           )}
           
           {/* Title and Timestamp */}
@@ -195,12 +227,18 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               {safePostMetadata.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
-                    <Link href={postUrl} className="hover:opacity-80 transition-opacity">
-                      <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                        {safePostMetadata.title}
-                        {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                      </h3>
-                    </Link>
+                    <NoFocusLinkWrapper 
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={handleLinkInteraction}
+                      onTouchStart={handleLinkInteraction}
+                    >
+                      <Link href={postUrl}>
+                        <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                          {safePostMetadata.title}
+                          {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                        </h3>
+                      </Link>
+                    </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {safePostMetadata.title}
@@ -230,7 +268,11 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
         {safePostMetadata.mediaType === 'podcast' ? (
           <div>
             <div 
-              onClick={handleCardClick}
+              onClick={(e) => {
+                handleLinkInteraction(e);
+                handleCardClick(e);
+              }}
+              onTouchStart={handleLinkInteraction}
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
@@ -262,45 +304,52 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             </div>
           </div>
         ) : (
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLinkInteraction(e);
+            }}
+            onTouchStart={handleLinkInteraction}
           >
-            <Card className="rounded-xl border overflow-hidden shadow-none">
-              {entry.image && (
-                <CardHeader className="p-0">
-                  <AspectRatio ratio={2/1}>
-                    <Image
-                      src={entry.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 516px) 100vw, 516px"
-                      priority={false}
-                    />
-                  </AspectRatio>
-                </CardHeader>
-              )}
-              <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                <h3 className="text-base font-bold capitalize leading-[1.5]">
-                  {decode(entry.title)}
-                </h3>
-                {entry.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                    {decode(entry.description)}
-                  </p>
+            <a
+              href={entry.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="rounded-xl border overflow-hidden shadow-none">
+                {entry.image && (
+                  <CardHeader className="p-0">
+                    <AspectRatio ratio={2/1}>
+                      <Image
+                        src={entry.image}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 516px) 100vw, 516px"
+                        priority={false}
+                      />
+                    </AspectRatio>
+                  </CardHeader>
                 )}
-              </CardContent>
-            </Card>
-          </a>
+                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                  <h3 className="text-base font-bold capitalize leading-[1.5]">
+                    {decode(entry.title)}
+                  </h3>
+                  {entry.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                      {decode(entry.description)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </a>
+          </NoFocusLinkWrapper>
         )}
         
         {/* Horizontal Interaction Buttons */}
         <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
-          <div>
+          <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -309,19 +358,22 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               link={entry.link}
               initialData={initialData.likes}
             />
-          </div>
-          <div onClick={(e) => {
-            e.stopPropagation();
-            onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
-          }}>
+          </NoFocusWrapper>
+          <NoFocusWrapper 
+            className="flex items-center" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
+            }}
+          >
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
               initialData={initialData.comments}
               buttonOnly={true}
             />
-          </div>
-          <div>
+          </NoFocusWrapper>
+          <NoFocusWrapper className="flex items-center">
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
@@ -330,20 +382,24 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               link={entry.link}
               initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
             />
-          </div>
+          </NoFocusWrapper>
           <div className="flex items-center gap-4">
-            <BookmarkButtonClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feedUrl}
-              title={entry.title}
-              pubDate={entry.pubDate}
-              link={entry.link}
-              initialData={initialData.bookmarks || { isBookmarked: false }}
-            />
-            <ShareButtonClient
-              url={entry.link}
-              title={entry.title}
-            />
+            <NoFocusWrapper className="flex items-center">
+              <BookmarkButtonClient
+                entryGuid={entry.guid}
+                feedUrl={entry.feedUrl}
+                title={entry.title}
+                pubDate={entry.pubDate}
+                link={entry.link}
+                initialData={initialData.bookmarks || { isBookmarked: false }}
+              />
+            </NoFocusWrapper>
+            <NoFocusWrapper className="flex items-center">
+              <ShareButtonClient
+                url={entry.link}
+                title={entry.title}
+              />
+            </NoFocusWrapper>
           </div>
         </div>
       </div>
@@ -446,6 +502,9 @@ function EntriesContentComponent({
   // Create a stable ref for entriesData to avoid unnecessary virtuoso recreations
   const entriesDataRef = useRef(paginatedEntries);
   
+  // Add a ref for the Virtuoso component to control scrolling
+  const virtuosoRef = useRef<any>(null);
+  
   // Only update the ref when entries actually change (not on every render)
   useEffect(() => {
     entriesDataRef.current = paginatedEntries;
@@ -533,8 +592,8 @@ function EntriesContentComponent({
   useEffect(() => {
     if (!loadMoreRef.current) return;
     
-    // Add a significant delay before setting up the intersection observer
-    // This prevents the initial load from triggering pagination
+    // Wait 3 seconds before establishing the observer
+    // This prevents any initial load from triggering
     const timer = setTimeout(() => {
       // Store the reference to the DOM element to ensure it exists when observer runs
       const loadMoreElement = loadMoreRef.current;
@@ -552,7 +611,7 @@ function EntriesContentComponent({
           }
         },
         { 
-          rootMargin: '200px',
+          rootMargin: '300px',
           threshold: 0.1
         }
       );
@@ -592,6 +651,7 @@ function EntriesContentComponent({
     // When entries are available, render Virtuoso
     return (
       <Virtuoso
+        ref={virtuosoRef}
         useWindowScroll
         data={paginatedEntries}
         computeItemKey={(_, item) => item.entry.guid}
@@ -612,7 +672,7 @@ function EntriesContentComponent({
   // ⚠️ IMPORTANT: Use minimal dependencies to prevent recreation
   // DO NOT include paginatedEntries in the dependency array - Virtuoso handles data updates internally
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentCallback, isInitializing]);
+  }, [itemContentCallback, isInitializing, virtuosoRef]);
 
   // Check if this is truly empty (not just initial loading)
   if (paginatedEntries.length === 0 && !isInitializing) {
@@ -625,7 +685,15 @@ function EntriesContentComponent({
 
   // Render the memoized Virtuoso component and load more indicator
   return (
-    <div className="space-y-0">
+    <div 
+      className="space-y-0 rss-feed-container" 
+      style={{ 
+        // CSS properties to prevent focus scrolling
+        scrollBehavior: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        WebkitTapHighlightColor: 'transparent'
+      }}
+    >
       {virtuosoComponent}
       
       {/* Fixed position load more container at bottom */}
@@ -779,17 +847,10 @@ const RSSEntriesClientComponent = ({
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Don't interfere with interactive elements
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // This is crucial - prevent default focus behavior
+      // If the target is inside our feed container, prevent focus behavior
+      const isInFeed = target.closest('.rss-feed-container');
+      if (isInFeed) {
+        // Prevent default focus behavior
         e.preventDefault();
         e.stopPropagation();
         
@@ -808,19 +869,9 @@ const RSSEntriesClientComponent = ({
       const isInFeed = target.closest('.rss-feed-container');
       if (!isInFeed) return;
       
-      const isInteractive = 
-        target.tagName === 'BUTTON' || 
-        target.tagName === 'A' || 
-        target.tagName === 'INPUT' ||
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('input');
-      
-      if (!isInteractive) {
-        // Prevent focus and clear active element
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
+      // For any element in the feed, clear focus after click completes
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
       }
     };
     
