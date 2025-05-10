@@ -1,5 +1,6 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 import { Metadata } from "next";
+import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
@@ -12,5 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <LayoutManager />;
+  return (
+    <ScrollResetter>
+      <LayoutManager />
+    </ScrollResetter>
+  );
 }

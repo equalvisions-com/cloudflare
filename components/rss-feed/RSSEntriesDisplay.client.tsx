@@ -418,6 +418,7 @@ interface EntriesContentProps {
   };
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
+  pageSize: number;
 }
 
 // Define the component function first
@@ -431,7 +432,8 @@ function EntriesContentComponent({
   postMetadata,
   initialData,
   onOpenCommentDrawer,
-  isInitializing = false
+  isInitializing = false,
+  pageSize
 }: EntriesContentProps) {
   // Debug logging for pagination
   useEffect(() => {
@@ -511,10 +513,7 @@ function EntriesContentComponent({
     if (hasMore && !isPending && !endReachedCalledRef.current) {
       logger.debug('📜 Virtuoso reached end of list, loading more entries');
       endReachedCalledRef.current = true;
-      // Small delay to prevent multiple calls
-      setTimeout(() => {
-        loadMore();
-      }, 100);
+      loadMore();
     } else if (endReachedCalledRef.current) {
       logger.debug('📜 Virtuoso endReached already called, waiting for completion');
     } else {
@@ -537,12 +536,10 @@ function EntriesContentComponent({
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current && paginatedEntries.length >= pageSize) {
           logger.debug('📜 Load more element visible, triggering load');
           endReachedCalledRef.current = true;
-          setTimeout(() => {
-            loadMore();
-          }, 100);
+          loadMore();
         }
       },
       { 
@@ -556,7 +553,7 @@ function EntriesContentComponent({
     return () => {
       observer.disconnect();
     };
-  }, [loadMoreRef, hasMore, isPending, loadMore]);
+  }, [loadMoreRef, hasMore, isPending, loadMore, paginatedEntries.length, pageSize]);
   
   // Store a reference to the first instance - will only log on initial creation
   const hasLoggedInitialCreateRef = useRef(false);
@@ -1514,6 +1511,7 @@ const RSSEntriesClientComponent = ({
         }}
         onOpenCommentDrawer={handleOpenCommentDrawer}
         isInitializing={!hasInitializedRef.current || allEntriesState.length === 0}
+        pageSize={ITEMS_PER_REQUEST}
       />
       
       {/* Comment drawer */}
