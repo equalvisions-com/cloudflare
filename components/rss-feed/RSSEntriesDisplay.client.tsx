@@ -533,27 +533,42 @@ function EntriesContentComponent({
   useEffect(() => {
     if (!loadMoreRef.current) return;
     
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current && paginatedEntries.length >= pageSize) {
-          logger.debug('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          loadMore();
+    // Add a significant delay before setting up the intersection observer
+    // This prevents the initial load from triggering pagination
+    const timer = setTimeout(() => {
+      // Store the reference to the DOM element to ensure it exists when observer runs
+      const loadMoreElement = loadMoreRef.current;
+      
+      // Skip if element no longer exists
+      if (!loadMoreElement) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+            logger.debug('📜 Load more element visible, triggering load');
+            endReachedCalledRef.current = true;
+            loadMore();
+          }
+        },
+        { 
+          rootMargin: '200px',
+          threshold: 0.1
         }
-      },
-      { 
-        rootMargin: '50px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
+      );
+      
+      // Safe to observe now that we've checked it exists
+      observer.observe(loadMoreElement);
+      
+      return () => {
+        observer.disconnect();
+      };
+    }, 3000); // 3 second delay to prevent initial page load triggering
     
     return () => {
-      observer.disconnect();
+      clearTimeout(timer);
     };
-  }, [loadMoreRef, hasMore, isPending, loadMore, paginatedEntries.length, pageSize]);
+  }, [loadMoreRef, hasMore, isPending, loadMore]);
   
   // Store a reference to the first instance - will only log on initial creation
   const hasLoggedInitialCreateRef = useRef(false);
@@ -595,7 +610,8 @@ function EntriesContentComponent({
       />
     );
   // ⚠️ IMPORTANT: Use minimal dependencies to prevent recreation
-  // DO NOT include paginatedEntries in the dependency array
+  // DO NOT include paginatedEntries in the dependency array - Virtuoso handles data updates internally
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemContentCallback, isInitializing]);
 
   // Check if this is truly empty (not just initial loading)

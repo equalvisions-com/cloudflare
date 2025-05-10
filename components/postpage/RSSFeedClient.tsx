@@ -376,6 +376,7 @@ interface FeedContentProps {
   mediaType?: string;
   verified?: boolean;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  isInitialRender: boolean;
 }
 
 // Custom equality function for FeedContent
@@ -391,7 +392,8 @@ const areFeedContentPropsEqual = (prevProps: FeedContentProps, nextProps: FeedCo
       prevProps.featuredImg !== nextProps.featuredImg ||
       prevProps.postTitle !== nextProps.postTitle ||
       prevProps.mediaType !== nextProps.mediaType ||
-      prevProps.verified !== nextProps.verified) {
+      prevProps.verified !== nextProps.verified ||
+      prevProps.isInitialRender !== nextProps.isInitialRender) {
     return false;
   }
   
@@ -437,7 +439,8 @@ const FeedContent = React.memo(function FeedContent({
   postTitle,
   mediaType,
   verified,
-  onOpenCommentDrawer
+  onOpenCommentDrawer,
+  isInitialRender
 }: FeedContentProps) {
   // Add ref to prevent multiple endReached calls
   const endReachedCalledRef = useRef(false);
@@ -447,31 +450,44 @@ const FeedContent = React.memo(function FeedContent({
     endReachedCalledRef.current = false;
   }, [entries.length]);
   
-  // Setup intersection observer for load more detection
+  // Setup intersection observer for load more detection with a significant delay
   useEffect(() => {
     if (!loadMoreRef.current) return;
     
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
-          console.log('📜 Load more element visible, triggering load');
-          endReachedCalledRef.current = true;
-          setTimeout(() => {
+    // Wait 3 seconds before establishing the observer
+    // This prevents any initial load from triggering
+    const timer = setTimeout(() => {
+      // Store the reference to the DOM element to ensure it exists when observer runs
+      const loadMoreElement = loadMoreRef.current;
+      
+      // Skip if element no longer exists
+      if (!loadMoreElement) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+            console.log('📜 Load more element visible, triggering load');
+            endReachedCalledRef.current = true;
             loadMore();
-          }, 100);
+          }
+        },
+        { 
+          rootMargin: '200px',
+          threshold: 0.1
         }
-      },
-      { 
-        rootMargin: '200px',
-        threshold: 0.1
-      }
-    );
-    
-    observer.observe(loadMoreRef.current);
+      );
+      
+      // Safe to observe now that we've checked it exists
+      observer.observe(loadMoreElement);
+      
+      return () => {
+        observer.disconnect();
+      };
+    }, 3000); // 3 second delay to prevent initial page load triggering
     
     return () => {
-      observer.disconnect();
+      clearTimeout(timer);
     };
   }, [loadMoreRef, hasMore, isPending, loadMore]);
   
@@ -505,7 +521,7 @@ const FeedContent = React.memo(function FeedContent({
             computeItemKey={(_, item) => item.entry.guid}
           />
           
-          {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+          {/* Restore original height but keep the delay fix */}
           <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
             {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
             {!hasMore && entries.length > 0 && <div></div>}
@@ -547,6 +563,8 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
+  // Add a state variable to track initial render
+  const [isInitialRender, setIsInitialRender] = useState(true);
   
   // --- Drawer state for comments ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -834,14 +852,28 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     hasMoreState,
     isLoading,
     allEntriesCount: allEntriesState.length,
-    loadMoreEntries
-  }), [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries]);
+    loadMoreEntries,
+    isInitialRender
+  }), [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries, isInitialRender]);
   
   // Memoize the content height check function with stable dependencies
   const checkContentHeight = useCallback(() => {
-    const { hasMoreState, isLoading, allEntriesCount, loadMoreEntries } = heightCheckDeps;
+    const { hasMoreState, isLoading, allEntriesCount, loadMoreEntries, isInitialRender } = heightCheckDeps;
     
     if (!loadMoreRef.current || !hasMoreState || isLoading) return;
+    
+    // Skip auto-loading on initial render to prevent layout shift
+    if (isInitialRender) {
+      console.log('📏 Skipping auto-load on initial render to prevent layout shift');
+      setIsInitialRender(false);
+      return;
+    }
+    
+    // Only proceed with auto-loading if we have at least page size of entries already viewed
+    if (allEntriesCount < ITEMS_PER_REQUEST) {
+      console.log(`📏 Not enough entries viewed yet (${allEntriesCount}/${ITEMS_PER_REQUEST}), skipping auto-load`);
+      return;
+    }
     
     const viewportHeight = window.innerHeight;
     const documentHeight = document.documentElement.scrollHeight;
@@ -895,6 +927,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         mediaType={mediaType}
         verified={verified}
         onOpenCommentDrawer={handleOpenCommentDrawer}
+        isInitialRender={isInitialRender}
       />
       {/* Single global comment drawer */}
       {selectedCommentEntry && (
