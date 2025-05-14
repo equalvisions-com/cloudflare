@@ -734,7 +734,7 @@ const SwipeableTabsComponent = ({
       // Re-initialize Embla with its current options and plugins
       emblaApi.reInit(carouselOptions, emblaPlugins);
       
-      // measureSlideHeights(); // Tentatively commented out, AutoHeight should handle this.
+      measureSlideHeights(); // Re-enable this call
     });
   });
 

@@ -167,6 +167,7 @@ export function FeedTabsContainer({
     discover: false,
     following: false,
   });
+  const [bfcacheTrigger, setBfcacheTrigger] = useState(0); // New state for bfcache trigger
 
   // Runs whenever the whole page was revived from BF-cache
   useBFCacheRestore(() => {
@@ -175,6 +176,7 @@ export function FeedTabsContainer({
     refreshNeeded.current.following = false;
     refreshNeeded.current.discover = true;
     refreshNeeded.current.following = true;
+    setBfcacheTrigger(prev => prev + 1); // Update state to trigger effect
   });
 
   // Get user data from context
@@ -334,7 +336,8 @@ export function FeedTabsContainer({
       rssData=${Boolean(rssData)},
       isLoading=${isLoading}, 
       featuredLoading=${featuredLoading},
-      refreshNeeded=${JSON.stringify(refreshNeeded.current)}`);
+      refreshNeeded=${JSON.stringify(refreshNeeded.current)},
+      bfcacheTrigger=${bfcacheTrigger}`); // Added logging for bfcacheTrigger
     
     // Fetch data for the active tab only if we don't have it already OR if bfcache restore requires it
     const fetchDataForActiveTab = async () => {
@@ -375,8 +378,7 @@ export function FeedTabsContainer({
         abortControllerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabIndex]);
+  }, [activeTabIndex, isAuthenticated, featuredData, rssData, isLoading, featuredLoading, fetchFeaturedData, fetchRSSData, router, bfcacheTrigger]); // Added bfcacheTrigger and other likely dependencies
   
   // Memoize the tabs configuration
   const tabs = useMemo(() => [
