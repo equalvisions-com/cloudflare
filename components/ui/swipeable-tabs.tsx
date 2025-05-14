@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height'; // Re-add AutoHeight
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
-import { useBFCacheRestore } from '@/lib/useBFCacheRestore'; // Moved import to top
 
 interface SwipeableTabsProps {
   tabs: {
@@ -128,39 +127,6 @@ const SwipeableTabsComponent = ({
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const tabHeightsRef = useRef<Record<number, number>>({});
   
-  // session-storage keys
-  const KEY_TAB   = 'feed.activeTab';
-  const KEY_SCROLL= 'feed.scroll.';
-
-  // restore on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = Number(sessionStorage.getItem(KEY_TAB));
-      if (!Number.isNaN(saved)) setSelectedTab(saved);
-    }
-  }, []);
-
-  // store whenever it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(KEY_TAB, String(selectedTab));
-    }
-  }, [selectedTab]);
-
-  // wrap your existing scroll save / restore:
-  const saveScroll = (idx:number) => {
-    if (typeof window !== 'undefined') {
-      scrollPositionsRef.current[idx] = window.scrollY;
-      sessionStorage.setItem(KEY_SCROLL + idx, String(window.scrollY));
-    }
-  };
-  const loadScroll = (idx:number) => {
-    if (typeof window !== 'undefined') {
-      return Number(sessionStorage.getItem(KEY_SCROLL + idx)) || 0;
-    }
-    return 0;
-  }
-  
   // Set up the mounted ref
   useEffect(() => {
     // Set mounted flag to true
@@ -212,14 +178,6 @@ const SwipeableTabsComponent = ({
     ]
   );
   
-  // Memoize the plugins array as well, similar to carouselOptions
-  const emblaPlugins = useMemo(() => {
-    return [
-      AutoHeight(),
-      ...(isMobile ? [WheelGesturesPlugin()] : [])
-    ];
-  }, [isMobile]);
-  
   // Memoized function to measure slide heights
   const measureSlideHeights = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -261,7 +219,7 @@ const SwipeableTabsComponent = ({
     isRestoringScrollRef.current = true;
     
     // Get saved position (default to 0 if not set)
-    const savedPosition = loadScroll(index);
+    const savedPosition = scrollPositionsRef.current[index] ?? 0;
     
     // Always use requestAnimationFrame for smoothness
     requestAnimationFrame(() => {
@@ -274,7 +232,7 @@ const SwipeableTabsComponent = ({
         isRestoringScrollRef.current = false;
       }, 100);
     });
-  }, [loadScroll]);
+  }, []);
   
   // Handle tab click
   const handleTabClick = useCallback(
@@ -284,7 +242,7 @@ const SwipeableTabsComponent = ({
       if (!emblaApi || index === selectedTab) return;
 
       // Save current scroll position before jumping
-      saveScroll(selectedTab);
+      scrollPositionsRef.current[selectedTab] = window.scrollY;
 
       // Signal that the next 'select' event is from an instant jump
       isInstantJumpRef.current = true; 
@@ -292,7 +250,7 @@ const SwipeableTabsComponent = ({
       // Jump instantly
       emblaApi.scrollTo(index, true);
     },
-    [emblaApi, selectedTab, saveScroll]
+    [emblaApi, selectedTab]
   );
   
   // Handlers for transition state
@@ -313,12 +271,9 @@ const SwipeableTabsComponent = ({
   
   // Interaction state handlers
   const handlePointerDown = useCallback(() => {
-    console.log(`Embla event: pointerDown. Current selectedTab: ${selectedTab}, isInteracting will become true.`);
-    tabs.forEach((tab, idx) => {
-        console.log(`Slide ${idx} (${tab.id}): isActive for this slide = ${idx === selectedTab}`);
-    });
+    if (!isMountedRef.current) return;
     setIsInteracting(true);
-  }, [selectedTab, tabs]);
+  }, []);
   
   const handleSettle = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -499,7 +454,7 @@ const SwipeableTabsComponent = ({
     const handleScroll = () => {
       // Only save scroll position if we're not in the middle of restoring
       if (!isRestoringScrollRef.current) {
-        saveScroll(selectedTab);
+        scrollPositionsRef.current[selectedTab] = window.scrollY;
       }
     };
 
@@ -571,6 +526,40 @@ const SwipeableTabsComponent = ({
     };
   }, [emblaApi, preventWheelNavigation]);
 
+  // Bfcache restoration logic
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && emblaApi && isMountedRef.current) {
+        // Page is restored from bfcache
+        console.log('Page restored from bfcache. Re-initializing Embla Carousel.');
+
+        // 1. Re-initialize Embla
+        emblaApi.reInit();
+
+        // 2. After reInit, Embla should have updated its internal state.
+        // Re-sync React state with Embla's state.
+        const currentIndex = emblaApi.selectedScrollSnap();
+        if (selectedTab !== currentIndex) {
+          setSelectedTab(currentIndex); 
+        }
+
+        // 3. Re-apply scroll position for the current tab
+        restoreScrollPosition(currentIndex);
+
+        // 4. Re-measure slide heights for AutoHeight plugin
+        measureSlideHeights();
+
+        // 5. Re-enable observer
+        enableObserver();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [emblaApi, selectedTab, setSelectedTab, restoreScrollPosition, measureSlideHeights, enableObserver, isMountedRef]);
+  
   // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
     if (!emblaApi || typeof window === 'undefined' || !isMountedRef.current) return;
@@ -655,49 +644,43 @@ const SwipeableTabsComponent = ({
     if (!emblaApi || !isMountedRef.current) return;
     
     const onSelect = () => {
-      if (!isMountedRef.current || !emblaApi) return;
-      console.log('Embla event: select'); // Logging for select event
+      if (!isMountedRef.current) return;
       
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
+        // For non-instant jumps (swipes), save the scroll position
         if (!isInstantJumpRef.current && !isRestoringScrollRef.current) {
-          console.log(`onSelect: Saving scroll for previous tab ${selectedTab}`);
-          saveScroll(selectedTab);
+          scrollPositionsRef.current[selectedTab] = window.scrollY;
         }
-        console.log(`onSelect: Restoring scroll for new tab ${index}`);
-        restoreScrollPosition(index);
+
+        // Call restoreScrollPosition - it runs async via requestAnimationFrame
+        restoreScrollPosition(index); 
+
+        // Reset instant jump flag after restoration starts
         if (isInstantJumpRef.current) {
           isInstantJumpRef.current = false;
         }
+        
+        // Update state
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
       }
     };
-
-    const logPointerDown = () => console.log('Embla event: pointerDown');
-    const logSettle = () => console.log('Embla event: settle');
     
     emblaApi.on('select', onSelect);
-    emblaApi.on('pointerDown', logPointerDown);
-    emblaApi.on('settle', logSettle);
     
     return () => {
       emblaApi.off('select', onSelect);
-      emblaApi.off('pointerDown', logPointerDown);
-      emblaApi.off('settle', logSettle);
     };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, carouselOptions, emblaPlugins, isMountedRef, isInstantJumpRef, isRestoringScrollRef, saveScroll]); // Added missing refs and saveScroll
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
-    if (!isMountedRef.current || typeof window === 'undefined') return;
+    if (!isMountedRef.current) return;
     
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
-    if (typeof window !== 'undefined') {
-        sessionStorage.setItem(KEY_SCROLL + defaultTabIndex, '0'); // Also save initial scroll to session storage
-    }
   }, [defaultTabIndex]);
 
   // Add effect to track interaction state, linked to animation completion
@@ -725,28 +708,6 @@ const SwipeableTabsComponent = ({
       emblaApi.off('select', handleTransitionStart);
     };
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
-
-  useBFCacheRestore(() => {
-    console.log('BFCacheRestore triggered in SwipeableTabs', new Date().toISOString());
-    requestAnimationFrame(() => {
-      if (!isMountedRef.current || !emblaApi) {
-        console.log('BFCacheRestore rAF: bail, no mount or no emblaApi');
-        return;
-      }
-      console.log('BFCacheRestore rAF: Re-initializing Embla');
-      if (typeof window !== 'undefined') {
-        const currentTabForScrollSync = emblaApi.selectedScrollSnap();
-        console.log(`BFCacheRestore rAF: Syncing scroll for tab ${currentTabForScrollSync} to ${window.scrollY}`);
-        scrollPositionsRef.current[currentTabForScrollSync] = window.scrollY;
-        saveScroll(currentTabForScrollSync);
-      }
-      emblaApi.reInit(carouselOptions, emblaPlugins);
-      console.log('BFCacheRestore rAF: Embla re-initialized');
-      if (emblaApi) {
-        console.log('BFCacheRestore rAF: Embla scrollSnaps:', emblaApi.scrollSnapList().length, 'Slide nodes:', emblaApi.slideNodes().length);
-      }
-    });
-  });
 
   return (
     <div 
@@ -799,15 +760,7 @@ const SwipeableTabsComponent = ({
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Hide inactive tabs instantly during interaction
-                  opacity: (() => {
-                    const op = !isActive && isInteracting ? 0 : 1;
-                    if (isInteracting && op === 0) { 
-                        console.log(`SLIDE ${index} (${tab.id}): OPACITY CALC (HIDING): isActive=${isActive}, isInteracting=${isInteracting}, calculatedOpacity=${op}`);
-                    } else if (index === selectedTab && isInteracting) { 
-                         console.log(`SLIDE ${index} (${tab.id}) (ACTIVE): OPACITY CALC (SHOWING): isActive=${isActive}, isInteracting=${isInteracting}, calculatedOpacity=${op}`);
-                    }
-                    return op;
-                  })(),
+                  opacity: !isActive && isInteracting ? 0 : 1,
                   transition: 'opacity 0s',
                   // Make slide content interactive even on desktop
                   pointerEvents: isActive ? 'auto' : 'none',

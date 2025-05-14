@@ -21,7 +21,6 @@ import { useAudio } from '@/components/audio-player/AudioContext';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
-import { useBFCacheRestore } from '@/lib/useBFCacheRestore';
 
 // Add a consistent logging utility
 const logger = {
@@ -557,7 +556,6 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const virtuosoRef = useRef<any>(null);
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -660,15 +658,6 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
     setCurrentPage(1);
     // Could trigger a data refetch here if needed
   }, []);
-
-  useBFCacheRestore(() => {
-    requestAnimationFrame(() => {
-      if (!isMountedRef.current) return; // Check mount status inside rAF
-      if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
-        virtuosoRef.current.refresh();
-      }
-    });
-  });
 
   return (
     <div className="w-full feed-container">

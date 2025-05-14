@@ -26,7 +26,6 @@ import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
 import { NoFocusWrapper } from "@/utils/NoFocusButton";
 import { NoFocusLinkWrapper, NoFocusAnchor } from "@/utils/NoFocusLink";
 import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
-import { useBFCacheRestore } from '@/lib/useBFCacheRestore';
 
 // Add a consistent logging utility
 const logger = {
@@ -506,17 +505,6 @@ function EntriesContentComponent({
   
   // Add a ref for the Virtuoso component to control scrolling
   const virtuosoRef = useRef<any>(null);
-  
-  const isMountedRef = useRef(true);
-  
-  useBFCacheRestore(() => {
-    requestAnimationFrame(() => {
-      if (!isMountedRef.current) return;
-      if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
-        virtuosoRef.current.refresh();
-      }
-    });
-  });
   
   // Only update the ref when entries actually change (not on every render)
   useEffect(() => {
