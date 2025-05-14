@@ -526,40 +526,6 @@ const SwipeableTabsComponent = ({
     };
   }, [emblaApi, preventWheelNavigation]);
 
-  // Bfcache restoration logic
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted && emblaApi && isMountedRef.current) {
-        // Page is restored from bfcache
-        console.log('Page restored from bfcache. Re-initializing Embla Carousel.');
-
-        // 1. Re-initialize Embla
-        emblaApi.reInit();
-
-        // 2. After reInit, Embla should have updated its internal state.
-        // Re-sync React state with Embla's state.
-        const currentIndex = emblaApi.selectedScrollSnap();
-        if (selectedTab !== currentIndex) {
-          setSelectedTab(currentIndex); 
-        }
-
-        // 3. Re-apply scroll position for the current tab
-        restoreScrollPosition(currentIndex);
-
-        // 4. Re-measure slide heights for AutoHeight plugin
-        measureSlideHeights();
-
-        // 5. Re-enable observer
-        enableObserver();
-      }
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => {
-      window.removeEventListener('pageshow', handlePageShow);
-    };
-  }, [emblaApi, selectedTab, setSelectedTab, restoreScrollPosition, measureSlideHeights, enableObserver, isMountedRef]);
-  
   // --- Effect to SETUP the ResizeObserver ---
   useEffect(() => {
     if (!emblaApi || typeof window === 'undefined' || !isMountedRef.current) return;

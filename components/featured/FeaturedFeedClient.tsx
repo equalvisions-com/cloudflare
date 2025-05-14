@@ -203,7 +203,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <Link href={postUrl}>
+              <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
                 <AspectRatio ratio={1}>
                   <Image
                     src={postMetadata.featuredImg}
@@ -214,7 +214,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                     priority={isPriority}
                   />
                 </AspectRatio>
-              </Link>
+              </a>
             </NoFocusLinkWrapper>
           )}
           
