@@ -188,13 +188,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  const handleInternalLinkNavigation = useCallback((e: React.MouseEvent<HTMLAnchorElement>, url: string | null) => {
-    e.preventDefault();
-    if (url) {
-      window.open(url, '_self'); // No 'noopener' feature string, should make current page bfcache-ineligible
-    }
-  }, []);
-
   return (
     <article 
       onClick={(e) => {
@@ -214,7 +207,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+              <Link href={postUrl}>
                 <AspectRatio ratio={1}>
                   <Image
                     src={safePostMetadata.featuredImg}
@@ -225,7 +218,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                     priority={false}
                   />
                 </AspectRatio>
-              </a>
+              </Link>
             </NoFocusLinkWrapper>
           )}
           
@@ -240,12 +233,12 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
                     >
-                      <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+                      <Link href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {safePostMetadata.title}
                           {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
-                      </a>
+                      </Link>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
@@ -323,7 +316,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             <a
               href={entry.link}
               target="_blank"
-              // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
+              rel="noopener noreferrer"
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
                 {entry.image && (
