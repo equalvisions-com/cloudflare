@@ -18,6 +18,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   label: string;
+  prefetch?: boolean;
 }
 
 interface MobileDockProps {
@@ -28,7 +29,7 @@ interface MobileDockProps {
 const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) => (
   <Link 
     href={item.href}
-    prefetch={true}
+    prefetch={item.prefetch === false ? false : true}
     className={cn(
       "flex flex-col items-center justify-center px-2 pb-2 relative",
       "transition-colors duration-200 ease-in-out h-12 w-12",
@@ -84,7 +85,7 @@ const MobileDockComponent = ({ className }: MobileDockProps) => {
     // Add profile link based on authentication status
     items.push(
       isAuthenticated 
-        ? { href: `/@${username}`, icon: User, label: "Profile" }
+        ? { href: `/@${username}`, icon: User, label: "Profile", prefetch: false }
         : { href: "/signin", icon: User, label: "Sign In" }
     );
     
