@@ -598,25 +598,41 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = tr
         logger.debug('FeaturedFeed: Tab transitioning from inactive to active, refreshing Virtuoso');
       }
       
-      // Perform an immediate minimal refresh
+      // ULTRA AGGRESSIVE: Force multiple refreshes at different intervals
+      // First immediate refresh attempt
       if (virtuosoRef.current?.refresh) {
         virtuosoRef.current.refresh();
       }
       
-      // Then do a more thorough refresh after a delay to ensure DOM is fully ready
+      // Second refresh after minimal delay
       setTimeout(() => {
         if (!isMountedRef.current) return;
         
         // Refresh Virtuoso again to recalculate item heights
         if (virtuosoRef.current?.refresh) {
           virtuosoRef.current.refresh();
-          logger.debug('FeaturedFeed: Virtuoso refreshed after delay');
+          logger.debug('FeaturedFeed: Virtuoso refreshed after short delay');
         }
         
         // Force window resize event to help all components adjust
         const resizeEvent = new Event('resize');
         window.dispatchEvent(resizeEvent);
-      }, 100);
+      }, 50);
+      
+      // Third refresh after longer delay
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        
+        // Final refresh attempt when everything should be ready
+        if (virtuosoRef.current?.refresh) {
+          virtuosoRef.current.refresh();
+          logger.debug('FeaturedFeed: Virtuoso refreshed after long delay');
+        }
+        
+        // Force another window resize event
+        const resizeEvent = new Event('resize');
+        window.dispatchEvent(resizeEvent);
+      }, 200);
     }
     
     // Update previous active state

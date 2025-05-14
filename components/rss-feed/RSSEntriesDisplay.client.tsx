@@ -529,18 +529,45 @@ function EntriesContentComponent({
         logger.debug('EntriesContent: Tab transitioning from inactive to active, refreshing Virtuoso');
       }
       
-      // Perform an immediate minimal refresh
+      // First immediate refresh attempt
       if (virtuosoRef.current?.refresh) {
         virtuosoRef.current.refresh();
       }
       
-      // Then do a more thorough refresh after a delay to ensure DOM is fully ready
+      // ULTRA AGGRESSIVE: Schedule multiple refreshes at different intervals
+      // Second refresh at 50ms
       setTimeout(() => {
         if (virtuosoRef.current?.refresh) {
           virtuosoRef.current.refresh();
-          logger.debug('EntriesContent: Virtuoso refreshed after delay');
+          logger.debug('EntriesContent: Virtuoso refreshed after short delay');
         }
-      }, 100);
+        
+        // Also try to trigger layout recalculation
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+      
+      // Third refresh at 200ms
+      setTimeout(() => {
+        if (virtuosoRef.current?.refresh) {
+          virtuosoRef.current.refresh();
+          logger.debug('EntriesContent: Virtuoso refreshed after medium delay');
+        }
+        
+        // Also try to scroll to top to ensure content is visible
+        window.scrollTo(0, window.scrollY + 1);
+        setTimeout(() => window.scrollTo(0, window.scrollY - 1), 5);
+      }, 200);
+      
+      // Final refresh at 500ms when everything should be stable
+      setTimeout(() => {
+        if (virtuosoRef.current?.refresh) {
+          virtuosoRef.current.refresh();
+          logger.debug('EntriesContent: Virtuoso refreshed after long delay');
+        }
+        
+        // Forcibly redraw by triggering window resize and scroll events
+        window.dispatchEvent(new Event('resize'));
+      }, 500);
     }
     
     // Update previous active state

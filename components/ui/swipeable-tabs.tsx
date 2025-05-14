@@ -190,15 +190,131 @@ const SwipeableTabsComponent = ({
       // Store current position
       const currentIndex = emblaApi.selectedScrollSnap();
       
-      // Re-initialize
-      emblaApi.reInit();
-      
-      // Return to the correct position
-      emblaApi.scrollTo(currentIndex, true);
-      
       console.debug(`SwipeableTabs: Embla reinitialized due to emblaKey change (${emblaKey})`);
+      
+      // CRITICAL: Complete low-level reinitialization to ensure drag handlers work
+      setTimeout(() => {
+        if (!emblaApi || !isMountedRef.current) return;
+        
+        // Get the container and viewport nodes
+        const containerNode = emblaApi.containerNode();
+        const viewportNode = emblaApi.rootNode();
+        
+        if (!containerNode || !viewportNode) return;
+        
+        // Force release any existing pointers and reset internal state
+        try {
+          // @ts-ignore - Access internal engine to force reset
+          const engine = emblaApi.internalEngine();
+          if (engine?.dragHandler?.pointerDown) {
+            // @ts-ignore - Force the internal pointer tracker to reset
+            engine.dragHandler.pointerDown = () => false;
+          }
+        } catch (e) {
+          // Ignore errors accessing internal API
+        }
+        
+        // Re-initialize
+        emblaApi.reInit();
+        
+        // Return to the correct position
+        emblaApi.scrollTo(currentIndex, true);
+      }, 10);
     }
   }, [emblaApi, emblaKey]);
+  
+  // CRITICAL: Add an effect to handle tab switches
+  // This is separate from the pageshow/pagehide BF cache handlers
+  useEffect(() => {
+    if (!emblaApi || !isMountedRef.current) return;
+    
+    console.debug(`SwipeableTabs: Tab changed to ${selectedTab}, forcing embla refresh`);
+    
+    // Force a new key on tab change to completely rebuild Embla
+    setEmblaKey(prev => prev + 1);
+    
+    // Also explicitly rebuild drag handlers
+    setTimeout(() => {
+      if (!emblaApi || !isMountedRef.current) return;
+      
+      // Aggressive reinitialization
+      emblaApi.reInit();
+      
+      // Force a scroll to the current tab
+      emblaApi.scrollTo(selectedTab, false);
+      
+      // Force a layout recalculation
+      document.body.offsetHeight;
+      
+      console.debug(`SwipeableTabs: Tab ${selectedTab} scroll enforced`);
+    }, 50);
+  }, [emblaApi, selectedTab]);
+  
+  // ULTRA AGGRESSIVE: Add direct DOM event listeners to ensure gesture recognition
+  useEffect(() => {
+    if (!emblaApi || !isMountedRef.current) return;
+    
+    const viewportNode = emblaApi.rootNode();
+    if (!viewportNode) return;
+    
+    // Track touch start position for manual gesture detection
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isManuallyDragging = false;
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      if (!emblaApi || !isMountedRef.current) return;
+      
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      isManuallyDragging = false;
+      
+      // Force reinitialization on every touch
+      setTimeout(() => {
+        if (!emblaApi || !isMountedRef.current) return;
+        emblaApi.reInit();
+      }, 0);
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!emblaApi || !isMountedRef.current || !e.touches.length) return;
+      
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      
+      // If horizontal swipe detected and Embla isn't handling it,
+      // we might need to force a rebuild
+      if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY) && !isManuallyDragging) {
+        isManuallyDragging = true;
+        
+        // Check if internal drag handler is working
+        try {
+          // @ts-ignore - Access internal state to check if drag is working
+          const engine = emblaApi.internalEngine();
+          const isDragging = engine?.dragHandler?.pointerDown?.();
+          
+          if (!isDragging) {
+            console.debug('SwipeableTabs: Detected swipe not handled by Embla, forcing rebuild');
+            setEmblaKey(prev => prev + 1);
+          }
+        } catch (e) {
+          // Fallback to always rebuilding if we can't check internal state
+          setEmblaKey(prev => prev + 1);
+        }
+      }
+    };
+    
+    // Add touch handlers
+    viewportNode.addEventListener('touchstart', handleTouchStart, { passive: true });
+    viewportNode.addEventListener('touchmove', handleTouchMove, { passive: true });
+    
+    return () => {
+      viewportNode.removeEventListener('touchstart', handleTouchStart);
+      viewportNode.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [emblaApi]);
   
   // Memoized function to measure slide heights
   const measureSlideHeights = useCallback(() => {
