@@ -28,6 +28,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   badgeContent?: number | string;
+  prefetch?: boolean;
 }
 
 /**
@@ -43,7 +44,7 @@ export function SidebarWithErrorBoundary() {
 
 // Memoized NavLink component to prevent unnecessary re-renders
 const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) => (
-  <Link href={item.href} className="w-full" prefetch={true}>
+  <Link href={item.href} className="w-full" prefetch={item.prefetch === false ? false : true}>
     <Button
       variant="ghost"
       className={`w-full justify-start gap-2 px-3 py-1 rounded-lg flex items-center ${
@@ -161,6 +162,7 @@ const SidebarComponent = () => {
             href: userProfileRoute,
             label: "Profile",
             icon: <User className="h-5 w-5 shrink-0" strokeWidth={isRouteActive(userProfileRoute) ? 3 : 2.5} />,
+            prefetch: false
           }
         : {
             href: "/signin",
@@ -182,7 +184,7 @@ const SidebarComponent = () => {
               <NavLink 
                 key={item.href} 
                 item={item} 
-                isActive={isRouteActive(item.href)} 
+                isActive={isRouteActive(item.href)}
               />
             ))}
           </div>
