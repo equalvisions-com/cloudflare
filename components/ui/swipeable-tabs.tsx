@@ -132,9 +132,6 @@ const SwipeableTabsComponent = ({
   const KEY_TAB   = 'feed.activeTab';
   const KEY_SCROLL= 'feed.scroll.';
 
-  // Add a new ref to track if bfcache restore just happened
-  const justRestoredFromBFCache = useRef(false);
-
   // restore on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -277,7 +274,7 @@ const SwipeableTabsComponent = ({
         isRestoringScrollRef.current = false;
       }, 100);
     });
-  }, []);
+  }, [loadScroll]);
   
   // Handle tab click
   const handleTabClick = useCallback(
@@ -295,7 +292,7 @@ const SwipeableTabsComponent = ({
       // Jump instantly
       emblaApi.scrollTo(index, true);
     },
-    [emblaApi, selectedTab]
+    [emblaApi, selectedTab, saveScroll]
   );
   
   // Handlers for transition state
@@ -316,9 +313,12 @@ const SwipeableTabsComponent = ({
   
   // Interaction state handlers
   const handlePointerDown = useCallback(() => {
-    if (!isMountedRef.current) return;
+    console.log(`Embla event: pointerDown. Current selectedTab: ${selectedTab}, isInteracting will become true.`);
+    tabs.forEach((tab, idx) => {
+        console.log(`Slide ${idx} (${tab.id}): isActive for this slide = ${idx === selectedTab}`);
+    });
     setIsInteracting(true);
-  }, []);
+  }, [selectedTab, tabs]);
   
   const handleSettle = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -673,22 +673,6 @@ const SwipeableTabsComponent = ({
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
       }
-
-      // If we just restored from bfcache and this is the first 'select' event after that
-      if (justRestoredFromBFCache.current) {
-        console.log('Embla: First select after BFCache restore. Attempting another reInit.');
-        requestAnimationFrame(() => { 
-            if (!isMountedRef.current || !emblaApi) {
-              console.log('First select rAF: bail, no mount or no emblaApi');
-              return;
-            }
-            console.log('First select rAF: Re-initializing Embla again');
-            emblaApi.reInit(carouselOptions, emblaPlugins);
-            console.log('First select rAF: Embla re-initialized again. Resetting bfcache flag.');
-            // Reset the flag
-            justRestoredFromBFCache.current = false;
-        });
-      }
     };
 
     const logPointerDown = () => console.log('Embla event: pointerDown');
@@ -743,16 +727,13 @@ const SwipeableTabsComponent = ({
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
 
   useBFCacheRestore(() => {
-    console.log('BFCacheRestore triggered in SwipeableTabs');
-    justRestoredFromBFCache.current = true; // Mark that we just restored
-
+    console.log('BFCacheRestore triggered in SwipeableTabs', new Date().toISOString());
     requestAnimationFrame(() => {
       if (!isMountedRef.current || !emblaApi) {
         console.log('BFCacheRestore rAF: bail, no mount or no emblaApi');
         return;
       }
       console.log('BFCacheRestore rAF: Re-initializing Embla');
-
       if (typeof window !== 'undefined') {
         const currentTabForScrollSync = emblaApi.selectedScrollSnap();
         console.log(`BFCacheRestore rAF: Syncing scroll for tab ${currentTabForScrollSync} to ${window.scrollY}`);
@@ -761,7 +742,6 @@ const SwipeableTabsComponent = ({
       }
       emblaApi.reInit(carouselOptions, emblaPlugins);
       console.log('BFCacheRestore rAF: Embla re-initialized');
-      // Log slide details after reInit
       if (emblaApi) {
         console.log('BFCacheRestore rAF: Embla scrollSnaps:', emblaApi.scrollSnapList().length, 'Slide nodes:', emblaApi.slideNodes().length);
       }
@@ -819,7 +799,15 @@ const SwipeableTabsComponent = ({
                   transform: 'translate3d(0,0,0)',
                   WebkitBackfaceVisibility: 'hidden',
                   // Hide inactive tabs instantly during interaction
-                  opacity: !isActive && isInteracting ? 0 : 1,
+                  opacity: (() => {
+                    const op = !isActive && isInteracting ? 0 : 1;
+                    if (isInteracting && op === 0) { 
+                        console.log(`SLIDE ${index} (${tab.id}): OPACITY CALC (HIDING): isActive=${isActive}, isInteracting=${isInteracting}, calculatedOpacity=${op}`);
+                    } else if (index === selectedTab && isInteracting) { 
+                         console.log(`SLIDE ${index} (${tab.id}) (ACTIVE): OPACITY CALC (SHOWING): isActive=${isActive}, isInteracting=${isInteracting}, calculatedOpacity=${op}`);
+                    }
+                    return op;
+                  })(),
                   transition: 'opacity 0s',
                   // Make slide content interactive even on desktop
                   pointerEvents: isActive ? 'auto' : 'none',

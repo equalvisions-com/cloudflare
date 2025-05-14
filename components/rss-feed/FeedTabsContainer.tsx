@@ -162,20 +162,10 @@ export function FeedTabsContainer({
   featuredData: initialFeaturedData, 
   pageSize = 30
 }: FeedTabsContainerProps) {
-  // --- ① BF-cache refresh flags -------------
+  const [bfcacheRestoreSignal, setBFCacheRestoreSignal] = useState(0);
   const refreshNeeded = useRef<{ discover: boolean; following: boolean }>({
     discover: false,
     following: false,
-  });
-
-  // Runs whenever the whole page was revived from BF-cache
-  useBFCacheRestore(() => {
-    // Clear first, then mark dirty
-    refreshNeeded.current.discover = false;
-    refreshNeeded.current.following = false;
-    refreshNeeded.current.discover = true;
-    refreshNeeded.current.following = true;
-    console.log('BFCacheRestore in FeedTabsContainer, flags set:', JSON.stringify(refreshNeeded.current), new Date().toISOString());
   });
 
   // Get user data from context
@@ -203,6 +193,15 @@ export function FeedTabsContainer({
   
   // Track previous authentication state to detect changes
   const prevAuthRef = useRef(isAuthenticated);
+  
+  useBFCacheRestore(() => {
+    refreshNeeded.current.discover = false;
+    refreshNeeded.current.following = false;
+    refreshNeeded.current.discover = true;
+    refreshNeeded.current.following = true;
+    console.log('BFCacheRestore in FeedTabsContainer, flags set:', JSON.stringify(refreshNeeded.current), new Date().toISOString());
+    setBFCacheRestoreSignal(prev => prev + 1);
+  });
   
   // Reset to Discover tab when user signs out
   useEffect(() => {
@@ -233,24 +232,17 @@ export function FeedTabsContainer({
   
   // Function to fetch featured data
   const fetchFeaturedData = useCallback(async () => {
-    // Skip if data is already loaded, loading is in progress, or a fetch has been initiated
-    if (
-      (featuredData !== null && !refreshNeeded.current.discover) ||
-      featuredLoading || featuredFetchInProgress.current
-    ) return;
-    
-    // Set ref to indicate fetch is in progress
+    if (((featuredData !== null && !refreshNeeded.current.discover)) && featuredLoading || featuredFetchInProgress.current) {
+        console.log('Skipping fetchFeaturedData: data exists & no refresh OR already loading/inProgress');
+        return;
+    }
     featuredFetchInProgress.current = true;
     setFeaturedLoading(true);
     setFeaturedError(null);
-    
+    console.log('Fetching featured data...');
     try {
-      console.log('Fetching featured data...');
       const response = await fetch('/api/featured-feed');
-      if (!response.ok) {
-        throw new Error('Failed to fetch featured data');
-      }
-      
+      if (!response.ok) throw new Error('Failed to fetch featured data');
       const data = await response.json();
       setFeaturedData(data);
     } catch (err) {
@@ -258,47 +250,37 @@ export function FeedTabsContainer({
       setFeaturedError('Failed to load featured content. Please try again.');
     } finally {
       setFeaturedLoading(false);
-      // Reset the ref
       featuredFetchInProgress.current = false;
-      refreshNeeded.current.discover = false;   // mark clean
+      if (refreshNeeded.current.discover) {
+          console.log('Clearing refreshNeeded.discover flag after fetchFeaturedData');
+          refreshNeeded.current.discover = false;
+      }
     }
   }, [featuredData, featuredLoading]);
   
   // Function to fetch RSS data
   const fetchRSSData = useCallback(async () => {
-    // Skip if data is already loaded, loading is in progress, or a fetch has been initiated
-    if (
-      (rssData !== null && !refreshNeeded.current.following) ||
-      isLoading || rssFetchInProgress.current
-    ) return;
-    
-    // Check if user is authenticated before fetching RSS data
+    if (((rssData !== null && !refreshNeeded.current.following)) && isLoading || rssFetchInProgress.current) {
+        console.log('Skipping fetchRSSData: data exists & no refresh OR already loading/inProgress');
+        return;
+    }
     if (!isAuthenticated) {
-      console.log('User not authenticated, redirecting to sign-in page');
+      console.log('User not authenticated, cannot fetch RSS data');
       router.push('/signin');
       return;
     }
-    
-    // Create a new AbortController for this request
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    
-    // Set ref to indicate fetch is in progress
     rssFetchInProgress.current = true;
     setIsLoading(true);
     setError(null);
-    
+    console.log('Fetching RSS data...');
     try {
-      console.log('Fetching RSS data...');
       const response = await fetch('/api/rss-feed', { signal });
-      if (!response.ok) {
-        throw new Error('Failed to fetch RSS feed data');
-      }
-      
+      if (!response.ok) throw new Error('Failed to fetch RSS feed data');
       const data = await response.json();
       setRssData(data);
     } catch (err: any) {
-      // Don't set error if it was aborted (user signed out)
       if (err.name !== 'AbortError') {
         console.error('Error fetching RSS data:', err);
         setError('Failed to load RSS feed data. Please try again.');
@@ -306,12 +288,46 @@ export function FeedTabsContainer({
     } finally {
       if (!signal.aborted) {
         setIsLoading(false);
-        // Reset the ref
         rssFetchInProgress.current = false;
-        refreshNeeded.current.following = false;  // mark clean
+        if (refreshNeeded.current.following) {
+            console.log('Clearing refreshNeeded.following flag after fetchRSSData');
+            refreshNeeded.current.following = false;
+        }
       }
     }
   }, [rssData, isLoading, isAuthenticated, router]);
+  
+  // Combined fetchDataForActiveTab logic, called by useEffect hooks
+  const fetchDataForActiveTab = useCallback(async () => {
+    console.log(`Attempting fetchDataForActiveTab: activeTabIndex=${activeTabIndex}, refreshNeeded=${JSON.stringify(refreshNeeded.current)}`);
+    if (activeTabIndex === 0) {
+      await fetchFeaturedData();
+    } else if (activeTabIndex === 1) {
+      await fetchRSSData();
+    }
+  }, [activeTabIndex, fetchFeaturedData, fetchRSSData]);
+
+  // Effect for tab changes OR initial load
+  useEffect(() => {
+    console.log(`Tab Change/Initial Load Effect: activeTabIndex=${activeTabIndex}`);
+    fetchDataForActiveTab();
+    // Cleanup for abort controller if a fetch was initiated by this effect and tab changes before completion
+    return () => {
+      if (abortControllerRef.current) {
+        console.log('Aborting fetch due to tab change/unmount during RSS fetch');
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [activeTabIndex, fetchDataForActiveTab]);
+
+  // Effect specifically for BFCache restore re-fetch, runs AFTER the above if activeTabIndex also changes
+  useEffect(() => {
+    if (bfcacheRestoreSignal > 0) { 
+      console.log(`BFCache Restore Signal Effect: activeTabIndex=${activeTabIndex}, signal=${bfcacheRestoreSignal}`);
+      fetchDataForActiveTab();
+    }
+    // No cleanup here as this is just a signal; actual fetch abortion is handled by the primary effect if tab changes
+  }, [bfcacheRestoreSignal, activeTabIndex, fetchDataForActiveTab]);
   
   // Handle tab change
   const handleTabChange = useCallback((index: number) => {
@@ -319,7 +335,7 @@ export function FeedTabsContainer({
     
     // If switching to the "Following" tab (index 1), check authentication
     if (index === 1 && !isAuthenticated) {
-      console.log('User not authenticated, redirecting to sign-in page');
+      console.log('User not authenticated, redirecting to sign-in page for Following tab');
       router.push('/signin');
       return;
     }
@@ -327,57 +343,6 @@ export function FeedTabsContainer({
     // Only update active tab index if not redirecting
     setActiveTabIndex(index);
   }, [isAuthenticated, router]);
-  
-  // Add a single useEffect to handle data fetching for the active tab
-  useEffect(() => {
-    console.log(`Tab mount/update: activeTabIndex=${activeTabIndex}, 
-      featuredData=${Boolean(featuredData)}, 
-      rssData=${Boolean(rssData)},
-      isLoading=${isLoading}, 
-      featuredLoading=${featuredLoading},
-      refreshNeeded=${JSON.stringify(refreshNeeded.current)}`);
-    
-    // Fetch data for the active tab only if we don't have it already OR if bfcache restore requires it
-    const fetchDataForActiveTab = async () => {
-      if (activeTabIndex === 0) {
-        // Featured tab (Discover)
-        if (((featuredData === null || refreshNeeded.current.discover)) && 
-            !featuredLoading && 
-            !featuredFetchInProgress.current
-        ) {
-          console.log('Fetching featured data for initial tab or BFCache refresh');
-          await fetchFeaturedData();
-        }
-      } else if (activeTabIndex === 1) {
-        // RSS tab (Following) - First check authentication
-        if (!isAuthenticated) {
-          console.log('User not authenticated, redirecting to sign-in page');
-          router.push('/signin');
-          return;
-        }
-        
-        // Only fetch if authenticated AND (data is null OR bfcache restore requires it)
-        if (((rssData === null || refreshNeeded.current.following)) && 
-            !isLoading && 
-            !rssFetchInProgress.current
-        ) {
-          console.log('Fetching RSS data for initial tab or BFCache refresh');
-          await fetchRSSData();
-        }
-      }
-    };
-    
-    fetchDataForActiveTab();
-    
-    // Cleanup function to abort any in-progress fetch when tab changes
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabIndex]);
   
   // Memoize the tabs configuration
   const tabs = useMemo(() => [
