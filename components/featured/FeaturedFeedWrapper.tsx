@@ -39,9 +39,10 @@ interface FeaturedFeedWrapperProps {
     entries: FeaturedEntryWithData[];
     totalEntries: number;
   } | null;
+  isActive?: boolean;
 }
 
-export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
+export function FeaturedFeedWrapper({ initialData, isActive }: FeaturedFeedWrapperProps) {
   if (!initialData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -55,6 +56,7 @@ export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
     <FeaturedFeedClient
       initialData={initialData}
       pageSize={30}
+      isActive={isActive}
     />
   );
 } 

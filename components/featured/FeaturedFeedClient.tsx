@@ -407,7 +407,8 @@ const FeedContent = React.memo(({
   loadMore,
   isLoading,
   onOpenCommentDrawer,
-  onRefresh
+  onRefresh,
+  virtuosoRef
 }: { 
   entries: FeaturedEntryWithData[],
   visibleEntries: FeaturedEntryWithData[],
@@ -416,7 +417,8 @@ const FeedContent = React.memo(({
   loadMore: () => void,
   isLoading: boolean,
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void,
-  onRefresh: () => void
+  onRefresh: () => void,
+  virtuosoRef?: React.MutableRefObject<any>
 }) => {
   // Add ref to prevent multiple endReached calls - MOVED BEFORE CONDITIONAL
   const endReachedCalledRef = useRef(false);
@@ -475,6 +477,7 @@ const FeedContent = React.memo(({
       }}
     >
       <Virtuoso
+        ref={virtuosoRef}
         useWindowScroll
         data={visibleEntries}
         overscan={2000}
@@ -507,6 +510,7 @@ interface FeaturedFeedClientProps {
     totalEntries: number;
   };
   pageSize?: number;
+  isActive?: boolean;
 }
 
 // Refreshable Error UI Component
@@ -552,10 +556,11 @@ export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedCli
 });
 
 // Create the client component that will be memoized
-const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFeedClientProps) => {
+const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedClientProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const virtuosoRef = useRef<any>(null); // Add virtuosoRef for Virtuoso refreshing
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -581,6 +586,69 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
 
   // Use the shared focus prevention hook
   useFeedFocusPrevention(true, '.feed-container');
+
+  // FIX: Refresh Virtuoso when tab becomes active
+  useEffect(() => {
+    if (isActive && virtuosoRef.current && isMountedRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('FeaturedFeed: Tab is active, refreshing Virtuoso');
+      }
+      
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        
+        // Refresh Virtuoso to recalculate item heights
+        if (virtuosoRef.current?.refresh) {
+          virtuosoRef.current.refresh();
+          logger.debug('FeaturedFeed: Virtuoso refreshed');
+        }
+        
+        // Force window resize event to help all components adjust
+        const resizeEvent = new Event('resize');
+        window.dispatchEvent(resizeEvent);
+      }, 100);
+    }
+  }, [isActive]);
+
+  // FIX: Handle browser back-forward cache restoration
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (!isMountedRef.current) return;
+      
+      // e.persisted is true when page is restored from BF cache
+      if (e.persisted) {
+        if (process.env.NODE_ENV !== 'production') {
+          logger.debug('FeaturedFeed: Page restored from BF cache, refreshing Virtuoso');
+        }
+        
+        // Small delay to ensure DOM is ready after BF cache restoration
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          
+          // Refresh Virtuoso component
+          if (virtuosoRef.current?.refresh) {
+            virtuosoRef.current.refresh();
+            logger.debug('FeaturedFeed: Virtuoso refreshed after BF cache restoration');
+          }
+          
+          // Force window resize event to help other components adjust
+          const resizeEvent = new Event('resize');
+          window.dispatchEvent(resizeEvent);
+        }, 100);
+      }
+    };
+    
+    // Add event listener for pageshow
+    window.addEventListener('pageshow', handlePageShow);
+    
+    // Clean up on unmount
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
 
   // Log to confirm we're using prefetched data from LayoutManager
   useEffect(() => {
@@ -670,6 +738,7 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
         isLoading={isLoading}
         onOpenCommentDrawer={handleOpenCommentDrawer}
         onRefresh={handleRefresh}
+        virtuosoRef={virtuosoRef}
       />
       {selectedCommentEntry && (
         <CommentSectionClient
