@@ -175,6 +175,7 @@ export function FeedTabsContainer({
     refreshNeeded.current.following = false;
     refreshNeeded.current.discover = true;
     refreshNeeded.current.following = true;
+    console.log('BFCacheRestore in FeedTabsContainer, flags set:', JSON.stringify(refreshNeeded.current), new Date().toISOString());
   });
 
   // Get user data from context
