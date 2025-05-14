@@ -132,6 +132,9 @@ const SwipeableTabsComponent = ({
   const KEY_TAB   = 'feed.activeTab';
   const KEY_SCROLL= 'feed.scroll.';
 
+  // Add a new ref to track if bfcache restore just happened
+  const justRestoredFromBFCache = useRef(false);
+
   // restore on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -652,36 +655,55 @@ const SwipeableTabsComponent = ({
     if (!emblaApi || !isMountedRef.current) return;
     
     const onSelect = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || !emblaApi) return;
+      console.log('Embla event: select'); // Logging for select event
       
       const index = emblaApi.selectedScrollSnap();
       
       if (selectedTab !== index) {
-        // For non-instant jumps (swipes), save the scroll position
         if (!isInstantJumpRef.current && !isRestoringScrollRef.current) {
+          console.log(`onSelect: Saving scroll for previous tab ${selectedTab}`);
           saveScroll(selectedTab);
         }
-
-        // Call restoreScrollPosition - it runs async via requestAnimationFrame
-        restoreScrollPosition(index); 
-
-        // Reset instant jump flag after restoration starts
+        console.log(`onSelect: Restoring scroll for new tab ${index}`);
+        restoreScrollPosition(index);
         if (isInstantJumpRef.current) {
           isInstantJumpRef.current = false;
         }
-        
-        // Update state
         setSelectedTab(index);
         handleTabChangeWithDebounce(index);
       }
+
+      // If we just restored from bfcache and this is the first 'select' event after that
+      if (justRestoredFromBFCache.current) {
+        console.log('Embla: First select after BFCache restore. Attempting another reInit.');
+        requestAnimationFrame(() => { 
+            if (!isMountedRef.current || !emblaApi) {
+              console.log('First select rAF: bail, no mount or no emblaApi');
+              return;
+            }
+            console.log('First select rAF: Re-initializing Embla again');
+            emblaApi.reInit(carouselOptions, emblaPlugins);
+            console.log('First select rAF: Embla re-initialized again. Resetting bfcache flag.');
+            // Reset the flag
+            justRestoredFromBFCache.current = false;
+        });
+      }
     };
+
+    const logPointerDown = () => console.log('Embla event: pointerDown');
+    const logSettle = () => console.log('Embla event: settle');
     
     emblaApi.on('select', onSelect);
+    emblaApi.on('pointerDown', logPointerDown);
+    emblaApi.on('settle', logSettle);
     
     return () => {
       emblaApi.off('select', onSelect);
+      emblaApi.off('pointerDown', logPointerDown);
+      emblaApi.off('settle', logSettle);
     };
-  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition]);
+  }, [emblaApi, selectedTab, handleTabChangeWithDebounce, restoreScrollPosition, carouselOptions, emblaPlugins, isMountedRef, isInstantJumpRef, isRestoringScrollRef, saveScroll]); // Added missing refs and saveScroll
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
@@ -721,20 +743,28 @@ const SwipeableTabsComponent = ({
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
 
   useBFCacheRestore(() => {
-    requestAnimationFrame(() => { 
-      if (!isMountedRef.current || !emblaApi) return; // Ensure emblaApi exists
-      
-      // Align sessionStorage with the position Safari actually chose
+    console.log('BFCacheRestore triggered in SwipeableTabs');
+    justRestoredFromBFCache.current = true; // Mark that we just restored
+
+    requestAnimationFrame(() => {
+      if (!isMountedRef.current || !emblaApi) {
+        console.log('BFCacheRestore rAF: bail, no mount or no emblaApi');
+        return;
+      }
+      console.log('BFCacheRestore rAF: Re-initializing Embla');
+
       if (typeof window !== 'undefined') {
         const currentTabForScrollSync = emblaApi.selectedScrollSnap();
+        console.log(`BFCacheRestore rAF: Syncing scroll for tab ${currentTabForScrollSync} to ${window.scrollY}`);
         scrollPositionsRef.current[currentTabForScrollSync] = window.scrollY;
-        saveScroll(currentTabForScrollSync); 
+        saveScroll(currentTabForScrollSync);
       }
-
-      // Re-initialize Embla with its current options and plugins
       emblaApi.reInit(carouselOptions, emblaPlugins);
-      
-      measureSlideHeights(); // Re-enable this call
+      console.log('BFCacheRestore rAF: Embla re-initialized');
+      // Log slide details after reInit
+      if (emblaApi) {
+        console.log('BFCacheRestore rAF: Embla scrollSnaps:', emblaApi.scrollSnapList().length, 'Slide nodes:', emblaApi.slideNodes().length);
+      }
     });
   });
 
