@@ -662,9 +662,12 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
   }, []);
 
   useBFCacheRestore(() => {
-    if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
-      virtuosoRef.current.refresh();
-    }
+    requestAnimationFrame(() => {
+      if (!isMountedRef.current) return; // Check mount status inside rAF
+      if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
+        virtuosoRef.current.refresh();
+      }
+    });
   });
 
   return (

@@ -507,10 +507,15 @@ function EntriesContentComponent({
   // Add a ref for the Virtuoso component to control scrolling
   const virtuosoRef = useRef<any>(null);
   
+  const isMountedRef = useRef(true);
+  
   useBFCacheRestore(() => {
-    if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
-      virtuosoRef.current.refresh();
-    }
+    requestAnimationFrame(() => {
+      if (!isMountedRef.current) return;
+      if (virtuosoRef.current && typeof virtuosoRef.current.refresh === 'function') {
+        virtuosoRef.current.refresh();
+      }
+    });
   });
   
   // Only update the ref when entries actually change (not on every render)

@@ -170,6 +170,9 @@ export function FeedTabsContainer({
 
   // Runs whenever the whole page was revived from BF-cache
   useBFCacheRestore(() => {
+    // Clear first, then mark dirty
+    refreshNeeded.current.discover = false;
+    refreshNeeded.current.following = false;
     refreshNeeded.current.discover = true;
     refreshNeeded.current.following = true;
   });

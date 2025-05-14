@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height'; // Re-add AutoHeight
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+import { useBFCacheRestore } from '@/lib/useBFCacheRestore'; // Moved import to top
 
 interface SwipeableTabsProps {
   tabs: {
@@ -711,13 +712,28 @@ const SwipeableTabsComponent = ({
     };
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
 
-  // Add useBFCacheRestore hook here as per bfcache.md Step 4
-  const { useBFCacheRestore } = require('@/lib/useBFCacheRestore'); // Using require for this specific placement
   useBFCacheRestore(() => {
-    if (emblaApi) {
-      emblaApi.reInit();
-    }
-    measureSlideHeights(); // you already have this util
+    requestAnimationFrame(() => { 
+      if (!isMountedRef.current) return;
+      
+      // Align sessionStorage with the position Safari actually chose
+      if (typeof window !== 'undefined') {
+        // It's important that selectedTab reflects the *current* tab accurately here.
+        // Assuming selectedTab state is up-to-date or emblaApi.selectedScrollSnap() gives current one.
+        const currentTabForScrollSync = emblaApi ? emblaApi.selectedScrollSnap() : selectedTab;
+        scrollPositionsRef.current[currentTabForScrollSync] = window.scrollY;
+        saveScroll(currentTabForScrollSync); // This updates sessionStorage
+      }
+
+      if (emblaApi) {
+        const wheelGesturesPlugin = emblaApi.plugins()?.wheelGestures;
+        if (wheelGesturesPlugin && typeof (wheelGesturesPlugin as any).destroy === 'function') {
+          (wheelGesturesPlugin as any).destroy();
+        }
+        emblaApi.reInit();
+      }
+      measureSlideHeights(); 
+    });
   });
 
   return (

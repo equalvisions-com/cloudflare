@@ -10,6 +10,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import dynamic from "next/dynamic";
+import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 // Dynamically import audio components with ssr disabled
 const AudioProvider = dynamic(
@@ -123,16 +124,18 @@ export default function RootLayout({
             <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
               <AudioProvider>
                 <UserData>
-                  <div className="">
-                    <div className="hidden">
-                      <Suspense fallback={null}>
-                        <UserMenuServer />
-                      </Suspense>
+                  <ScrollResetter>
+                    <div className="">
+                      <div className="hidden">
+                        <Suspense fallback={null}>
+                          <UserMenuServer />
+                        </Suspense>
+                      </div>
+                      {children}
                     </div>
-                    {children}
-                  </div>
-                  <PersistentPlayer />
-                  <MobileDock />
+                    <PersistentPlayer />
+                    <MobileDock />
+                  </ScrollResetter>
                 </UserData>
               </AudioProvider>
             </ThemeProvider>
