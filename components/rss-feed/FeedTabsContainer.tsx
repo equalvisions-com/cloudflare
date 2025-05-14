@@ -333,14 +333,18 @@ export function FeedTabsContainer({
       featuredData=${Boolean(featuredData)}, 
       rssData=${Boolean(rssData)},
       isLoading=${isLoading}, 
-      featuredLoading=${featuredLoading}`);
+      featuredLoading=${featuredLoading},
+      refreshNeeded=${JSON.stringify(refreshNeeded.current)}`);
     
-    // Fetch data for the active tab only if we don't have it already
+    // Fetch data for the active tab only if we don't have it already OR if bfcache restore requires it
     const fetchDataForActiveTab = async () => {
       if (activeTabIndex === 0) {
         // Featured tab (Discover)
-        if (featuredData === null && !featuredLoading && !featuredFetchInProgress.current) {
-          console.log('Fetching featured data for initial tab');
+        if (((featuredData === null || refreshNeeded.current.discover)) && 
+            !featuredLoading && 
+            !featuredFetchInProgress.current
+        ) {
+          console.log('Fetching featured data for initial tab or BFCache refresh');
           await fetchFeaturedData();
         }
       } else if (activeTabIndex === 1) {
@@ -351,9 +355,12 @@ export function FeedTabsContainer({
           return;
         }
         
-        // Only fetch if authenticated
-        if (rssData === null && !isLoading && !rssFetchInProgress.current) {
-          console.log('Fetching RSS data for initial tab');
+        // Only fetch if authenticated AND (data is null OR bfcache restore requires it)
+        if (((rssData === null || refreshNeeded.current.following)) && 
+            !isLoading && 
+            !rssFetchInProgress.current
+        ) {
+          console.log('Fetching RSS data for initial tab or BFCache refresh');
           await fetchRSSData();
         }
       }
