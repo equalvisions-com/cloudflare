@@ -212,6 +212,14 @@ const SwipeableTabsComponent = ({
     ]
   );
   
+  // Memoize the plugins array as well, similar to carouselOptions
+  const emblaPlugins = useMemo(() => {
+    return [
+      AutoHeight(),
+      ...(isMobile ? [WheelGesturesPlugin()] : [])
+    ];
+  }, [isMobile]);
+  
   // Memoized function to measure slide heights
   const measureSlideHeights = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -714,25 +722,19 @@ const SwipeableTabsComponent = ({
 
   useBFCacheRestore(() => {
     requestAnimationFrame(() => { 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || !emblaApi) return; // Ensure emblaApi exists
       
       // Align sessionStorage with the position Safari actually chose
       if (typeof window !== 'undefined') {
-        // It's important that selectedTab reflects the *current* tab accurately here.
-        // Assuming selectedTab state is up-to-date or emblaApi.selectedScrollSnap() gives current one.
-        const currentTabForScrollSync = emblaApi ? emblaApi.selectedScrollSnap() : selectedTab;
+        const currentTabForScrollSync = emblaApi.selectedScrollSnap();
         scrollPositionsRef.current[currentTabForScrollSync] = window.scrollY;
-        saveScroll(currentTabForScrollSync); // This updates sessionStorage
+        saveScroll(currentTabForScrollSync); 
       }
 
-      if (emblaApi) {
-        const wheelGesturesPlugin = emblaApi.plugins()?.wheelGestures;
-        if (wheelGesturesPlugin && typeof (wheelGesturesPlugin as any).destroy === 'function') {
-          (wheelGesturesPlugin as any).destroy();
-        }
-        emblaApi.reInit();
-      }
-      measureSlideHeights(); 
+      // Re-initialize Embla with its current options and plugins
+      emblaApi.reInit(carouselOptions, emblaPlugins);
+      
+      // measureSlideHeights(); // Tentatively commented out, AutoHeight should handle this.
     });
   });
 
