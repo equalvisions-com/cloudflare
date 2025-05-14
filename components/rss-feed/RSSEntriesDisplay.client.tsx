@@ -26,6 +26,7 @@ import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
 import { NoFocusWrapper } from "@/utils/NoFocusButton";
 import { NoFocusLinkWrapper, NoFocusAnchor } from "@/utils/NoFocusLink";
 import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
+import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 
 // Add a consistent logging utility
 const logger = {
@@ -188,13 +189,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     }
   }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  const handleInternalLinkNavigation = useCallback((e: React.MouseEvent<HTMLAnchorElement>, url: string | null) => {
-    e.preventDefault();
-    if (url) {
-      window.open(url, '_self'); // No 'noopener' feature string, should make current page bfcache-ineligible
-    }
-  }, []);
-
   return (
     <article 
       onClick={(e) => {
@@ -214,7 +208,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+              <PrefetchAnchor href={postUrl}>
                 <AspectRatio ratio={1}>
                   <Image
                     src={safePostMetadata.featuredImg}
@@ -225,7 +219,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                     priority={false}
                   />
                 </AspectRatio>
-              </a>
+              </PrefetchAnchor>
             </NoFocusLinkWrapper>
           )}
           
@@ -240,12 +234,12 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
                     >
-                      <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+                      <PrefetchAnchor href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {safePostMetadata.title}
                           {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
-                      </a>
+                      </PrefetchAnchor>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">

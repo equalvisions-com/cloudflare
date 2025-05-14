@@ -21,6 +21,7 @@ import { useAudio } from '@/components/audio-player/AudioContext';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 
 // Add a consistent logging utility
 const logger = {
@@ -171,13 +172,6 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
     }
   }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
-  const handleInternalLinkNavigation = useCallback((e: React.MouseEvent<HTMLAnchorElement>, url: string | null) => {
-    e.preventDefault();
-    if (url) {
-      window.open(url, '_self'); // No 'noopener' feature string, should make current page bfcache-ineligible
-    }
-  }, []);
-
   const handleOpenComment = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
@@ -203,7 +197,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+              <PrefetchAnchor href={postUrl}>
                 <AspectRatio ratio={1}>
                   <Image
                     src={postMetadata.featuredImg}
@@ -214,7 +208,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                     priority={isPriority}
                   />
                 </AspectRatio>
-              </a>
+              </PrefetchAnchor>
             </NoFocusLinkWrapper>
           )}
           
@@ -229,12 +223,12 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
                     >
-                      <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
+                      <PrefetchAnchor href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {postMetadata.title}
                           {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
-                      </a>
+                      </PrefetchAnchor>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-sm font-bold text-primary leading-tight">
