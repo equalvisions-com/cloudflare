@@ -66,7 +66,17 @@ export function NoFocusLinkWrapper({
 
 // Setup standard document handlers for focus prevention
 export function useFeedFocusPrevention(isActive = true, containerSelector = '.feed-container') {
+  // Add a ref to track the previous state of isActive to detect changes
+  const isActiveRef = React.useRef(isActive);
+
   React.useEffect(() => {
+    // Log state changes for debugging
+    if (isActiveRef.current !== isActive) {
+      logger.debug(`Focus prevention ${isActive ? 'enabled' : 'disabled'}`);
+      isActiveRef.current = isActive;
+    }
+
+    // Early return if not active - important for cleanup
     if (!isActive) return;
     
     // Define handler for mousedown events - capture in the capture phase before focus can happen
@@ -103,6 +113,10 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     
     // Add passive scroll handler to improve performance
     const handleScroll = () => {
+      // Check if focus prevention is still active before blurring
+      // This helps with race conditions when the drawer opens
+      if (!isActiveRef.current) return;
+
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {
@@ -117,11 +131,12 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     document.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
+      // Always clean up event listeners
       document.removeEventListener('mousedown', handleDocumentMouseDown, true);
       document.removeEventListener('click', handleDocumentClick, true);
       document.removeEventListener('scroll', handleScroll);
     };
-  }, [isActive, containerSelector]);
+  }, [isActive, containerSelector]); // Both dependencies are important
 }
 
 // Setup intersection observer with standard 3-second delay

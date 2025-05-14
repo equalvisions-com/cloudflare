@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo, useLayoutEffect } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height'; // Re-add AutoHeight
@@ -674,6 +674,69 @@ const SwipeableTabsComponent = ({
       emblaApi.off('select', handleTransitionStart);
     };
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
+
+  // FIX 1: Measure all slides immediately after first render using useLayoutEffect
+  // This ensures tabHeightsRef is never empty, even for slides not yet visible
+  useLayoutEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    // Measure all slides synchronously before browser paint
+    slideRefs.current.forEach((slide, idx) => {
+      if (slide && slide.offsetHeight > 0) {
+        tabHeightsRef.current[idx] = slide.offsetHeight;
+      }
+    });
+    
+    // Re-initialize Embla with the correct heights if available
+    if (emblaApi) {
+      emblaApi.reInit();
+    }
+    
+    // Log slide heights for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('SwipeableTabs: Initial slide heights measured', tabHeightsRef.current);
+    }
+  }, [emblaApi]); // Include emblaApi to avoid lint warnings
+  
+  // FIX 2: Handle browser back-forward cache restoration
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (!isMountedRef.current) return;
+      
+      // e.persisted is true when page is restored from BF cache
+      if (e.persisted) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('SwipeableTabs: Page restored from BF cache, re-measuring and re-initializing');
+        }
+        
+        // First re-measure slide heights
+        measureSlideHeights();
+        
+        // Then re-initialize Embla with a small delay to ensure measurements are complete
+        setTimeout(() => {
+          if (!isMountedRef.current || !emblaApi) return;
+          emblaApi.reInit();
+          
+          // Verify height after reInit
+          const currentIndex = emblaApi.selectedScrollSnap();
+          const containerNode = emblaApi.containerNode();
+          if (containerNode && tabHeightsRef.current[currentIndex]) {
+            containerNode.style.minHeight = `${tabHeightsRef.current[currentIndex]}px`;
+          }
+        }, 50);
+      }
+    };
+    
+    // Add event listener for pageshow
+    window.addEventListener('pageshow', handlePageShow);
+    
+    // Clean up on unmount
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [emblaApi, measureSlideHeights]);
 
   return (
     <div 

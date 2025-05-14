@@ -25,6 +25,7 @@ import useSWR from 'swr';
 import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
 import { NoFocusWrapper } from "@/utils/NoFocusButton";
 import { NoFocusLinkWrapper, NoFocusAnchor } from "@/utils/NoFocusLink";
+import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
 
 // Add a consistent logging utility
 const logger = {
@@ -475,6 +476,7 @@ interface EntriesContentProps {
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
   pageSize: number;
+  isActive?: boolean;
 }
 
 // Define the component function first
@@ -489,7 +491,8 @@ function EntriesContentComponent({
   initialData,
   onOpenCommentDrawer,
   isInitializing = false,
-  pageSize
+  pageSize,
+  isActive = true
 }: EntriesContentProps) {
   // Debug logging for pagination
   useEffect(() => {
@@ -514,6 +517,23 @@ function EntriesContentComponent({
   useEffect(() => {
     endReachedCalledRef.current = false;
   }, [paginatedEntries.length]);
+  
+  // FIX 3: Refresh Virtuoso when tab becomes active
+  useEffect(() => {
+    if (isActive && virtuosoRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('EntriesContent: Tab is active, refreshing Virtuoso');
+      }
+      
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (virtuosoRef.current?.refresh) {
+          virtuosoRef.current.refresh();
+          logger.debug('EntriesContent: Virtuoso refreshed');
+        }
+      }, 100);
+    }
+  }, [isActive]);
   
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, item: RSSEntryWithData) => {
@@ -897,6 +917,29 @@ const RSSEntriesClientComponent = ({
     };
   }, [isActive]);
 
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
+
+  // FIX 3: Refresh Virtuoso when tab becomes active
+  // This ensures proper height calculations and rendering when switching tabs
+  useEffect(() => {
+    // When tab becomes active, refresh any visible content
+    if (isActive && isMountedRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('RSS Feed tab became active, refreshing feed');
+      }
+      
+      // Small delay to ensure DOM is fully ready
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        
+        // Force window resize event to help all components adjust
+        const resizeEvent = new Event('resize');
+        window.dispatchEvent(resizeEvent);
+      }, 50);
+    }
+  }, [isActive]);
+  
   // Initialize with initial data only once
   useEffect(() => {
     if (!initialData?.entries?.length || hasInitializedRef.current) return;
@@ -1579,6 +1622,7 @@ const RSSEntriesClientComponent = ({
         onOpenCommentDrawer={handleOpenCommentDrawer}
         isInitializing={!hasInitializedRef.current || allEntriesState.length === 0}
         pageSize={ITEMS_PER_REQUEST}
+        isActive={isActive}
       />
       
       {/* Comment drawer */}

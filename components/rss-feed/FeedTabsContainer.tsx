@@ -11,7 +11,7 @@ import { useSidebar } from '@/components/ui/sidebar-context';
 import { SignInButton } from "@/components/ui/SignInButton";
 import { Loader2 } from 'lucide-react';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 // Define the RSSItem interface based on the database schema
 export interface RSSItem {
@@ -164,6 +164,7 @@ export function FeedTabsContainer({
   // Get user data from context
   const { displayName, isBoarded, profileImage, isAuthenticated, pendingFriendRequestCount } = useSidebar();
   const router = useRouter();
+  const pathname = usePathname();
   
   // State to track loaded data - use initialData directly
   const [rssData, setRssData] = useState(initialData);
@@ -174,8 +175,26 @@ export function FeedTabsContainer({
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredError, setFeaturedError] = useState<string | null>(null);
   
-  // Initialize active tab index to 0 (Discover tab)
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // FIX 4: Restore tab position from sessionStorage on mount
+  // Initialize active tab from sessionStorage, defaulting to Discover tab (0)
+  const [activeTabIndex, setActiveTabIndex] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    
+    try {
+      const savedTab = sessionStorage.getItem('activeTabIndex');
+      if (savedTab) {
+        const tabIndex = parseInt(savedTab, 10);
+        // Valid tab indexes are 0 or 1
+        if (tabIndex === 0 || tabIndex === 1) {
+          return tabIndex;
+        }
+      }
+    } catch (e) {
+      console.error('Error accessing sessionStorage:', e);
+    }
+    
+    return 0; // Default to Discover tab
+  });
   
   // Add refs to track fetch requests in progress
   const featuredFetchInProgress = useRef(false);
@@ -195,6 +214,13 @@ export function FeedTabsContainer({
       
       // Reset to Discover tab
       setActiveTabIndex(0);
+      
+      // Save the reset tab index to sessionStorage
+      try {
+        sessionStorage.setItem('activeTabIndex', '0');
+      } catch (e) {
+        console.error('Error writing to sessionStorage:', e);
+      }
       
       // Abort any in-flight requests
       if (abortControllerRef.current) {
@@ -301,6 +327,13 @@ export function FeedTabsContainer({
     
     // Only update active tab index if not redirecting
     setActiveTabIndex(index);
+    
+    // FIX 4: Save tab position to sessionStorage
+    try {
+      sessionStorage.setItem('activeTabIndex', index.toString());
+    } catch (e) {
+      console.error('Error saving tab index to sessionStorage:', e);
+    }
   }, [isAuthenticated, router]);
   
   // Add a single useEffect to handle data fetching for the active tab
@@ -375,6 +408,7 @@ export function FeedTabsContainer({
         return (
           <SkeletonWrappedFeaturedFeed
             initialData={featuredData as any /* Adjust typing */}
+            isActive={activeTabIndex === 0}
           />
         );
       }
@@ -418,6 +452,7 @@ export function FeedTabsContainer({
           <SkeletonWrappedRSSEntries 
             initialData={rssDataWithFeedUrls as any /* Adjust typing */} 
             pageSize={pageSize} 
+            isActive={activeTabIndex === 1}
           />
         );
       }
@@ -431,7 +466,8 @@ export function FeedTabsContainer({
     fetchRSSData,
     featuredError,
     featuredLoading,
-    fetchFeaturedData
+    fetchFeaturedData,
+    activeTabIndex
   ]);
 
   return (
@@ -457,6 +493,7 @@ export function FeedTabsContainer({
         tabs={tabs} 
         onTabChange={handleTabChange}
         defaultTabIndex={activeTabIndex} 
+        key={pathname}
       />
     </div>
   );
