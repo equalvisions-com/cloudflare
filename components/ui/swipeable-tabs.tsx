@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
 import useEmblaCarousel from 'embla-carousel-react';
 import AutoHeight from 'embla-carousel-auto-height'; // Re-add AutoHeight
@@ -101,9 +101,6 @@ const SwipeableTabsComponent = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Add a state for forcing complete Embla carousel rebuilding
-  const [emblaKey, setEmblaKey] = useState(0);
-  
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
   
@@ -130,8 +127,38 @@ const SwipeableTabsComponent = ({
   const observerRef = useRef<ResizeObserver | null>(null); // Ref to store the observer instance
   const tabHeightsRef = useRef<Record<number, number>>({});
   
-  // Add a flag to track if the page has been restored from BF cache
-  const wasRestoredFromBFCache = useRef(false);
+  // session-storage keys
+  const KEY_TAB   = 'feed.activeTab';
+  const KEY_SCROLL= 'feed.scroll.';
+
+  // restore on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = Number(sessionStorage.getItem(KEY_TAB));
+      if (!Number.isNaN(saved)) setSelectedTab(saved);
+    }
+  }, []);
+
+  // store whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(KEY_TAB, String(selectedTab));
+    }
+  }, [selectedTab]);
+
+  // wrap your existing scroll save / restore:
+  const saveScroll = (idx:number) => {
+    if (typeof window !== 'undefined') {
+      scrollPositionsRef.current[idx] = window.scrollY;
+      sessionStorage.setItem(KEY_SCROLL + idx, String(window.scrollY));
+    }
+  };
+  const loadScroll = (idx:number) => {
+    if (typeof window !== 'undefined') {
+      return Number(sessionStorage.getItem(KEY_SCROLL + idx)) || 0;
+    }
+    return 0;
+  }
   
   // Set up the mounted ref
   useEffect(() => {
@@ -184,138 +211,6 @@ const SwipeableTabsComponent = ({
     ]
   );
   
-  // Trigger a reinitialization when emblaKey changes
-  useEffect(() => {
-    if (emblaApi) {
-      // Store current position
-      const currentIndex = emblaApi.selectedScrollSnap();
-      
-      console.debug(`SwipeableTabs: Embla reinitialized due to emblaKey change (${emblaKey})`);
-      
-      // CRITICAL: Complete low-level reinitialization to ensure drag handlers work
-      setTimeout(() => {
-        if (!emblaApi || !isMountedRef.current) return;
-        
-        // Get the container and viewport nodes
-        const containerNode = emblaApi.containerNode();
-        const viewportNode = emblaApi.rootNode();
-        
-        if (!containerNode || !viewportNode) return;
-        
-        // Force release any existing pointers and reset internal state
-        try {
-          // @ts-ignore - Access internal engine to force reset
-          const engine = emblaApi.internalEngine();
-          if (engine?.dragHandler?.pointerDown) {
-            // @ts-ignore - Force the internal pointer tracker to reset
-            engine.dragHandler.pointerDown = () => false;
-          }
-        } catch (e) {
-          // Ignore errors accessing internal API
-        }
-        
-        // Re-initialize
-        emblaApi.reInit();
-        
-        // Return to the correct position
-        emblaApi.scrollTo(currentIndex, true);
-      }, 10);
-    }
-  }, [emblaApi, emblaKey]);
-  
-  // CRITICAL: Add an effect to handle tab switches
-  // This is separate from the pageshow/pagehide BF cache handlers
-  useEffect(() => {
-    if (!emblaApi || !isMountedRef.current) return;
-    
-    console.debug(`SwipeableTabs: Tab changed to ${selectedTab}, forcing embla refresh`);
-    
-    // Force a new key on tab change to completely rebuild Embla
-    setEmblaKey(prev => prev + 1);
-    
-    // Also explicitly rebuild drag handlers
-    setTimeout(() => {
-      if (!emblaApi || !isMountedRef.current) return;
-      
-      // Aggressive reinitialization
-      emblaApi.reInit();
-      
-      // Force a scroll to the current tab
-      emblaApi.scrollTo(selectedTab, false);
-      
-      // Force a layout recalculation
-      document.body.offsetHeight;
-      
-      console.debug(`SwipeableTabs: Tab ${selectedTab} scroll enforced`);
-    }, 50);
-  }, [emblaApi, selectedTab]);
-  
-  // ULTRA AGGRESSIVE: Add direct DOM event listeners to ensure gesture recognition
-  useEffect(() => {
-    if (!emblaApi || !isMountedRef.current) return;
-    
-    const viewportNode = emblaApi.rootNode();
-    if (!viewportNode) return;
-    
-    // Track touch start position for manual gesture detection
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isManuallyDragging = false;
-    
-    const handleTouchStart = (e: TouchEvent) => {
-      if (!emblaApi || !isMountedRef.current) return;
-      
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-      isManuallyDragging = false;
-      
-      // Force reinitialization on every touch
-      setTimeout(() => {
-        if (!emblaApi || !isMountedRef.current) return;
-        emblaApi.reInit();
-      }, 0);
-    };
-    
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!emblaApi || !isMountedRef.current || !e.touches.length) return;
-      
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - touchStartX;
-      const deltaY = touch.clientY - touchStartY;
-      
-      // If horizontal swipe detected and Embla isn't handling it,
-      // we might need to force a rebuild
-      if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY) && !isManuallyDragging) {
-        isManuallyDragging = true;
-        
-        // Check if internal drag handler is working
-        try {
-          // @ts-ignore - Access internal state to check if drag is working
-          const engine = emblaApi.internalEngine();
-          const isDragging = engine?.dragHandler?.pointerDown?.();
-          
-          if (!isDragging) {
-            console.debug('SwipeableTabs: Detected swipe not handled by Embla, forcing rebuild');
-            setEmblaKey(prev => prev + 1);
-          }
-        } catch (e) {
-          // Fallback to always rebuilding if we can't check internal state
-          setEmblaKey(prev => prev + 1);
-        }
-      }
-    };
-    
-    // Add touch handlers
-    viewportNode.addEventListener('touchstart', handleTouchStart, { passive: true });
-    viewportNode.addEventListener('touchmove', handleTouchMove, { passive: true });
-    
-    return () => {
-      viewportNode.removeEventListener('touchstart', handleTouchStart);
-      viewportNode.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, [emblaApi]);
-  
   // Memoized function to measure slide heights
   const measureSlideHeights = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -357,7 +252,7 @@ const SwipeableTabsComponent = ({
     isRestoringScrollRef.current = true;
     
     // Get saved position (default to 0 if not set)
-    const savedPosition = scrollPositionsRef.current[index] ?? 0;
+    const savedPosition = loadScroll(index);
     
     // Always use requestAnimationFrame for smoothness
     requestAnimationFrame(() => {
@@ -380,7 +275,7 @@ const SwipeableTabsComponent = ({
       if (!emblaApi || index === selectedTab) return;
 
       // Save current scroll position before jumping
-      scrollPositionsRef.current[selectedTab] = window.scrollY;
+      saveScroll(selectedTab);
 
       // Signal that the next 'select' event is from an instant jump
       isInstantJumpRef.current = true; 
@@ -592,7 +487,7 @@ const SwipeableTabsComponent = ({
     const handleScroll = () => {
       // Only save scroll position if we're not in the middle of restoring
       if (!isRestoringScrollRef.current) {
-        scrollPositionsRef.current[selectedTab] = window.scrollY;
+        saveScroll(selectedTab);
       }
     };
 
@@ -755,7 +650,7 @@ const SwipeableTabsComponent = ({
       if (selectedTab !== index) {
         // For non-instant jumps (swipes), save the scroll position
         if (!isInstantJumpRef.current && !isRestoringScrollRef.current) {
-          scrollPositionsRef.current[selectedTab] = window.scrollY;
+          saveScroll(selectedTab);
         }
 
         // Call restoreScrollPosition - it runs async via requestAnimationFrame
@@ -781,10 +676,13 @@ const SwipeableTabsComponent = ({
 
   // When component mounts, ensure scroll position is at 0 for the initial tab
   useEffect(() => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || typeof window === 'undefined') return;
     
     window.scrollTo(0, 0);
     scrollPositionsRef.current[defaultTabIndex] = 0;
+    if (typeof window !== 'undefined') {
+        sessionStorage.setItem(KEY_SCROLL + defaultTabIndex, '0'); // Also save initial scroll to session storage
+    }
   }, [defaultTabIndex]);
 
   // Add effect to track interaction state, linked to animation completion
@@ -813,324 +711,14 @@ const SwipeableTabsComponent = ({
     };
   }, [emblaApi, handleTransitionStart, handleTransitionEnd]);
 
-  // FIX 1: Measure all slides immediately after first render using useLayoutEffect
-  // This ensures tabHeightsRef is never empty, even for slides not yet visible
-  useLayoutEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    // Measure all slides synchronously before browser paint
-    slideRefs.current.forEach((slide, idx) => {
-      if (slide && slide.offsetHeight > 0) {
-        tabHeightsRef.current[idx] = slide.offsetHeight;
-      }
-    });
-    
-    // Re-initialize Embla with the correct heights if available
+  // Add useBFCacheRestore hook here as per bfcache.md Step 4
+  const { useBFCacheRestore } = require('@/lib/useBFCacheRestore'); // Using require for this specific placement
+  useBFCacheRestore(() => {
     if (emblaApi) {
-      // Step 1: Get current selected index
-      const currentIndex = emblaApi.selectedScrollSnap();
-      
-      // Step 2: Perform full reinitialization with immediate forced update
       emblaApi.reInit();
-      
-      // Step 3: Force scroll to current position to ensure everything is aligned
-      emblaApi.scrollTo(currentIndex, true);
-      
-      // Step 4: Force a layout recalculation
-      document.body.offsetHeight;
-      
-      // Check if we need a second reinitialization after a small delay
-      // This helps with complex layouts that might need time to fully render
-      setTimeout(() => {
-        if (!isMountedRef.current || !emblaApi) return;
-        
-        // Verify current heights again
-        slideRefs.current.forEach((slide, idx) => {
-          if (slide && slide.offsetHeight > 0 && 
-              (!tabHeightsRef.current[idx] || tabHeightsRef.current[idx] !== slide.offsetHeight)) {
-            // Height changed, update and reinit
-            tabHeightsRef.current[idx] = slide.offsetHeight;
-            emblaApi.reInit();
-          }
-        });
-      }, 100);
     }
-    
-    // Log slide heights for debugging
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('SwipeableTabs: Initial slide heights measured', tabHeightsRef.current);
-    }
-  }, [emblaApi]); // Include emblaApi to avoid lint warnings
-  
-  // FIX 2: Handle browser back-forward cache restoration
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (!isMountedRef.current) return;
-      
-      // e.persisted is true when page is restored from BF cache
-      if (e.persisted) {
-        // Set the flag to indicate restoration
-        wasRestoredFromBFCache.current = true;
-        
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('SwipeableTabs: Page restored from BF cache, completely rebuilding carousel');
-        }
-        
-        // Store current selected index to maintain position after reset
-        const currentIndex = emblaApi ? emblaApi.selectedScrollSnap() : selectedTab;
-        
-        // First re-measure all slide heights to ensure correct dimensions
-        slideRefs.current.forEach((slide, idx) => {
-          if (slide && slide.offsetHeight > 0) {
-            tabHeightsRef.current[idx] = slide.offsetHeight;
-          }
-        });
-        
-        // CRITICAL FIX: Force complete Embla carousel rebuilding
-        // This is the most aggressive solution that ensures all gesture handlers
-        // are properly recreated after BF cache restoration
-        setTimeout(() => {
-          if (!isMountedRef.current) return;
-          
-          // Force component remount by updating the key
-          setEmblaKey(prev => prev + 1);
-          
-          // Scroll to the correct tab after rebuild
-          setTimeout(() => {
-            if (!isMountedRef.current || !emblaApi) return;
-            emblaApi.scrollTo(currentIndex, true);
-          }, 50);
-          
-          console.debug(`SwipeableTabs: Forced complete carousel rebuild, will select tab ${currentIndex}`);
-        }, 10);
-      }
-    };
-    
-    // Add handler for when the page might enter BF cache
-    const handlePageHide = (e: PageTransitionEvent) => {
-      if (!isMountedRef.current) return;
-      
-      if (e.persisted) {
-        // This page might enter BF cache
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('SwipeableTabs: Page might enter BF cache');
-        }
-        
-        // Store current selected tab index for potential restoration
-        const currentIndex = emblaApi ? emblaApi.selectedScrollSnap() : selectedTab;
-        sessionStorage.setItem('swipeableTabsLastIndex', currentIndex.toString());
-        
-        // Store heights of all slides for potential restoration
-        const heightsMap: Record<number, number> = {};
-        slideRefs.current.forEach((slide, idx) => {
-          if (slide && slide.offsetHeight > 0) {
-            heightsMap[idx] = slide.offsetHeight;
-          }
-        });
-        
-        try {
-          // Save heights to sessionStorage for restoration
-          sessionStorage.setItem('swipeableTabsHeights', JSON.stringify(heightsMap));
-        } catch (err) {
-          // Ignore storage errors
-        }
-      }
-    };
-    
-    // Add handlers for Page Lifecycle API (Chrome-based browsers)
-    const handleFreeze = () => {
-      if (!isMountedRef.current) return;
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('SwipeableTabs: Page is being frozen (may enter BF cache)');
-      }
-      
-      // Additional preparations could be added here if needed
-    };
-    
-    const handleResume = () => {
-      if (!isMountedRef.current) return;
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('SwipeableTabs: Page is being resumed (may be from BF cache)');
-      }
-      
-      // Immediately force a refresh of Embla
-      if (emblaApi) {
-        emblaApi.reInit();
-      }
-    };
-    
-    // Diagnostic function to help identify BF cache eligibility issues
-    const checkBFCacheBlockers = () => {
-      // Check for unload listeners which block BF cache
-      const hasUnloadListeners = window.onunload !== null || 
-                                window.onbeforeunload !== null;
-      
-      if (hasUnloadListeners && process.env.NODE_ENV !== 'production') {
-        console.warn('SwipeableTabs: BF cache may be blocked by unload/beforeunload event listeners');
-      }
-      
-      // Check for other potential blockers
-      const hasFetch = window.fetch !== undefined;
-      const hasSW = 'serviceWorker' in navigator;
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('SwipeableTabs: BF cache eligibility check', {
-          hasUnloadListeners,
-          hasFetch,
-          hasSW
-        });
-      }
-    };
-    
-    // Run diagnostic check once
-    checkBFCacheBlockers();
-    
-    // Add all event listeners
-    window.addEventListener('pageshow', handlePageShow);
-    window.addEventListener('pagehide', handlePageHide);
-    document.addEventListener('freeze', handleFreeze);
-    document.addEventListener('resume', handleResume);
-    
-    // Clean up on unmount
-    return () => {
-      window.removeEventListener('pageshow', handlePageShow);
-      window.removeEventListener('pagehide', handlePageHide);
-      document.removeEventListener('freeze', handleFreeze);
-      document.removeEventListener('resume', handleResume);
-    };
-  }, [emblaApi, selectedTab]);
-  
-  // Load saved heights and selected tab on mount if available
-  useEffect(() => {
-    if (!isMountedRef.current || !emblaApi) return;
-    
-    try {
-      // Check if we have stored heights from a previous session
-      const storedHeights = sessionStorage.getItem('swipeableTabsHeights');
-      if (storedHeights) {
-        const parsedHeights = JSON.parse(storedHeights) as Record<number, number>;
-        Object.entries(parsedHeights).forEach(([indexStr, height]) => {
-          const index = parseInt(indexStr, 10);
-          if (!isNaN(index) && height > 0) {
-            tabHeightsRef.current[index] = height;
-          }
-        });
-        
-        // Apply the heights to the current state
-        const containerNode = emblaApi.containerNode();
-        if (containerNode) {
-          const currentIndex = emblaApi.selectedScrollSnap();
-          if (tabHeightsRef.current[currentIndex] > 0) {
-            containerNode.style.minHeight = `${tabHeightsRef.current[currentIndex]}px`;
-          }
-        }
-        
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('SwipeableTabs: Restored slide heights from sessionStorage', tabHeightsRef.current);
-        }
-      }
-    } catch (err) {
-      // Ignore storage errors
-    }
-  }, [emblaApi]);
-
-  // Handle user touch/mouse events to ensure drag functionality is restored
-  useEffect(() => {
-    if (!emblaApi || !isMountedRef.current) return;
-    
-    let hasInteracted = false;
-    let swipeDetectionTimer: ReturnType<typeof setTimeout> | null = null;
-    let touchStartX = 0;
-    let touchStartY = 0;
-    
-    // Create handler for first interaction after BF-cache restore
-    const handleFirstInteraction = (e: MouseEvent | TouchEvent) => {
-      // Skip if not restored from BF cache or already handled first interaction
-      if (!wasRestoredFromBFCache.current || hasInteracted) return;
-      
-      // Track X position of touch start for swipe detection
-      if (e.type === 'touchstart') {
-        const touch = (e as TouchEvent).touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-      }
-      
-      // Set flag to prevent multiple executions
-      hasInteracted = true;
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('SwipeableTabs: First user interaction after BF cache restore, ensuring swipe functionality');
-      }
-      
-      // Force Embla carousel to fully reinitialize after user interaction
-      setTimeout(() => {
-        if (!isMountedRef.current || !emblaApi) return;
-        
-        // Get the current index and state
-        const currentIndex = emblaApi.selectedScrollSnap();
-        
-        // Complete reinitialization to ensure drag handlers are properly attached
-        emblaApi.reInit();
-        
-        // Reset to the current position
-        emblaApi.scrollTo(currentIndex, true);
-        
-        // Reset the BF cache flag
-        wasRestoredFromBFCache.current = false;
-      }, 0);
-      
-      // Set up detection of successful swipe
-      swipeDetectionTimer = setTimeout(() => {
-        // If timer fires, it means the swipe movement hasn't been detected
-        // Force a complete rebuild by incrementing emblaKey
-        if (isMountedRef.current) {
-          console.debug('SwipeableTabs: No swipe movement detected, forcing complete rebuild');
-          setEmblaKey(prev => prev + 1);
-        }
-      }, 300);
-    };
-    
-    // Handler to detect swipe movement
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!swipeDetectionTimer) return;
-      
-      const touch = e.touches[0];
-      const deltaX = Math.abs(touch.clientX - touchStartX);
-      const deltaY = Math.abs(touch.clientY - touchStartY);
-      
-      // If significant horizontal movement detected, clear the timer
-      if (deltaX > 10 && deltaX > deltaY) {
-        if (swipeDetectionTimer) {
-          clearTimeout(swipeDetectionTimer);
-          swipeDetectionTimer = null;
-          console.debug('SwipeableTabs: Swipe movement detected, rebuild not needed');
-        }
-      }
-    };
-    
-    // Add event listeners for first interaction
-    const viewportElement = emblaApi.rootNode();
-    if (viewportElement) {
-      viewportElement.addEventListener('mousedown', handleFirstInteraction, { once: true });
-      viewportElement.addEventListener('touchstart', handleFirstInteraction, { once: true });
-      viewportElement.addEventListener('touchmove', handleTouchMove);
-    }
-    
-    return () => {
-      if (viewportElement) {
-        viewportElement.removeEventListener('mousedown', handleFirstInteraction);
-        viewportElement.removeEventListener('touchstart', handleFirstInteraction);
-        viewportElement.removeEventListener('touchmove', handleTouchMove);
-      }
-      if (swipeDetectionTimer) {
-        clearTimeout(swipeDetectionTimer);
-      }
-    };
-  }, [emblaApi]);
+    measureSlideHeights(); // you already have this util
+  });
 
   return (
     <div 
@@ -1149,7 +737,6 @@ const SwipeableTabsComponent = ({
           "w-full overflow-hidden embla__swipeable_tabs"
         )}
         ref={emblaRef}
-        key={`embla-carousel-${emblaKey}`}
         style={{ 
           willChange: 'transform',
           WebkitPerspective: '1000',
