@@ -587,21 +587,30 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = tr
   // Use the shared focus prevention hook
   useFeedFocusPrevention(true, '.feed-container');
 
+  // Add a ref to track previous isActive state
+  const wasActiveRef = useRef(isActive);
+  
   // FIX: Refresh Virtuoso when tab becomes active
   useEffect(() => {
-    if (isActive && virtuosoRef.current && isMountedRef.current) {
+    // Only run refresh logic when switching from inactive to active
+    if (isActive && !wasActiveRef.current && isMountedRef.current) {
       if (process.env.NODE_ENV !== 'production') {
-        logger.debug('FeaturedFeed: Tab is active, refreshing Virtuoso');
+        logger.debug('FeaturedFeed: Tab transitioning from inactive to active, refreshing Virtuoso');
       }
       
-      // Small delay to ensure DOM is ready
+      // Perform an immediate minimal refresh
+      if (virtuosoRef.current?.refresh) {
+        virtuosoRef.current.refresh();
+      }
+      
+      // Then do a more thorough refresh after a delay to ensure DOM is fully ready
       setTimeout(() => {
         if (!isMountedRef.current) return;
         
-        // Refresh Virtuoso to recalculate item heights
+        // Refresh Virtuoso again to recalculate item heights
         if (virtuosoRef.current?.refresh) {
           virtuosoRef.current.refresh();
-          logger.debug('FeaturedFeed: Virtuoso refreshed');
+          logger.debug('FeaturedFeed: Virtuoso refreshed after delay');
         }
         
         // Force window resize event to help all components adjust
@@ -609,6 +618,9 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = tr
         window.dispatchEvent(resizeEvent);
       }, 100);
     }
+    
+    // Update previous active state
+    wasActiveRef.current = isActive;
   }, [isActive]);
 
   // FIX: Handle browser back-forward cache restoration

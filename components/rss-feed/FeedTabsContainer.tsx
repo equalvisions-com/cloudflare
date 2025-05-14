@@ -334,6 +334,14 @@ export function FeedTabsContainer({
     } catch (e) {
       console.error('Error saving tab index to sessionStorage:', e);
     }
+    
+    // FIX: Force a synchronous update to ensure tab contents have their isActive prop changed immediately
+    // This helps with both BF-cache and swipe scenarios
+    setTimeout(() => {
+      // Force window resize event to help components adjust
+      const resizeEvent = new Event('resize');
+      window.dispatchEvent(resizeEvent);
+    }, 10);
   }, [isAuthenticated, router]);
   
   // Add a single useEffect to handle data fetching for the active tab

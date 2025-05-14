@@ -508,6 +508,9 @@ function EntriesContentComponent({
   // Add a ref for the Virtuoso component to control scrolling
   const virtuosoRef = useRef<any>(null);
   
+  // Track previous isActive state for transitions 
+  const wasActiveRef = useRef(isActive);
+  
   // Only update the ref when entries actually change (not on every render)
   useEffect(() => {
     entriesDataRef.current = paginatedEntries;
@@ -520,19 +523,28 @@ function EntriesContentComponent({
   
   // FIX 3: Refresh Virtuoso when tab becomes active
   useEffect(() => {
-    if (isActive && virtuosoRef.current) {
+    // Only run refresh logic when switching from inactive to active
+    if (isActive && !wasActiveRef.current && virtuosoRef.current) {
       if (process.env.NODE_ENV !== 'production') {
-        logger.debug('EntriesContent: Tab is active, refreshing Virtuoso');
+        logger.debug('EntriesContent: Tab transitioning from inactive to active, refreshing Virtuoso');
       }
       
-      // Small delay to ensure DOM is ready
+      // Perform an immediate minimal refresh
+      if (virtuosoRef.current?.refresh) {
+        virtuosoRef.current.refresh();
+      }
+      
+      // Then do a more thorough refresh after a delay to ensure DOM is fully ready
       setTimeout(() => {
         if (virtuosoRef.current?.refresh) {
           virtuosoRef.current.refresh();
-          logger.debug('EntriesContent: Virtuoso refreshed');
+          logger.debug('EntriesContent: Virtuoso refreshed after delay');
         }
       }, 100);
     }
+    
+    // Update previous active state
+    wasActiveRef.current = isActive;
   }, [isActive]);
   
   // Use a ref to store the itemContent callback to ensure stability
