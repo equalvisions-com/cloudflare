@@ -171,6 +171,13 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
     }
   }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
 
+  const handleInternalLinkNavigation = useCallback((e: React.MouseEvent<HTMLAnchorElement>, url: string | null) => {
+    e.preventDefault();
+    if (url) {
+      window.open(url, '_self'); // No 'noopener' feature string, should make current page bfcache-ineligible
+    }
+  }, []);
+
   const handleOpenComment = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
@@ -222,12 +229,12 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
                     >
-                      <Link href={postUrl}>
+                      <a href={postUrl} onClick={(e) => handleInternalLinkNavigation(e, postUrl)}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {postMetadata.title}
                           {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
-                      </Link>
+                      </a>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-sm font-bold text-primary leading-tight">
@@ -305,7 +312,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
             <a
               href={entry.link}
               target="_blank"
-              rel="noopener noreferrer"
+              // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
                 {entry.image && (
