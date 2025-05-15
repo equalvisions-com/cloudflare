@@ -579,7 +579,7 @@ export function CommentSectionClient({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto" data-drawer-content="comment-section">
           <DrawerHeader 
              className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
            >

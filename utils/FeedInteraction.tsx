@@ -82,6 +82,18 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     // Define handler for mousedown events - capture in the capture phase before focus can happen
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+
+      // Check if the target is in a drawer content or is a text input/textarea
+      const isInDrawer = target.closest('[data-drawer-content]') || 
+                         target.closest('[role="dialog"]');
+      const isInputField = target.tagName === 'INPUT' || 
+                         target.tagName === 'TEXTAREA' || 
+                         target.isContentEditable;
+                         
+      // Skip focus prevention for drawer content or input fields
+      if (isInDrawer || isInputField) {
+        return;
+      }
       
       // If the target is inside our feed container, prevent focus behavior
       const isInFeed = target.closest(containerSelector);
@@ -100,6 +112,17 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     // Define a handler for all click events in the feed to prevent focus
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      
+      // Skip focus prevention for drawer content or input fields
+      const isInDrawer = target.closest('[data-drawer-content]') || 
+                         target.closest('[role="dialog"]');
+      const isInputField = target.tagName === 'INPUT' || 
+                         target.tagName === 'TEXTAREA' || 
+                         target.isContentEditable;
+                         
+      if (isInDrawer || isInputField) {
+        return;
+      }
       
       // Only apply to elements inside our list
       const isInFeed = target.closest(containerSelector);
@@ -120,7 +143,16 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {
-        document.activeElement.blur();
+        // Don't blur input elements or elements in drawers
+        const isInDrawer = document.activeElement.closest('[data-drawer-content]') || 
+                           document.activeElement.closest('[role="dialog"]');
+        const isInputField = document.activeElement.tagName === 'INPUT' || 
+                           document.activeElement.tagName === 'TEXTAREA' || 
+                           document.activeElement.isContentEditable;
+                           
+        if (!isInDrawer && !isInputField) {
+          document.activeElement.blur();
+        }
       }
     };
     
