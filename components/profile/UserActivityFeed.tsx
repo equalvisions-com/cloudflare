@@ -970,9 +970,13 @@ const ActivityCard = React.memo(({
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
       target.tagName !== 'INPUT' && 
+      target.tagName !== 'TEXTAREA' && 
       !target.closest('button') && 
       !target.closest('a') && 
-      !target.closest('input')
+      !target.closest('input') &&
+      !target.closest('textarea') &&
+      !target.closest('[data-comment-input]') &&
+      !target.closest('[data-comment-section]')
     ) {
       e.preventDefault();
     }
@@ -1638,9 +1642,13 @@ const ActivityGroupRenderer = React.memo(({
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
       target.tagName !== 'INPUT' && 
+      target.tagName !== 'TEXTAREA' && 
       !target.closest('button') && 
       !target.closest('a') && 
-      !target.closest('input')
+      !target.closest('input') &&
+      !target.closest('textarea') &&
+      !target.closest('[data-comment-input]') &&
+      !target.closest('[data-comment-section]')
     ) {
       e.preventDefault();
     }
@@ -2424,10 +2432,14 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
         if (
           target.tagName !== 'BUTTON' && 
           target.tagName !== 'A' && 
-          target.tagName !== 'INPUT' && 
+          target.tagName !== 'INPUT' &&
+          target.tagName !== 'TEXTAREA' &&
           !target.closest('button') && 
           !target.closest('a') && 
-          !target.closest('input')
+          !target.closest('input') &&
+          !target.closest('textarea') &&
+          !target.closest('[data-comment-input]') &&
+          !target.closest('[data-comment-section]')
         ) {
           e.preventDefault();
         }
