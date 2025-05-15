@@ -81,9 +81,6 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     
     // Define handler for mousedown events - capture in the capture phase before focus can happen
     const handleDocumentMouseDown = (e: MouseEvent) => {
-      // Check ref value directly - more reliable than closure value
-      if (!isActiveRef.current) return;
-      
       const target = e.target as HTMLElement;
       
       // If the target is inside our feed container, prevent focus behavior
@@ -102,9 +99,6 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     
     // Define a handler for all click events in the feed to prevent focus
     const handleDocumentClick = (e: MouseEvent) => {
-      // Check ref value directly - more reliable than closure value
-      if (!isActiveRef.current) return;
-      
       const target = e.target as HTMLElement;
       
       // Only apply to elements inside our list
@@ -119,9 +113,10 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     
     // Add passive scroll handler to improve performance
     const handleScroll = () => {
-      // Check ref value directly - more reliable than closure value
+      // Check if focus prevention is still active before blurring
+      // This helps with race conditions when the drawer opens
       if (!isActiveRef.current) return;
-      
+
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {

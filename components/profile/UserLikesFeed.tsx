@@ -872,38 +872,6 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
         WebkitOverflowScrolling: 'touch',
         WebkitTapHighlightColor: 'transparent'
       }}
-      onMouseDown={(e) => {
-        // Skip focus prevention when comment drawer is open
-        if (commentDrawerOpen) {
-          // Extra check: if we're in drawer or clicking on interactive elements, allow focus
-          const target = e.target as HTMLElement;
-          const isInDrawer = target.closest('[role="dialog"]');
-          const isTextarea = target.tagName === 'TEXTAREA' || target.closest('textarea');
-          const isInputElement = target.tagName === 'INPUT' || target.closest('input');
-          
-          // Always allow focus on textareas and inputs in drawers
-          if (isInDrawer || isTextarea || isInputElement) {
-            return;
-          }
-        }
-        
-        // Also check if the click is on an input or textarea inside a drawer (for comment input)
-        const target = e.target as HTMLElement;
-        
-        // Prevent focus on non-interactive elements
-        if (
-          target.tagName !== 'BUTTON' && 
-          target.tagName !== 'A' && 
-          target.tagName !== 'INPUT' && 
-          target.tagName !== 'TEXTAREA' && 
-          !target.closest('button') && 
-          !target.closest('a') && 
-          !target.closest('input') &&
-          !target.closest('textarea')
-        ) {
-          e.preventDefault();
-        }
-      }}
     >
       <Virtuoso
         useWindowScroll

@@ -849,19 +849,6 @@ const RSSEntriesClientComponent = ({
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Skip focus prevention when comment drawer is open
-      if (commentDrawerOpen) {
-        // Extra check: if we're in drawer and clicking on input/textarea, definitely allow it
-        const isInDrawer = target.closest('[role="dialog"]');
-        const isInputElement = 
-          target.tagName === 'TEXTAREA' || 
-          target.tagName === 'INPUT' ||
-          target.closest('textarea') ||
-          target.closest('input');
-          
-        if (isInDrawer || isInputElement) return;
-      }
-      
       // If the target is inside our feed container, prevent focus behavior
       const isInFeed = target.closest('.rss-feed-container');
       if (isInFeed) {
@@ -878,13 +865,6 @@ const RSSEntriesClientComponent = ({
     
     // Define a handler for all click events in the feed to prevent focus
     const handleDocumentClick = (e: MouseEvent) => {
-      // Skip focus prevention when comment drawer is open
-      if (commentDrawerOpen) {
-        // Extra check: if we're in drawer or clicking input/interactive elements, allow it
-        const isInDrawer = (e.target as HTMLElement).closest('[role="dialog"]');
-        if (isInDrawer) return;
-      }
-      
       const target = e.target as HTMLElement;
       
       // Only apply to elements inside our list
@@ -899,16 +879,6 @@ const RSSEntriesClientComponent = ({
     
     // Add passive scroll handler to improve performance
     const handleScroll = () => {
-      // Skip focus prevention when comment drawer is open
-      if (commentDrawerOpen) {
-        // Check if current focus is in a drawer
-        const activeElement = document.activeElement;
-        if (activeElement instanceof HTMLElement) {
-          const isInDrawer = activeElement.closest('[role="dialog"]');
-          if (isInDrawer) return;
-        }
-      }
-      
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {
@@ -927,9 +897,9 @@ const RSSEntriesClientComponent = ({
       document.removeEventListener('click', handleDocumentClick, true);
       document.removeEventListener('scroll', handleScroll);
     };
-  }, [isActive, commentDrawerOpen]);
+  }, [isActive]);
 
-  // Use the shared focus prevention hook as well
+  // Use the shared focus prevention hook
   useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
 
   // Initialize with initial data only once

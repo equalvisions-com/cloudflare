@@ -364,43 +364,6 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
-  // Add effect to focus the textarea when the drawer opens
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Focus the textarea when the drawer opens
-  useEffect(() => {
-    if (isOpen && textareaRef.current) {
-      // Small delay to ensure drawer is fully open and other event handlers have run
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus({preventScroll: true});
-          
-          // Force focus again after a moment to ensure it takes effect
-          // This helps overcome any focus prevention from parent components
-          setTimeout(() => {
-            if (textareaRef.current) {
-              textareaRef.current.focus({preventScroll: true});
-            }
-          }, 50);
-        }
-      }, 150); // Increased delay to ensure other handlers have completed
-    }
-  }, [isOpen]);
-  
-  // Add a helper function to ensure comment textarea can be focused
-  const ensureTextareaFocus = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent event from bubbling to parent handlers
-    
-    // Focus the textarea
-    if (textareaRef.current) {
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus({preventScroll: true});
-        }
-      }, 0);
-    }
-  }, []);
-  
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -616,7 +579,13 @@ export function CommentSectionClient({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
+        <DrawerContent 
+          className="h-[75vh] w-full max-w-[550px] mx-auto"
+          onClick={(e) => {
+            // Stop propagation for all clicks within the drawer content
+            e.stopPropagation();
+          }}
+        >
           <DrawerHeader 
              className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
            >
@@ -651,9 +620,14 @@ export function CommentSectionClient({
           {/* Comment input - stays at bottom */}
           <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
+              <div 
+                className="flex gap-2"
+                onClick={(e) => {
+                  // Stop propagation to prevent parent elements from handling the click
+                  e.stopPropagation();
+                }}
+              >
                 <Textarea
-                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -663,17 +637,19 @@ export function CommentSectionClient({
                     const newValue = e.target.value.slice(0, 500);
                     setComment(newValue);
                   }}
+                  onClick={(e) => {
+                    // Stop propagation to prevent parent elements from handling the click
+                    e.stopPropagation();
+                  }}
                   className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   maxLength={500}
                   rows={1}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    ensureTextareaFocus(e);
-                  }}
                 />
                 <Button 
-                  onClick={handleSubmit} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSubmit();
+                  }}
                   disabled={!comment.trim() || isSubmitting}
                 >
                   {isSubmitting ? "Posting..." : "Post"}
