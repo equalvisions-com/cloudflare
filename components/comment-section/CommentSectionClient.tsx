@@ -174,7 +174,7 @@ const Comment = memo(({
   }
   
   return (
-    <div key={comment._id} className={`${isReply ? '' : 'border-t border-border'}`} data-comment-section>
+    <div key={comment._id} className={`${isReply ? '' : 'border-t border-border'}`}>
       <div className={`flex items-start gap-4 ${isReply ? 'pb-4' : 'py-4 pl-4'}`}>
         {username ? (
           <Link href={`/@${username}`} className="flex-shrink-0">
@@ -580,7 +580,7 @@ export function CommentSectionClient({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto" data-drawer-content="comment-section" data-comment-section>
+        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto" data-drawer-content="comment-section">
           <DrawerHeader 
              className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
            >
@@ -588,7 +588,7 @@ export function CommentSectionClient({
           </DrawerHeader>
           
           {/* Comments list with ScrollArea */}
-          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always" data-comment-section>
+          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
             <div className="mt-0">
               {commentHierarchy.length > 0 ? (
                 commentHierarchy.map(comment => (
@@ -613,7 +613,7 @@ export function CommentSectionClient({
           </ScrollArea>
           
           {/* Comment input - stays at bottom */}
-          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4" data-comment-section>
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea

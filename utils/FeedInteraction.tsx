@@ -90,9 +90,8 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
                          target.tagName === 'TEXTAREA' || 
                          target.isContentEditable;
                          
-      // Check if element is a comment input or part of the comment section
-      const isCommentInput = target.closest('[data-comment-input]') || 
-                             target.closest('[data-comment-section]');
+      // Check if element is a comment input
+      const isCommentInput = target.closest('[data-comment-input]');
                          
       // Skip focus prevention for drawer content, input fields, or comment inputs
       if (isInDrawer || isInputField || isCommentInput) {
@@ -123,8 +122,7 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
       const isInputField = target.tagName === 'INPUT' || 
                          target.tagName === 'TEXTAREA' || 
                          target.isContentEditable;
-      const isCommentInput = target.closest('[data-comment-input]') || 
-                             target.closest('[data-comment-section]');
+      const isCommentInput = target.closest('[data-comment-input]');
                          
       if (isInDrawer || isInputField || isCommentInput) {
         return;
@@ -155,8 +153,7 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
         const isInputField = document.activeElement.tagName === 'INPUT' || 
                            document.activeElement.tagName === 'TEXTAREA' || 
                            document.activeElement.isContentEditable;
-        const isCommentInput = document.activeElement.closest('[data-comment-input]') || 
-                               document.activeElement.closest('[data-comment-section]');
+        const isCommentInput = document.activeElement.closest('[data-comment-input]');
                            
         if (!isInDrawer && !isInputField && !isCommentInput) {
           document.activeElement.blur();

@@ -438,7 +438,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
       <div key={reply._id.toString()} className="mt-0">
         {/* Add padding-left here to indent replies */}
         {/* Conditionally apply border-t based on index */}
-        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`} data-comment-section>
+        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`}>
           <ProfileImage
             profileImage={profileImageUrl}
             username={reply.username}
@@ -513,7 +513,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     if (!repliesExpanded) return null;
     
     return (
-      <div className="mt-0 border-t" data-comment-section>
+      <div className="mt-0 border-t">
         {repliesLoading ? (
           <div className="py-2 pl-4 text-sm text-muted-foreground">Loading replies...</div>
         ) : replies.length > 0 ? (
@@ -669,7 +669,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
       
       return (
         <div className="flex flex-col">
-          <div className="flex items-start gap-4 pl-4 pt-4" data-comment-section>
+          <div className="flex items-start gap-4 pl-4 pt-4">
             <ProfileImage 
               profileImage={profileImage}
               username={username}
@@ -767,7 +767,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
           
           {/* Reply Input Form - Conditionally shown */}
           {isReplying && (
-            <div className="p-4 border-t" data-comment-section>
+            <div className="p-4 border-t">
               <div className="flex gap-2">
                 <Textarea
                   placeholder={`Replying to ${name}...`}
@@ -975,8 +975,7 @@ const ActivityCard = React.memo(({
       !target.closest('a') && 
       !target.closest('input') &&
       !target.closest('textarea') &&
-      !target.closest('[data-comment-input]') &&
-      !target.closest('[data-comment-section]')
+      !target.closest('[data-comment-input]')
     ) {
       e.preventDefault();
     }
@@ -1647,8 +1646,7 @@ const ActivityGroupRenderer = React.memo(({
       !target.closest('a') && 
       !target.closest('input') &&
       !target.closest('textarea') &&
-      !target.closest('[data-comment-input]') &&
-      !target.closest('[data-comment-section]')
+      !target.closest('[data-comment-input]')
     ) {
       e.preventDefault();
     }
@@ -2438,8 +2436,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
           !target.closest('a') && 
           !target.closest('input') &&
           !target.closest('textarea') &&
-          !target.closest('[data-comment-input]') &&
-          !target.closest('[data-comment-section]')
+          !target.closest('[data-comment-input]')
         ) {
           e.preventDefault();
         }
