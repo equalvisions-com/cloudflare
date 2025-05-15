@@ -373,11 +373,33 @@ export function CommentSectionClient({
       // Small delay to ensure drawer is fully open and other event handlers have run
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.focus();
+          textareaRef.current.focus({preventScroll: true});
+          
+          // Force focus again after a moment to ensure it takes effect
+          // This helps overcome any focus prevention from parent components
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.focus({preventScroll: true});
+            }
+          }, 50);
         }
-      }, 100);
+      }, 150); // Increased delay to ensure other handlers have completed
     }
   }, [isOpen]);
+  
+  // Add a helper function to ensure comment textarea can be focused
+  const ensureTextareaFocus = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent event from bubbling to parent handlers
+    
+    // Focus the textarea
+    if (textareaRef.current) {
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus({preventScroll: true});
+        }
+      }, 0);
+    }
+  }, []);
   
   useEffect(() => {
     // Set mounted flag to true
@@ -645,6 +667,10 @@ export function CommentSectionClient({
                   maxLength={500}
                   rows={1}
                   onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    ensureTextareaFocus(e);
+                  }}
                 />
                 <Button 
                   onClick={handleSubmit} 
