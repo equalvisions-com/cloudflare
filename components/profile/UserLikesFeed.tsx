@@ -872,6 +872,23 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
         WebkitOverflowScrolling: 'touch',
         WebkitTapHighlightColor: 'transparent'
       }}
+      onMouseDown={(e) => {
+        // Skip focus prevention when comment drawer is open
+        if (commentDrawerOpen) return;
+        
+        // Prevent focus on non-interactive elements
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName !== 'BUTTON' && 
+          target.tagName !== 'A' && 
+          target.tagName !== 'INPUT' && 
+          !target.closest('button') && 
+          !target.closest('a') && 
+          !target.closest('input')
+        ) {
+          e.preventDefault();
+        }
+      }}
     >
       <Virtuoso
         useWindowScroll
