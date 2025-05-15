@@ -959,8 +959,19 @@ const ActivityCard = React.memo(({
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
+    // Skip focus prevention for drawer content or input fields
     const target = e.target as HTMLElement;
+    const isInDrawer = target.closest('[data-drawer-content]') || 
+                       target.closest('[role="dialog"]');
+    const isInputField = target.tagName === 'INPUT' || 
+                       target.tagName === 'TEXTAREA' || 
+                       target.isContentEditable;
+                       
+    if (isInDrawer || isInputField) {
+      return;
+    }
+    
+    // Only prevent default if this isn't an interactive element
     if (
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
@@ -1626,8 +1637,19 @@ const ActivityGroupRenderer = React.memo(({
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only prevent default if this isn't an interactive element
+    // Skip focus prevention for drawer content or input fields
     const target = e.target as HTMLElement;
+    const isInDrawer = target.closest('[data-drawer-content]') || 
+                       target.closest('[role="dialog"]');
+    const isInputField = target.tagName === 'INPUT' || 
+                       target.tagName === 'TEXTAREA' || 
+                       target.isContentEditable;
+                       
+    if (isInDrawer || isInputField) {
+      return;
+    }
+    
+    // Only prevent default if this isn't an interactive element
     if (
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
@@ -2414,6 +2436,18 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       onMouseDown={(e) => {
         // Prevent focus on non-interactive elements
         const target = e.target as HTMLElement;
+        
+        // Skip focus prevention for drawer content or input fields
+        const isInDrawer = target.closest('[data-drawer-content]') || 
+                           target.closest('[role="dialog"]');
+        const isInputField = target.tagName === 'INPUT' || 
+                           target.tagName === 'TEXTAREA' || 
+                           target.isContentEditable;
+                           
+        if (isInDrawer || isInputField) {
+          return;
+        }
+        
         if (
           target.tagName !== 'BUTTON' && 
           target.tagName !== 'A' && 
