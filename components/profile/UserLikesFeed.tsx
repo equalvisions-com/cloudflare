@@ -872,23 +872,6 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
         WebkitOverflowScrolling: 'touch',
         WebkitTapHighlightColor: 'transparent'
       }}
-      tabIndex={-1}
-      onMouseDown={(e) => {
-        // Prevent focus on non-interactive elements
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName !== 'BUTTON' && 
-          target.tagName !== 'A' && 
-          target.tagName !== 'INPUT' && 
-          target.tagName !== 'TEXTAREA' && 
-          !target.closest('button') && 
-          !target.closest('a') && 
-          !target.closest('input') && 
-          !target.closest('textarea')
-        ) {
-          e.preventDefault();
-        }
-      }}
     >
       <Virtuoso
         useWindowScroll
