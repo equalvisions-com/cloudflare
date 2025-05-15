@@ -2412,6 +2412,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       }}
       tabIndex={-1}
       onMouseDown={(e) => {
+        // Skip focus prevention when comment drawer is open
+        if (commentDrawerOpen) return;
+        
         // Prevent focus on non-interactive elements
         const target = e.target as HTMLElement;
         if (

@@ -847,6 +847,9 @@ const RSSEntriesClientComponent = ({
     
     // Define handler for mousedown events - capture in the capture phase before focus can happen
     const handleDocumentMouseDown = (e: MouseEvent) => {
+      // Skip focus prevention if comment drawer is open
+      if (commentDrawerOpen) return;
+      
       const target = e.target as HTMLElement;
       
       // If the target is inside our feed container, prevent focus behavior
@@ -865,6 +868,9 @@ const RSSEntriesClientComponent = ({
     
     // Define a handler for all click events in the feed to prevent focus
     const handleDocumentClick = (e: MouseEvent) => {
+      // Skip focus prevention if comment drawer is open
+      if (commentDrawerOpen) return;
+      
       const target = e.target as HTMLElement;
       
       // Only apply to elements inside our list
@@ -879,6 +885,9 @@ const RSSEntriesClientComponent = ({
     
     // Add passive scroll handler to improve performance
     const handleScroll = () => {
+      // Skip focus prevention if comment drawer is open
+      if (commentDrawerOpen) return;
+      
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {
@@ -897,7 +906,7 @@ const RSSEntriesClientComponent = ({
       document.removeEventListener('click', handleDocumentClick, true);
       document.removeEventListener('scroll', handleScroll);
     };
-  }, [isActive]);
+  }, [isActive, commentDrawerOpen]);
 
   // Use the shared focus prevention hook
   useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
