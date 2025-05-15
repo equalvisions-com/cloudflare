@@ -373,6 +373,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               feedUrl={entry.feedUrl}
               initialData={initialData.comments}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">

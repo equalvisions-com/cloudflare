@@ -352,6 +352,7 @@ const InteractionButtons = memo(({
           feedUrl={entryDetails.feed_url || ''}
           initialData={interactions.comments}
           buttonOnly={true}
+          data-comment-input
         />
       </NoFocusWrapper>
       <NoFocusWrapper className="flex items-center">

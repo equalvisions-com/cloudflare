@@ -438,7 +438,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
       <div key={reply._id.toString()} className="mt-0">
         {/* Add padding-left here to indent replies */}
         {/* Conditionally apply border-t based on index */}
-        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`}>
+        <div className={`flex items-start gap-4 ${index !== 0 ? 'border-t' : ''} pl-11 py-4`} data-comment-section>
           <ProfileImage
             profileImage={profileImageUrl}
             username={reply.username}
@@ -669,7 +669,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
       
       return (
         <div className="flex flex-col">
-          <div className="flex items-start gap-4 pl-4 pt-4">
+          <div className="flex items-start gap-4 pl-4 pt-4" data-comment-section>
             <ProfileImage 
               profileImage={profileImage}
               username={username}
@@ -707,6 +707,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                     <button 
                       onClick={handleReplyClick}
                       className="text-muted-foreground hover:underline focus:outline-none"
+                      data-comment-input
                     >
                       {isReplying ? 'Cancel Reply' : 'Reply'}
                     </button>
@@ -717,6 +718,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                       <button 
                         onClick={toggleReplies}
                         className="text-muted-foreground hover:underline focus:outline-none"
+                        data-comment-input
                       >
                         {repliesExpanded 
                           ? "Hide Replies" 
@@ -765,7 +767,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
           
           {/* Reply Input Form - Conditionally shown */}
           {isReplying && (
-            <div className="p-4 border-t">
+            <div className="p-4 border-t" data-comment-section>
               <div className="flex gap-2">
                 <Textarea
                   placeholder={`Replying to ${name}...`}
@@ -778,11 +780,13 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                   maxLength={500}
                   rows={1}
                   autoFocus // Focus the input when it appears
+                  data-comment-input
                 />
                 <Button 
                   onClick={submitReply} 
                   disabled={!replyText.trim() || isSubmittingReply}
                   size="sm" className="h-9 text-sm font-medium"
+                  data-comment-input
                 >
                   {isSubmittingReply ? (
                     <span className="flex items-center">
@@ -796,6 +800,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                 <button 
                   onClick={cancelReplyClick}
                   className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+                  data-comment-input
                 >
                   <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
                   Cancel
@@ -959,19 +964,8 @@ const ActivityCard = React.memo(({
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Skip focus prevention for drawer content or input fields
-    const target = e.target as HTMLElement;
-    const isInDrawer = target.closest('[data-drawer-content]') || 
-                       target.closest('[role="dialog"]');
-    const isInputField = target.tagName === 'INPUT' || 
-                       target.tagName === 'TEXTAREA' || 
-                       target.isContentEditable;
-                       
-    if (isInDrawer || isInputField) {
-      return;
-    }
-    
     // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
     if (
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
@@ -1432,6 +1426,7 @@ const ActivityCard = React.memo(({
                // Ensure interactions is stable or default value is memoized
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -1637,19 +1632,8 @@ const ActivityGroupRenderer = React.memo(({
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
-    // Skip focus prevention for drawer content or input fields
-    const target = e.target as HTMLElement;
-    const isInDrawer = target.closest('[data-drawer-content]') || 
-                       target.closest('[role="dialog"]');
-    const isInputField = target.tagName === 'INPUT' || 
-                       target.tagName === 'TEXTAREA' || 
-                       target.isContentEditable;
-                       
-    if (isInDrawer || isInputField) {
-      return;
-    }
-    
     // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
     if (
       target.tagName !== 'BUTTON' && 
       target.tagName !== 'A' && 
@@ -1932,6 +1916,7 @@ const ActivityGroupRenderer = React.memo(({
               // Ensure interactions is stable or default value is memoized
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -2436,18 +2421,6 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       onMouseDown={(e) => {
         // Prevent focus on non-interactive elements
         const target = e.target as HTMLElement;
-        
-        // Skip focus prevention for drawer content or input fields
-        const isInDrawer = target.closest('[data-drawer-content]') || 
-                           target.closest('[role="dialog"]');
-        const isInputField = target.tagName === 'INPUT' || 
-                           target.tagName === 'TEXTAREA' || 
-                           target.isContentEditable;
-                           
-        if (isInDrawer || isInputField) {
-          return;
-        }
-        
         if (
           target.tagName !== 'BUTTON' && 
           target.tagName !== 'A' && 

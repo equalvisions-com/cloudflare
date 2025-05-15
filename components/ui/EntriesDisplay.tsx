@@ -711,6 +711,7 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
               feedUrl={entry.feed_url || ''}
               initialData={interactions.comments}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">

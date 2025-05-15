@@ -90,8 +90,12 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
                          target.tagName === 'TEXTAREA' || 
                          target.isContentEditable;
                          
-      // Skip focus prevention for drawer content or input fields
-      if (isInDrawer || isInputField) {
+      // Check if element is a comment input or part of the comment section
+      const isCommentInput = target.closest('[data-comment-input]') || 
+                             target.closest('[data-comment-section]');
+                         
+      // Skip focus prevention for drawer content, input fields, or comment inputs
+      if (isInDrawer || isInputField || isCommentInput) {
         return;
       }
       
@@ -113,14 +117,16 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Skip focus prevention for drawer content or input fields
+      // Skip focus prevention for drawer content, input fields, or comment inputs
       const isInDrawer = target.closest('[data-drawer-content]') || 
                          target.closest('[role="dialog"]');
       const isInputField = target.tagName === 'INPUT' || 
                          target.tagName === 'TEXTAREA' || 
                          target.isContentEditable;
+      const isCommentInput = target.closest('[data-comment-input]') || 
+                             target.closest('[data-comment-section]');
                          
-      if (isInDrawer || isInputField) {
+      if (isInDrawer || isInputField || isCommentInput) {
         return;
       }
       
@@ -143,14 +149,16 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
       // Clear any focus that might have been set during scroll
       if (document.activeElement instanceof HTMLElement && 
           document.activeElement.tagName !== 'BODY') {
-        // Don't blur input elements or elements in drawers
+        // Don't blur input elements, elements in drawers, or comment inputs
         const isInDrawer = document.activeElement.closest('[data-drawer-content]') || 
                            document.activeElement.closest('[role="dialog"]');
         const isInputField = document.activeElement.tagName === 'INPUT' || 
                            document.activeElement.tagName === 'TEXTAREA' || 
                            document.activeElement.isContentEditable;
+        const isCommentInput = document.activeElement.closest('[data-comment-input]') || 
+                               document.activeElement.closest('[data-comment-section]');
                            
-        if (!isInDrawer && !isInputField) {
+        if (!isInDrawer && !isInputField && !isCommentInput) {
           document.activeElement.blur();
         }
       }

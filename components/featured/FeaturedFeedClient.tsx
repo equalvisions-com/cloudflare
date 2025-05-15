@@ -359,6 +359,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               feedUrl={entry.feed_url}
               initialData={initialData.comments}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">

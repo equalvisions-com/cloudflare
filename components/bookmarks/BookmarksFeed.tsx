@@ -375,6 +375,7 @@ const BookmarkCard = React.memo(({
               feedUrl={entryDetails.feed_url || ''}
               initialData={interactions?.comments || { count: 0 }}
               buttonOnly={true}
+              data-comment-input
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
