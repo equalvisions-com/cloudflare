@@ -707,7 +707,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                     <button 
                       onClick={handleReplyClick}
                       className="text-muted-foreground hover:underline focus:outline-none"
-                      data-comment-input
+                      // data-comment-input // REMOVED: To prevent focus
                     >
                       {isReplying ? 'Cancel Reply' : 'Reply'}
                     </button>
@@ -718,7 +718,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                       <button 
                         onClick={toggleReplies}
                         className="text-muted-foreground hover:underline focus:outline-none"
-                        data-comment-input
+                        // data-comment-input // REMOVED: To prevent focus
                       >
                         {repliesExpanded 
                           ? "Hide Replies" 
@@ -780,13 +780,13 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                   maxLength={500}
                   rows={1}
                   autoFocus // Focus the input when it appears
-                  data-comment-input
+                  data-comment-input // KEPT: Textarea should be focusable
                 />
                 <Button 
                   onClick={submitReply} 
                   disabled={!replyText.trim() || isSubmittingReply}
                   size="sm" className="h-9 text-sm font-medium"
-                  data-comment-input
+                  // data-comment-input // REMOVED: To prevent focus
                 >
                   {isSubmittingReply ? (
                     <span className="flex items-center">
@@ -800,7 +800,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                 <button 
                   onClick={cancelReplyClick}
                   className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
-                  data-comment-input
+                  // data-comment-input // REMOVED: To prevent focus
                 >
                   <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
                   Cancel
@@ -1686,9 +1686,18 @@ const ActivityGroupRenderer = React.memo(({
         // Stop all click events from bubbling up to parent components
         e.stopPropagation();
         
-        // Clear focus after click completes
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
+        const activeElement = document.activeElement as HTMLElement;
+
+        if (activeElement) {
+          // Check if the active element is an input type that should retain focus
+          const isTheReplyTextarea =
+            activeElement.tagName === 'TEXTAREA' &&
+            activeElement.hasAttribute('data-comment-input');
+
+          // Only blur if it's not the reply textarea
+          if (!isTheReplyTextarea) {
+            activeElement.blur();
+          }
         }
       }}
       style={{
