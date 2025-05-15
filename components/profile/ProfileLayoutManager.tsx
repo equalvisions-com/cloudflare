@@ -9,6 +9,7 @@ import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
+import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 interface ProfileLayoutManagerProps {
   children: ReactNode;
@@ -49,7 +50,7 @@ export async function ProfileLayoutManager({ children }: ProfileLayoutManagerPro
         useCardStyle={true}
         containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
       >
-        {children}
+        <ScrollResetter>{children}</ScrollResetter>
       </StandardSidebarLayout>
     </>
   );

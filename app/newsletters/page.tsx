@@ -1,7 +1,6 @@
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
-import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
@@ -11,7 +10,6 @@ export const dynamic = 'force-dynamic';
 
 export default function NewslettersPage() {
   return (
-    <ScrollResetter>
       <StandardSidebarLayout
         rightSidebar={<RightSidebar showSearch={false} />}
       >
@@ -19,6 +17,5 @@ export default function NewslettersPage() {
             <CategorySwipeableWrapper mediaType="newsletter" showEntries={true} />
           </div>
       </StandardSidebarLayout>
-    </ScrollResetter>
   );
 }

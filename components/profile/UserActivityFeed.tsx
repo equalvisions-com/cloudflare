@@ -2126,9 +2126,6 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     }
   }, [initialData]); // Explicit dependency on initialData
 
-  // Use the shared focus prevention hook to prevent scrolling issues
-  useFeedFocusPrevention(isActive, '.user-activity-feed-container');
-
   // --- Drawer state for comments (moved to top level) ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
@@ -2136,6 +2133,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     feedUrl: string;
     initialData?: { count: number };
   } | null>(null);
+
+  // Use the shared focus prevention hook to prevent scrolling issues
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.user-activity-feed-container');
 
   // Stable callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {

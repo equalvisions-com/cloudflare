@@ -174,7 +174,7 @@ const EntriesDisplayComponent = ({
   }, []);
 
   // Use the shared focus prevention hook
-  useFeedFocusPrevention(isVisible, '.entries-display-container');
+  useFeedFocusPrevention(isVisible && !commentDrawerOpen, '.entries-display-container');
 
   // Reset the endReachedCalled flag when entries change
   useEffect(() => {

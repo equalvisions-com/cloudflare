@@ -596,7 +596,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   } | null>(null);
 
   // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive, '.rss-feed-container');
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
 
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {

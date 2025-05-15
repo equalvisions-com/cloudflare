@@ -508,6 +508,7 @@ interface FeaturedFeedClientProps {
     totalEntries: number;
   };
   pageSize?: number;
+  isActive?: boolean;
 }
 
 // Refreshable Error UI Component
@@ -553,7 +554,7 @@ export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedCli
 });
 
 // Create the client component that will be memoized
-const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFeedClientProps) => {
+const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedClientProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -581,7 +582,7 @@ const FeaturedFeedClientComponent = ({ initialData, pageSize = 30 }: FeaturedFee
   }, []);
 
   // Use the shared focus prevention hook
-  useFeedFocusPrevention(true, '.feed-container');
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.feed-container');
 
   // Log to confirm we're using prefetched data from LayoutManager
   useEffect(() => {

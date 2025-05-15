@@ -425,13 +425,14 @@ interface BookmarksFeedProps {
   } | null;
   pageSize?: number;
   isSearchResults?: boolean;
+  isActive?: boolean;
 }
 
 /**
  * Client component that displays bookmarks feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResults = false }: BookmarksFeedProps) {
+export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResults = false, isActive = true }: BookmarksFeedProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(
     initialData?.bookmarks || []
@@ -464,7 +465,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   const endReachedCalledRef = useRef(false);
   
   // Use the shared focus prevention hook
-  useFeedFocusPrevention(true, '.bookmarks-feed-container');
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.bookmarks-feed-container');
   
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {

@@ -94,6 +94,7 @@ interface UserLikesFeedProps {
     entryMetrics?: Record<string, InteractionStates>;
   } | null;
   pageSize?: number;
+  isActive?: boolean;
 }
 
 // Custom hook for batch metrics - same as in UserActivityFeed
@@ -662,7 +663,7 @@ const EmptyState = memo(() => (
 EmptyState.displayName = 'EmptyState';
 
 // Create a memoized version of the component with error boundary
-const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: UserLikesFeedProps) => {
+const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -702,9 +703,6 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
     };
   }, []);
 
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(true, '.user-likes-feed-container');
-
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid), 
@@ -724,6 +722,9 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30 }: Use
     feedUrl: string;
     initialData?: { count: number };
   } | null>(null);
+
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.user-likes-feed-container');
 
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
@@ -913,10 +914,10 @@ UserLikesFeedComponent.displayName = 'UserLikesFeedComponent';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed(props: UserLikesFeedProps) {
+export function UserLikesFeed({ userId, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <UserLikesFeedComponent {...props} />
+      <UserLikesFeedComponent {...{ userId, initialData, pageSize, isActive }} />
     </ErrorBoundary>
   );
 } 

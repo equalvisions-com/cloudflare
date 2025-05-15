@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
+import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
