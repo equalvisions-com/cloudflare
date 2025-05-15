@@ -2480,7 +2480,6 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
             computeItemKey={(_, group) => `${group.entryGuid}-${group.type}`}
             tabIndex={-1}
             increaseViewportBy={800}
-            followOutput="auto"
             atTopThreshold={100}
             atBottomThreshold={100}
             defaultItemHeight={400}

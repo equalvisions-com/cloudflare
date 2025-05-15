@@ -8,7 +8,6 @@ import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
-import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 type Post = {
   _id: Id<"posts">;
@@ -80,7 +79,7 @@ export const PostLayoutManager = ({
       // Ensure we have the flex layout classes
       containerClass={`container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0 ${className}`}
     >
-      <ScrollResetter>{children}</ScrollResetter>
+    {children}
     </StandardSidebarLayout>
   );
 }; 

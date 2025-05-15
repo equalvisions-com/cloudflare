@@ -2,7 +2,6 @@ import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { FeedTabsContainerClientWrapper } from "@/components/rss-feed/FeedTabsContainerClientWrapper";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
-import { ScrollResetter } from "@/components/ui/scroll-resetter";
 
 /**
  * Server component that manages the overall layout for the homepage
@@ -37,7 +36,7 @@ export async function LayoutManager() {
         containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
         mainContentClass={customMainContentClass}
       >
-        <ScrollResetter>{mainContent}</ScrollResetter>
+        {mainContent}
       </StandardSidebarLayout>
     </>
   );
