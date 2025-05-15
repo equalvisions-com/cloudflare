@@ -364,6 +364,21 @@ export function CommentSectionClient({
   // Track deleted comments/replies
   const [deletedComments, setDeletedComments] = useState<Set<string>>(new Set());
   
+  // Add effect to focus the textarea when the drawer opens
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Focus the textarea when the drawer opens
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      // Small delay to ensure drawer is fully open and other event handlers have run
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [isOpen]);
+  
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -616,6 +631,7 @@ export function CommentSectionClient({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
+                  ref={textareaRef}
                   placeholder={replyToComment 
                     ? `Reply to ${replyToComment.username}...`
                     : "Add a comment..."}
@@ -628,6 +644,7 @@ export function CommentSectionClient({
                   className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   maxLength={500}
                   rows={1}
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <Button 
                   onClick={handleSubmit} 
