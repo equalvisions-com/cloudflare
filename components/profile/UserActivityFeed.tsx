@@ -513,7 +513,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     if (!repliesExpanded) return null;
     
     return (
-      <div className="mt-0 border-t">
+      <div className="mt-0 border-t" data-comment-section>
         {repliesLoading ? (
           <div className="py-2 pl-4 text-sm text-muted-foreground">Loading replies...</div>
         ) : replies.length > 0 ? (
