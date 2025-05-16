@@ -101,6 +101,33 @@ function OnboardingPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Fetch user profile to check if they've already completed onboarding
+  const userProfile = useQuery(api.users.getProfile);
+  
+  // Client-side check for already completed onboarding - always verify with Convex
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      // If we have a user profile and they're already onboarded according to Convex
+      if (userProfile?.isBoarded) {
+        console.log("Client detected user is already onboarded via Convex query, redirecting");
+        router.replace('/');
+        return;
+      }
+    };
+    
+    checkOnboardingStatus();
+    
+    // Add a safety timeout to recheck status after delay
+    const safetyTimeoutCheck = setTimeout(() => {
+      if (userProfile?.userId) {
+        // Force a refresh of the Convex query to get latest status
+        router.refresh();
+      }
+    }, 10000);
+    
+    return () => clearTimeout(safetyTimeoutCheck);
+  }, [userProfile, router]);
+
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
   

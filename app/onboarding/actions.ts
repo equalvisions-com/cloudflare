@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 
 export async function finalizeOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
   try {
-    // Set the cookie server-side
+    // Set the cookie server-side - the only place we should be setting this cookie
     cookies().set('user_onboarded', 'true', {
       path: '/',
       httpOnly: true, // Recommended for security
@@ -14,6 +14,10 @@ export async function finalizeOnboardingCookieAction(): Promise<{ success: boole
       maxAge: 60 * 60 * 24 * 30, // 30 days
       sameSite: 'lax', // Recommended
     });
+    
+    // Log for debugging
+    console.log("Successfully set onboarded cookie in server action");
+    
     return { success: true };
 
   } catch (error: any) {

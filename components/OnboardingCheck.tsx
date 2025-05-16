@@ -21,7 +21,7 @@ export function OnboardingCheck({ isAuthenticated, isBoarded, children }: Onboar
     
     // Only redirect if user is authenticated but not onboarded
     if (isAuthenticated && !isBoarded) {
-      router.push('/onboarding');
+      router.replace('/onboarding');
     }
   }, [isAuthenticated, isBoarded, pathname, router]);
 
