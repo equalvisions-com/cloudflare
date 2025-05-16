@@ -886,9 +886,10 @@ export const completeOnboarding = mutation({
     name: v.optional(v.union(v.string(), v.null())),
     bio: v.optional(v.union(v.string(), v.null())),
     profileImageKey: v.optional(v.union(v.string(), v.null())),
+    defaultProfileGradientUri: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const { username, name, bio, profileImageKey } = args;
+    const { username, name, bio, profileImageKey, defaultProfileGradientUri } = args;
     
     // Get the authenticated user ID
     const userId = await getAuthUserId(ctx);
@@ -922,20 +923,16 @@ export const completeOnboarding = mutation({
       }
     }
     
-    // Default SVG profile image
-    const defaultProfileImage = "data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E";
-    
     // Prepare updates
     const updates: {
       username: string;
       name?: string;
       bio?: string;
       profileImageKey?: string;
-      profileImage: string;
+      profileImage?: string;
       isBoarded: boolean;
     } = {
-      username: username.toLowerCase(), // Store lowercase in database
-      profileImage: defaultProfileImage, // Set default profile image
+      username: username.toLowerCase(),
       isBoarded: true
     };
     
@@ -949,14 +946,20 @@ export const completeOnboarding = mutation({
 
     if (profileImageKey) {
       updates.profileImageKey = profileImageKey;
-      // Get the public URL for the image
       try {
         const publicUrl = await r2.getUrl(profileImageKey);
         updates.profileImage = publicUrl;
       } catch (error) {
-        console.error("Failed to get image URL:", error);
-        // Still save the key even if we can't get the URL right now
+        console.error("Failed to get image URL for key:", profileImageKey, error);
+        // If getUrl fails for an uploaded image, still save the key, but profileImage might remain undefined
+        // or we could fallback to defaultProfileGradientUri if provided, though less likely path.
+        if (defaultProfileGradientUri) {
+           updates.profileImage = defaultProfileGradientUri;
+        }
       }
+    } else if (defaultProfileGradientUri) {
+      // No user-uploaded image, use the provided default gradient URI
+      updates.profileImage = defaultProfileGradientUri;
     }
     
     // Update the user
@@ -974,6 +977,7 @@ export const finalizeOnboardingAction = action({
     name: v.optional(v.union(v.string(), v.null())),
     bio: v.optional(v.union(v.string(), v.null())),
     profileImageKey: v.optional(v.union(v.string(), v.null())),
+    defaultProfileGradientUri: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     // This action runs server-side with auth context

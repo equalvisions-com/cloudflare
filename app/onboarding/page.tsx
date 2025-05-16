@@ -34,6 +34,7 @@ interface FinalizeOnboardingArgs {
   name?: string;
   bio?: string;
   profileImageKey?: string;
+  defaultProfileGradientUri?: string;
 }
 
 // --- We'll use Server Components differently --- 
@@ -44,7 +45,7 @@ interface FinalizeOnboardingArgs {
 
 // --- Update the Client Component --- 
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 // Keep useAction for the *Convex* action
 import { useAction, useQuery, useMutation } from 'convex/react'; 
@@ -97,6 +98,22 @@ function OnboardingPageContent() {
   const [followedPosts, setFollowedPosts] = useState<string[]>([]);
   const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate the default gradient data URL once using useMemo
+  const defaultGradientDataUrl = useMemo(() => {
+    const randomColor = () => Math.floor(Math.random() * 256);
+    const svgString = 
+      `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' shape-rendering='geometricPrecision'>
+        <defs>
+          <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'>
+            <stop offset='0%' style='stop-color:rgb(${randomColor()},${randomColor()},${randomColor()})' />
+            <stop offset='100%' style='stop-color:rgb(${randomColor()},${randomColor()},${randomColor()})' />
+          </linearGradient>
+        </defs>
+        <circle cx='50' cy='50' r='50' fill='url(#g)'/>
+      </svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
+  }, []); // Empty dependency array ensures this runs only once
 
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
@@ -193,7 +210,8 @@ function OnboardingPageContent() {
         username: username.trim(),
         name: name.trim() || undefined,
         bio: bio.trim() || undefined,
-        profileImageKey: finalProfileImageKey || undefined
+        profileImageKey: finalProfileImageKey || undefined,
+        defaultProfileGradientUri: !finalProfileImageKey ? defaultGradientDataUrl : undefined
       });
       
       // Move to the follow step
@@ -339,7 +357,7 @@ function OnboardingPageContent() {
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                <div className="w-20 h-20 border rounded-full overflow-hidden border">
+                <div className="w-20 h-20 rounded-full overflow-hidden">
                   {previewImage ? (
                     <Image 
                       src={previewImage} 
@@ -350,17 +368,7 @@ function OnboardingPageContent() {
                     />
                   ) : (
                     <Image 
-                      src={`data:image/svg+xml;utf8,${encodeURIComponent(
-                        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-                          <defs>
-                            <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'>
-                              <stop offset='0%' style='stop-color:rgb(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)})' />
-                              <stop offset='100%' style='stop-color:rgb(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)})' />
-                            </linearGradient>
-                          </defs>
-                          <circle cx='50' cy='50' r='50' fill='url(#g)'/>
-                        </svg>`
-                      )}`}
+                      src={defaultGradientDataUrl}
                       alt="Default Profile"
                       width={80}
                       height={80}

@@ -12,6 +12,7 @@ interface FinalizeOnboardingArgs {
   name?: string;
   bio?: string;
   profileImageKey?: string;
+  defaultProfileGradientUri?: string;
 }
 
 // Atomic action that handles both database update and cookie setting
