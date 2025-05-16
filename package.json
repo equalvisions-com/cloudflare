@@ -47,6 +47,7 @@
     "embla-carousel-wheel-gestures": "^8.0.1",
     "fast-xml-parser": "^4.5.3",
     "glob": "^11.0.2",
+    "gradient-avatar": "^1.0.2",
     "howler": "^2.2.4",
     "html-entities": "^2.5.2",
     "input-otp": "^1.4.2",

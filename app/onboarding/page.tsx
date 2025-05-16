@@ -350,7 +350,17 @@ function OnboardingPageContent() {
                     />
                   ) : (
                     <Image 
-                      src="data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E"
+                      src={`data:image/svg+xml;utf8,${encodeURIComponent(
+                        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+                          <defs>
+                            <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'>
+                              <stop offset='0%' style='stop-color:rgb(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)})' />
+                              <stop offset='100%' style='stop-color:rgb(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)})' />
+                            </linearGradient>
+                          </defs>
+                          <circle cx='50' cy='50' r='50' fill='url(#g)'/>
+                        </svg>`
+                      )}`}
                       alt="Default Profile"
                       width={80}
                       height={80}
