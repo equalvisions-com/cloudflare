@@ -977,7 +977,23 @@ export const finalizeOnboardingAction = action({
   },
   handler: async (ctx, args) => {
     // This action runs server-side with auth context
-    // It calls the existing mutation internally
+    // Get userId for checking current onboarding status
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Authentication required");
+    }
+    
+    // Check if user is already onboarded (handles race condition)
+    const user = await ctx.runQuery(api.users.getProfile, {});
+    if (user?.isBoarded) {
+      // User is already onboarded, return special status to handle race condition
+      return { 
+        success: true, 
+        status: "ALREADY_ONBOARDED"
+      };
+    }
+    
+    // Not already onboarded, proceed with normal flow
     try {
       await ctx.runMutation(api.users.completeOnboarding, args);
       return { success: true };

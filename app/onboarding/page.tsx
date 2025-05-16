@@ -62,8 +62,6 @@ export const runtime = 'edge';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Toaster } from "@/components/ui/toaster";
-import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, Check, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,15 +97,11 @@ function OnboardingPageContent() {
   const [followedPosts, setFollowedPosts] = useState<string[]>([]);
   const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
 
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
   
-  // Hook for the *Convex* action to update the database
-  const completeOnboardingDB = useAction(api.users.finalizeOnboardingAction);
-  
-  // Hooks for intermediate steps (keep these)
+  // Hooks for necessary API calls
   const getProfileImageUploadUrl = useAction(api.users.getProfileImageUploadUrl);
   const followPost = useMutation(api.following.follow);
   const unfollowPost = useMutation(api.following.unfollow);
@@ -135,21 +129,13 @@ function OnboardingPageContent() {
     
     // Basic validation
     if (username.trim().length < 1) {
-      toast({
-        title: "Invalid username",
-        description: "Username cannot be empty",
-        variant: "destructive",
-      });
+      console.log("Invalid username: cannot be empty");
       return;
     }
 
     // Check for special characters
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      toast({
-        title: "Invalid username",
-        description: "Username can only contain letters, numbers, and underscores (_)",
-        variant: "destructive",
-      });
+      console.log("Invalid username: can only contain letters, numbers, and underscores");
       return;
     }
 
@@ -193,11 +179,7 @@ function OnboardingPageContent() {
           finalProfileImageKey = uploadData.key;
         } catch (error) {
           console.error("Failed to upload image:", error);
-          toast({
-            title: "Image upload failed",
-            description: error instanceof Error ? error.message : "Failed to upload profile image",
-            variant: "destructive",
-          });
+          console.error("Image upload failed:", error instanceof Error ? error.message : "Failed to upload profile image");
           setIsSubmitting(false);
           setIsUploading(false);
           return;
@@ -223,24 +205,12 @@ function OnboardingPageContent() {
       
       if (error instanceof Error) {
         if (error.message.includes("Username already taken")) {
-          toast({
-            title: "Username not available",
-            description: "This username is already taken. Please choose another one.",
-            variant: "destructive",
-          });
+          console.error("Username not available: This username is already taken. Please choose another one.");
         } else {
-          toast({
-            title: "Could not save profile",
-            description: error.message,
-            variant: "destructive",
-          });
+          console.error("Could not save profile:", error.message);
         }
       } else {
-        toast({
-          title: "Could not save profile",
-          description: "An unexpected error occurred. Please try again.",
-          variant: "destructive",
-        });
+        console.error("Could not save profile: An unexpected error occurred. Please try again.");
       }
       setIsSubmitting(false);
     }
@@ -266,46 +236,45 @@ function OnboardingPageContent() {
       }
     } catch (error) {
       console.error("Failed to toggle follow:", error);
-      toast({
-        title: "Action failed",
-        description: "Could not follow or unfollow this post. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Action failed: Could not follow or unfollow this post. Please try again.");
     }
   };
 
   const finalizeOnboarding = async () => {
     if (!profileData) {
-      toast({
-        title: "Error",
-        description: "Profile data is missing. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Error: Profile data is missing. Please try again.");
       return;
     }
 
     if (followedPosts.length < REQUIRED_FOLLOWS) {
-      toast({
-        title: "Follow more posts",
-        description: `Please follow at least ${REQUIRED_FOLLOWS} posts to continue.`,
-        variant: "destructive",
-      });
+      console.error(`Follow more posts: Please follow at least ${REQUIRED_FOLLOWS} posts to continue.`);
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // Use the new atomic server action instead of separate calls
-      const result = await atomicFinalizeOnboarding(profileData);
+      // Add timeout for the server action to prevent indefinite hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Onboarding request timed out")), 10000)
+      );
+
+      // Define the return type for clarity
+      type OnboardingResult = {
+        success: boolean;
+        error?: string;
+        redirectUrl?: string;
+        message?: string;
+      };
+      
+      // Use the new atomic server action with timeout protection
+      const result = await Promise.race([
+        atomicFinalizeOnboarding(profileData),
+        timeoutPromise
+      ]) as OnboardingResult;
       
       if (!result.success) {
-        // Handle error from the server action
-        toast({
-          title: "Could not complete onboarding",
-          description: result.error || "An unexpected error occurred",
-          variant: "destructive",
-        });
+        console.error("Could not complete onboarding:", result.error || "An unexpected error occurred");
         
         // If there's a redirect URL in case of auth errors, use it
         if (result.redirectUrl) {
@@ -313,12 +282,8 @@ function OnboardingPageContent() {
           return;
         }
       } else {
-        // Show success toast
-        toast({
-          title: "Profile completed",
-          description: "Welcome to Grasper!",
-          variant: "default",
-        });
+        console.log(result.message ? "Already Onboarded" : "Profile completed", 
+                   result.message || "Welcome to Grasper!");
         
         // Clean up object URLs
         if (previewImage && previewImage.startsWith('blob:')) {
@@ -337,11 +302,12 @@ function OnboardingPageContent() {
       }
     } catch (error) {
       console.error('Error completing onboarding:', error);
-      toast({
-        title: "Could not complete onboarding",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      console.error("Could not complete onboarding:", error instanceof Error ? error.message : "An unexpected error occurred");
+      
+      // For any unhandled errors, redirect to signin after a short delay
+      setTimeout(() => {
+        router.push('/signin');
+      }, 1500); // Show the error message briefly before redirecting
     } finally {
        setIsSubmitting(false);
     }
@@ -562,7 +528,6 @@ function OnboardingPageContent() {
           </div>
         )}
       </div>
-      <Toaster />
     </div>
   );
 }

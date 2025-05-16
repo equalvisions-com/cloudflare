@@ -6,26 +6,6 @@ import { api } from "@/convex/_generated/api";
 import { fetchAction } from "convex/nextjs";
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 
-// --- Define the Server Action (Cookie Setting Only) --- 
-
-export async function finalizeOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Set the cookie server-side
-    cookies().set('user_onboarded', 'true', {
-      path: '/',
-      httpOnly: true, // Recommended for security
-      secure: process.env.NODE_ENV === 'production', // Recommended for security
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      sameSite: 'lax', // Recommended
-    });
-    return { success: true };
-
-  } catch (error: any) {
-    console.error('Error in finalizeOnboardingCookieAction:', error);
-    return { success: false, error: "Failed to set onboarding cookie" };
-  }
-} 
-
 // Interface for profile data passed from client
 interface FinalizeOnboardingArgs {
   username: string;
@@ -34,11 +14,12 @@ interface FinalizeOnboardingArgs {
   profileImageKey?: string;
 }
 
-// New atomic action that handles both database update and cookie setting
+// Atomic action that handles both database update and cookie setting
 export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingArgs): Promise<{ 
   success: boolean; 
   error?: string; 
   redirectUrl?: string;
+  message?: string;
 }> {
   try {
     // 1. Get the Convex token
@@ -52,9 +33,30 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
     }
     
     // 2. Update the database first - Using fetchAction which is simpler
-    await fetchAction(api.users.finalizeOnboardingAction, profileData, { token });
+    const convexResult = await fetchAction(api.users.finalizeOnboardingAction, profileData, { token });
     
-    // 3. Set the cookie after database update succeeds
+    // 3. Check for already onboarded status (handles race condition with multiple tabs)
+    if (convexResult && typeof convexResult === 'object' && 'status' in convexResult && convexResult.status === "ALREADY_ONBOARDED") {
+      console.log("User already onboarded in another tab/session");
+      
+      // Set cookie to ensure consistency and redirect to home
+      cookies().set('user_onboarded', 'true', {
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        sameSite: 'lax',
+      });
+      
+      // Return success with message about already being onboarded
+      return {
+        success: true,
+        redirectUrl: '/',
+        message: "Already completed onboarding in another session"
+      };
+    }
+    
+    // 4. Set the cookie after database update succeeds
     cookies().set('user_onboarded', 'true', {
       path: '/',
       httpOnly: true,
@@ -63,7 +65,7 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
       sameSite: 'lax',
     });
     
-    // 4. Return success with redirect information
+    // 5. Return success with redirect information
     return {
       success: true,
       redirectUrl: '/'
@@ -81,9 +83,11 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
       };
     }
     
+    // Add redirect to signin for all non-recoverable errors
     return { 
       success: false, 
-      error: error.message || "Failed to complete onboarding"
+      error: error.message || "Failed to complete onboarding",
+      redirectUrl: '/signin'  // Always redirect to signin on serious errors
     };
   }
 } 
