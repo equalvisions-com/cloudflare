@@ -36,8 +36,38 @@ export async function syncOnboardedCookie(isBoarded: boolean): Promise<void> {
   }
 }
 
+// Utility function for creating timeout promises
+function createTimeout(ms: number, errorMessage: string): Promise<never> {
+  return new Promise((_, reject) => 
+    setTimeout(() => reject(new Error(errorMessage)), ms)
+  );
+}
+
 // This is a server component for verifying onboarding status during cold starts
 export default async function VerifyOnboardingStatus() {
+  // Create a global timeout of 15 seconds for the entire verification process
+  const globalTimeout = createTimeout(15000, "Global verification timeout");
+  
+  try {
+    // Race the entire verification process against the global timeout
+    await Promise.race([
+      verifyOnboardingStatus(),
+      globalTimeout
+    ]).catch(error => {
+      console.error("Verification failed:", error.message);
+      redirect('/signin');
+    });
+    
+    // If we reach here, verification succeeded but user needs onboarding
+    return null;
+  } catch (error) {
+    console.error("Error in verification wrapper:", error);
+    redirect('/signin');
+  }
+}
+
+// Core verification logic, separated for proper timeout handling
+async function verifyOnboardingStatus() {
   // Always check with Convex first for the real, authoritative status
   try {
     // Get token with a reasonable timeout
