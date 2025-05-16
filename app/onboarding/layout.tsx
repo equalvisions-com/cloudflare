@@ -1,10 +1,26 @@
 'use client';
 
-import VerifyOnboardingStatus from './verification';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import OnboardingLoading from './loading';
+import VerifyOnboardingStatus from './verification';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+
+// Authentication check server component
+function AuthCheck() {
+  // Quick synchronous check for auth token before any rendering
+  const authToken = cookies().get('__convexAuthJWT');
+  
+  // If no auth token exists, redirect immediately
+  if (!authToken?.value) {
+    redirect('/signin');
+  }
+  
+  // Return null as this component doesn't render anything visible
+  return null;
+}
 
 // Separate client component to handle timeouts
 function VerificationWithTimeout() {
@@ -38,14 +54,20 @@ function VerificationWithTimeout() {
   );
 }
 
-// Server component layout
+// Main layout component
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      {/* Server component that verifies onboarding status - show loading while it runs */}
+      {/* Server component that checks auth token synchronously */}
+      <AuthCheck />
+      
+      {/* Always render the loading UI first while verification happens */}
+      <OnboardingLoading />
+      
+      {/* Server component that verifies full onboarding status */}
       <VerificationWithTimeout />
       
-      {/* Render the page content only after verification completes */}
+      {/* Children are only accessible after verification completes successfully */}
       {children}
     </>
   );
