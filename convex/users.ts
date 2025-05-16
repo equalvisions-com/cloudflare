@@ -1011,6 +1011,27 @@ export const finalizeOnboardingAction = action({
   },
 });
 
+// --- Query to check username availability ---
+export const checkUsernameAvailability = query({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.username) {
+      return { available: false, message: "Username cannot be empty" };
+    }
+    if (args.username.length < 3) {
+      return { available: false, message: "Username must be at least 3 characters" };
+    }
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", args.username.toLowerCase()))
+      .first();
+    if (existingUser) {
+      return { available: false, message: "Username already taken" };
+    }
+    return { available: true };
+  },
+});
+
 // Optimized version of searchUsers that uses field filtering
 export const searchUsersOptimized = query({
   args: { 

@@ -98,6 +98,68 @@ function OnboardingPageContent() {
   const [followedPosts, setFollowedPosts] = useState<string[]>([]);
   const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const debouncedUsername = useDebounce(username, 500);
+
+  const usernameForQuery = useMemo(() => {
+    if (!username.trim()) return "skip"; // No query for empty/whitespace
+    if (username.length < 3) return "skip";
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return "skip";
+    
+    // Raw username is client-side valid. Query only if debounced matches current raw.
+    if (!debouncedUsername || username !== debouncedUsername) {
+      return "skip";
+    }
+    return { username: debouncedUsername };
+  }, [username, debouncedUsername]);
+
+  const checkUsernameAvailabilityResult = useQuery(api.users.checkUsernameAvailability, usernameForQuery);
+
+  useEffect(() => {
+    let currentError: string | null = null;
+    let checkingServer = false;
+    const rawUsername = username.trim(); // Use trimmed username for checks
+
+    if (!rawUsername) {
+      currentError = null;
+      // checkingServer remains false
+    } else if (rawUsername.length < 3) {
+      currentError = "Username must be at least 3 characters";
+      // checkingServer remains false
+    } else if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
+      currentError = "Username can only contain letters, numbers, and underscores";
+      // checkingServer remains false
+    } else {
+      // Raw username is client-side valid. Now consider server check.
+      if (usernameForQuery !== "skip") {
+        if (checkUsernameAvailabilityResult === undefined) { // Querying
+          checkingServer = true;
+          currentError = null; // Clear previous server error while new one is loading
+        } else { // Query returned
+          // checkingServer remains false (set after query completes)
+          if (checkUsernameAvailabilityResult === null) {
+            // console.warn("Username availability check returned null");
+            currentError = null; // Or a generic error if null is unexpected
+          } else if (!checkUsernameAvailabilityResult.available) {
+            currentError = checkUsernameAvailabilityResult.message || "Username already taken";
+          } else {
+            currentError = null; // Available
+          }
+        }
+      } else {
+        // Raw username is client-side valid, but usernameForQuery is "skip" 
+        // (e.g., waiting for debounce, or debouncedUsername is empty).
+        // No server check is active for this exact state, so no server error or loading.
+        currentError = null;
+        // checkingServer remains false
+      }
+    }
+
+    setUsernameError(currentError);
+    setIsCheckingUsername(checkingServer);
+
+  }, [username, usernameForQuery, checkUsernameAvailabilityResult]); // debouncedUsername is implicitly part of usernameForQuery
 
   // Generate the default gradient data URL once using useMemo
   const defaultGradientDataUrl = useMemo(() => {
@@ -126,6 +188,20 @@ function OnboardingPageContent() {
   // Number of posts required to follow
   const REQUIRED_FOLLOWS = 3;
   
+  // Custom hook for debouncing
+  function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+    return debouncedValue;
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -144,15 +220,9 @@ function OnboardingPageContent() {
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
-    if (username.trim().length < 1) {
-      console.log("Invalid username: cannot be empty");
-      return;
-    }
-
-    // Check for special characters
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      console.log("Invalid username: can only contain letters, numbers, and underscores");
+    if (usernameError) {
+      console.error("Username not available:", usernameError);
+      setIsSubmitting(false);
       return;
     }
 
@@ -391,19 +461,23 @@ function OnboardingPageContent() {
 
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Choose a username"
-                required
-                minLength={1}
-                pattern="[a-zA-Z0-9_]+"
-              />
-              <p className="text-xs text-muted-foreground">
-                Username can only contain letters, numbers, and underscores
-              </p>
+              <div className="relative">
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    // Clear error immediately on typing, validation will re-occur on debounce
+                    if (usernameError) setUsernameError(null); 
+                  }}
+                  placeholder="Choose a unique username"
+                  className={usernameError ? 'border-red-500' : ''}
+                  disabled={isSubmitting || isUploading}
+                />
+                {isCheckingUsername && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+              {usernameError && <p className="text-sm text-red-500 mt-1">{usernameError}</p>}
             </div>
 
             <div className="space-y-2">
@@ -431,7 +505,13 @@ function OnboardingPageContent() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting || 
+                isUploading || 
+                !username.trim() || 
+                isCheckingUsername || 
+                !!usernameError
+              }
             >
               {isSubmitting ? (
                 <>
@@ -531,7 +611,12 @@ function OnboardingPageContent() {
               </Button>
               <Button
                 onClick={finalizeOnboarding}
-                disabled={followedPosts.length < REQUIRED_FOLLOWS || isSubmitting}
+                disabled={
+                  followedPosts.length < REQUIRED_FOLLOWS || 
+                  isSubmitting || 
+                  !!usernameError || 
+                  isCheckingUsername
+                }
               >
                 {isSubmitting ? (
                   <>
