@@ -50,8 +50,8 @@ import { useRouter } from 'next/navigation';
 import { useAction, useQuery, useMutation } from 'convex/react'; 
 import { api } from '@/convex/_generated/api'; // Keep this for Convex hooks
 import { Id } from '@/convex/_generated/dataModel';
-// ADD import for the Server Action from the new file
-import { finalizeOnboardingCookieAction } from './actions';
+// Update import to use the new atomic action
+import { atomicFinalizeOnboarding } from './actions';
 // Remove the unused direct cookie setting import
 // import { setCookie } from 'cookies-next';
 
@@ -100,33 +100,6 @@ function OnboardingPageContent() {
   const [profileData, setProfileData] = useState<FinalizeOnboardingArgs | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
-  // Fetch user profile to check if they've already completed onboarding
-  const userProfile = useQuery(api.users.getProfile);
-  
-  // Client-side check for already completed onboarding - always verify with Convex
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      // If we have a user profile and they're already onboarded according to Convex
-      if (userProfile?.isBoarded) {
-        console.log("Client detected user is already onboarded via Convex query, redirecting");
-        router.replace('/');
-        return;
-      }
-    };
-    
-    checkOnboardingStatus();
-    
-    // Add a safety timeout to recheck status after delay
-    const safetyTimeoutCheck = setTimeout(() => {
-      if (userProfile?.userId) {
-        // Force a refresh of the Convex query to get latest status
-        router.refresh();
-      }
-    }, 10000);
-    
-    return () => clearTimeout(safetyTimeoutCheck);
-  }, [userProfile, router]);
 
   // Fetch featured posts for the follow step
   const featuredPosts = useQuery(api.featured.getFeaturedPosts);
@@ -323,36 +296,46 @@ function OnboardingPageContent() {
     setIsSubmitting(true);
     
     try {
-      // Step 1: Call the Convex action to update the database
-      await completeOnboardingDB(profileData);
+      // Use the new atomic server action instead of separate calls
+      const result = await atomicFinalizeOnboarding(profileData);
       
-      // Step 2: Call the Next.js Server Action to set the cookie
-      const cookieResult = await finalizeOnboardingCookieAction();
-      
-      if (!cookieResult.success) {
-        // Log the cookie error but proceed - DB update was the critical part
-        console.error("Failed to set onboarding cookie, but DB was updated.", cookieResult.error);
-        // Optionally show a different toast? For now, just log.
+      if (!result.success) {
+        // Handle error from the server action
+        toast({
+          title: "Could not complete onboarding",
+          description: result.error || "An unexpected error occurred",
+          variant: "destructive",
+        });
+        
+        // If there's a redirect URL in case of auth errors, use it
+        if (result.redirectUrl) {
+          router.push(result.redirectUrl);
+          return;
+        }
+      } else {
+        // Show success toast
+        toast({
+          title: "Profile completed",
+          description: "Welcome to Grasper!",
+          variant: "default",
+        });
+        
+        // Clean up object URLs
+        if (previewImage && previewImage.startsWith('blob:')) {
+          URL.revokeObjectURL(previewImage);
+        }
+        
+        // Use redirect URL from server action
+        if (result.redirectUrl) {
+          router.push(result.redirectUrl);
+          router.refresh();
+        } else {
+          // Fallback to default redirect
+          router.push('/');
+          router.refresh();
+        }
       }
-
-      // Show success toast
-      toast({
-        title: "Profile completed",
-        description: "Welcome to Grasper!",
-        variant: "default",
-      });
-      
-      // Clean up object URLs
-      if (previewImage && previewImage.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImage);
-      }
-      
-      // Redirect
-      router.push('/');
-      router.refresh();
-
     } catch (error) {
-      // This will catch errors from the Convex action (completeOnboardingDB)
       console.error('Error completing onboarding:', error);
       toast({
         title: "Could not complete onboarding",

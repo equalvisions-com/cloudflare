@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
+import AutoRedirect from './AutoRedirect';
 
 // Define type for the user profile response
 interface UserProfile {
@@ -18,135 +19,132 @@ interface UserProfile {
   [key: string]: any; // Allow other properties
 }
 
-// Server action to synchronize the cookie with Convex onboarding status
-export async function syncOnboardedCookie(isBoarded: boolean): Promise<void> {
+// This is a proper server action that can set cookies and redirect
+export async function setOnboardedCookieAndRedirect(): Promise<void> {
   'use server';
   
   try {
-    console.log(`Syncing onboarded cookie to match Convex: ${isBoarded}`);
-    cookies().set('user_onboarded', isBoarded ? 'true' : 'false', {
+    console.log("Setting onboarded cookie in server action");
+    // Set the cookie to true
+    cookies().set('user_onboarded', 'true', {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 30, // 30 days
       sameSite: 'lax',
     });
+    
+    // This will redirect after the server action completes
+    redirect('/');
   } catch (error) {
-    console.error("Error syncing onboarded cookie:", error);
+    console.error("Error setting cookie in server action:", error);
+    // Let the component handle the error
   }
 }
 
-// Utility function for creating timeout promises
-function createTimeout(ms: number, errorMessage: string): Promise<never> {
-  return new Promise((_, reject) => 
-    setTimeout(() => reject(new Error(errorMessage)), ms)
-  );
+// Helper function to delay for retry
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to fetch profile with timeout
+async function fetchProfileWithTimeout(token: string, timeoutMs = 5000): Promise<UserProfile | null> {
+  try {
+    const profilePromise = fetchQuery(api.users.getProfile, {}, { token });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Profile query timed out")), timeoutMs)
+    );
+    
+    return await Promise.race([profilePromise, timeoutPromise]) as UserProfile | null;
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    return null;
+  }
 }
 
 // This is a server component for verifying onboarding status during cold starts
 export default async function VerifyOnboardingStatus() {
-  // Create a global timeout of 15 seconds for the entire verification process
-  const globalTimeout = createTimeout(15000, "Global verification timeout");
+  // We always check with Convex first as the source of truth
+  // Get the current cookie value for comparison later
+  const onboardedCookie = cookies().get('user_onboarded');
   
   try {
-    // Race the entire verification process against the global timeout
-    await Promise.race([
-      verifyOnboardingStatus(),
-      globalTimeout
-    ]).catch(error => {
-      console.error("Verification failed:", error.message);
-      redirect('/signin');
+    // Make sure to catch any token errors
+    const token = await convexAuthNextjsToken().catch(err => {
+      console.error("Token retrieval error:", err);
+      return null;
     });
     
-    // If we reach here, verification succeeded but user needs onboarding
-    return null;
-  } catch (error) {
-    console.error("Error in verification wrapper:", error);
-    redirect('/signin');
-  }
-}
-
-// Core verification logic, separated for proper timeout handling
-async function verifyOnboardingStatus() {
-  // Always check with Convex first for the real, authoritative status
-  try {
-    // Get token with a reasonable timeout
-    const tokenPromise = convexAuthNextjsToken();
-    const tokenTimeoutPromise = new Promise<null>((resolve) => 
-      setTimeout(() => {
-        console.log("Token retrieval timed out");
-        resolve(null);
-      }, 10000) // Increased from 3s to 10s for better reliability
-    );
+    if (!token) {
+      console.error("No auth token available - redirecting to signin");
+      redirect('/signin');
+    }
     
-    const token = await Promise.race([tokenPromise, tokenTimeoutPromise])
-      .catch(err => {
-        console.error("Token retrieval error:", err);
-        return null;
-      });
+    // Implement retry logic for Convex queries
+    let profile: UserProfile | null = null;
+    let retries = 0;
+    const MAX_RETRIES = 2;
     
-    if (token) {
-      // Query Convex for the real user profile with timeout
-      console.log("Verifying onboarding status with Convex");
-      const profilePromise = fetchQuery(api.users.getProfile, {}, { token });
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Profile query timed out")), 10000) // Increased from 5s to 10s
-      );
-      
-      const profile = await Promise.race([profilePromise, timeoutPromise])
-        .catch(err => {
-          console.error("Profile query error:", err);
-          return null;
-        }) as UserProfile | null;
-      
-      console.log("Profile from Convex:", JSON.stringify(profile));
+    while (retries <= MAX_RETRIES) {
+      profile = await fetchProfileWithTimeout(token, 5000);
       
       if (profile) {
-        // We have authoritative data from Convex
-        const onboardedCookie = cookies().get('user_onboarded');
-        // Ensure isBoarded is a boolean with default to false
-        const isBoarded = profile.isBoarded === true;
-        const cookieNeedsUpdate = isBoarded 
-          ? onboardedCookie?.value !== 'true'
-          : onboardedCookie?.value !== 'false';
-        
-        // Always update the cookie if it's out of sync
-        if (cookieNeedsUpdate) {
-          await syncOnboardedCookie(isBoarded);
-        }
-        
-        if (isBoarded) {
-          console.log("User is onboarded according to Convex, redirecting to home");
-          redirect('/');
-        } else if (profile.userId) {
-          // User is authenticated but not onboarded - this is the ONLY case where we show onboarding
-          console.log("User is NOT onboarded according to Convex, continuing to onboarding");
-          // Continue to onboarding flow
-          return null; // This allows the onboarding page to render
-        } else {
-          // User has a profile but no userId? This is an invalid state
-          console.log("Invalid profile state, redirecting to signin");
-          redirect('/signin');
-        }
+        break; // Successfully got profile, exit retry loop
+      }
+      
+      retries++;
+      if (retries <= MAX_RETRIES) {
+        console.log(`Retry ${retries}/${MAX_RETRIES} for profile fetch`);
+        await delay(1000 * retries); // Exponential backoff
+      }
+    }
+    
+    // If all retries failed, redirect to signin
+    if (!profile) {
+      console.error("Failed to fetch profile after retries - redirecting to signin");
+      // Clear any existing cookies to force re-authentication
+      cookies().set('user_onboarded', '', { maxAge: 0, path: '/' });
+      redirect('/signin');
+    }
+    
+    // Log for debugging
+    console.log("Profile from Convex:", JSON.stringify(profile));
+    
+    if (profile.isBoarded) {
+      // User is already onboarded according to database (source of truth)
+      console.log("User is onboarded in database");
+      
+      // Check if cookie doesn't match Convex status
+      if (onboardedCookie?.value !== 'true') {
+        console.log("Cookie mismatch - updating cookie to match Convex status");
+        // Use the client component to handle the cookie update and redirect
+        return <AutoRedirect />;
       } else {
-        // No profile data available but we got a token
-        // This is an inconsistent state, should redirect to signin
-        console.log("No profile available despite valid token, redirecting to signin");
-        redirect('/signin');
+        // Cookie already matches - redirect directly
+        console.log("Cookie already matches Convex status - redirecting");
+        redirect('/');
       }
     } else {
-      // SECURITY IMPROVEMENT: Couldn't get token, redirect to signin instead of checking cookie
-      console.log("No token available, redirecting to signin for re-authentication");
-      redirect('/signin');
+      // User is not onboarded according to database (source of truth)
+      console.log("User not onboarded in database");
+      
+      // Check if cookie incorrectly says they're onboarded
+      if (onboardedCookie?.value === 'true') {
+        console.log("Cookie mismatch - removing incorrect cookie");
+        // Remove the incorrect cookie
+        cookies().set('user_onboarded', '', {
+          path: '/',
+          maxAge: 0, // Expire immediately
+        });
+      }
+      
+      // Continue to onboarding flow
+      console.log("Continuing to onboarding flow");
     }
   } catch (error) {
     console.error("Error verifying onboarding status:", error);
-    // If there's an error, we should redirect to signin
-    console.log("Verification error, redirecting to signin");
+    // For any unexpected errors, redirect to signin as a fallback
     redirect('/signin');
   }
   
-  // If we reach here, it means we have an authenticated user who is not onboarded
-  // The onboarding form will be displayed
+  // Return null to render nothing - this component just handles the verification
   return null;
 } 

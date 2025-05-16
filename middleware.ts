@@ -78,40 +78,20 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/");
     }
     
-    // =======================================================
-    // UPDATED: Onboarding page protection using URL rewrite
-    // =======================================================
-    
-    // Direct access to /onboarding URLs
+    // Updated onboarding page protection logic
     if (isOnboardingPage(request)) {
-      // Always redirect non-authenticated users to signin
+      // Always redirect non-authenticated users
       if (!isAuthenticated) {
         return nextjsMiddlewareRedirect(request, "/signin");
       }
       
-      // If user is definitely onboarded, redirect to home
+      // Only redirect if we have a confident "true" for onboarded
       if (isBoarded && !skipOnboardingCheck) {
         return nextjsMiddlewareRedirect(request, "/");
       }
       
-      // For authenticated users who need onboarding, rewrite to home
-      // but set header to render onboarding UI
-      response.headers.set('x-render-onboarding', '1');
-      return NextResponse.rewrite(new URL('/', request.url));
-    }
-    
-    // For home page, check if we need to show onboarding
-    if (request.nextUrl.pathname === '/') {
-      // If authenticated but not onboarded, show onboarding content
-      if (isAuthenticated && isBoarded === false && !skipOnboardingCheck) {
-        response.headers.set('x-render-onboarding', '1');
-      }
-      
-      // For uncertain states, set a header for component to check
-      if (skipOnboardingCheck) {
-        response.headers.set('x-check-onboarding', '1');
-      }
-      
+      // For uncertain states (cold starts), we'll set a header for the page to perform a secondary check
+      response.headers.set('x-check-onboarding', '1');
       return response;
     }
     
@@ -119,11 +99,10 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, "/signin");
     }
 
-    // No longer redirect to /onboarding - instead rewrite the home page
-    // For authenticated users who need onboarding, rewrite any page to home
-    if (!isOnboardingPage(request) && !isSignInPage(request) && isAuthenticated && isBoarded === false && !skipOnboardingCheck) {
-      response.headers.set('x-render-onboarding', '1');
-      return NextResponse.rewrite(new URL('/', request.url));
+    // Handle onboarding redirect - check this before profile routes
+    // Don't redirect if already on onboarding page
+    if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
+      return nextjsMiddlewareRedirect(request, "/onboarding");
     }
 
     // For routes where onboarding status matters but we're unsure (no cookie),
