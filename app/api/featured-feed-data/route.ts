@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getInitialEntries } from '@/components/featured/FeaturedFeed'; // Path alias should work
 import type { FeaturedEntry as OriginalFeaturedEntry } from '@/lib/featured_kv';
 
+export const runtime = 'edge';
+
 // Define the structure for the items within the 'entries' array
 interface PostMetadataForFeed {
   title: string;
