@@ -6,7 +6,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import type { FeaturedEntry } from "@/lib/featured_redis";
+import type { FeaturedEntry } from "@/lib/featured_kv";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";

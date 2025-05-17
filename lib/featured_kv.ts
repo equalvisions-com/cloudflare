@@ -26,10 +26,10 @@ const REFRESH_LOCK_KEY_KV = 'featured_entries_lock_kv_v2';
 
 // Cache and Lock Expiration Times (in seconds)
 const CACHE_EXPIRATION_SECONDS = 4 * 60 * 60; // 4 hours
-const LOCK_EXPIRATION_SECONDS = 90; // 90 seconds for best-effort lock (increased from 60)
-const STALE_WHILE_REVALIDATE_SECONDS = 5 * 60; // Serve stale for 5 mins while revalidating
+const LOCK_EXPIRATION_SECONDS = 90; // 90 seconds for best-effort lock
+// const STALE_WHILE_REVALIDATE_SECONDS = 5 * 60; // No longer primarily used in getFeaturedEntriesKV for SWR logic
 
-// Interface for RSS entry from PlanetScale (mirroring what was in featured_redis.ts)
+// Interface for RSS entry from PlanetScale
 interface RssEntry {
   id: number;
   feed_id: number;
@@ -42,7 +42,7 @@ interface RssEntry {
   feed_url: string;
 }
 
-// Interface for featured entries (from featured_redis.ts)
+// Interface for featured entries
 export interface FeaturedEntry {
   id: number;
   feed_id: number;
@@ -135,36 +135,41 @@ async function fetchAndCacheWithBestEffortLockKV(kv: KVNamespace, currentCachedD
   const lockAcquired = await acquireBestEffortLockKV(kv, REFRESH_LOCK_KEY_KV, LOCK_EXPIRATION_SECONDS);
 
   if (!lockAcquired && !currentCachedData) {
-    console.log("KV_REFRESH: Lock not acquired and no stale data, waiting briefly...");
+    console.log("KV_REFRESH: Lock not acquired and no existing data, waiting briefly...");
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s
+    // Check if another process populated the cache while we waited
     const refreshedCache = await kv.get<KVStoredData>(FEATURED_ENTRIES_KEY, "json");
-    if (refreshedCache?.entries && refreshedCache?.fetchedAt &&
-        (Date.now() - refreshedCache.fetchedAt) / 1000 < STALE_WHILE_REVALIDATE_SECONDS) {
+    if (refreshedCache?.entries && typeof refreshedCache.fetchedAt === 'number' && 
+        ((Date.now() - refreshedCache.fetchedAt) / 1000) < CACHE_EXPIRATION_SECONDS) { // Check against full cache expiration
       console.log("KV_REFRESH: Cache updated by another process while waiting.");
       return refreshedCache.entries;
     }
-    console.log("KV_REFRESH: Lock not acquired & cache not updated, proceeding with fetch (potential contention).");
+    console.log("KV_REFRESH: Lock not acquired & cache not updated by another, proceeding with fetch (potential contention).");
+  } else if (!lockAcquired && currentCachedData) {
+    console.log("KV_REFRESH: Lock not acquired, but serving existing (potentially expired) data while another process likely refreshes.");
+    return currentCachedData.entries; // Return the data we have, even if it's now considered expired by the caller
   }
 
+  // If lock was acquired, or if it wasn't but we decided to proceed with fetch anyway
   try {
     const newEntries = await fetchAndCacheFromSources();
 
     if (newEntries && newEntries.length > 0) {
       const dataToStore: KVStoredData = { entries: newEntries, fetchedAt: Date.now() };
       await kv.put(FEATURED_ENTRIES_KEY, JSON.stringify(dataToStore), { expirationTtl: CACHE_EXPIRATION_SECONDS });
-      console.log(`KV_REFRESH: Cached ${newEntries.length} entries.`);
+      console.log(`KV_REFRESH: Cached ${newEntries.length} entries for ${CACHE_EXPIRATION_SECONDS}s.`);
     } else if (newEntries) { // Successfully fetched, but got zero entries
       const dataToStore: KVStoredData = { entries: [], fetchedAt: Date.now() };
-      await kv.put(FEATURED_ENTRIES_KEY, JSON.stringify(dataToStore), { expirationTtl: STALE_WHILE_REVALIDATE_SECONDS / 2 }); // Cache empty for shorter time
-      console.log("KV_REFRESH: Fetched 0 entries, cached empty result for a shorter duration.");
+      // Cache empty result for a shorter period, or same as full cache? For now, let's use full cache time.
+      // If empty results are common and undesirable to cache for long, this TTL could be shorter.
+      await kv.put(FEATURED_ENTRIES_KEY, JSON.stringify(dataToStore), { expirationTtl: CACHE_EXPIRATION_SECONDS });
+      console.log("KV_REFRESH: Fetched 0 entries, cached empty result for full duration.");
     }
-    // If newEntries is null/undefined due to an error in fetchAndCacheFromSources,
-    // we don't overwrite a potentially good stale cache here. The error will be caught below.
     return newEntries || [];
   } catch (error) {
     console.error("KV_REFRESH: Error during fetch and cache process:", error);
     if (currentCachedData?.entries) {
-      console.warn("KV_REFRESH: Fetch failed, returning previous stale data due to error.");
+      console.warn("KV_REFRESH: Fetch failed, returning previous data due to error (may be expired).");
       return currentCachedData.entries;
     }
     throw error; // Re-throw if no stale data to serve
@@ -178,7 +183,7 @@ async function fetchAndCacheWithBestEffortLockKV(kv: KVNamespace, currentCachedD
 
 /**
  * Gets featured entries from Cloudflare KV.
- * Implements a stale-while-revalidate pattern.
+ * Fetches and caches for 4 hours if data is missing or expired.
  *
  * @param kv The KVNamespace binding.
  * @returns A promise that resolves to an array of FeaturedEntry.
@@ -186,8 +191,6 @@ async function fetchAndCacheWithBestEffortLockKV(kv: KVNamespace, currentCachedD
 export async function getFeaturedEntriesKV(kv: KVNamespace): Promise<FeaturedEntry[]> {
   if (!kv) {
     console.error("KV_GET: KV namespace binding is undefined. Cannot fetch featured entries.");
-    // Fallback or throw error. For now, returning empty array.
-    // Consider if your application should throw an error here to catch misconfigurations earlier.
     return [];
   }
 
@@ -197,32 +200,29 @@ export async function getFeaturedEntriesKV(kv: KVNamespace): Promise<FeaturedEnt
     cacheResult = await kv.get<KVStoredData>(FEATURED_ENTRIES_KEY, "json");
   } catch (e) {
     console.error("KV_GET: Error reading from KV:", e);
-    // Proceed as if cache miss, but log the error
+    // Proceed as if cache miss
   }
-  
 
   if (cacheResult?.entries && typeof cacheResult?.fetchedAt === 'number') {
     const dataAgeSeconds = (now - cacheResult.fetchedAt) / 1000;
-
-    if (dataAgeSeconds < STALE_WHILE_REVALIDATE_SECONDS) {
-      console.log("KV_GET: Cache is fresh, serving from KV.");
-      return cacheResult.entries;
-    } else if (dataAgeSeconds < CACHE_EXPIRATION_SECONDS) {
-      console.log("KV_GET: Cache is stale, serving from KV and revalidating in background.");
-      // Don't await - let it run in background
-      fetchAndCacheWithBestEffortLockKV(kv, cacheResult).catch(err => console.error("KV_GET: Background refresh failed:", err));
+    if (dataAgeSeconds < CACHE_EXPIRATION_SECONDS) {
+      console.log(`KV_GET: Cache is valid (age: ${Math.round(dataAgeSeconds / 60)} mins), serving from KV.`);
       return cacheResult.entries;
     }
+    console.log(`KV_GET: Cache is hard-expired (age: ${Math.round(dataAgeSeconds / 60)} mins), will fetch fresh data.`);
+  } else {
+    console.log("KV_GET: Cache miss, will fetch fresh data.");
   }
 
-  console.log("KV_GET: Cache miss or hard-expired, fetching synchronously.");
+  // Cache is missing or expired, fetch synchronously with lock
   try {
+    // Pass the potentially expired cacheResult so fetchAndCacheWithBestEffortLockKV can serve it if lock isn't acquired immediately
     return await fetchAndCacheWithBestEffortLockKV(kv, cacheResult ?? undefined);
   } catch (error) {
     console.error("KV_GET: Synchronous fetch failed:", error);
-    // If even the synchronous fetch fails, and we had some very old (but valid) cacheResult,
-    // we might consider returning it as a last resort, or just return empty.
-    // For now, returning empty on full failure.
+    // If even the synchronous fetch fails, and we had some very old (but valid) cacheResult from the initial get,
+    // we could return it as a last resort, but this would mean serving very old data.
+    // For now, returning empty on full failure if no prior cache was deemed servable by fetchAndCacheWithBestEffortLockKV.
     return [];
   }
 } 

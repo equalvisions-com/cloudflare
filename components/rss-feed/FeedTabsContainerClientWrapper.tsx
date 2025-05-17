@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { FeedTabsContainerWithErrorBoundary } from "./FeedTabsContainer";
-import type { FeaturedEntry } from "@/lib/featured_redis";
+import type { FeaturedEntry } from "@/lib/featured_kv";
 
 // Error fallback component
 function FeedErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {

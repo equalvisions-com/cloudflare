@@ -13,7 +13,7 @@ interface PostMetadata {
 }
 
 // Import the FeaturedEntry type
-import type { FeaturedEntry } from "@/lib/featured_redis";
+import type { FeaturedEntry } from "@/lib/featured_kv";
 
 // Define the interface for featured entry with data
 interface FeaturedEntryWithData {

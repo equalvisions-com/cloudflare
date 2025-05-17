@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import dynamic from 'next/dynamic';
-import type { FeaturedEntry } from "@/lib/featured_redis";
+import type { FeaturedEntry } from "@/lib/featured_kv";
 import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
 import Link from 'next/link';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
