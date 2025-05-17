@@ -1,5 +1,14 @@
+// Type definition for Cloudflare KVNamespace if not globally available
+interface KVNamespace {
+  get<T = string>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<T | null>;
+  getWithMetadata<T = string, Metadata = unknown>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<{ value: T | null; metadata: Metadata | null }>;
+  put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expiration?: number; expirationTtl?: number; metadata?: unknown; }): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number; cursor?: string; }): Promise<{ keys: { name: string; expiration?: number; metadata?: unknown }[]; list_complete: boolean; cursor?: string; }>;
+}
+
 import { cache } from "react";
-import { getFeaturedEntries } from "@/lib/featured_redis";
+import { getFeaturedEntriesKV, FeaturedEntry as KVFeaturedEntry } from "@/lib/featured_kv";
 import { FeaturedFeedClient } from "@/components/featured/FeaturedFeedClient";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
@@ -10,9 +19,14 @@ interface FeaturedFeedProps {
   initialData?: Awaited<ReturnType<typeof getInitialEntries>>;
 }
 
-export const getInitialEntries = cache(async () => {
-  // Get ALL featured entries from Redis (or fetch and cache if needed)
-  const entries = await getFeaturedEntries();
+export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
+  if (!kvBinding) {
+    console.error("KV binding was not provided to getInitialEntries. Serving empty.");
+    return null;
+  }
+
+  // Get ALL featured entries from KV (or fetch and cache if needed)
+  const entries: KVFeaturedEntry[] = await getFeaturedEntriesKV(kvBinding);
 
   if (!entries || entries.length === 0) return null;
   
@@ -70,10 +84,8 @@ export const getInitialEntries = cache(async () => {
   };
 });
 
-export default async function FeaturedFeed({ initialData }: FeaturedFeedProps) {
-  // Only fetch data if initialData is not provided
-  // This prevents redundant fetching when the data is already passed from LayoutManager
-  const data = initialData || await getInitialEntries();
+export default async function FeaturedFeed({ initialData: preloadedData, kvBindingFromProps }: FeaturedFeedProps & { kvBindingFromProps?: KVNamespace }) {
+  const data = preloadedData || (kvBindingFromProps ? await getInitialEntries(kvBindingFromProps) : null);
   
   if (!data) {
     return (
@@ -84,15 +96,16 @@ export default async function FeaturedFeed({ initialData }: FeaturedFeedProps) {
     );
   }
   
-  // Add a console log to confirm we're using the passed data when available
-  if (initialData) {
-    console.log('FeaturedFeed: Using prefetched featured data from LayoutManager', {
-      entriesCount: initialData.entries?.length || 0
+  if (preloadedData) {
+    console.log('FeaturedFeed: Using prefetched featured data.', {
+      entriesCount: preloadedData.entries?.length || 0
     });
-  } else {
-    console.log('FeaturedFeed: Fetched data directly', {
+  } else if (kvBindingFromProps) {
+    console.log('FeaturedFeed: Fetched data directly using provided KV binding.', {
       entriesCount: data.entries?.length || 0
     });
+  } else {
+    console.log('FeaturedFeed: No preloaded data and no KV binding provided for direct fetch.');
   }
   
   return (

@@ -226,16 +226,27 @@ export function FeedTabsContainer({
     
     try {
       console.log('Fetching featured data...');
-      const response = await fetch('/api/featured-feed');
+      const response = await fetch('/api/featured-feed-data');
       if (!response.ok) {
-        throw new Error('Failed to fetch featured data');
+        // Try to get a more specific error message from the response if possible
+        let errorText = 'Failed to fetch featured data';
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorText = errorData.error;
+          }
+        } catch (jsonError) {
+          // If parsing JSON fails, use the original status text or a generic message
+          errorText = `Failed to fetch featured data (status: ${response.status})`;
+        }
+        throw new Error(errorText);
       }
       
       const data = await response.json();
       setFeaturedData(data);
-    } catch (err) {
+    } catch (err: any) { // Catching 'any' to access err.message
       console.error('Error fetching featured data:', err);
-      setFeaturedError('Failed to load featured content. Please try again.');
+      setFeaturedError(err.message || 'Failed to load featured content. Please try again.');
     } finally {
       setFeaturedLoading(false);
       // Reset the ref
