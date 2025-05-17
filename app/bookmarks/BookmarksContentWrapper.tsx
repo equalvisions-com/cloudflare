@@ -5,43 +5,24 @@ import { useSidebar } from "@/components/ui/sidebar-context";
 import { getBookmarksData } from "@/app/actions/bookmarkActions";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
-import dynamic from 'next/dynamic';
+import dynamic from 'next/dynamic'; // Import dynamic
 
 // Type import needed for proper typing
 import type { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
 
-// Dynamically import BookmarksFeed with correct typing
-const DynamicBookmarksFeed = dynamic(
-  () => import("@/components/bookmarks/BookmarksFeed").then(mod => mod.BookmarksFeed),
-  { 
-    ssr: false,
+// Dynamically import BookmarksContent
+const DynamicBookmarksContent = dynamic(
+  () => import("./BookmarksContent").then(mod => mod.BookmarksContent),
+  {
+    ssr: false, // Keep it client-side as it deals with client state for search
     loading: () => <SkeletonFeed count={5} />
   }
 );
 
-// Wrapper component to guarantee skeletons show
-const SkeletonWrappedBookmarksFeed = (props: any) => {
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setIsLoading(false);
-    });
-    
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  
-  if (isLoading) {
-    return <SkeletonFeed count={5} />;
-  }
-  
-  return <DynamicBookmarksFeed {...props} />;
-};
-
 export function BookmarksContentWrapper() {
   const { userId, isAuthenticated } = useSidebar();
+  console.log('[BookmarksContentWrapper RENDER] userId:', userId, 'isAuthenticated:', isAuthenticated);
   
-  // Initialize with the correct type structure
   const [initialData, setInitialData] = useState<{
     bookmarks: BookmarkItem[];
     totalCount: number;
@@ -53,17 +34,24 @@ export function BookmarksContentWrapper() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[BookmarksContentWrapper useEffect] userId changed. Current userId:', userId);
     const fetchData = async () => {
       if (!userId) {
+        console.log('[BookmarksContentWrapper fetchData] No userId, setting isLoading to false and returning.');
         setIsLoading(false);
+        setInitialData(null);
         return;
       }
 
+      console.log('[BookmarksContentWrapper fetchData] Fetching initial bookmarks data for userId:', userId);
+      setIsLoading(true);
       try {
-        const data = await getBookmarksData(userId, 0, 30);
+        const data = await getBookmarksData(userId, 0, 30); 
+        console.log('[BookmarksContentWrapper fetchData] Initial data received:', data);
         setInitialData(data as any);
       } catch (error) {
-        console.error("Error fetching bookmarks:", error);
+        console.error("[BookmarksContentWrapper fetchData] Error fetching initial bookmarks:", error);
+        setInitialData(null);
       } finally {
         setIsLoading(false);
       }
@@ -72,13 +60,12 @@ export function BookmarksContentWrapper() {
     fetchData();
   }, [userId]);
 
-  // Show skeleton while loading
-  if (isLoading) {
-    return <SkeletonFeed count={5} />;
-  }
-
-  // If not authenticated or no userId, show message
   if (!isAuthenticated || !userId) {
+    if (isLoading && !initialData) { 
+      console.log('[BookmarksContentWrapper RENDER] Initial load, no userId yet but isLoading. Showing SkeletonFeed.');
+      return <SkeletonFeed count={5} />;
+    }
+    console.log('[BookmarksContentWrapper RENDER] Not authenticated or no userId. Showing login message.');
     return (
       <div className="flex-1 p-6 text-center">
         <div className="p-8 border border-gray-200 rounded-lg">
@@ -91,11 +78,16 @@ export function BookmarksContentWrapper() {
     );
   }
 
-  // Only render BookmarksFeed when we have a userId
+  if (isLoading) {
+    console.log('[BookmarksContentWrapper RENDER] userId present, but initialData is loading. Showing SkeletonFeed.');
+    return <SkeletonFeed count={5} />;
+  }
+
+  console.log('[BookmarksContentWrapper RENDER] Rendering DynamicBookmarksContent with userId and initialData.');
   return (
-      <SkeletonWrappedBookmarksFeed 
+      <DynamicBookmarksContent // Use the dynamically imported component
         userId={userId}
-        initialData={initialData} 
+        initialData={initialData}
       />
   );
 } 

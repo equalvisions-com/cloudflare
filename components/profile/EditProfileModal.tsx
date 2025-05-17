@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ interface EditProfileModalProps {
     bio?: string | null;
     profileImage?: string | null;
     username?: string;
+    profileImageKey?: string | null; // Ensure this is part of initialData if needed for deletion logic
   };
 }
 
@@ -36,13 +38,14 @@ export function EditProfileModal({
   userId,
   initialData 
 }: EditProfileModalProps) {
+  const router = useRouter();
   // Form state
   const [name, setName] = useState(initialData.name || "");
   const [bio, setBio] = useState(initialData.bio || "");
   const [previewImage, setPreviewImage] = useState<string | null>(initialData.profileImage || null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [profileImageKey, setProfileImageKey] = useState<string | null>(null);
+  const [profileImageKey, setProfileImageKey] = useState<string | null>(initialData.profileImageKey || null);
   
   // Hold the selected file for upload on save
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -56,40 +59,39 @@ export function EditProfileModal({
   // Get R2 upload action
   const getProfileImageUploadUrl = useAction(api.users.getProfileImageUploadUrl);
   
-  // Reset preview image when initialData changes
+  // Reset form fields when initialData changes (e.g., modal is re-opened for a different user or data is refreshed)
   useEffect(() => {
+    setName(initialData.name || "");
+    setBio(initialData.bio || "");
     setPreviewImage(initialData.profileImage || null);
-  }, [initialData.profileImage]);
+    setProfileImageKey(initialData.profileImageKey || null);
+    setSelectedFile(null); // Clear any selected file from previous interaction
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // Reset file input
+    }
+  }, [initialData]);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
+    let finalProfileImageKey = profileImageKey; // Start with current key (could be existing or null)
+
     try {
-      // Check if we need to upload a file
-      let finalProfileImageKey = profileImageKey;
-      
       if (selectedFile) {
         setIsUploading(true);
-        
-        // Now upload the file to R2
         try {
-          // Get a presigned URL to upload the file
           const uploadData = await getProfileImageUploadUrl();
-          
-          // Extract the URL properly from the response
           let uploadUrl = '';
           if (typeof uploadData.url === 'string') {
             uploadUrl = uploadData.url;
           } else if (uploadData.url && typeof uploadData.url === 'object') {
-            // Try to get the url property from the object
-            uploadUrl = uploadData.url.url || uploadData.url.toString();
+            uploadUrl = (uploadData.url as any).url || uploadData.url.toString();
           } else {
-            throw new Error('Invalid URL format returned from server');
+            throw new Error('Invalid URL format returned from server for image upload');
           }
           
-          // Upload the file directly to R2
           const uploadResponse = await fetch(uploadUrl, {
             method: "PUT",
             body: selectedFile,
@@ -100,39 +102,39 @@ export function EditProfileModal({
           });
           
           if (!uploadResponse.ok) {
-            throw new Error(`Upload failed: ${uploadResponse.status}`);
+            throw new Error(`Image upload failed: ${uploadResponse.statusText || uploadResponse.status}`);
           }
           
-          // Use the new key for the profile update
-          finalProfileImageKey = uploadData.key;
+          finalProfileImageKey = uploadData.key; // Use the new key from successful upload
         } catch (error) {
           console.error("Failed to upload image:", error);
           alert("Failed to upload image: " + (error instanceof Error ? error.message : String(error)));
-          setIsLoading(false);
+          setIsLoading(false); // Stop loading if upload fails
           setIsUploading(false);
-          return; // Stop the submission if upload failed
+          return; 
         } finally {
           setIsUploading(false);
         }
       }
       
-      // Now update the profile with the new details and possibly new image key
       await updateProfile({
-        name: name || null,
-        bio: bio || null,
-        profileImage: null, // We're only using R2 now
-        profileImageKey: finalProfileImageKey,
+        name: name.trim() === "" ? null : name.trim(), // Send null if name is empty after trim
+        bio: bio.trim() === "" ? null : bio.trim(),   // Send null if bio is empty after trim
+        profileImage: null, // Deprecated, R2 key is used
+        profileImageKey: finalProfileImageKey, 
       });
       
-      // Clear the file selection
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       
       onClose();
+      router.refresh(); // Refresh data on the current page
     } catch (error) {
       console.error("Failed to update profile:", error);
+      // Consider showing a user-friendly error message here, e.g., using a toast notification
+      alert("Failed to update profile: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -233,6 +235,7 @@ export function EditProfileModal({
                 onChange={(e) => setName(e.target.value)}
                 className="col-span-3"
                 placeholder="Your display name"
+                maxLength={60}
               />
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
@@ -245,6 +248,7 @@ export function EditProfileModal({
                 placeholder="Tell others about yourself"
                 rows={3}
                 disabled={isLoading}
+                maxLength={250}
               />
             </div>
           </div>

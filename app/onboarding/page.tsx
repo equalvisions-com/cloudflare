@@ -45,7 +45,7 @@ interface FinalizeOnboardingArgs {
 
 // --- Update the Client Component --- 
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 // Keep useAction for the *Convex* action
 import { useAction, useQuery, useMutation } from 'convex/react'; 
@@ -55,6 +55,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { atomicFinalizeOnboarding } from './actions';
 // Remove the unused direct cookie setting import
 // import { setCookie } from 'cookies-next';
+import { cn } from '@/lib/utils'; // Added cn import
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
@@ -74,6 +75,114 @@ import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 
 // Define step types for onboarding
 type OnboardingStep = 'profile' | 'follow';
+
+// Props interface for our new FeaturedPostItem component
+interface FeaturedPostItemProps {
+  post: {
+    _id: Id<"posts">;
+    title: string;
+    body: string;
+    featuredImg?: string | null;
+    feedUrl: string;
+  };
+  followedPosts: string[];
+  handleFollowToggle: (postId: Id<"posts">, feedUrl: string, postTitle: string) => void;
+}
+
+// New FeaturedPostItem component with dynamic line-clamp logic
+const FeaturedPostItem: React.FC<FeaturedPostItemProps> = ({ post, followedPosts, handleFollowToggle }) => {
+  const [descriptionLines, setDescriptionLines] = useState(2);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const checkTitleHeight = useCallback(() => {
+    if (!isMountedRef.current || !titleRef.current) return;
+
+    const styles = window.getComputedStyle(titleRef.current);
+    const lineHeight = styles.lineHeight;
+    const titleHeight = titleRef.current.offsetHeight;
+    const fontSize = parseInt(styles.fontSize, 10);
+    
+    // Calculate approximate number of lines
+    const effectiveLineHeight = (lineHeight === 'normal' || !lineHeight) ? fontSize * 1.2 : parseInt(lineHeight, 10);
+    
+    if (isNaN(effectiveLineHeight) || effectiveLineHeight === 0) {
+      setDescriptionLines(2); // Default if calculation fails
+      return;
+    }
+    const numberOfLines = Math.round(titleHeight / effectiveLineHeight);
+    
+    setDescriptionLines(numberOfLines === 1 ? 3 : 2);
+  }, []); // fontSize is derived, not a prop or state from outside
+
+  useEffect(() => {
+    checkTitleHeight(); // Run on mount and when dependencies change
+    window.addEventListener('resize', checkTitleHeight);
+    return () => {
+      window.removeEventListener('resize', checkTitleHeight);
+    };
+  }, [checkTitleHeight, post.title, followedPosts]); // Added post.title and followedPosts
+
+  return (
+    <Card key={post._id} className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-b-1 border-t-0 rounded-none">
+      <CardContent className="pl-4 pt-4 pb-4 pr-5 h-[116px]">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 w-[82px] h-[82px]">
+            <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
+              {post.featuredImg ? (
+                <Image
+                  src={post.featuredImg}
+                  alt={post.title}
+                  fill
+                  sizes="82px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center">
+                  <p className="text-muted-foreground text-xs">No image</p>
+                </div>
+              )}
+            </AspectRatio>
+          </div>
+          <div className="flex-1 min-w-0 space-y-2 pt-0">
+            <div className="flex justify-between items-start gap-2 mt-[-4px] mb-[5px]">
+              <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">
+                {post.title}
+              </h3>
+              <Button
+                variant={followedPosts.includes(post._id) ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleFollowToggle(post._id, post.feedUrl, post.title)}
+                className="px-2 h-[23px] text-xs flex-shrink-0 font-semibold gap-1"
+              >
+                {followedPosts.includes(post._id) ? (
+                  <>
+                    <Check className="h-3 w-3 mr-0" /> Following
+                  </>
+                ) : (
+                  'Follow'
+                )}
+              </Button>
+            </div>
+            <p className={cn(
+              "text-sm text-muted-foreground !mt-[3px]",
+              descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"
+            )}>
+              {post.body.replace(/<[^>]*>|&[^;]+;/g, '').trim()}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 // Use default export for the client component
 export default function OnboardingPage() {
@@ -103,11 +212,11 @@ function OnboardingPageContent() {
   const debouncedUsername = useDebounce(username, 500);
 
   const usernameForQuery = useMemo(() => {
-    if (!username.trim()) return "skip"; // No query for empty/whitespace
+    if (!username.trim()) return "skip";
     if (username.length < 3) return "skip";
+    if (username.length > 24) return "skip";
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return "skip";
     
-    // Raw username is client-side valid. Query only if debounced matches current raw.
     if (!debouncedUsername || username !== debouncedUsername) {
       return "skip";
     }
@@ -117,49 +226,80 @@ function OnboardingPageContent() {
   const checkUsernameAvailabilityResult = useQuery(api.users.checkUsernameAvailability, usernameForQuery);
 
   useEffect(() => {
-    let currentError: string | null = null;
-    let checkingServer = false;
-    const rawUsername = username.trim(); // Use trimmed username for checks
+    let determinedError: string | null = null;
+    const rawUsername = username.trim();
 
+    // --- Step 1: Determine Error State ---
     if (!rawUsername) {
-      currentError = null;
-      // checkingServer remains false
+      determinedError = null;
     } else if (rawUsername.length < 3) {
-      currentError = "Username must be at least 3 characters";
-      // checkingServer remains false
+      // Only show "too short" error if user has paused with a short username
+      if (username === debouncedUsername) { 
+        determinedError = "Username must be at least 3 characters";
+      } else {
+        // Still typing a short username, don't show error yet. Hint text will show.
+        determinedError = null; 
+      }
+    } else if (rawUsername.length > 24) {
+      determinedError = "Username cannot exceed 24 characters";
     } else if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
-      currentError = "Username can only contain letters, numbers, and underscores";
-      // checkingServer remains false
+      determinedError = "Username can only contain letters, numbers, and underscores";
     } else {
-      // Raw username is client-side valid. Now consider server check.
-      if (usernameForQuery !== "skip") {
-        if (checkUsernameAvailabilityResult === undefined) { // Querying
-          checkingServer = true;
-          currentError = null; // Clear previous server error while new one is loading
-        } else { // Query returned
-          // checkingServer remains false (set after query completes)
-          if (checkUsernameAvailabilityResult === null) {
-            // console.warn("Username availability check returned null");
-            currentError = null; // Or a generic error if null is unexpected
-          } else if (!checkUsernameAvailabilityResult.available) {
-            currentError = checkUsernameAvailabilityResult.message || "Username already taken";
+      // Username is client-side valid (length 3-24, correct chars).
+      // Now consider server validation, but only if username is stable (debounced).
+      if (username === debouncedUsername) { 
+        if (usernameForQuery !== "skip") { // A query should be active for a stable, client-valid username
+          if (checkUsernameAvailabilityResult === undefined) {
+            // Server check is pending for the stable, client-side valid username.
+            determinedError = null; // No error yet from server
+          } else if (checkUsernameAvailabilityResult !== null && !checkUsernameAvailabilityResult.available) {
+            // Server says username is taken.
+            determinedError = checkUsernameAvailabilityResult.message || "Username already taken";
           } else {
-            currentError = null; // Available
+            // Server says available, or result is null (which we treat as available or no issue)
+            determinedError = null;
           }
+        } else {
+          // Username is stable, client-side valid, but usernameForQuery is "skip".
+          // This is unlikely if rawUsername passed all prior client checks here.
+          // It might mean debouncedUsername became empty or failed a useMemo check.
+          // In this state, assume no error from server side if query is skipped.
+          determinedError = null;
         }
       } else {
-        // Raw username is client-side valid, but usernameForQuery is "skip" 
-        // (e.g., waiting for debounce, or debouncedUsername is empty).
-        // No server check is active for this exact state, so no server error or loading.
-        currentError = null;
-        // checkingServer remains false
+        // Username is client-side valid, but user is still typing (username !== debouncedUsername).
+        // No error to show yet from server. Spinner will be active.
+        determinedError = null;
       }
     }
 
-    setUsernameError(currentError);
-    setIsCheckingUsername(checkingServer);
+    setUsernameError(determinedError);
 
-  }, [username, usernameForQuery, checkUsernameAvailabilityResult]); // debouncedUsername is implicitly part of usernameForQuery
+    // --- Step 2: Determine Spinner State (isCheckingUsername) ---
+    let showSpinner = false;
+    // Only consider showing spinner if there's no active error message
+    if (determinedError === null) { 
+      // And only if there's some input
+      if (rawUsername.length > 0) { 
+        if (username !== debouncedUsername) {
+          // User is actively typing a non-empty username that currently has no error
+          showSpinner = true;
+        } else {
+          // Username is stable (username === debouncedUsername).
+          // Show spinner ONLY if it's client-side valid and a server query is pending.
+          if (rawUsername.length >= 3 && 
+              rawUsername.length <= 24 && 
+              /^[a-zA-Z0-9_]+$/.test(rawUsername)) { // Client-side valid
+            if (usernameForQuery !== "skip" && checkUsernameAvailabilityResult === undefined) {
+              showSpinner = true; // Query is pending for a valid, stable username
+            }
+          }
+        }
+      }
+    }
+    setIsCheckingUsername(showSpinner);
+
+  }, [username, debouncedUsername, usernameForQuery, checkUsernameAvailabilityResult]);
 
   // Generate the default gradient data URL once using useMemo
   const defaultGradientDataUrl = useMemo(() => {
@@ -221,7 +361,7 @@ function OnboardingPageContent() {
     e.preventDefault();
     
     if (usernameError) {
-      console.error("Username not available:", usernameError);
+      console.error("Username not available or invalid:", usernameError);
       setIsSubmitting(false);
       return;
     }
@@ -402,16 +542,16 @@ function OnboardingPageContent() {
   };
 
   return (
-    <div className="flex min-h-screen w-full container my-auto mx-auto">
+    <div className="flex min-h-screen w-full my-auto mx-auto px-4 md:px-0">
       <div className="w-full max-w-[600px] mx-auto flex flex-col my-auto gap-4 pb-8">
-        <div className="space-y-1 mb-2">
-          <h2 className="font-semibold text-2xl tracking-tight">
-            {currentStep === 'profile' ? 'Complete your profile' : 'Follow featured posts'}
+        <div className="space-y-1">
+          <h2 className="text-2xl font-extrabold leading-none tracking-tight">
+            {currentStep === 'profile' ? 'Account Details' : 'Personalize Feed'}
           </h2>
           <p className="text-sm text-muted-foreground">
             {currentStep === 'profile' 
-              ? 'Set up your profile to get started' 
-              : 'Follow posts that interest you to personalize your feed'}
+              ? 'Complete your profile to get started' 
+              : 'Follow your favorite creators'}
           </p>
         </div>
         
@@ -468,16 +608,25 @@ function OnboardingPageContent() {
                   value={username}
                   onChange={(e) => {
                     setUsername(e.target.value);
-                    // Clear error immediately on typing, validation will re-occur on debounce
-                    if (usernameError) setUsernameError(null); 
                   }}
                   placeholder="Choose a unique username"
                   className={usernameError ? 'border-red-500' : ''}
                   disabled={isSubmitting || isUploading}
+                  maxLength={24}
                 />
-                {isCheckingUsername && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+                {isCheckingUsername && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
               </div>
-              {usernameError && <p className="text-sm text-red-500 mt-1">{usernameError}</p>}
+              <p className="text-sm mt-1 h-5">
+                {usernameError ? (
+                  <span className="text-red-500">{usernameError}</span>
+                ) : (
+                  <span className="text-muted-foreground">Min 3, Max 24 chars. Letters, numbers, _ only.</span>
+                )}
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -488,6 +637,7 @@ function OnboardingPageContent() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Display name"
+                maxLength={60}
               />
             </div>
             
@@ -499,6 +649,7 @@ function OnboardingPageContent() {
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Your bio"
                 className="h-24 resize-none"
+                maxLength={250}
               />
             </div>
             
@@ -509,6 +660,7 @@ function OnboardingPageContent() {
                 isSubmitting || 
                 isUploading || 
                 !username.trim() || 
+                (username.trim().length > 0 && username.trim().length < 3 && username !== debouncedUsername) || 
                 isCheckingUsername || 
                 !!usernameError
               }
@@ -532,67 +684,18 @@ function OnboardingPageContent() {
                   style={{ width: `${Math.min(100, (followedPosts.length / REQUIRED_FOLLOWS) * 100)}%` }}
                 ></div>
               </div>
-              <p className="text-sm font-medium">
-                {followedPosts.length >= REQUIRED_FOLLOWS 
-                  ? "You're ready to complete onboarding!" 
-                  : `Follow ${REQUIRED_FOLLOWS - followedPosts.length} more post${REQUIRED_FOLLOWS - followedPosts.length !== 1 ? 's' : ''}`}
-              </p>
-            </div>
-            
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-medium">Featured Posts</h3>
-              <span className="text-sm text-muted-foreground">{followedPosts.length}/{REQUIRED_FOLLOWS} followed</span>
             </div>
             
             {featuredPosts ? (
-              <ScrollArea className="h-[50vh] pr-4 rounded-md border">
+              <ScrollArea type="always" className="h-[50vh] rounded-md border">
                 <div className="space-y-0">
                   {featuredPosts.map((post) => (
-                    <Card key={post._id} className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-1 border-r-1 border-t-0 border-b-1 rounded-none">
-                      <CardContent className="p-4 h-[116px]">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0 w-[82px] h-[82px]">
-                            <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
-                              {post.featuredImg ? (
-                                <Image
-                                  src={post.featuredImg}
-                                  alt={post.title}
-                                  fill
-                                  sizes="82px"
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-muted flex items-center justify-center">
-                                  <p className="text-muted-foreground text-xs">No image</p>
-                                </div>
-                              )}
-                            </AspectRatio>
-                          </div>
-                          <div className="flex-1 min-w-0 space-y-2 pt-0">
-                            <div className="flex justify-between items-start gap-4 mt-[-4px]">
-                              <h3 className="text-lg font-semibold leading-tight line-clamp-2 mt-[2px]">{post.title}</h3>
-                            </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2 !mt-[3px]">
-                              {post.body.replace(/<[^>]*>|&[^;]+;/g, '').trim()}
-                            </p>
-                            <Button
-                              variant={followedPosts.includes(post._id) ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleFollowToggle(post._id, post.feedUrl, post.title)}
-                              className="px-2 h-[23px] text-xs"
-                            >
-                              {followedPosts.includes(post._id) ? (
-                                <>
-                                  <Check className="h-3 w-3 mr-1" /> Following
-                                </>
-                              ) : (
-                                'Follow'
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <FeaturedPostItem
+                      key={post._id}
+                      post={post}
+                      followedPosts={followedPosts}
+                      handleFollowToggle={handleFollowToggle}
+                    />
                   ))}
                 </div>
               </ScrollArea>
@@ -614,7 +717,7 @@ function OnboardingPageContent() {
                 disabled={
                   followedPosts.length < REQUIRED_FOLLOWS || 
                   isSubmitting || 
-                  !!usernameError || 
+                  !!usernameError ||
                   isCheckingUsername
                 }
               >

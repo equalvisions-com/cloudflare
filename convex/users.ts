@@ -220,34 +220,28 @@ export const updateProfile = mutation({
   args: {
     name: v.union(v.string(), v.null()),
     bio: v.union(v.string(), v.null()),
-    profileImage: v.union(v.string(), v.null()),
-    // New parameter for R2 object key
+    profileImage: v.union(v.string(), v.null()), // This arg is effectively ignored now for setting image, but kept for schema compatibility if other parts of system use it.
     profileImageKey: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const { name, bio, profileImage, profileImageKey } = args;
-    
-    // Get the authenticated user ID
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Unauthenticated");
     }
-    
-    // Find the user with field filtering
+
     const user = await ctx.db
       .query("users")
       .filter(q => q.eq(q.field("_id"), userId))
       .first()
-      .then(user => user ? {
-        _id: user._id,
-        profileImageKey: user.profileImageKey
+      .then(u => u ? {
+        _id: u._id,
+        profileImageKey: u.profileImageKey
       } : null);
       
     if (!user) {
       throw new Error("User not found");
     }
     
-    // Prepare updates - convert null to undefined for the DB
     const updates: {
       name?: string;
       bio?: string;
@@ -255,47 +249,64 @@ export const updateProfile = mutation({
       profileImageKey?: string;
     } = {};
     
-    if (name !== null) updates.name = name;
-    if (bio !== null) updates.bio = bio;
+    // --- Name and Bio Validation and Processing (as before) ---
+    const MAX_NAME_LENGTH = 60;
+    const MAX_BIO_LENGTH = 250;
+
+    let processedName = args.name === null ? undefined : args.name?.trim();
+    if (processedName === "") { 
+      processedName = undefined;
+    } else if (processedName && processedName.length > MAX_NAME_LENGTH) {
+      throw new Error(`Display name cannot exceed ${MAX_NAME_LENGTH} characters.`);
+    }
+    updates.name = processedName;
+
+    let processedBio = args.bio === null ? undefined : args.bio?.trim();
+    if (processedBio === "") { 
+      processedBio = undefined;
+    } else if (processedBio && processedBio.length > MAX_BIO_LENGTH) {
+      throw new Error(`Bio cannot exceed ${MAX_BIO_LENGTH} characters.`);
+    }
+    updates.bio = processedBio;
+    // --- End Name and Bio Validation ---
     
-    // Store old key for tracking if we need to clean up
     const oldProfileImageKey = user.profileImageKey;
-    const isChangingImage = profileImageKey && oldProfileImageKey && profileImageKey !== oldProfileImageKey;
-    
-    // Handle both regular profileImage URLs and R2 keys
-    if (profileImageKey) {
-      // If an R2 key is provided, generate a public URL for it
+
+    // --- Refined Image Handling ---
+    if (typeof args.profileImageKey === 'string' && args.profileImageKey.length > 0) {
+      // A new or existing key is provided
+      updates.profileImageKey = args.profileImageKey;
       try {
-        const publicUrl = await r2.getUrl(profileImageKey);
+        const publicUrl = await r2.getUrl(args.profileImageKey);
         updates.profileImage = publicUrl;
-        updates.profileImageKey = profileImageKey;
       } catch (error) {
-        console.error("Failed to get image URL:", error);
-        // Still save the key even if we can't get the URL right now
-        updates.profileImageKey = profileImageKey;
+        console.error(`Failed to get R2 URL for key ${args.profileImageKey}:`, error);
+        updates.profileImage = undefined; // Or a fallback/default image URL if you have one
       }
-      
-      // If we're changing the R2 image, delete the old one
-      if (isChangingImage) {
-        // We can't call an action directly from a mutation, so schedule with 0 delay for immediate execution
+
+      // If the key has changed and there was an old key, schedule deletion of the old one.
+      if (oldProfileImageKey && oldProfileImageKey !== args.profileImageKey) {
         ctx.scheduler.runAfter(0, api.r2Cleanup.deleteR2Object, { key: oldProfileImageKey });
         console.log(`🗑️ Scheduled immediate deletion of old profile image: ${oldProfileImageKey}`);
       }
-    } else if (profileImage !== null) {
-      // If just a regular URL is provided (legacy or external)
-      updates.profileImage = profileImage;
-      
-      // If we're changing from R2 to external URL, remove the key and delete the old image
+    } else if (args.profileImageKey === null) {
+      // Explicitly removing the image (client sent profileImageKey: null)
+      updates.profileImageKey = undefined; // This will remove the key from the database document
+      updates.profileImage = undefined;    // This will remove the image URL from the database document
       if (oldProfileImageKey) {
-        updates.profileImageKey = undefined;
-        // We can't call an action directly from a mutation, so schedule with 0 delay for immediate execution
         ctx.scheduler.runAfter(0, api.r2Cleanup.deleteR2Object, { key: oldProfileImageKey });
-        console.log(`🗑️ Scheduled immediate deletion of old profile image: ${oldProfileImageKey}`);
+        console.log(`🗑️ Scheduled immediate deletion of current profile image: ${oldProfileImageKey}`);
       }
     }
+    // If args.profileImageKey is undefined (not provided in the arguments at all),
+    // then neither of the above blocks are entered for image fields.
+    // The existing profileImage and profileImageKey in the database will remain unchanged.
+    // This is the correct behavior for an optional field that isn't being explicitly updated or nulled.
+    // --- End Refined Image Handling ---
     
-    // Update the user
-    await ctx.db.patch(userId, updates);
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(userId, updates);
+    }
     
     return userId;
   },
@@ -880,6 +891,34 @@ export const getProfileLikesData = query({
   }
 });
 
+export const checkUsernameAvailability = query({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const usernameToCheck = args.username.trim();
+    if (!usernameToCheck) {
+      return { available: false, message: "Username cannot be empty" };
+    }
+    if (usernameToCheck.length < 3) {
+      return { available: false, message: "Username must be at least 3 characters" };
+    }
+    if (usernameToCheck.length > 24) { // Max length check
+      return { available: false, message: "Username cannot exceed 24 characters" };
+    }
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!usernameRegex.test(usernameToCheck)) {
+      return { available: false, message: "Username can only contain letters, numbers, and underscores" };
+    }
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", usernameToCheck.toLowerCase()))
+      .first();
+    if (existingUser) {
+      return { available: false, message: "Username already taken" };
+    }
+    return { available: true };
+  },
+});
+
 export const completeOnboarding = mutation({
   args: {
     username: v.string(),
@@ -889,29 +928,63 @@ export const completeOnboarding = mutation({
     defaultProfileGradientUri: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const { username, name, bio, profileImageKey, defaultProfileGradientUri } = args;
-    
-    // Get the authenticated user ID
+    const { profileImageKey, defaultProfileGradientUri } = args;
+    let username = args.username.trim(); 
+    let processedName = args.name?.trim() || undefined; // Trim and default to undefined
+    let processedBio = args.bio?.trim() || undefined;   // Trim and default to undefined
+
+    // --- SERVER-SIDE VALIDATION ---
+    // Username validation
+    if (!username) {
+      throw new Error("Username cannot be empty");
+    }
+    if (username.length < 3) {
+      throw new Error("Username must be at least 3 characters");
+    }
+    if (username.length > 24) { // Max length check
+      throw new Error("Username cannot exceed 24 characters");
+    }
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!usernameRegex.test(username)) {
+      throw new Error("Username can only contain letters, numbers, and underscores");
+    }
+
+    // Name (Display Name) validation
+    const MAX_NAME_LENGTH = 60;
+    if (processedName && processedName.length > MAX_NAME_LENGTH) {
+      throw new Error(`Display name cannot exceed ${MAX_NAME_LENGTH} characters.`);
+    }
+    // If name was provided but trimmed to empty, it's already undefined from initial assignment.
+    if (args.name && !processedName) {
+        processedName = undefined;
+    }
+
+    // Bio validation
+    const MAX_BIO_LENGTH = 250;
+    if (processedBio && processedBio.length > MAX_BIO_LENGTH) {
+      throw new Error(`Bio cannot exceed ${MAX_BIO_LENGTH} characters.`);
+    }
+    // If bio was provided but trimmed to empty, it's already undefined.
+    if (args.bio && !processedBio) {
+        processedBio = undefined;
+    }
+    // --- END SERVER-SIDE VALIDATION ---
+
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Unauthenticated");
     }
     
-    // Find the user with field filtering
     const user = await ctx.db
       .query("users")
       .filter(q => q.eq(q.field("_id"), userId))
       .first()
-      .then(user => user ? {
-        _id: user._id,
-        username: user.username
-      } : null);
+      .then(user => user ? { _id: user._id, username: user.username } : null);
       
     if (!user) {
       throw new Error("User not found");
     }
     
-    // Check if the username is already taken (case-insensitive)
     if (user.username?.toLowerCase() !== username.toLowerCase()) {
       const existingUser = await ctx.db
         .query("users")
@@ -923,11 +996,10 @@ export const completeOnboarding = mutation({
       }
     }
     
-    // Prepare updates
     const updates: {
       username: string;
-      name?: string;
-      bio?: string;
+      name?: string; // Schema likely v.optional(v.string()) so it takes string | undefined
+      bio?: string;  // Schema likely v.optional(v.string()) so it takes string | undefined
       profileImageKey?: string;
       profileImage?: string;
       isBoarded: boolean;
@@ -936,12 +1008,15 @@ export const completeOnboarding = mutation({
       isBoarded: true
     };
     
-    if (name) {
-      updates.name = name;
+    // Only add name/bio to updates if they have a value after processing.
+    // If they are undefined (e.g. not provided, or trimmed to empty and set to undefined),
+    // they won't be included in the patch, effectively leaving them as is or unsetting them if that's patch behavior for undefined.
+    if (processedName) {
+      updates.name = processedName;
     }
     
-    if (bio) {
-      updates.bio = bio;
+    if (processedBio) {
+      updates.bio = processedBio;
     }
 
     if (profileImageKey) {
@@ -1008,27 +1083,6 @@ export const finalizeOnboardingAction = action({
       // Throwing here will make useAction hook catch it
       throw new Error(errorMessage);
     }
-  },
-});
-
-// --- Query to check username availability ---
-export const checkUsernameAvailability = query({
-  args: { username: v.string() },
-  handler: async (ctx, args) => {
-    if (!args.username) {
-      return { available: false, message: "Username cannot be empty" };
-    }
-    if (args.username.length < 3) {
-      return { available: false, message: "Username must be at least 3 characters" };
-    }
-    const existingUser = await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) => q.eq("username", args.username.toLowerCase()))
-      .first();
-    if (existingUser) {
-      return { available: false, message: "Username already taken" };
-    }
-    return { available: true };
   },
 });
 

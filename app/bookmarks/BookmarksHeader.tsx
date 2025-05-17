@@ -1,46 +1,45 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useState, KeyboardEvent, useEffect } from "react";
 import { BookmarkSearchButton } from "@/components/ui/BookmarkSearchButton";
 import { Input } from "@/components/ui/input";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { BackButton } from "@/components/back-button";
+import { useSearch } from "./SearchContext";
 
 export function BookmarksHeader() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const [isSearchInputVisible, setIsSearchInputVisible] = useState(false);
+  const [localSearchValue, setLocalSearchValue] = useState("");
 
-  const toggleSearch = () => {
-    setIsSearching(!isSearching);
-    if (isSearching) {
-      setSearchValue("");
-      // Remove search query param when closing search
-      const params = new URLSearchParams(searchParams);
-      params.delete("q");
-      router.replace(`${pathname}?${params.toString()}`);
+  const { searchQuery, setSearchQuery } = useSearch();
+
+  useEffect(() => {
+    setLocalSearchValue(searchQuery);
+  }, [searchQuery]);
+
+  const toggleSearchVisibility = () => {
+    const newVisibility = !isSearchInputVisible;
+    setIsSearchInputVisible(newVisibility);
+    if (!newVisibility) {
+      setSearchQuery("");
+      setLocalSearchValue("");
     }
   };
 
-  const handleSearch = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && searchValue.trim().length > 0) {
-      // Add search query to URL parameters
-      const params = new URLSearchParams(searchParams);
-      params.set("q", searchValue.trim());
-      router.replace(`${pathname}?${params.toString()}`);
+  const handleSearchSubmit = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && localSearchValue.trim().length > 0) {
+      console.log('[BookmarksHeader] handleSearchSubmit triggered. Value:', localSearchValue.trim());
+      setSearchQuery(localSearchValue.trim());
     }
   };
 
   return (
     <div className="flex items-center border-b px-4 py-2">
-      {isSearching ? (
+      {isSearchInputVisible ? (
         <div className="flex-1 flex items-center">
           <div className="relative w-full">
             <Search 
@@ -49,15 +48,15 @@ export function BookmarksHeader() {
             />
             <Input
               type="text"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onKeyDown={handleSearch}
+              value={localSearchValue}
+              onChange={(e) => setLocalSearchValue(e.target.value)}
+              onKeyDown={handleSearchSubmit}
               placeholder="Search Bookmarks..."
               className="pl-9 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
               autoFocus
             />
             <button
-              onClick={toggleSearch}
+              onClick={toggleSearchVisibility}
               className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
               aria-label="Close search"
             >
@@ -84,7 +83,7 @@ export function BookmarksHeader() {
             Bookmarks
           </div>
           <div className="w-10 flex justify-end">
-            <BookmarkSearchButton onClick={toggleSearch} />
+            <BookmarkSearchButton onClick={toggleSearchVisibility} />
           </div>
         </>
       )}

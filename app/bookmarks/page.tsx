@@ -7,8 +7,7 @@ import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
-import { BookmarksHeader } from "./BookmarksHeader";
-import { BookmarksContentWrapper } from "./BookmarksContentWrapper";
+import { BookmarksPageClientScope } from "./BookmarksPageClientScope";
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
@@ -51,10 +50,7 @@ export default async function BookmarksPage() {
       useCardStyle={true}
       containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
     >
-      <BookmarksHeader />
-
-      {/* BookmarksContentWrapper will get userId from context */}
-  <BookmarksContentWrapper />
+      <BookmarksPageClientScope rightSidebar={rightSidebar} />
     </StandardSidebarLayout>
   );
 }
