@@ -82,7 +82,7 @@ interface FeaturedEntryProps {
 }
 
 // Memoize the FeaturedEntry component
-const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
+const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -205,7 +205,6 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                     fill
                     className="object-cover"
                     sizes="48px"
-                    priority={isPriority}
                   />
                 </AspectRatio>
               </PrefetchAnchor>
@@ -276,7 +275,6 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -318,7 +316,6 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -445,7 +442,6 @@ const FeedContent = React.memo(({
       <FeaturedEntry
         entryWithData={entryWithData}
         onOpenCommentDrawer={onOpenCommentDrawer}
-        isPriority={index < 2} // Set priority for the first 2 entries
       />
     );
   }, [onOpenCommentDrawer]);
