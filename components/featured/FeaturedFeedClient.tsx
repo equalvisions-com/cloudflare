@@ -202,7 +202,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                   <Image
                     src={postMetadata.featuredImg}
                     alt=""
-                    fill
+                    width={48}
+                    height={48}
                     className="object-cover"
                     sizes="48px"
                     priority={isPriority}
@@ -269,16 +270,16 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
                 {entry.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        src={entry.image}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
-                      />
-                    </AspectRatio>
+                    <Image
+                      src={entry.image}
+                      alt=""
+                      width={516}
+                      height={258}
+                      className="object-cover w-full h-auto"
+                      style={{ display: 'block' }}
+                      sizes="(max-width: 516px) 100vw, 516px"
+                      priority={isPriority}
+                    />
                   </CardHeader>
                 )}
                 <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
@@ -311,16 +312,16 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               <Card className="rounded-xl border overflow-hidden shadow-none">
                 {entry.image && (
                   <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        src={entry.image}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
-                      />
-                    </AspectRatio>
+                    <Image
+                      src={entry.image}
+                      alt=""
+                      width={516}
+                      height={258}
+                      className="object-cover w-full h-auto"
+                      style={{ display: 'block' }}
+                      sizes="(max-width: 516px) 100vw, 516px"
+                      priority={isPriority}
+                    />
                   </CardHeader>
                 )}
                 <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
