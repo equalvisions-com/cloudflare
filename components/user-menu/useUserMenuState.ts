@@ -3,6 +3,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar-context";
+import { clearOnboardingCookieAction } from "@/app/onboarding/actions";
 
 export function useUserMenuState(initialDisplayName?: string, initialProfileImage?: string, initialUsername?: string) {
   const { signOut } = useAuthActions();
@@ -29,6 +30,12 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Clear the onboarding cookie
+      const cookieResult = await clearOnboardingCookieAction();
+      if (!cookieResult.success) {
+        console.error("Failed to clear onboarding cookie:", cookieResult.error);
+        // Optionally, notify the user or handle the error further
+      }
       // Optimistically update the UI after sign-out
       setDisplayName("Guest");
       setUsername("Guest");

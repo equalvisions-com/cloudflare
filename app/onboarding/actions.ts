@@ -91,4 +91,15 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
       redirectUrl: '/signin'  // Always redirect to signin on serious errors
     };
   }
+}
+
+export async function clearOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
+  "use server";
+  try {
+    cookies().delete('user_onboarded');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error in clearOnboardingCookieAction:', error);
+    return { success: false, error: "Failed to clear onboarding cookie" };
+  }
 } 

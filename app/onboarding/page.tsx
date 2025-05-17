@@ -209,12 +209,13 @@ function OnboardingPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameInputFocused, setIsUsernameInputFocused] = useState(false);
   const debouncedUsername = useDebounce(username, 500);
 
   const usernameForQuery = useMemo(() => {
     if (!username.trim()) return "skip";
     if (username.length < 3) return "skip";
-    if (username.length > 24) return "skip";
+    if (username.length > 15) return "skip";
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return "skip";
     
     if (!debouncedUsername || username !== debouncedUsername) {
@@ -230,46 +231,44 @@ function OnboardingPageContent() {
     const rawUsername = username.trim();
 
     // --- Step 1: Determine Error State ---
-    if (!rawUsername) {
+    if (!rawUsername) { // If username is empty (after trimming)
       determinedError = null;
-    } else if (rawUsername.length < 3) {
-      // Only show "too short" error if user has paused with a short username
-      if (username === debouncedUsername) { 
+    } else { // Username is not empty
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) { // Check original username for disallowed characters FIRST
+        determinedError = "Username can only contain letters, numbers, and underscores";
+      } else if (!/[a-zA-Z0-9]/.test(username)) { // NEW: Check if username contains at least one letter or number
+        determinedError = "Username must contain at least one letter or number";
+      } else if (rawUsername.length < 3) { // Then check length constraints on the trimmed version
         determinedError = "Username must be at least 3 characters";
+      } else if (rawUsername.length > 15) {
+        determinedError = "Username cannot exceed 15 characters";
       } else {
-        // Still typing a short username, don't show error yet. Hint text will show.
-        determinedError = null; 
-      }
-    } else if (rawUsername.length > 24) {
-      determinedError = "Username cannot exceed 24 characters";
-    } else if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
-      determinedError = "Username can only contain letters, numbers, and underscores";
-    } else {
-      // Username is client-side valid (length 3-24, correct chars).
-      // Now consider server validation, but only if username is stable (debounced).
-      if (username === debouncedUsername) { 
-        if (usernameForQuery !== "skip") { // A query should be active for a stable, client-valid username
-          if (checkUsernameAvailabilityResult === undefined) {
-            // Server check is pending for the stable, client-side valid username.
-            determinedError = null; // No error yet from server
-          } else if (checkUsernameAvailabilityResult !== null && !checkUsernameAvailabilityResult.available) {
-            // Server says username is taken.
-            determinedError = checkUsernameAvailabilityResult.message || "Username already taken";
+        // Username is client-side valid (correct chars, contains letter/number, length 3-15).
+        // Now consider server validation, but only if username is stable (debounced).
+        if (username === debouncedUsername) { 
+          if (usernameForQuery !== "skip") { // A query should be active for a stable, client-valid username
+            if (checkUsernameAvailabilityResult === undefined) {
+              // Server check is pending for the stable, client-side valid username.
+              determinedError = null; // No error yet from server
+            } else if (checkUsernameAvailabilityResult !== null && !checkUsernameAvailabilityResult.available) {
+              // Server says username is taken.
+              determinedError = checkUsernameAvailabilityResult.message || "Username already taken";
+            } else {
+              // Server says available, or result is null (which we treat as available or no issue)
+              determinedError = null;
+            }
           } else {
-            // Server says available, or result is null (which we treat as available or no issue)
+            // Username is stable, client-side valid, but usernameForQuery is "skip".
+            // This is unlikely if rawUsername passed all prior client checks here.
+            // It might mean debouncedUsername became empty or failed a useMemo check.
+            // In this state, assume no error from server side if query is skipped.
             determinedError = null;
           }
         } else {
-          // Username is stable, client-side valid, but usernameForQuery is "skip".
-          // This is unlikely if rawUsername passed all prior client checks here.
-          // It might mean debouncedUsername became empty or failed a useMemo check.
-          // In this state, assume no error from server side if query is skipped.
+          // Username is client-side valid, but user is still typing (username !== debouncedUsername).
+          // No error to show yet from server. Spinner will be active.
           determinedError = null;
         }
-      } else {
-        // Username is client-side valid, but user is still typing (username !== debouncedUsername).
-        // No error to show yet from server. Spinner will be active.
-        determinedError = null;
       }
     }
 
@@ -288,7 +287,7 @@ function OnboardingPageContent() {
           // Username is stable (username === debouncedUsername).
           // Show spinner ONLY if it's client-side valid and a server query is pending.
           if (rawUsername.length >= 3 && 
-              rawUsername.length <= 24 && 
+              rawUsername.length <= 15 && 
               /^[a-zA-Z0-9_]+$/.test(rawUsername)) { // Client-side valid
             if (usernameForQuery !== "skip" && checkUsernameAvailabilityResult === undefined) {
               showSpinner = true; // Query is pending for a valid, stable username
@@ -543,22 +542,22 @@ function OnboardingPageContent() {
 
   return (
     <div className="flex min-h-screen w-full my-auto mx-auto px-4 md:px-0">
-      <div className="w-full max-w-[600px] mx-auto flex flex-col my-auto gap-4 pb-8">
+      <div className="w-full max-w-[600px] mx-auto flex flex-col my-auto gap-4 pb-[64px] md:pb-0">
         <div className="space-y-1">
-          <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-            {currentStep === 'profile' ? 'Account Details' : 'Personalize Feed'}
+          <h2 className="text-2xl font-extrabold leading-none tracking-tight mb-2">
+            {currentStep === 'profile' ? 'Create Account' : 'Suggested Follows'}
           </h2>
           <p className="text-sm text-muted-foreground">
             {currentStep === 'profile' 
-              ? 'Complete your profile to get started' 
-              : 'Follow your favorite creators'}
+              ? 'Set up your profile to get started' 
+              : 'Personalize your feed with creators'}
           </p>
         </div>
         
         {currentStep === 'profile' ? (
           <form onSubmit={handleProfileSubmit} className="flex w-full flex-col space-y-4">
             <div className="space-y-2">
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex items-center gap-4">
                 <Input
                   type="file"
                   id="profileImageUpload"
@@ -606,13 +605,19 @@ function OnboardingPageContent() {
                   id="username"
                   type="text"
                   value={username}
+                  autoComplete="off"
                   onChange={(e) => {
-                    setUsername(e.target.value);
+                    setUsername(e.target.value.replace(/\s/g, ''));
                   }}
-                  placeholder="Choose a unique username"
-                  className={usernameError ? 'border-red-500' : ''}
+                  onFocus={() => setIsUsernameInputFocused(true)}
+                  onBlur={() => setIsUsernameInputFocused(false)}
+                  placeholder="Choose a username"
+                  className={cn(
+                    usernameError ? 'border-red-500' : '',
+                    'focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                  )}
                   disabled={isSubmitting || isUploading}
-                  maxLength={24}
+                  maxLength={15}
                 />
                 {isCheckingUsername && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -620,13 +625,15 @@ function OnboardingPageContent() {
                   </div>
                 )}
               </div>
-              <p className="text-sm mt-1 h-5">
-                {usernameError ? (
-                  <span className="text-red-500">{usernameError}</span>
-                ) : (
-                  <span className="text-muted-foreground">Min 3, Max 24 chars. Letters, numbers, _ only.</span>
-                )}
-              </p>
+              {isUsernameInputFocused && (
+                <p className="text-sm mt-1 h-4">
+                  {usernameError ? (
+                    <span className="text-red-500 text-xs">{usernameError}</span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">Username can only contain letters, numbers, and underscores</span>
+                  )}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -637,6 +644,7 @@ function OnboardingPageContent() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Display name"
+                className="focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 maxLength={60}
               />
             </div>
@@ -647,15 +655,15 @@ function OnboardingPageContent() {
                 id="bio"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="Your bio"
-                className="h-24 resize-none"
+                placeholder="Tell us a bit about yourself"
+                className="h-24 resize-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 maxLength={250}
               />
             </div>
             
             <Button
               type="submit"
-              className="w-full"
+              className="w-full !mt-6"
               disabled={
                 isSubmitting || 
                 isUploading || 
@@ -723,11 +731,11 @@ function OnboardingPageContent() {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Completing...
+                    <Loader2 className="mr-0 h-4 w-4 animate-spin" />
+                    Finishing
                   </>
                 ) : (
-                  'Complete Onboarding'
+                  'Finish'
                 )}
               </Button>
             </div>

@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Doc } from "@/convex/_generated/dataModel";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from 'next/image';
+import { clearOnboardingCookieAction } from "@/app/onboarding/actions";
 
 // Define props type for ProfileSettingsPage
 type ProfileSettingsPageProps = {
@@ -89,6 +90,14 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       
       // Then sign out to clear auth cookies/JWT tokens
       await signOut();
+
+      // Clear the onboarding cookie
+      const cookieResult = await clearOnboardingCookieAction();
+      if (!cookieResult.success) {
+        console.error("Failed to clear onboarding cookie during account deletion:", cookieResult.error);
+        // Optionally, notify the user or handle the error further, 
+        // though account deletion is already a significant step.
+      }
       
       // Show success toast
       toast({
