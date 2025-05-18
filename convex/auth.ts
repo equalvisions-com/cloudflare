@@ -3,12 +3,14 @@ import Resend from "@auth/core/providers/resend";
 import { convexAuth } from "@convex-dev/auth/server";
 import Google from "@auth/core/providers/google";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
+import { ResendOTPVerify } from "./emailVerification/ResendOTPVerify";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Google,
-    Password({ 
-      reset: ResendOTPPasswordReset 
+    Password({
+      verify: ResendOTPVerify,
+      reset: ResendOTPPasswordReset
     }),
     Resend({
       id: "resend",

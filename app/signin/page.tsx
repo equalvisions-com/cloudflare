@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 type AuthStep = 
   | "signIn" 
   | "signUp" 
+  | "verifyEmail"
   | "linkSent" 
   | "resetPassword" 
   | "resetSent" 
@@ -38,6 +39,7 @@ function SignInPageContent() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
   const [activeTab, setActiveTab] = useState("sign-in");
+  const router = useRouter();
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto">
@@ -93,10 +95,16 @@ function SignInPageContent() {
                     Create account
                   </h2>
                   <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
-                  <SignUpWithPassword onSignIn={() => {
-                    setStep("signIn");
-                    setActiveTab("sign-in");
-                  }} />
+                  <SignUpWithPassword 
+                    onSignIn={() => {
+                      setStep("signIn");
+                      setActiveTab("sign-in");
+                    }} 
+                    onVerificationNeeded={(emailFromSignup) => {
+                      setEmail(emailFromSignup);
+                      setStep("verifyEmail");
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
             )}
@@ -152,6 +160,25 @@ function SignInPageContent() {
                     setActiveTab("sign-in");
                   }}
                   onCancel={() => setStep("signIn")}
+                />
+              </>
+            )}
+            
+            {step === "verifyEmail" && (
+              <>
+                <h2 className="font-semibold text-2xl tracking-tight">
+                  Check your e-mail
+                </h2>
+                <p className="text-sm text-muted-foreground pb-4">
+                  Enter the 6-digit code sent to {email}.
+                </p>
+                <SignUpVerification
+                  email={email}
+                  onSuccess={() => {
+                    router.push("/");        
+                    setStep("signIn");
+                    setActiveTab("sign-in");
+                  }}
                 />
               </>
             )}
@@ -297,13 +324,20 @@ function OAuthOption() {
   );
 }
 
-function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
+function SignUpWithPassword({ 
+  onSignIn,
+  onVerificationNeeded,
+}: { 
+  onSignIn: () => void;
+  onVerificationNeeded: (email: string) => void; 
+}) {
   const { signIn } = useAuthActions();
+  const [isSubmitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-  const [submitting, setSubmitting] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [passwordValue, setPasswordValue] = useState("");
   const router = useRouter();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const validatePassword = (password: string) => {
     const hasMinLength = password.length >= 8;
@@ -314,41 +348,47 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
     return hasMinLength && hasUppercase && hasLowercase && hasNumber;
   };
 
-  const showPasswordRequirements = passwordFocused || passwordValue.length > 0;
+  const showPasswordRequirements = password.length > 0;
 
   return (
     <form
       className="flex w-full flex-col space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        formData.set("flow", "signUp");
-        
-        const password = formData.get("password") as string;
-        if (!validatePassword(password)) {
-          toast({
-            title: "Invalid password",
-            description: "Password must be at least 8 characters with uppercase, lowercase, and numbers",
-            variant: "destructive",
-          });
+        if (password !== confirmPassword) {
+          setPasswordError("Passwords do not match.");
           return;
         }
-        
+        if (passwordError) return;
+
+        const formData = new FormData(event.currentTarget);
+        formData.set("flow", "signUp");
         setSubmitting(true);
         
         void signIn("password", formData)
-          .then(() => {
+          .then((result: any) => {
+            console.log("Sign-up signIn result:", JSON.stringify(result, null, 2));
             setSubmitting(false);
-            router.push("/");
+            if (result && result.nextStep === "verify") {
+              const emailFromForm = formData.get("email") as string;
+              if (emailFromForm) {
+                onVerificationNeeded(emailFromForm);
+              } else {
+                console.error("Email not found in signup form for verification step.");
+                onSignIn();
+              }
+            } else {
+              onSignIn();
+            }
           })
           .catch((error) => {
+            setSubmitting(false);
             console.error(error);
             toast({
               title: "Could not create account",
               description: error instanceof Error ? error.message : "Please try again",
               variant: "destructive",
             });
-            setSubmitting(false);
           });
       }}
     >
@@ -376,11 +416,9 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
           name="password" 
           type="password" 
           autoComplete="new-password" 
-          required 
-          onFocus={() => setPasswordFocused(true)}
-          onBlur={() => setPasswordFocused(false)}
-          onChange={(e) => setPasswordValue(e.target.value)}
-          value={passwordValue}
+          required
+          onChange={(e) => setPassword(e.target.value)}
+          value={password}
           className="shadow-none"
         />
         {showPasswordRequirements && (
@@ -390,7 +428,28 @@ function SignUpWithPassword({ onSignIn }: { onSignIn: () => void }) {
         )}
       </div>
       
-      <Button type="submit" className="w-full font-medium text-sm" disabled={submitting}>
+      <div className="space-y-2 mb-4">
+        <div className="flex justify-between items-center">
+          <Label className="font-semibold" htmlFor="signup-confirm-password">Confirm Password</Label>
+        </div>
+        <Input 
+          id="signup-confirm-password" 
+          name="confirmPassword" 
+          type="password" 
+          autoComplete="new-password" 
+          required
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          value={confirmPassword}
+          className="shadow-none"
+        />
+        {passwordError && (
+          <p className="text-xs text-red-500">
+            {passwordError}
+          </p>
+        )}
+      </div>
+      
+      <Button type="submit" className="w-full font-medium text-sm" disabled={isSubmitting}>
         Create account
       </Button>
       
@@ -597,6 +656,67 @@ function ResetPasswordVerification({
         disabled={submitting}
       >
         Cancel
+      </Button>
+    </form>
+  );
+}
+
+function SignUpVerification({
+  email,
+  onSuccess,
+}: {
+  email: string;
+  onSuccess: () => void;
+}) {
+  const { signIn } = useAuthActions();
+  const [code, setCode] = useState("");
+  const [isSubmitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        const formData = new FormData();
+        formData.set("email", email);
+        formData.set("code", code);
+        try {
+          await signIn("password", formData);
+          onSuccess();
+        } catch (error) {
+          console.error("Sign up verification error:", error);
+          toast({
+            title: "Verification Failed",
+            description: error instanceof Error ? error.message : "Invalid or expired code.",
+            variant: "destructive",
+          });
+        } finally {
+          setSubmitting(false);
+        }
+      }}
+      className="space-y-4"
+    >
+      <div>
+        <Label htmlFor="otp-code-input" className="sr-only">Verification Code</Label>
+        <InputOTP
+          id="otp-code-input"
+          maxLength={6} 
+          value={code}
+          onChange={(value) => setCode(value)}
+        >
+          <InputOTPGroup className="w-full flex justify-center">
+            <InputOTPSlot index={0} />
+            <InputOTPSlot index={1} />
+            <InputOTPSlot index={2} />
+            <InputOTPSlot index={3} />
+            <InputOTPSlot index={4} />
+            <InputOTPSlot index={5} />
+          </InputOTPGroup>
+        </InputOTP>
+      </div>
+      <Button type="submit" className="w-full" disabled={isSubmitting || code.length < 6}>
+        Verify Email
       </Button>
     </form>
   );
