@@ -366,10 +366,9 @@ function SignUpWithPassword({
         setSubmitting(true);
         
         void signIn("password", formData)
-          .then((result: any) => {
-            console.log("Sign-up signIn result:", JSON.stringify(result, null, 2));
+          .then((result: { signingIn: boolean; redirect?: URL | string }) => {
             setSubmitting(false);
-            if (result && result.nextStep === "verify") {
+            if (result.signingIn === false && !result.redirect) {
               const emailFromForm = formData.get("email") as string;
               if (emailFromForm) {
                 onVerificationNeeded(emailFromForm);
@@ -681,11 +680,12 @@ function SignUpVerification({
         const formData = new FormData();
         formData.set("email", email);
         formData.set("code", code);
+        formData.set("flow", "email-verification");
         try {
-          await signIn("password", formData);
+          const verificationResult = await signIn("password", formData);
           onSuccess();
         } catch (error) {
-          console.error("Sign up verification error:", error);
+          console.error("Sign up verification error (OTP submission):", error);
           toast({
             title: "Verification Failed",
             description: error instanceof Error ? error.message : "Invalid or expired code.",
