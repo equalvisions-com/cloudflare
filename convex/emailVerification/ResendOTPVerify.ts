@@ -6,8 +6,8 @@ import { Resend as ResendAPI } from "resend";
 export const ResendOTPVerify = Email({
   id: "resend-otp-verify",
   apiKey: process.env.AUTH_RESEND_KEY!, // Added non-null assertion as it's required
-  // 6-digit numeric code, good for 15 min
-  maxAge: 15 * 60, // 15 minutes in seconds
+  // OTP duration
+  maxAge: 5 * 60, // 5 minutes in seconds
   async generateVerificationToken() {
     return generateRandomString(6, alphabet("0-9"));
   },

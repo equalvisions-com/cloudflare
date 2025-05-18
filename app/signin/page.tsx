@@ -24,8 +24,8 @@ type AuthStep =
   | "verifyEmail"
   | "linkSent" 
   | "resetPassword" 
-  | "resetSent" 
-  | "resetVerification";
+  | "enterPasswordResetOtp"
+  | "confirmPasswordReset";
 
 export default function SignInPage() {
   return (
@@ -38,25 +38,113 @@ export default function SignInPage() {
 function SignInPageContent() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
+  const [passwordResetOtp, setPasswordResetOtp] = useState("");
   const [activeTab, setActiveTab] = useState("sign-in");
   const router = useRouter();
+  const { toast } = useToast();
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto">
       <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8 min-h-[500px]">
         <Card className="shadow-none">
           <CardContent className="pt-4">
-            {(step === "resetPassword" || step === "resetSent" || step === "resetVerification") ? (
-              <div className="mb-4">
-                <Button
-                  variant="link"
-                  className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
-                  onClick={() => setStep("signIn")}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span>Back</span>
-                </Button>
-              </div>
+            {(step === "resetPassword" || step === "enterPasswordResetOtp" || step === "confirmPasswordReset" || step === "verifyEmail") ? (
+              <>
+                {(step === "resetPassword" || step === "enterPasswordResetOtp" || step === "confirmPasswordReset") && (
+                  <div className="mb-4">
+                    <Button
+                      variant="link"
+                      className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
+                      onClick={() => setStep("signIn")}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>Back</span>
+                    </Button>
+                  </div>
+                )}
+
+                {step === "verifyEmail" && (
+                  <>
+                    <div className="mb-4">
+                      <Button
+                        variant="link"
+                        className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
+                        onClick={() => {
+                          setStep("signUp");
+                          setActiveTab("create-account");
+                        }}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Back to Sign Up</span>
+                      </Button>
+                    </div>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Check your e-mail
+                    </h2>
+                    <p className="text-sm text-muted-foreground pb-4">
+                      Enter the 6-digit code sent to {email}.
+                    </p>
+                    <SignUpVerification
+                      email={email}
+                      onSuccess={() => {
+                        router.push("/");        
+                        setStep("signIn");
+                        setActiveTab("sign-in");
+                      }}
+                    />
+                  </>
+                )}
+            
+                {step === "resetPassword" && (
+                  <>
+                    <h2 className="text-lg font-extrabold tracking-tight">
+                      Reset password
+                    </h2>
+                    <p className="text-sm text-muted-foreground pb-4">Enter your email</p>
+                    <ResetPasswordRequest 
+                      onEmailSent={(emailValue) => {
+                        setEmail(emailValue);
+                        setStep("enterPasswordResetOtp");
+                      }}
+                      onCancel={() => setStep("signIn")}
+                    />
+                  </>
+                )}
+            
+                {step === "enterPasswordResetOtp" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Reset your password
+                    </h2>
+                    <ResetPasswordVerification 
+                      email={email}
+                      onOtpSubmitted={(code) => {
+                        setPasswordResetOtp(code);
+                        setStep("confirmPasswordReset");
+                      }}
+                      onCancel={() => setStep("signIn")}
+                    />
+                  </>
+                )}
+
+                {step === "confirmPasswordReset" && (
+                  <>
+                    <h2 className="font-semibold text-2xl tracking-tight">
+                      Confirm your password reset
+                    </h2>
+                    <p className="text-sm text-muted-foreground pb-4">Enter your new password</p>
+                    <ConfirmPasswordReset 
+                      email={email}
+                      otp={passwordResetOtp}
+                      onSuccess={() => {
+                        setStep("signIn");
+                        setActiveTab("sign-in");
+                      }}
+                      onCancel={() => setStep("signIn")}
+                    />
+                  </>
+                )}
+              </>
             ) : (
               <Tabs 
                 defaultValue="sign-in" 
@@ -85,102 +173,45 @@ function SignInPageContent() {
                       <p className="text-sm text-muted-foreground pb-4">Sign in to your account</p>
                       <SignInWithPassword 
                         onResetPassword={() => setStep("resetPassword")}
+                        onVerificationNeeded={(emailFromSignin) => {
+                          if (emailFromSignin) {
+                            setEmail(emailFromSignin);
+                            setStep("verifyEmail");
+                          } else {
+                            console.error("Email not provided to onVerificationNeeded from SignInWithPassword.");
+                            toast({
+                              title: "Navigation Error",
+                              description: "Could not proceed to email verification.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
                       />
                     </>
                   )}
                 </TabsContent>
                 
                 <TabsContent value="create-account" className="space-y-0">
-                  <h2 className="text-lg font-extrabold tracking-tight">
-                    Create account
-                  </h2>
-                  <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
-                  <SignUpWithPassword 
-                    onSignIn={() => {
-                      setStep("signIn");
-                      setActiveTab("sign-in");
-                    }} 
-                    onVerificationNeeded={(emailFromSignup) => {
-                      setEmail(emailFromSignup);
-                      setStep("verifyEmail");
-                    }}
-                  />
+                  {step === "signUp" && (
+                     <>
+                        <h2 className="text-lg font-extrabold tracking-tight">
+                          Create account
+                        </h2>
+                        <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
+                        <SignUpWithPassword 
+                          onSignIn={() => {
+                            setStep("signIn");
+                            setActiveTab("sign-in");
+                          }} 
+                          onVerificationNeeded={(emailFromSignup) => {
+                            setEmail(emailFromSignup);
+                            setStep("verifyEmail");
+                          }}
+                        />
+                      </>
+                  )}
                 </TabsContent>
               </Tabs>
-            )}
-            
-            {step === "resetPassword" && (
-              <>
-                <h2 className="text-lg font-extrabold tracking-tight">
-                  Reset password
-                </h2>
-                <p className="text-sm text-muted-foreground pb-4">Enter your email</p>
-                <ResetPasswordRequest 
-                  onEmailSent={(emailValue) => {
-                    setEmail(emailValue);
-                    setStep("resetSent");
-                  }}
-                  onCancel={() => setStep("signIn")}
-                />
-              </>
-            )}
-            
-            {step === "resetSent" && (
-              <>
-                <h2 className="font-semibold text-2xl tracking-tight">
-                  Check your email
-                </h2>
-                <p className="text-sm text-muted-foreground">We&apos;ve sent a password reset code to your email address.</p>
-                <Button
-                  variant="outline" 
-                  className="w-full mt-2"
-                  onClick={() => setStep("resetVerification")}
-                >
-                  I have a code
-                </Button>
-                <Button
-                  className="p-0 self-start mt-2"
-                  variant="link"
-                  onClick={() => setStep("signIn")}
-                >
-                  Back to sign in
-                </Button>
-              </>
-            )}
-            
-            {step === "resetVerification" && (
-              <>
-                <h2 className="font-semibold text-2xl tracking-tight">
-                  Reset your password
-                </h2>
-                <ResetPasswordVerification 
-                  email={email}
-                  onSuccess={() => {
-                    setStep("signIn");
-                    setActiveTab("sign-in");
-                  }}
-                  onCancel={() => setStep("signIn")}
-                />
-              </>
-            )}
-            
-            {step === "verifyEmail" && (
-              <>
-                <h2 className="font-semibold text-2xl tracking-tight">
-                  Check your e-mail
-                </h2>
-                <p className="text-sm text-muted-foreground pb-4">
-                  Enter the 6-digit code sent to {email}.
-                </p>
-                <SignUpVerification
-                  email={email}
-                  onSuccess={() => {
-                    router.push("/");        
-                    setStep("signIn");
-                    setActiveTab("sign-in");
-                  }}
-                />
-              </>
             )}
             
             {step === "linkSent" && (
@@ -231,9 +262,11 @@ function SignInWithGoogle() {
 }
 
 function SignInWithPassword({ 
-  onResetPassword 
+  onResetPassword,
+  onVerificationNeeded,
 }: {
   onResetPassword: () => void;
+  onVerificationNeeded: (email: string) => void;
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
@@ -242,23 +275,105 @@ function SignInWithPassword({
   return (
     <form
       className="flex w-full flex-col space-y-4"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
+        const email = formData.get("email") as string;
         formData.set("flow", "signIn");
         
-        void signIn("password", formData)
-          .then(() => {
-            router.push("/");
-          })
-          .catch((error) => {
-            console.error(error);
+        try {
+          const result: any = await signIn("password", formData); // Capture and type result as any for now
+          console.log("SignInWithPassword - signIn result:", result); // Log the result
+
+          // Based on Convex patterns (like in SignUp), check if sign-in is pending verification
+          // The exact properties might need adjustment after observing the log
+          if (result && typeof result.signingIn === 'boolean' && result.signingIn === false && !result.redirect) {
+            // User exists, is not fully signed in, and no immediate redirect means verification is likely needed.
+            // The backend likely re-sent the OTP automatically (as per server logs)
             toast({
-              title: "Could not sign in",
-              description: "Please check your email and password",
+              title: "Verification Required",
+              description: "Your email is not verified. A new code has been sent. Please check your email.",
+            });
+            if (email) {
+              onVerificationNeeded(email); // Navigate to OTP input step
+            } else {
+              console.error("Email was null when trying to redirect to verification from sign in.");
+              toast({
+                title: "Error",
+                description: "Could not retrieve email to proceed with verification.",
+                variant: "destructive",
+              });
+            }
+          } else if (result && (typeof result.signingIn === 'undefined' || result.signingIn === true )){
+            // Assume successful sign-in if signingIn is true or not present (older auth behavior might not have this field on success)
+            router.push("/");
+          } else {
+            // Unexpected result structure
+            console.error("Unexpected sign-in result structure:", result);
+            toast({
+              title: "Sign-In Issue",
+              description: "An unexpected issue occurred during sign-in. Please try again.",
               variant: "destructive",
             });
-          });
+          }
+        } catch (error: any) {
+          // This catch block now handles other errors like wrong password, or if signIn truly fails
+          console.error("SignInWithPassword - catch block error:", error); 
+          const originalErrorMessage = (error.data?.message || error.message || "").toString();
+          const lowerErrorMessage = originalErrorMessage.toLowerCase();
+          
+          // Fallback check for unverified, though ideally handled by the resolved promise above
+          if (lowerErrorMessage.includes("unverified") || 
+              lowerErrorMessage.includes("verify your email") || 
+              lowerErrorMessage.includes("email verification needed") || 
+              lowerErrorMessage.includes("verification required")) {
+            
+            toast({ 
+              title: "Verification Still Required",
+              description: "Please complete the verification. A new code may have been sent.",
+            });
+            // Attempt to resend OTP and navigate if this specific error is caught
+            try {
+              const verifyFormData = new FormData();
+              // Assuming 'email' is accessible in this scope. If not, this part might need adjustment
+              // or removal if resending OTP here is not desired/possible.
+              const emailInputElement = (event.currentTarget.elements.namedItem("email") as HTMLInputElement);
+              const currentEmail = emailInputElement ? emailInputElement.value : null;
+
+              if (currentEmail) {
+                verifyFormData.set("email", currentEmail);
+                verifyFormData.set("flow", "email-verification");
+                await signIn("password", verifyFormData); // Resend OTP
+                onVerificationNeeded(currentEmail); // Navigate to OTP input step
+              } else {
+                 throw new Error("Email not available for OTP resend in catch block");
+              }
+            } catch (verifyError: any) {
+              console.error("Error resending verification code from catch block:", verifyError);
+              toast({
+                title: "Verification Error",
+                description: (verifyError.data?.message || verifyError.message || "Could not send verification code. Please try again."),
+                variant: "destructive",
+              });
+            }
+          } else if (lowerErrorMessage.includes("invalidsecret") || 
+                     lowerErrorMessage.includes("invalid credential") || 
+                     lowerErrorMessage.includes("cannot read properties of null (reading 'redirect')")) {
+            // Specific handling for incorrect password / invalid credentials
+            toast({
+              title: "Sign-In Failed",
+              description: "The email or password you entered is incorrect. Please try again.",
+              variant: "destructive",
+            });
+          } else {
+            // Generic sign-in error for other cases
+            toast({
+              title: "Could not sign in",
+              description: (originalErrorMessage || "An unexpected error occurred. Please try again."),
+              variant: "destructive",
+            });
+          }
+        }
       }}
     >
       <div className="space-y-2">
@@ -339,11 +454,11 @@ function SignUpWithPassword({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const validatePassword = (password: string) => {
-    const hasMinLength = password.length >= 8;
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
+  const validatePassword = (passwordToCheck: string) => {
+    const hasMinLength = passwordToCheck.length >= 8;
+    const hasUppercase = /[A-Z]/.test(passwordToCheck);
+    const hasLowercase = /[a-z]/.test(passwordToCheck);
+    const hasNumber = /[0-9]/.test(passwordToCheck);
     
     return hasMinLength && hasUppercase && hasLowercase && hasNumber;
   };
@@ -355,12 +470,19 @@ function SignUpWithPassword({
       className="flex w-full flex-col space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
+        setPasswordError(null); // Clear previous password-related errors at the start of a new submission
+
         if (password !== confirmPassword) {
           setPasswordError("Passwords do not match.");
           return;
         }
-        if (passwordError) return;
 
+        if (!validatePassword(password)) {
+          setPasswordError("Password must be at least 8 characters and include uppercase, lowercase, and a number.");
+          return;
+        }
+
+        // If we reach here, passwords match and meet complexity requirements.
         const formData = new FormData(event.currentTarget);
         formData.set("flow", "signUp");
         setSubmitting(true);
@@ -529,27 +651,97 @@ function ResetPasswordRequest({
 
 function ResetPasswordVerification({ 
   email, 
-  onSuccess, 
+  onOtpSubmitted, 
   onCancel 
 }: { 
   email: string; 
-  onSuccess: () => void; 
+  onOtpSubmitted: (code: string) => void; 
   onCancel: () => void;
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [code, setCode] = useState("");
+
+  return (
+    <form
+      className="flex w-full flex-col space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (code.length < 6) {
+          toast({
+            title: "Invalid Code",
+            description: "Please enter the 6-digit code.",
+            variant: "destructive",
+          });
+          return;
+        }
+        onOtpSubmitted(code);
+      }}
+    >
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label htmlFor="reset-otp-code">Verification code</Label>
+        </div>
+        <InputOTP
+          maxLength={6}
+          value={code}
+          onChange={(value) => setCode(value)}
+        >
+          <InputOTPGroup>
+            <InputOTPSlot index={0} />
+            <InputOTPSlot index={1} />
+            <InputOTPSlot index={2} />
+            <InputOTPSlot index={3} />
+            <InputOTPSlot index={4} />
+            <InputOTPSlot index={5} />
+          </InputOTPGroup>
+        </InputOTP>
+        <p className="text-xs text-muted-foreground">
+          Enter the 6-digit code sent to your email ({email})
+        </p>
+      </div>
+
+      <Button type="submit" className="w-full" disabled={submitting || code.length < 6}>
+        Continue
+      </Button>
+
+      <Button
+        variant="outline"
+        type="button"
+        className="w-full mt-4"
+        onClick={onCancel}
+        disabled={submitting}
+      >
+        Cancel
+      </Button>
+    </form>
+  );
+}
+
+function ConfirmPasswordReset({ 
+  email, 
+  otp, 
+  onSuccess, 
+  onCancel 
+}: { 
+  email: string; 
+  otp: string; 
+  onSuccess: () => void; 
+  onCancel: () => void;
+}) {
+  const { signIn } = useAuthActions();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
-  const router = useRouter();
+  const router = useRouter(); // Assuming router is needed for onSuccess if not handled by parent
 
   const validatePassword = (password: string) => {
     const hasMinLength = password.length >= 8;
     const hasUppercase = /[A-Z]/.test(password);
     const hasLowercase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
-    
     return hasMinLength && hasUppercase && hasLowercase && hasNumber;
   };
 
@@ -563,7 +755,7 @@ function ResetPasswordVerification({
         const formData = new FormData(event.currentTarget);
         formData.set("flow", "reset-verification");
         formData.set("email", email);
-        formData.set("code", code);
+        formData.set("code", otp); // Use the otp passed as a prop
         
         const newPassword = formData.get("newPassword") as string;
         if (!validatePassword(newPassword)) {
@@ -580,14 +772,15 @@ function ResetPasswordVerification({
         void signIn("password", formData)
           .then(() => {
             setSubmitting(false);
-            onSuccess();
-            router.push("/");
+            toast({ title: "Success", description: "Password has been reset successfully!"});
+            onSuccess(); // Parent handles navigation or state change
+            // router.push("/"); // Or navigate directly if preferred
           })
           .catch((error) => {
             console.error(error);
             toast({
               title: "Could not reset password",
-              description: error instanceof Error ? error.message : "Invalid or expired code",
+              description: error instanceof Error ? error.message : "Invalid or expired code, or an issue with the new password.",
               variant: "destructive",
             });
             setSubmitting(false);
@@ -596,33 +789,7 @@ function ResetPasswordVerification({
     >
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label htmlFor="verification-code">Verification code</Label>
-        </div>
-        <InputOTP
-          maxLength={8}
-          value={code}
-          onChange={(value) => setCode(value)}
-        >
-          <InputOTPGroup>
-            <InputOTPSlot index={0} />
-            <InputOTPSlot index={1} />
-            <InputOTPSlot index={2} />
-            <InputOTPSlot index={3} />
-            <InputOTPSlot index={4} />
-            <InputOTPSlot index={5} />
-            <InputOTPSlot index={6} />
-            <InputOTPSlot index={7} />
-          </InputOTPGroup>
-        </InputOTP>
-        <p className="text-xs text-muted-foreground">
-          Enter the 8-digit code sent to your email
-        </p>
-      </div>
-      
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
           <Label htmlFor="new-password">New password</Label>
-          <span className="invisible text-sm h-[20px]">Forgot password?</span>
         </div>
         <Input 
           id="new-password" 
@@ -643,15 +810,15 @@ function ResetPasswordVerification({
         )}
       </div>
       
-      <Button type="submit" className="w-full" disabled={submitting || code.length < 8}>
-        Reset password
+      <Button type="submit" className="w-full" disabled={submitting}>
+        Reset Password
       </Button>
       
       <Button 
         variant="outline" 
         type="button" 
         className="w-full mt-4" 
-        onClick={onCancel}
+        onClick={onCancel} // Consider if this should go to "enterPasswordResetOtp" or "signIn"
         disabled={submitting}
       >
         Cancel
@@ -668,42 +835,108 @@ function SignUpVerification({
   onSuccess: () => void;
 }) {
   const { signIn } = useAuthActions();
-  const [code, setCode] = useState("");
-  const [isSubmitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const [otp, setOtp] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [showResendOtpButton, setShowResendOtpButton] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length < 6) {
+      setOtpError("Please enter the 6-digit code.");
+      return;
+    }
+    setIsLoading(true);
+    setShowResendOtpButton(false);
+    setOtpError(null);
+
+    const formData = new FormData();
+    formData.set("email", email);
+    formData.set("code", otp);
+    formData.set("flow", "email-verification");
+
+    try {
+      // Use "password" as the provider key, as per original implementation and Convex docs for this flow
+      await signIn("password", formData);
+      toast({ title: "Success", description: "Email verified successfully!" });
+      onSuccess();
+    } catch (error: any) {
+      const clientErrorMessage = (error.data?.message || error.message || "An unknown error occurred during verification.").toString();
+      console.log("Full client-side error object:", error); // For debugging
+      console.log("Derived client-side errorMessage string:", clientErrorMessage); // For debugging
+
+      const lowerClientErrorMessage = clientErrorMessage.toLowerCase();
+
+      // Check for typical OTP failure messages (case-insensitive) OR the specific TypeError
+      if (lowerClientErrorMessage.includes("could not verify code") || 
+          lowerClientErrorMessage.includes("expired verification code") || 
+          lowerClientErrorMessage.includes("invalid code") || 
+          lowerClientErrorMessage.includes("incorrect code") ||
+          (error instanceof TypeError && lowerClientErrorMessage.includes("cannot read properties of null (reading 'redirect')"))
+         ) {
+        console.log("OTP Error: Entered specific failure block (expired/invalid or specific TypeError)."); // For debugging
+        setOtpError("Invalid or expired code. Please try again or request a new one.");
+        setShowResendOtpButton(true);
+        toast({
+          title: "Verification Failed",
+          description: "The code is invalid or has expired. Click 'Resend Code' to get a new one.",
+          variant: "destructive",
+        });
+      } else {
+        console.log("OTP Error: Entered generic failure block."); // For debugging
+        // Handle other potential errors
+        setOtpError(clientErrorMessage);
+        toast({
+          title: "Verification Error",
+          description: clientErrorMessage,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    setOtpError(null);
+    const formData = new FormData();
+    formData.set("email", email);
+    formData.set("flow", "email-verification"); // No 'code' field for resend
+
+    try {
+      // Use "password" as the provider key, as per Convex docs for resending OTP
+      await signIn("password", formData);
+      toast({
+        title: "Code Sent",
+        description: "A new verification code has been sent to your email.",
+      });
+      setShowResendOtpButton(false);
+      setOtp(""); // Clear the OTP input field
+    } catch (error: any) {
+      console.error("Resend OTP error:", error);
+      const resendErrorMessage = error.data?.message || error.message || "Failed to resend code. Please try again.";
+      toast({
+        title: "Resend Failed",
+        description: resendErrorMessage,
+        variant: "destructive",
+      });
+      setShowResendOtpButton(true); // Keep resend button visible if it fails
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-        const formData = new FormData();
-        formData.set("email", email);
-        formData.set("code", code);
-        formData.set("flow", "email-verification");
-        try {
-          const verificationResult = await signIn("password", formData);
-          onSuccess();
-        } catch (error) {
-          console.error("Sign up verification error (OTP submission):", error);
-          toast({
-            title: "Verification Failed",
-            description: error instanceof Error ? error.message : "Invalid or expired code.",
-            variant: "destructive",
-          });
-        } finally {
-          setSubmitting(false);
-        }
-      }}
-      className="space-y-4"
-    >
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="otp-code-input" className="sr-only">Verification Code</Label>
-        <InputOTP
-          id="otp-code-input"
+        <InputOTP 
+          id="otp-code-input" 
           maxLength={6} 
-          value={code}
-          onChange={(value) => setCode(value)}
+          value={otp} 
+          onChange={(value) => { setOtp(value); setOtpError(null); }}
         >
           <InputOTPGroup className="w-full flex justify-center">
             <InputOTPSlot index={0} />
@@ -715,9 +948,21 @@ function SignUpVerification({
           </InputOTPGroup>
         </InputOTP>
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting || code.length < 6}>
-        Verify Email
+      {otpError && <p className="text-sm text-destructive text-center px-1">{otpError}</p>}
+      <Button type="submit" className="w-full" disabled={isLoading || otp.length < 6}>
+        {isLoading && !showResendOtpButton ? "Verifying..." : "Verify Email"}
       </Button>
+      {showResendOtpButton && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={handleResendOtp}
+          disabled={isLoading}
+        >
+          {isLoading ? "Sending..." : "Resend Code"}
+        </Button>
+      )}
     </form>
   );
 }
