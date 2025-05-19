@@ -770,9 +770,13 @@ function ConfirmPasswordReset({
         setSubmitting(true);
         
         void signIn("password", formData)
-          .then(() => {
+          .then(async () => {
             setSubmitting(false);
             toast({ title: "Success", description: "Password has been reset successfully!"});
+            
+            // Add delay before navigation to prevent auth flash
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             onSuccess(); // Parent handles navigation or state change
             // router.push("/"); // Or navigate directly if preferred
           })
@@ -860,6 +864,10 @@ function SignUpVerification({
       // Use "password" as the provider key, as per original implementation and Convex docs for this flow
       await signIn("password", formData);
       toast({ title: "Success", description: "Email verified successfully!" });
+      
+      // Add delay before navigation to prevent auth flash
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       onSuccess();
     } catch (error: any) {
       const clientErrorMessage = (error.data?.message || error.message || "An unknown error occurred during verification.").toString();
