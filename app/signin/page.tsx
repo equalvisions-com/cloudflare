@@ -23,9 +23,7 @@ type AuthStep =
   | "signUp" 
   | "verifyEmail"
   | "linkSent" 
-  | "resetPassword" 
-  | "enterPasswordResetOtp"
-  | "confirmPasswordReset";
+  | "resetPassword" ;
 
 export default function SignInPage() {
   return (
@@ -38,7 +36,6 @@ export default function SignInPage() {
 function SignInPageContent() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
-  const [passwordResetOtp, setPasswordResetOtp] = useState("");
   const [activeTab, setActiveTab] = useState("sign-in");
   const router = useRouter();
   const { toast } = useToast();
@@ -48,9 +45,9 @@ function SignInPageContent() {
       <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8 min-h-[500px]">
         <Card className="shadow-none">
           <CardContent className="pt-4">
-            {(step === "resetPassword" || step === "enterPasswordResetOtp" || step === "confirmPasswordReset" || step === "verifyEmail") ? (
+            {(step === "resetPassword" || step === "verifyEmail") ? (
               <>
-                {(step === "resetPassword" || step === "enterPasswordResetOtp" || step === "confirmPasswordReset") && (
+                {(step === "resetPassword") && (
                   <div className="mb-4">
                     <Button
                       variant="link"
@@ -100,45 +97,11 @@ function SignInPageContent() {
                     <h2 className="text-lg font-extrabold tracking-tight">
                       Reset password
                     </h2>
-                    <p className="text-sm text-muted-foreground pb-4">Enter your email</p>
+                    <p className="text-sm text-muted-foreground pb-4">Enter your email to receive a password reset link.</p>
                     <ResetPasswordRequest 
                       onEmailSent={(emailValue) => {
                         setEmail(emailValue);
-                        setStep("enterPasswordResetOtp");
-                      }}
-                      onCancel={() => setStep("signIn")}
-                    />
-                  </>
-                )}
-            
-                {step === "enterPasswordResetOtp" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Reset your password
-                    </h2>
-                    <ResetPasswordVerification 
-                      email={email}
-                      onOtpSubmitted={(code) => {
-                        setPasswordResetOtp(code);
-                        setStep("confirmPasswordReset");
-                      }}
-                      onCancel={() => setStep("signIn")}
-                    />
-                  </>
-                )}
-
-                {step === "confirmPasswordReset" && (
-                  <>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Confirm your password reset
-                    </h2>
-                    <p className="text-sm text-muted-foreground pb-4">Enter your new password</p>
-                    <ConfirmPasswordReset 
-                      email={email}
-                      otp={passwordResetOtp}
-                      onSuccess={() => {
-                        setStep("signIn");
-                        setActiveTab("sign-in");
+                        setStep("linkSent");
                       }}
                       onCancel={() => setStep("signIn")}
                     />
@@ -219,11 +182,14 @@ function SignInPageContent() {
                 <h2 className="font-semibold text-2xl tracking-tight">
                   Check your email
                 </h2>
-                <p className="text-sm text-muted-foreground">A sign-in link has been sent to your email address.</p>
+                <p className="text-sm text-muted-foreground">A password reset link has been sent to {email}.</p>
                 <Button
                   className="p-0 self-start mt-2"
                   variant="link"
-                  onClick={() => setStep("signIn")}
+                  onClick={() => {
+                    setStep("signIn");
+                    setActiveTab("sign-in");
+                  }}
                 >
                   Back to sign in
                 </Button>
@@ -504,12 +470,30 @@ function SignUpWithPassword({
           })
           .catch((error) => {
             setSubmitting(false);
-            console.error(error);
-            toast({
-              title: "Could not create account",
-              description: error instanceof Error ? error.message : "Please try again",
-              variant: "destructive",
-            });
+            console.error("SignUp error:", error);
+            
+            // Check for both direct error message and nested error data
+            const errorMessage = error instanceof Error ? error.message : "";
+            const errorDataMessage = error?.data?.message || "";
+            const fullErrorString = `${errorMessage} ${errorDataMessage}`.toLowerCase();
+            
+            // Check for "account already exists" error or null redirect error
+            if (fullErrorString.includes("already exists") || 
+                errorMessage.includes("Cannot read properties of null (reading 'redirect')")) {
+              toast({
+                title: "Email already registered",
+                description: "This email address is already associated with an account. Please sign in instead.",
+                variant: "destructive",
+              });
+              // Automatically switch to sign-in tab
+              onSignIn();
+            } else {
+              toast({
+                title: "Could not create account",
+                description: error instanceof Error ? error.message : "Please try again",
+                variant: "destructive",
+              });
+            }
           });
       }}
     >
@@ -641,188 +625,6 @@ function ResetPasswordRequest({
         type="button" 
         className="w-full mt-4" 
         onClick={onCancel}
-        disabled={submitting}
-      >
-        Cancel
-      </Button>
-    </form>
-  );
-}
-
-function ResetPasswordVerification({ 
-  email, 
-  onOtpSubmitted, 
-  onCancel 
-}: { 
-  email: string; 
-  onOtpSubmitted: (code: string) => void; 
-  onCancel: () => void;
-}) {
-  const { signIn } = useAuthActions();
-  const { toast } = useToast();
-  const [submitting, setSubmitting] = useState(false);
-  const [code, setCode] = useState("");
-
-  return (
-    <form
-      className="flex w-full flex-col space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (code.length < 6) {
-          toast({
-            title: "Invalid Code",
-            description: "Please enter the 6-digit code.",
-            variant: "destructive",
-          });
-          return;
-        }
-        onOtpSubmitted(code);
-      }}
-    >
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="reset-otp-code">Verification code</Label>
-        </div>
-        <InputOTP
-          maxLength={6}
-          value={code}
-          onChange={(value) => setCode(value)}
-        >
-          <InputOTPGroup>
-            <InputOTPSlot index={0} />
-            <InputOTPSlot index={1} />
-            <InputOTPSlot index={2} />
-            <InputOTPSlot index={3} />
-            <InputOTPSlot index={4} />
-            <InputOTPSlot index={5} />
-          </InputOTPGroup>
-        </InputOTP>
-        <p className="text-xs text-muted-foreground">
-          Enter the 6-digit code sent to your email ({email})
-        </p>
-      </div>
-
-      <Button type="submit" className="w-full" disabled={submitting || code.length < 6}>
-        Continue
-      </Button>
-
-      <Button
-        variant="outline"
-        type="button"
-        className="w-full mt-4"
-        onClick={onCancel}
-        disabled={submitting}
-      >
-        Cancel
-      </Button>
-    </form>
-  );
-}
-
-function ConfirmPasswordReset({ 
-  email, 
-  otp, 
-  onSuccess, 
-  onCancel 
-}: { 
-  email: string; 
-  otp: string; 
-  onSuccess: () => void; 
-  onCancel: () => void;
-}) {
-  const { signIn } = useAuthActions();
-  const { toast } = useToast();
-  const [submitting, setSubmitting] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [passwordValue, setPasswordValue] = useState("");
-  const router = useRouter(); // Assuming router is needed for onSuccess if not handled by parent
-
-  const validatePassword = (password: string) => {
-    const hasMinLength = password.length >= 8;
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    return hasMinLength && hasUppercase && hasLowercase && hasNumber;
-  };
-
-  const showPasswordRequirements = passwordFocused || passwordValue.length > 0;
-
-  return (
-    <form
-      className="flex w-full flex-col space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        formData.set("flow", "reset-verification");
-        formData.set("email", email);
-        formData.set("code", otp); // Use the otp passed as a prop
-        
-        const newPassword = formData.get("newPassword") as string;
-        if (!validatePassword(newPassword)) {
-          toast({
-            title: "Invalid password",
-            description: "Password must be at least 8 characters with uppercase, lowercase, and numbers",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        setSubmitting(true);
-        
-        void signIn("password", formData)
-          .then(async () => {
-            setSubmitting(false);
-            toast({ title: "Success", description: "Password has been reset successfully!"});
-            
-            // Add delay before navigation to prevent auth flash
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            onSuccess(); // Parent handles navigation or state change
-            // router.push("/"); // Or navigate directly if preferred
-          })
-          .catch((error) => {
-            console.error(error);
-            toast({
-              title: "Could not reset password",
-              description: error instanceof Error ? error.message : "Invalid or expired code, or an issue with the new password.",
-              variant: "destructive",
-            });
-            setSubmitting(false);
-          });
-      }}
-    >
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="new-password">New password</Label>
-        </div>
-        <Input 
-          id="new-password" 
-          name="newPassword" 
-          type="password" 
-          autoComplete="new-password" 
-          required
-          onFocus={() => setPasswordFocused(true)}
-          onBlur={() => setPasswordFocused(false)}
-          onChange={(e) => setPasswordValue(e.target.value)}
-          value={passwordValue}
-          className="shadow-none"
-        />
-        {showPasswordRequirements && (
-          <p className="text-xs text-muted-foreground">
-            Password must be at least 8 characters with uppercase, lowercase, and numbers
-          </p>
-        )}
-      </div>
-      
-      <Button type="submit" className="w-full" disabled={submitting}>
-        Reset Password
-      </Button>
-      
-      <Button 
-        variant="outline" 
-        type="button" 
-        className="w-full mt-4" 
-        onClick={onCancel} // Consider if this should go to "enterPasswordResetOtp" or "signIn"
         disabled={submitting}
       >
         Cancel
