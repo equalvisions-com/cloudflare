@@ -4,7 +4,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,20 @@ export default function ResetPasswordPage() {
   );
 }
 
+// Custom hook for debouncing
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 function ResetPasswordPageContent(): JSX.Element {
   const search = useSearchParams();
   const router = useRouter();
@@ -34,10 +48,32 @@ function ResetPasswordPageContent(): JSX.Element {
   const token = tokenFromUrl ? decodeURIComponent(tokenFromUrl) : "";
 
   const [pw, setPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const debouncedConfirmPw = useDebounce(confirmPw, 500);
+
+  useEffect(() => {
+    if (confirmPw.length === 0 && pw.length === 0) {
+      setPasswordError(null);
+      return;
+    }
+    if (confirmPw.length > 0 && debouncedConfirmPw === confirmPw) {
+      if (pw !== debouncedConfirmPw) {
+        setPasswordError("Passwords do not match.");
+      } else {
+        setPasswordError(null);
+      }
+    } else if (confirmPw.length === 0 && pw.length > 0 && passwordError === "Passwords do not match.") {
+      setPasswordError("Passwords do not match.");
+    } else if (pw === confirmPw && passwordError === "Passwords do not match.") {
+      setPasswordError(null);
+    }
+  }, [pw, confirmPw, debouncedConfirmPw, passwordError, setPasswordError]);
 
   const validPw = (s: string) =>
-    s.length >= 8 && /[A-Z]/.test(s) && /[a-z]/.test(s) && /\d/.test(s);
+    s.length >= 8;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,10 +88,21 @@ function ResetPasswordPageContent(): JSX.Element {
       return;
     }
 
+    if (pw !== confirmPw) {
+      toast({
+        title: "Password Mismatch",
+        description: "The entered passwords do not match. Please re-enter.",
+        variant: "destructive",
+      });
+      setPasswordError("Passwords do not match.");
+      setSubmitting(false);
+      return;
+    }
+
     if (!validPw(pw)) {
       toast({
         title: "Invalid Password",
-        description: "Password must be 8+ characters with uppercase, lowercase, and a number.",
+        description: "Password must be 8+ characters.",
         variant: "destructive",
       });
       setSubmitting(false);
@@ -116,12 +163,40 @@ function ResetPasswordPageContent(): JSX.Element {
             onChange={(e) => setPw(e.target.value)}
             autoFocus
             required
+            onFocus={() => setIsPasswordFocused(true)}
+            onBlur={() => setIsPasswordFocused(false)}
           />
-          <p className="text-xs text-muted-foreground">
-            Must be 8+ characters with uppercase, lowercase, and a number.
-          </p>
+          {isPasswordFocused && (
+            <p className="text-xs text-muted-foreground">
+              Must be 8+ characters
+            </p>
+          )}
         </div>
-        <Button className="w-full" disabled={submitting || !validPw(pw)}>
+        <div className="space-y-2">
+          <Label htmlFor="cpw">Confirm new password</Label>
+          <Input
+            id="cpw"
+            type="password"
+            value={confirmPw}
+            onChange={(e) => setConfirmPw(e.target.value)}
+            required
+          />
+          {passwordError && (
+            <p className="text-xs text-destructive mt-1">
+              {passwordError}
+            </p>
+          )}
+        </div>
+        <Button 
+          className="w-full" 
+          disabled={
+            submitting || 
+            !validPw(pw) || 
+            pw !== confirmPw || 
+            !confirmPw.trim() ||
+            passwordError === "Passwords do not match."
+          }
+        >
           {submitting ? "Saving…" : "Set New Password"}
         </Button>
       </form>

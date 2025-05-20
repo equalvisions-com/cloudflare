@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -227,6 +227,20 @@ function SignInWithGoogle() {
   );
 }
 
+// Custom hook for debouncing
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 function SignInWithPassword({ 
   onResetPassword,
   onVerificationNeeded,
@@ -416,20 +430,44 @@ function SignUpWithPassword({
   const [isSubmitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const debouncedConfirmPassword = useDebounce(confirmPassword, 500); // Debounce confirmPassword
+
+  useEffect(() => {
+    // If confirmPassword field is empty, don't show a mismatch error.
+    // If a mismatch error was previously set, clear it.
+    if (confirmPassword.length === 0) {
+      setPasswordError((prevError) => prevError === "Passwords do not match." ? null : prevError);
+      return;
+    }
+
+    // Only evaluate when the user has paused typing in the confirmPassword field
+    if (debouncedConfirmPassword === confirmPassword) {
+      if (password !== debouncedConfirmPassword) {
+        setPasswordError("Passwords do not match.");
+      } else {
+        // Passwords match
+        setPasswordError((prevError) => prevError === "Passwords do not match." ? null : prevError);
+      }
+    }
+    // No action if the user is still actively typing in confirmPassword
+    // The error will either be set on the next debounce tick or caught by submit.
+  }, [password, confirmPassword, debouncedConfirmPassword, setPasswordError]);
 
   const validatePassword = (passwordToCheck: string) => {
     const hasMinLength = passwordToCheck.length >= 8;
-    const hasUppercase = /[A-Z]/.test(passwordToCheck);
-    const hasLowercase = /[a-z]/.test(passwordToCheck);
-    const hasNumber = /[0-9]/.test(passwordToCheck);
     
-    return hasMinLength && hasUppercase && hasLowercase && hasNumber;
+    return hasMinLength;
   };
 
-  const showPasswordRequirements = password.length > 0;
+  const isValidEmail = (emailToTest: string) => {
+    // More permissive email validation regex for modern TLDs
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToTest);
+  };
 
   return (
     <form
@@ -444,7 +482,7 @@ function SignUpWithPassword({
         }
 
         if (!validatePassword(password)) {
-          setPasswordError("Password must be at least 8 characters and include uppercase, lowercase, and a number.");
+          setPasswordError("Password must be at least 8 characters.");
           return;
         }
 
@@ -508,6 +546,8 @@ function SignUpWithPassword({
           autoComplete="email" 
           required 
           className="shadow-none"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
       </div>
       
@@ -525,10 +565,12 @@ function SignUpWithPassword({
           onChange={(e) => setPassword(e.target.value)}
           value={password}
           className="shadow-none"
+          onFocus={() => setIsPasswordFocused(true)}
+          onBlur={() => setIsPasswordFocused(false)}
         />
-        {showPasswordRequirements && (
+        {isPasswordFocused && !passwordError && (
           <p className="text-xs text-muted-foreground">
-            Password must be at least 8 characters with uppercase, lowercase, and numbers
+            Password must be at least 8 characters.
           </p>
         )}
       </div>
@@ -554,7 +596,19 @@ function SignUpWithPassword({
         )}
       </div>
       
-      <Button type="submit" className="w-full font-medium text-sm" disabled={isSubmitting}>
+      <Button 
+        type="submit" 
+        className="w-full font-medium text-sm" 
+        disabled={ 
+          isSubmitting || 
+          !email.trim() || 
+          !password.trim() || 
+          !confirmPassword.trim() || 
+          password !== confirmPassword || 
+          !validatePassword(password) ||
+          !isValidEmail(email) // Add email format validation
+        }
+      >
         Create account
       </Button>
       
