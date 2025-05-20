@@ -1,4 +1,8 @@
 "use client";
+
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
