@@ -107,9 +107,19 @@ function SignInPageContent() {
                 {step === "signIn" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Sign in
+                     Log in
                     </h2>
-                    <p className="text-md text-muted-foreground pb-4 pt-1">Welcome back to name</p>
+                    <div className="mt-2 mb-8 text-base text-muted-foreground">
+                      Don&apos;t have an account?{" "}
+                      <Button
+                        variant="link"
+                        type="button"
+                        className="p-0 h-auto font-normal underline text-base"
+                        onClick={() => setStep("signUp")}
+                      >
+                        Sign up
+                      </Button>
+                    </div>
                     <SignInWithPassword 
                       onResetPassword={() => setStep("resetPassword")}
                       onVerificationNeeded={(emailFromSignin) => {
@@ -126,17 +136,6 @@ function SignInPageContent() {
                         }
                       }}
                     />
-                    <div className="mt-4 text-center text-sm text-muted-foreground">
-                      Don&apos;t have an account?{" "}
-                      <Button
-                        variant="link"
-                        type="button"
-                        className="p-0 h-auto font-normal underline"
-                        onClick={() => setStep("signUp")}
-                      >
-                        Sign up
-                      </Button>
-                    </div>
                   </>
                 )}
                 {step === "signUp" && (
@@ -198,7 +197,7 @@ function SignInWithGoogle() {
   
   return (
     <Button
-      className="w-full flex-1 shadow-none bg-secondary/50 border-text-muted-foreground/90 font-semibold text-muted-foreground"
+      className="w-full flex-1 shadow-none bg-secondary/50 border-text-muted-foreground/90 font-normal text-muted-foreground"
       variant="outline"
       type="button"
       onClick={() => {
@@ -345,24 +344,25 @@ function SignInWithPassword({
         }
       }}
     >
-      <div className="space-y-2 mb-4">
+      <OAuthOption />
+      <div className="space-y-2 mb-[19.5px]">
         <div className="flex justify-between items-center">
-          <Label className="font-semibold mb-[3px]" htmlFor="signin-email">Email</Label>
+          <Label className="font-normal mb-[3px]" htmlFor="signin-email">Email</Label>
         </div>
         <Input 
           id="signin-email" 
           name="email" 
           type="email" 
-          autoComplete="email" 
+          autoComplete="new-email" 
           required 
           placeholder="Email"
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
       
-      <div className="space-y-2 mb-5">
+      <div className="space-y-2 mb-[27px]">
         <div className="flex justify-between items-end mb-[10px]">
-          <Label className="font-semibold" htmlFor="signin-password">Password</Label>
+          <Label className="font-normal" htmlFor="signin-password">Password</Label>
           <Button 
             variant="link" 
             type="button" 
@@ -376,7 +376,7 @@ function SignInWithPassword({
           id="signin-password" 
           name="password" 
           type="password" 
-          autoComplete="current-password" 
+          autoComplete="new-password" 
           required 
           placeholder="Password"
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -384,28 +384,26 @@ function SignInWithPassword({
       </div>
       
       <Button type="submit" className="w-full font-semibold text-sm mb-4">
-        Sign in
+        Log in
       </Button>
-
-      <OAuthOption />
     </form>
   );
 }
 
 function OAuthOption() {
   return (
-    <div className="w-full">
-      <div className="relative mb-3">
+    <div className="w-full mb-[19px]">
+      <SignInWithGoogle />
+      <div className="relative mt-5">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-background px-2 text-muted-foreground">
-            Or
+          Or
           </span>
         </div>
       </div>
-      <SignInWithGoogle />
     </div>
   );
 }
@@ -605,8 +603,6 @@ function SignUpWithPassword({
       >
         Create account
       </Button>
-      
-      <OAuthOption />
     </form>
   );
 }
