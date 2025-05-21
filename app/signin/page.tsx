@@ -40,7 +40,7 @@ function SignInPageContent() {
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto bg-background">
-      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto rounded-xl">
+      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto rounded-xl pb-[64px] md:pb-0">
             {(step === "resetPassword" || step === "verifyEmail") ? (
               <>
                 {(step === "resetPassword") && (
@@ -107,9 +107,9 @@ function SignInPageContent() {
                 {step === "signIn" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Sign In
+                      Sign in
                     </h2>
-                    <p className="text-md text-muted-foreground pb-4 pt-1">Sign in to your account</p>
+                    <p className="text-md text-muted-foreground pb-4 pt-1">Welcome back to name</p>
                     <SignInWithPassword 
                       onResetPassword={() => setStep("resetPassword")}
                       onVerificationNeeded={(emailFromSignin) => {
@@ -243,7 +243,7 @@ function SignInWithPassword({
 
   return (
     <form
-      className="flex w-full flex-col space-y-4"
+      className="flex w-full flex-col"
       onSubmit={async (event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
@@ -345,7 +345,7 @@ function SignInWithPassword({
         }
       }}
     >
-      <div className="space-y-2">
+      <div className="space-y-2 mb-4">
         <div className="flex justify-between items-center">
           <Label className="font-semibold mb-[3px]" htmlFor="signin-email">Email</Label>
         </div>
@@ -356,11 +356,11 @@ function SignInWithPassword({
           autoComplete="email" 
           required 
           placeholder="Email"
-          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
       
-      <div className="space-y-2">
+      <div className="space-y-2 mb-5">
         <div className="flex justify-between items-end mb-[10px]">
           <Label className="font-semibold" htmlFor="signin-password">Password</Label>
           <Button 
@@ -379,11 +379,11 @@ function SignInWithPassword({
           autoComplete="current-password" 
           required 
           placeholder="Password"
-          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
       
-      <Button type="submit" className="w-full font-semibold text-sm">
+      <Button type="submit" className="w-full font-semibold text-sm mb-4">
         Sign in
       </Button>
 
