@@ -12,7 +12,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
@@ -36,7 +35,6 @@ export default function SignInPage() {
 function SignInPageContent() {
   const [step, setStep] = useState<AuthStep>("signIn");
   const [email, setEmail] = useState("");
-  const [activeTab, setActiveTab] = useState("sign-in");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -68,7 +66,6 @@ function SignInPageContent() {
                         className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
                         onClick={() => {
                           setStep("signUp");
-                          setActiveTab("create-account");
                         }}
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -86,7 +83,6 @@ function SignInPageContent() {
                       onSuccess={() => {
                         router.push("/");        
                         setStep("signIn");
-                        setActiveTab("sign-in");
                       }}
                     />
                   </>
@@ -109,72 +105,60 @@ function SignInPageContent() {
                 )}
               </>
             ) : (
-              <Tabs 
-                defaultValue="sign-in" 
-                value={activeTab}
-                onValueChange={(value) => {
-                  setActiveTab(value);
-                  if (value === "sign-in") {
-                    setStep("signIn");
-                  } else if (value === "create-account") {
-                    setStep("signUp");
-                  }
-                }}
-                className="w-full"
-              >
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="sign-in">Sign in</TabsTrigger>
-                  <TabsTrigger value="create-account">Create account</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="sign-in" className="space-y-0">
-                  {step === "signIn" && (
-                    <>
-                      <h2 className="text-lg font-extrabold tracking-tight">
-                        Welcome back
-                      </h2>
-                      <p className="text-sm text-muted-foreground pb-4">Sign in to your account</p>
-                      <SignInWithPassword 
-                        onResetPassword={() => setStep("resetPassword")}
-                        onVerificationNeeded={(emailFromSignin) => {
-                          if (emailFromSignin) {
-                            setEmail(emailFromSignin);
-                            setStep("verifyEmail");
-                          } else {
-                            console.error("Email not provided to onVerificationNeeded from SignInWithPassword.");
-                            toast({
-                              title: "Navigation Error",
-                              description: "Could not proceed to email verification.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                      />
-                    </>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="create-account" className="space-y-0">
-                  {step === "signUp" && (
-                     <>
-                        <h2 className="text-lg font-extrabold tracking-tight">
-                          Create account
-                        </h2>
-                        <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
-                        <SignUpWithPassword 
-                          onSignIn={() => {
-                            setStep("signIn");
-                            setActiveTab("sign-in");
-                          }} 
-                          onVerificationNeeded={(emailFromSignup) => {
-                            setEmail(emailFromSignup);
-                            setStep("verifyEmail");
-                          }}
-                        />
-                      </>
-                  )}
-                </TabsContent>
-              </Tabs>
+              <>
+                {step === "signIn" && (
+                  <>
+                    <h2 className="text-2xl font-extrabold leading-none tracking-tight">
+                      Sign in
+                    </h2>
+                    <p className="text-md text-muted-foreground pb-4">Sign in to your account</p>
+                    <SignInWithPassword 
+                      onResetPassword={() => setStep("resetPassword")}
+                      onVerificationNeeded={(emailFromSignin) => {
+                        if (emailFromSignin) {
+                          setEmail(emailFromSignin);
+                          setStep("verifyEmail");
+                        } else {
+                          console.error("Email not provided to onVerificationNeeded from SignInWithPassword.");
+                          toast({
+                            title: "Navigation Error",
+                            description: "Could not proceed to email verification.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      onSwitchToSignUp={() => setStep("signUp")}
+                    />
+                  </>
+                )}
+                {step === "signUp" && (
+                  <>
+                    <h2 className="text-lg font-extrabold tracking-tight">
+                      Create account
+                    </h2>
+                    <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
+                    <SignUpWithPassword 
+                      onSignIn={() => {
+                        setStep("signIn");
+                      }} 
+                      onVerificationNeeded={(emailFromSignup) => {
+                        setEmail(emailFromSignup);
+                        setStep("verifyEmail");
+                      }}
+                    />
+                    <div className="mt-4 text-center text-sm">
+                      Already have an account?{" "}
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto font-semibold"
+                        onClick={() => setStep("signIn")}
+                      >
+                        Log in
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </>
             )}
             
             {step === "linkSent" && (
@@ -188,7 +172,6 @@ function SignInPageContent() {
                   variant="link"
                   onClick={() => {
                     setStep("signIn");
-                    setActiveTab("sign-in");
                   }}
                 >
                   Back to sign in
@@ -222,7 +205,7 @@ function SignInWithGoogle() {
         <path fill="#4A90E2" d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5272727 23.1818182,9.81818182 L12,9.81818182 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"></path>
         <path fill="#FBBC05" d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"></path>
       </svg>
-      Google
+      Continue with Google
     </Button>
   );
 }
@@ -244,9 +227,11 @@ function useDebounce<T>(value: T, delay: number): T {
 function SignInWithPassword({ 
   onResetPassword,
   onVerificationNeeded,
+  onSwitchToSignUp,
 }: {
   onResetPassword: () => void;
   onVerificationNeeded: (email: string) => void;
+  onSwitchToSignUp: () => void;
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
@@ -396,6 +381,18 @@ function SignInWithPassword({
         Sign in
       </Button>
 
+      <div className="mt-4 text-center text-sm">
+        Don't have an account?{" "}
+        <Button
+          variant="link"
+          type="button"
+          className="p-0 h-auto font-semibold"
+          onClick={onSwitchToSignUp}
+        >
+          Sign up
+        </Button>
+      </div>
+
       <OAuthOption />
     </form>
   );
@@ -410,7 +407,7 @@ function OAuthOption() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-background px-2 text-muted-foreground">
-            Or continue with
+            Or
           </span>
         </div>
       </div>
