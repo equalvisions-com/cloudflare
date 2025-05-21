@@ -198,7 +198,7 @@ function SignInWithGoogle() {
   
   return (
     <Button
-      className="w-full flex-1 shadow-none bg-border/40 border-ring/10 font-semibold"
+      className="w-full flex-1 shadow-none bg-secondary/50 border-text-muted-foreground/90 font-semibold text-muted-foreground"
       variant="outline"
       type="button"
       onClick={() => {
@@ -356,12 +356,12 @@ function SignInWithPassword({
           autoComplete="email" 
           required 
           placeholder="Email"
-          className="shadow-none bg-border/40 border-ring/10"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground"
         />
       </div>
       
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-end mb-[10px]">
           <Label className="font-semibold" htmlFor="signin-password">Password</Label>
           <Button 
             variant="link" 
@@ -379,11 +379,11 @@ function SignInWithPassword({
           autoComplete="current-password" 
           required 
           placeholder="Password"
-          className="shadow-none bg-border/40 border-ring/10"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground"
         />
       </div>
       
-      <Button type="submit" className="w-full font-medium text-sm">
+      <Button type="submit" className="w-full font-semibold text-sm">
         Sign in
       </Button>
 

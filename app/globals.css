@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer utilities {
+  
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
