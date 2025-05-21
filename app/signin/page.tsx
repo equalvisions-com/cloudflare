@@ -39,10 +39,8 @@ function SignInPageContent() {
   const { toast } = useToast();
 
   return (
-    <div className="flex min-h-screen w-full container my-auto mx-auto">
-      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto gap-4 pb-8 min-h-[500px]">
-        <Card className="shadow-none">
-          <CardContent className="pt-4">
+    <div className="flex min-h-screen w-full container my-auto mx-auto bg-background">
+      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto rounded-xl">
             {(step === "resetPassword" || step === "verifyEmail") ? (
               <>
                 {(step === "resetPassword") && (
@@ -109,9 +107,9 @@ function SignInPageContent() {
                 {step === "signIn" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Sign in
+                      Sign In
                     </h2>
-                    <p className="text-md text-muted-foreground pb-4">Sign in to your account</p>
+                    <p className="text-md text-muted-foreground pb-4 pt-1">Sign in to your account</p>
                     <SignInWithPassword 
                       onResetPassword={() => setStep("resetPassword")}
                       onVerificationNeeded={(emailFromSignin) => {
@@ -127,8 +125,18 @@ function SignInPageContent() {
                           });
                         }
                       }}
-                      onSwitchToSignUp={() => setStep("signUp")}
                     />
+                    <div className="mt-4 text-center text-sm text-muted-foreground">
+                      Don&apos;t have an account?{" "}
+                      <Button
+                        variant="link"
+                        type="button"
+                        className="p-0 h-auto font-normal underline"
+                        onClick={() => setStep("signUp")}
+                      >
+                        Sign up
+                      </Button>
+                    </div>
                   </>
                 )}
                 {step === "signUp" && (
@@ -150,7 +158,7 @@ function SignInPageContent() {
                       Already have an account?{" "}
                       <Button
                         variant="link"
-                        className="p-0 h-auto font-semibold"
+                        className="p-0 h-auto font-semibold underline"
                         onClick={() => setStep("signIn")}
                       >
                         Log in
@@ -178,8 +186,6 @@ function SignInPageContent() {
                 </Button>
               </>
             )}
-          </CardContent>
-        </Card>
       </div>
       <Toaster />
     </div>
@@ -192,7 +198,7 @@ function SignInWithGoogle() {
   
   return (
     <Button
-      className="w-full flex-1 shadow-none font-semibold"
+      className="w-full flex-1 shadow-none bg-border/40 border-ring/10 font-semibold"
       variant="outline"
       type="button"
       onClick={() => {
@@ -227,11 +233,9 @@ function useDebounce<T>(value: T, delay: number): T {
 function SignInWithPassword({ 
   onResetPassword,
   onVerificationNeeded,
-  onSwitchToSignUp,
 }: {
   onResetPassword: () => void;
   onVerificationNeeded: (email: string) => void;
-  onSwitchToSignUp: () => void;
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
@@ -343,7 +347,7 @@ function SignInWithPassword({
     >
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label className="font-semibold" htmlFor="signin-email">Email</Label>
+          <Label className="font-semibold mb-[3px]" htmlFor="signin-email">Email</Label>
         </div>
         <Input 
           id="signin-email" 
@@ -351,7 +355,8 @@ function SignInWithPassword({
           type="email" 
           autoComplete="email" 
           required 
-          className="shadow-none"
+          placeholder="Email"
+          className="shadow-none bg-border/40 border-ring/10"
         />
       </div>
       
@@ -361,7 +366,7 @@ function SignInWithPassword({
           <Button 
             variant="link" 
             type="button" 
-            className="p-0 h-auto text-sm font-normal" 
+            className="p-0 h-auto text-sm underline text-muted-foreground font-normal" 
             onClick={onResetPassword}
           >
             Forgot password?
@@ -373,25 +378,14 @@ function SignInWithPassword({
           type="password" 
           autoComplete="current-password" 
           required 
-          className="shadow-none"
+          placeholder="Password"
+          className="shadow-none bg-border/40 border-ring/10"
         />
       </div>
       
       <Button type="submit" className="w-full font-medium text-sm">
         Sign in
       </Button>
-
-      <div className="mt-4 text-center text-sm">
-        Don't have an account?{" "}
-        <Button
-          variant="link"
-          type="button"
-          className="p-0 h-auto font-semibold"
-          onClick={onSwitchToSignUp}
-        >
-          Sign up
-        </Button>
-      </div>
 
       <OAuthOption />
     </form>
@@ -542,6 +536,7 @@ function SignUpWithPassword({
           type="email" 
           autoComplete="email" 
           required 
+          placeholder="Email"
           className="shadow-none"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -551,7 +546,7 @@ function SignUpWithPassword({
       <div className="space-y-2 mb-4">
         <div className="flex justify-between items-center">
           <Label className="font-semibold" htmlFor="signup-password">Password</Label>
-          <span className="invisible text-sm h-[20px]">Forgot password?</span>
+          <span className="invisible text-sm underline h-[20px]">Forgot password?</span>
         </div>
         <Input 
           id="signup-password" 
@@ -559,6 +554,7 @@ function SignUpWithPassword({
           type="password" 
           autoComplete="new-password" 
           required
+          placeholder="Password"
           onChange={(e) => setPassword(e.target.value)}
           value={password}
           className="shadow-none"
@@ -582,6 +578,7 @@ function SignUpWithPassword({
           type="password" 
           autoComplete="new-password" 
           required
+          placeholder="Confirm Password"
           onChange={(e) => setConfirmPassword(e.target.value)}
           value={confirmPassword}
           className="shadow-none"
