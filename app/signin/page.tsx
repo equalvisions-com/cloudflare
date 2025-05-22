@@ -188,7 +188,12 @@ function SignInWithGoogle() {
       variant="outline"
       type="button"
       onClick={() => {
-        void signIn("google", { redirectTo: "/" });
+        void signIn("google", {
+          redirectTo: "/",
+          query: {
+            prompt: "select_account", // ✅ This forces account chooser
+          },
+        });
       }}
     >
       <svg viewBox="0 0 24 24" className="mr-2 h-4 w-4">
