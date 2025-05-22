@@ -40,7 +40,7 @@ function SignInPageContent() {
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto bg-background">
-      {(step === "resetPassword" || step === "linkSent") && (
+      {(step === "resetPassword" || step === "linkSent" || step === "verifyEmail") && (
         <div className="fixed top-6 left-6 z-50">
           <Button
             variant="link"
@@ -57,23 +57,11 @@ function SignInPageContent() {
               <>
                 {step === "verifyEmail" && (
                   <>
-                    <div className="mb-4">
-                      <Button
-                        variant="link"
-                        className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
-                        onClick={() => {
-                          setStep("signUp");
-                        }}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        <span>Back to Sign Up</span>
-                      </Button>
-                    </div>
-                    <h2 className="font-semibold text-2xl tracking-tight">
-                      Check your e-mail
+                                      <h2 className="text-2xl font-extrabold leading-none tracking-tight">
+                      Check your email
                     </h2>
-                    <p className="text-sm text-muted-foreground pb-4">
-                      Enter the 6-digit code sent to {email}.
+                    <p className="mt-2 mb-[22px] text-base text-muted-foreground">
+                      Enter the 6-digit code sent to {email}
                     </p>
                     <SignUpVerification
                       email={email}
@@ -90,7 +78,7 @@ function SignInPageContent() {
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
                       Reset password
                     </h2>
-                    <p className="mt-2 mb-8 text-base text-muted-foreground">Include the email address associated with your account and we&apos;ll send you instructions to reset your password</p>
+                    <p className="mt-2 mb-[22px] text-base text-muted-foreground">Submit the email associated with your account and we&apos;ll send you a link to reset your password</p>
                     <ResetPasswordRequest 
                       onEmailSent={(emailValue) => {
                         setEmail(emailValue);
@@ -107,7 +95,7 @@ function SignInPageContent() {
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
                      Sign in
                     </h2>
-                    <div className="mt-2 mb-8 text-base text-muted-foreground">
+                    <div className="mt-2 mb-[22px] text-base text-muted-foreground">
                       Don&apos;t have an account?{" "}
                       <Button
                         variant="link"
@@ -141,7 +129,7 @@ function SignInPageContent() {
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
                     Sign up
                     </h2>
-                    <div className="mt-2 mb-8 text-base text-muted-foreground">
+                    <div className="mt-2 mb-[22px] text-base text-muted-foreground">
                       Already have an account?{" "}
                       <Button
                         variant="link"
@@ -707,7 +695,7 @@ function SignUpVerification({
           (error instanceof TypeError && lowerClientErrorMessage.includes("cannot read properties of null (reading 'redirect')"))
          ) {
         console.log("OTP Error: Entered specific failure block (expired/invalid or specific TypeError)."); // For debugging
-        setOtpError("Invalid or expired code. Please try again or request a new one.");
+        setOtpError("Invalid or expired code. Please try again or request a new one");
         setShowResendOtpButton(true);
         toast({
           title: "Verification Failed",
@@ -760,7 +748,7 @@ function SignUpVerification({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-[28px]">
       <div>
         <Label htmlFor="otp-code-input" className="sr-only">Verification Code</Label>
         <InputOTP 
@@ -769,7 +757,7 @@ function SignUpVerification({
           value={otp} 
           onChange={(value) => { setOtp(value); setOtpError(null); }}
         >
-          <InputOTPGroup className="w-full flex justify-center">
+          <InputOTPGroup className="w-full flex font-semibold">
             <InputOTPSlot index={0} />
             <InputOTPSlot index={1} />
             <InputOTPSlot index={2} />
@@ -779,9 +767,9 @@ function SignUpVerification({
           </InputOTPGroup>
         </InputOTP>
       </div>
-      {otpError && <p className="text-sm text-destructive text-center px-1">{otpError}</p>}
-      <Button type="submit" className="w-full" disabled={isLoading || otp.length < 6}>
-        {isLoading && !showResendOtpButton ? "Verifying..." : "Verify Email"}
+      {otpError && <p className="text-sm text-red-500 text-center px-1">{otpError}</p>}
+      <Button type="submit" className="w-full font-semibold" disabled={isLoading || otp.length < 6}>
+        {isLoading && !showResendOtpButton ? "Verifying..." : "Verify"}
       </Button>
       {showResendOtpButton && (
         <Button
