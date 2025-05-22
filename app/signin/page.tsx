@@ -303,7 +303,8 @@ function SignInWithPassword({
             }
           } else if (lowerErrorMessage.includes("invalidsecret") || 
                      lowerErrorMessage.includes("invalid credential") || 
-                     lowerErrorMessage.includes("cannot read properties of null (reading 'redirect')")) {
+                     lowerErrorMessage.includes("cannot read properties of null (reading 'redirect')") ||
+                     lowerErrorMessage.includes("null is not an object (evaluating \'o.redirect\')")) {
             // Specific handling for incorrect password / invalid credentials
             toast({
               title: "Sign-In Failed",
@@ -516,7 +517,8 @@ function SignUpWithPassword({
             
             // Check for "account already exists" error or null redirect error
             if (fullErrorString.includes("already exists") || 
-                errorMessage.includes("Cannot read properties of null (reading 'redirect')")) {
+                errorMessage.includes("Cannot read properties of null (reading 'redirect')") ||
+                fullErrorString.includes("null is not an object (evaluating \'o.redirect\')")) {
               toast({
                 title: "Email already registered",
                 description: "This email address is already associated with an account. Please sign in instead.",
@@ -743,7 +745,8 @@ function SignUpVerification({
           lowerClientErrorMessage.includes("expired verification code") || 
           lowerClientErrorMessage.includes("invalid code") || 
           lowerClientErrorMessage.includes("incorrect code") ||
-          (error instanceof TypeError && lowerClientErrorMessage.includes("cannot read properties of null (reading 'redirect')"))
+          (error instanceof TypeError && lowerClientErrorMessage.includes("cannot read properties of null (reading 'redirect')")) ||
+          lowerClientErrorMessage.includes("null is not an object (evaluating \'o.redirect\')")
          ) {
         console.log("OTP Error: Entered specific failure block (expired/invalid or specific TypeError)."); // For debugging
         setOtpError("Invalid or expired code. Please try again or request a new one");
