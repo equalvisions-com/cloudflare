@@ -797,4 +797,3 @@ function SignUpVerification({
     </form>
   );
 }
-
