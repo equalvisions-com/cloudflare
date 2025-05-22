@@ -39,7 +39,7 @@ function SignInPageContent() {
   const { toast } = useToast();
 
   return (
-    <div className="flex min-h-screen w-full container my-auto mx-auto bg-background">
+    <div className="flex min-h-screen w-full px-4 md:px-0 my-auto mx-auto bg-background">
       {(step === "resetPassword" || step === "linkSent" || step === "verifyEmail") && (
         <div className="fixed top-6 left-6 z-50">
           <Button
