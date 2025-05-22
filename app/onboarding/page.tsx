@@ -542,7 +542,7 @@ function OnboardingPageContent() {
 
   return (
     <div className="flex min-h-screen w-full my-auto mx-auto px-4 md:px-0">
-      <div className="w-full max-w-[600px] mx-auto flex flex-col my-auto gap-4 pb-[64px] md:pb-0">
+      <div className="w-full max-w-[400px] mx-auto flex flex-col my-auto gap-4 pb-[64px] md:pb-0">
         <div className="space-y-1">
           <h2 className="text-2xl font-extrabold leading-none tracking-tight mb-2">
             {currentStep === 'profile' ? 'Create Account' : 'Suggested Follows'}
@@ -614,7 +614,7 @@ function OnboardingPageContent() {
                   placeholder="Choose a username"
                   className={cn(
                     usernameError ? 'border-red-500' : '',
-                    'focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                    'shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                   )}
                   disabled={isSubmitting || isUploading}
                   maxLength={15}
@@ -644,7 +644,7 @@ function OnboardingPageContent() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Display name"
-                className="focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 maxLength={60}
               />
             </div>
@@ -656,7 +656,7 @@ function OnboardingPageContent() {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Tell us a bit about yourself"
-                className="h-24 resize-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-24 resize-none shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 maxLength={250}
               />
             </div>
