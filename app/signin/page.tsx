@@ -310,6 +310,13 @@ function SignInWithPassword({
               description: "The email or password you entered is incorrect. Please try again.",
               variant: "destructive",
             });
+          } else if (lowerErrorMessage.includes("invalidaccountid")) {
+            // Specific handling for account not found
+            toast({
+              title: "Account Not Found",
+              description: "No account found with that email address. Please check your email or sign up.",
+              variant: "destructive",
+            });
           } else {
             // Generic sign-in error for other cases
             toast({
