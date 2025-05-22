@@ -112,7 +112,7 @@ function SignInPageContent() {
                       <Button
                         variant="link"
                         type="button"
-                        className="p-0 h-auto font-normal underline text-base"
+                        className="p-0 h-auto font-semibold text-base"
                         onClick={() => setStep("signUp")}
                       >
                         Sign up
@@ -145,7 +145,7 @@ function SignInPageContent() {
                       Already have an account?{" "}
                       <Button
                         variant="link"
-                        className="p-0 h-auto font-normal underline text-base"
+                        className="p-0 h-auto font-semibold text-base"
                         onClick={() => setStep("signIn")}
                       >
                         Sign in
@@ -331,7 +331,6 @@ function SignInWithPassword({
         }
       }}
     >
-      <OAuthOption />
       <div className="space-y-2 mb-[20px] mt-[-1px]">
         <div className="flex justify-between items-center">
           <Label className="font-normal mb-[2px]" htmlFor="signin-email">Email</Label>
@@ -353,7 +352,7 @@ function SignInWithPassword({
           <Button 
             variant="link" 
             type="button" 
-            className="p-0 h-auto text-sm underline text-muted-foreground font-normal" 
+            className="p-0 h-auto text-sm text-muted-foreground font-normal" 
             onClick={onResetPassword}
           >
             Forgot password?
@@ -370,9 +369,11 @@ function SignInWithPassword({
         />
       </div>
       
-      <Button type="submit" className="w-full font-semibold text-sm mb-4">
+      <Button type="submit" className="w-full font-semibold text-sm">
         Sign in
       </Button>
+      
+      <OAuthOption />
     </form>
   );
 }
@@ -380,8 +381,7 @@ function SignInWithPassword({
 function OAuthOption() {
   return (
     <div className="w-full mb-[21px]">
-      <SignInWithGoogle />
-      <div className="relative mt-5">
+      <div className="relative mt-[20.5px] mb-[20.5px]">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border" />
         </div>
@@ -391,6 +391,7 @@ function OAuthOption() {
           </span>
         </div>
       </div>
+      <SignInWithGoogle />
     </div>
   );
 }
@@ -511,7 +512,6 @@ function SignUpWithPassword({
           });
       }}
     >
-      <OAuthOption />
       <div className="space-y-2 mb-[23px] mt-[-1px]">
         <div className="flex justify-between items-center mb-[10px]">
             <Label className="font-normal" htmlFor="signup-email">Email</Label>
@@ -590,6 +590,7 @@ function SignUpWithPassword({
         }
       >
 Sign up      </Button>
+      <OAuthOption />
     </form>
   );
 }
