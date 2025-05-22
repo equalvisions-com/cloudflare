@@ -76,7 +76,7 @@ function SignInPageContent() {
                 {step === "resetPassword" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Reset Password
+                      Forgot Password
                     </h2>
                     <p className="mt-2 mb-[22px] text-base text-muted-foreground">Submit the email associated with your account and we&apos;ll send you a link to reset your password</p>
                     <ResetPasswordRequest 
@@ -407,6 +407,8 @@ function SignUpWithPassword({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const debouncedConfirmPassword = useDebounce(confirmPassword, 500); // Debounce confirmPassword
+  const debouncedPassword = useDebounce(password, 500); // Debounce password for length check
+  const [lengthValidationError, setLengthValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     // If confirmPassword field is empty, don't show a mismatch error.
@@ -428,6 +430,25 @@ function SignUpWithPassword({
     // No action if the user is still actively typing in confirmPassword
     // The error will either be set on the next debounce tick or caught by submit.
   }, [password, confirmPassword, debouncedConfirmPassword, setPasswordError]);
+
+  useEffect(() => {
+    // Password length validation
+    if (!isPasswordFocused && password.length === 0) {
+      setLengthValidationError(null);
+      return;
+    }
+    if (isPasswordFocused || password.length > 0) { // Show/check when focused or if there's input
+      if (debouncedPassword === password) { // Check only when user pauses
+        if (password.length > 0 && password.length < 8) {
+          setLengthValidationError("Password must be at least 8 characters");
+        } else {
+          setLengthValidationError(null);
+        }
+      }
+    } else {
+      setLengthValidationError(null); // Clear if not focused and no input
+    }
+  }, [password, debouncedPassword, isPasswordFocused, setLengthValidationError]);
 
   const validatePassword = (passwordToCheck: string) => {
     const hasMinLength = passwordToCheck.length >= 8;
@@ -541,9 +562,14 @@ function SignUpWithPassword({
           onFocus={() => setIsPasswordFocused(true)}
           onBlur={() => setIsPasswordFocused(false)}
         />
-        {isPasswordFocused && !passwordError && (
-          <p className="text-xs text-muted-foreground">
+        {isPasswordFocused && !passwordError && !lengthValidationError && password.length < 8 && (
+          <p className="text-xs text-muted-foreground p-0 m-0 h-3 leading-tight">
             Password must be at least 8 characters
+          </p>
+        )}
+        {lengthValidationError && (
+          <p className="text-xs text-red-500 p-0 m-0 h-3 leading-tight">
+            {lengthValidationError}
           </p>
         )}
       </div>
@@ -580,6 +606,7 @@ function SignUpWithPassword({
           !confirmPassword.trim() || 
           password !== confirmPassword || 
           !validatePassword(password) ||
+          lengthValidationError !== null ||
           !isValidEmail(email) // Add email format validation
         }
       >
