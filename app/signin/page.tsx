@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 import { useRouter } from "next/navigation";
+import { Turnstile } from "@/components/ui/turnstile";
 
 type AuthStep = 
   | "signIn" 
@@ -357,6 +358,9 @@ function SignInWithPassword({
         />
       </div>
       
+      {/* Cloudflare Turnstile */}
+      <Turnstile />
+      
       <Button type="submit" className="w-full font-semibold text-sm">
         Sign in
       </Button>
@@ -564,6 +568,9 @@ function SignUpWithPassword({
         )}
       </div>
       
+      {/* Cloudflare Turnstile */}
+      <Turnstile />
+      
       <Button 
         type="submit" 
         className="w-full font-semibold text-sm" 
@@ -634,6 +641,9 @@ function ResetPasswordRequest({
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
+      
+      {/* Cloudflare Turnstile */}
+      <Turnstile />
       
       <Button type="submit" className="w-full font-semibold" disabled={submitting}>
         Submit
@@ -768,6 +778,8 @@ function SignUpVerification({
         </InputOTP>
       </div>
       {otpError && <p className="text-sm text-red-500 text-center px-1">{otpError}</p>}
+      {/* Cloudflare Turnstile */}
+      <Turnstile />
       <Button type="submit" className="w-full font-semibold" disabled={isLoading || otp.length < 6}>
         {isLoading && !showResendOtpButton ? "Verifying..." : "Verify"}
       </Button>
