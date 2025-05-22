@@ -52,7 +52,9 @@ function ResetPasswordPageContent(): JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const debouncedConfirmPw = useDebounce(confirmPw, 500);
+  const debouncedConfirmPw = useDebounce(confirmPw, 1000);
+  const debouncedPw = useDebounce(pw, 1000);
+  const [lengthValidationError, setLengthValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (confirmPw.length === 0 && pw.length === 0) {
@@ -61,16 +63,26 @@ function ResetPasswordPageContent(): JSX.Element {
     }
     if (confirmPw.length > 0 && debouncedConfirmPw === confirmPw) {
       if (pw !== debouncedConfirmPw) {
-        setPasswordError("Passwords do not match.");
+        setPasswordError("Passwords do not match");
       } else {
         setPasswordError(null);
       }
-    } else if (confirmPw.length === 0 && pw.length > 0 && passwordError === "Passwords do not match.") {
-      setPasswordError("Passwords do not match.");
-    } else if (pw === confirmPw && passwordError === "Passwords do not match.") {
+    } else if (confirmPw.length === 0 && pw.length > 0 && passwordError === "Passwords do not match") {
+      setPasswordError("Passwords do not match");
+    } else if (pw === confirmPw && passwordError === "Passwords do not match") {
       setPasswordError(null);
     }
   }, [pw, confirmPw, debouncedConfirmPw, passwordError, setPasswordError]);
+
+  useEffect(() => {
+    if (pw.length === 0 || validPw(pw)) {
+      setLengthValidationError(null);
+      return;
+    }
+    if (debouncedPw === pw && pw.length > 0 && !validPw(pw)) {
+      setLengthValidationError("Password must be at least 8 characters");
+    }
+  }, [pw, debouncedPw]);
 
   const validPw = (s: string) =>
     s.length >= 8;
@@ -94,7 +106,7 @@ function ResetPasswordPageContent(): JSX.Element {
         description: "The entered passwords do not match. Please re-enter.",
         variant: "destructive",
       });
-      setPasswordError("Passwords do not match.");
+      setPasswordError("Passwords do not match");
       setSubmitting(false);
       return;
     }
@@ -125,11 +137,24 @@ function ResetPasswordPageContent(): JSX.Element {
       router.push("/");
     } catch (err: any) {
       console.error("Reset password error:", err);
-      toast({
-        title: "Reset Failed",
-        description: err.data?.message || err.message || "An unexpected error occurred.",
-        variant: "destructive",
-      });
+      const errorMessage = err.data?.message || err.message || "";
+      if (
+        errorMessage.includes("Invalid verification code") || 
+        errorMessage.includes("Could not verify code") ||
+        errorMessage.includes("Cannot read properties of null (reading 'redirect')")
+      ) {
+        toast({
+          title: "Link Expired or Invalid",
+          description: "This password reset link has expired or is invalid. Please request a new link.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Reset Failed",
+          description: errorMessage || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
       setSubmitting(false);
     }
   }
@@ -148,41 +173,49 @@ function ResetPasswordPageContent(): JSX.Element {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 bg-card p-6 sm:p-8 rounded-lg shadow-md">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">Reset Your Password</h1>
-          <p className="text-muted-foreground">Enter a new password for {email}</p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="np">Choose a new password</Label>
+    <main className="flex min-h-screen w-full container my-auto mx-auto bg-background">
+      <form onSubmit={handleSubmit} className="w-full max-w-[400px] mx-auto flex flex-col my-auto rounded-xl pb-[64px] md:pb-0">
+          <h1 className="text-2xl font-extrabold leading-none tracking-tight">Reset your password</h1>
+          <p className="mt-2 mb-8 text-base text-muted-foreground">Enter a new password for {email}</p>
+        <div className="space-y-[6px] mb-[20px]">
+          <Label className="font-normal" htmlFor="np">Password</Label>
           <Input
             id="np"
+            autoComplete="new-password"
             type="password"
+            placeholder="Password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
-            autoFocus
             required
+            className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             onFocus={() => setIsPasswordFocused(true)}
             onBlur={() => setIsPasswordFocused(false)}
           />
-          {isPasswordFocused && (
-            <p className="text-xs text-muted-foreground">
-              Must be 8+ characters
+          {isPasswordFocused && !validPw(pw) && !lengthValidationError && (
+            <p className="text-xs text-muted-foreground p-0 m-0 h-3 leading-tight">
+             Password must be at least 8 characters
+            </p>
+          )}
+          {lengthValidationError && (
+            <p className="text-xs text-red-500 p-0 m-0 h-3 leading-tight">
+              {lengthValidationError}
             </p>
           )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="cpw">Confirm new password</Label>
+        <div className="space-y-[6px] mb-[28px]">
+          <Label className="font-normal" htmlFor="cpw">Confirm Password</Label>
           <Input
             id="cpw"
+            autoComplete="new-password"
             type="password"
+            placeholder="Confirm Password"
             value={confirmPw}
             onChange={(e) => setConfirmPw(e.target.value)}
             required
+            className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           {passwordError && (
-            <p className="text-xs text-destructive mt-1">
+            <p className="text-xs text-red-500 p-0 m-0 h-3 leading-tight">
               {passwordError}
             </p>
           )}
@@ -194,10 +227,10 @@ function ResetPasswordPageContent(): JSX.Element {
             !validPw(pw) || 
             pw !== confirmPw || 
             !confirmPw.trim() ||
-            passwordError === "Passwords do not match."
+            passwordError === "Passwords do not match"
           }
         >
-          {submitting ? "Saving…" : "Set New Password"}
+          {submitting ? "Saving…" : "Submit"}
         </Button>
       </form>
       <Toaster />

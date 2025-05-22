@@ -40,22 +40,21 @@ function SignInPageContent() {
 
   return (
     <div className="flex min-h-screen w-full container my-auto mx-auto bg-background">
-      <div className="w-full max-w-[384px] mx-auto flex flex-col my-auto rounded-xl pb-[64px] md:pb-0">
+      {(step === "resetPassword" || step === "linkSent") && (
+        <div className="fixed top-6 left-6 z-50">
+          <Button
+            variant="link"
+            className="h-4 p-0 flex items-center gap-1 no-underline hover:no-underline ml-[-5px]"
+            onClick={() => setStep("signIn")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+        </div>
+      )}
+      <div className="w-full max-w-[400px] mx-auto flex flex-col my-auto rounded-xl pb-[64px] md:pb-0">
             {(step === "resetPassword" || step === "verifyEmail") ? (
               <>
-                {(step === "resetPassword") && (
-                  <div className="mb-4">
-                    <Button
-                      variant="link"
-                      className="h-9 px-0 flex items-center gap-1 no-underline hover:no-underline"
-                      onClick={() => setStep("signIn")}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      <span>Back</span>
-                    </Button>
-                  </div>
-                )}
-
                 {step === "verifyEmail" && (
                   <>
                     <div className="mb-4">
@@ -88,16 +87,15 @@ function SignInPageContent() {
             
                 {step === "resetPassword" && (
                   <>
-                    <h2 className="text-lg font-extrabold tracking-tight">
+                    <h2 className="text-2xl font-extrabold leading-none tracking-tight">
                       Reset password
                     </h2>
-                    <p className="text-sm text-muted-foreground pb-4">Enter your email to receive a password reset link.</p>
+                    <p className="mt-2 mb-8 text-base text-muted-foreground">Include the email address associated with your account and we&apos;ll send you instructions to reset your password</p>
                     <ResetPasswordRequest 
                       onEmailSent={(emailValue) => {
                         setEmail(emailValue);
                         setStep("linkSent");
                       }}
-                      onCancel={() => setStep("signIn")}
                     />
                   </>
                 )}
@@ -107,7 +105,7 @@ function SignInPageContent() {
                 {step === "signIn" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                     Log in
+                     Sign in
                     </h2>
                     <div className="mt-2 mb-8 text-base text-muted-foreground">
                       Don&apos;t have an account?{" "}
@@ -140,11 +138,19 @@ function SignInPageContent() {
                 )}
                 {step === "signUp" && (
                   <>
-                    <h2 className="text-lg font-extrabold tracking-tight">
-                      Create account
+                    <h2 className="text-2xl font-extrabold leading-none tracking-tight">
+                    Sign up
                     </h2>
-                    <p className="text-sm text-muted-foreground pb-4">Enter your details</p>
-                    <SignUpWithPassword 
+                    <div className="mt-2 mb-8 text-base text-muted-foreground">
+                      Already have an account?{" "}
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto font-normal underline text-base"
+                        onClick={() => setStep("signIn")}
+                      >
+                        Sign in
+                      </Button>
+                    </div>                    <SignUpWithPassword 
                       onSignIn={() => {
                         setStep("signIn");
                       }} 
@@ -153,36 +159,17 @@ function SignInPageContent() {
                         setStep("verifyEmail");
                       }}
                     />
-                    <div className="mt-4 text-center text-sm">
-                      Already have an account?{" "}
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto font-semibold underline"
-                        onClick={() => setStep("signIn")}
-                      >
-                        Log in
-                      </Button>
-                    </div>
-                  </>
+                                     </>
                 )}
               </>
             )}
             
             {step === "linkSent" && (
               <>
-                <h2 className="font-semibold text-2xl tracking-tight">
+                <h2 className="text-2xl font-extrabold leading-none tracking-tight">
                   Check your email
                 </h2>
-                <p className="text-sm text-muted-foreground">A password reset link has been sent to {email}.</p>
-                <Button
-                  className="p-0 self-start mt-2"
-                  variant="link"
-                  onClick={() => {
-                    setStep("signIn");
-                  }}
-                >
-                  Back to sign in
-                </Button>
+                <p className="mt-2 text-base text-muted-foreground">A password reset link has been sent to {email}</p>
               </>
             )}
       </div>
@@ -210,7 +197,7 @@ function SignInWithGoogle() {
         <path fill="#4A90E2" d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5272727 23.1818182,9.81818182 L12,9.81818182 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"></path>
         <path fill="#FBBC05" d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"></path>
       </svg>
-      Continue with Google
+      Google
     </Button>
   );
 }
@@ -345,9 +332,9 @@ function SignInWithPassword({
       }}
     >
       <OAuthOption />
-      <div className="space-y-2 mb-[19.5px]">
+      <div className="space-y-2 mb-[20px] mt-[-1px]">
         <div className="flex justify-between items-center">
-          <Label className="font-normal mb-[3px]" htmlFor="signin-email">Email</Label>
+          <Label className="font-normal mb-[2px]" htmlFor="signin-email">Email</Label>
         </div>
         <Input 
           id="signin-email" 
@@ -360,7 +347,7 @@ function SignInWithPassword({
         />
       </div>
       
-      <div className="space-y-2 mb-[27px]">
+      <div className="space-y-2 mb-[28px]">
         <div className="flex justify-between items-end mb-[10px]">
           <Label className="font-normal" htmlFor="signin-password">Password</Label>
           <Button 
@@ -384,7 +371,7 @@ function SignInWithPassword({
       </div>
       
       <Button type="submit" className="w-full font-semibold text-sm mb-4">
-        Log in
+        Sign in
       </Button>
     </form>
   );
@@ -392,7 +379,7 @@ function SignInWithPassword({
 
 function OAuthOption() {
   return (
-    <div className="w-full mb-[19px]">
+    <div className="w-full mb-[21px]">
       <SignInWithGoogle />
       <div className="relative mt-5">
         <div className="absolute inset-0 flex items-center">
@@ -460,7 +447,7 @@ function SignUpWithPassword({
 
   return (
     <form
-      className="flex w-full flex-col space-y-4"
+      className="flex w-full flex-col"
       onSubmit={(event) => {
         event.preventDefault();
         setPasswordError(null); // Clear previous password-related errors at the start of a new submission
@@ -471,7 +458,7 @@ function SignUpWithPassword({
         }
 
         if (!validatePassword(password)) {
-          setPasswordError("Password must be at least 8 characters.");
+          setPasswordError("Password must be at least 8 characters");
           return;
         }
 
@@ -524,9 +511,10 @@ function SignUpWithPassword({
           });
       }}
     >
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label className="font-semibold" htmlFor="signup-email">Email</Label>
+      <OAuthOption />
+      <div className="space-y-2 mb-[23px] mt-[-1px]">
+        <div className="flex justify-between items-center mb-[10px]">
+            <Label className="font-normal" htmlFor="signup-email">Email</Label>
         </div>
         <Input 
           id="signup-email" 
@@ -535,15 +523,15 @@ function SignUpWithPassword({
           autoComplete="email" 
           required 
           placeholder="Email"
-          className="shadow-none"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
       
-      <div className="space-y-2 mb-4">
-        <div className="flex justify-between items-center">
-          <Label className="font-semibold" htmlFor="signup-password">Password</Label>
+      <div className="space-y-2 mb-[26px]">
+        <div className="flex justify-between items-center mb-[-1px]">
+          <Label className="font-normal" htmlFor="signup-password">Password</Label>
           <span className="invisible text-sm underline h-[20px]">Forgot password?</span>
         </div>
         <Input 
@@ -555,20 +543,20 @@ function SignUpWithPassword({
           placeholder="Password"
           onChange={(e) => setPassword(e.target.value)}
           value={password}
-          className="shadow-none"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           onFocus={() => setIsPasswordFocused(true)}
           onBlur={() => setIsPasswordFocused(false)}
         />
         {isPasswordFocused && !passwordError && (
           <p className="text-xs text-muted-foreground">
-            Password must be at least 8 characters.
+            Password must be at least 8 characters
           </p>
         )}
       </div>
       
-      <div className="space-y-2 mb-4">
-        <div className="flex justify-between items-center">
-          <Label className="font-semibold" htmlFor="signup-confirm-password">Confirm Password</Label>
+      <div className="space-y-2 mb-[28px]">
+        <div className="flex justify-between items-center mb-[10px]">
+          <Label className="font-normal" htmlFor="signup-confirm-password">Confirm Password</Label>
         </div>
         <Input 
           id="signup-confirm-password" 
@@ -579,7 +567,7 @@ function SignUpWithPassword({
           placeholder="Confirm Password"
           onChange={(e) => setConfirmPassword(e.target.value)}
           value={confirmPassword}
-          className="shadow-none"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
         {passwordError && (
           <p className="text-xs text-red-500">
@@ -590,7 +578,7 @@ function SignUpWithPassword({
       
       <Button 
         type="submit" 
-        className="w-full font-medium text-sm" 
+        className="w-full font-semibold text-sm" 
         disabled={ 
           isSubmitting || 
           !email.trim() || 
@@ -601,18 +589,15 @@ function SignUpWithPassword({
           !isValidEmail(email) // Add email format validation
         }
       >
-        Create account
-      </Button>
+Sign up      </Button>
     </form>
   );
 }
 
 function ResetPasswordRequest({ 
   onEmailSent, 
-  onCancel 
 }: { 
   onEmailSent: (email: string) => void; 
-  onCancel: () => void;
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
@@ -620,7 +605,7 @@ function ResetPasswordRequest({
 
   return (
     <form
-      className="flex w-full flex-col space-y-4"
+      className="flex w-full flex-col space-y-[28px]"
       onSubmit={(event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
@@ -647,31 +632,22 @@ function ResetPasswordRequest({
       }}
     >
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="reset-email">Email</Label>
+        <div className="flex justify-between items-center mb-[10px]">
+          <Label className="font-normal" htmlFor="reset-email">Email</Label>
         </div>
         <Input 
           id="reset-email" 
           name="email" 
           type="email" 
-          autoComplete="email" 
+          autoComplete="email"
+          placeholder="Email"
           required 
-          className="shadow-none"
+          className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
       
-      <Button type="submit" className="w-full" disabled={submitting}>
-        Send reset code
-      </Button>
-      
-      <Button 
-        variant="outline" 
-        type="button" 
-        className="w-full mt-4" 
-        onClick={onCancel}
-        disabled={submitting}
-      >
-        Cancel
+      <Button type="submit" className="w-full font-semibold" disabled={submitting}>
+        Submit
       </Button>
     </form>
   );
