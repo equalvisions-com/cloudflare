@@ -175,7 +175,7 @@ function ResetPasswordPageContent(): JSX.Element {
   return (
     <main className="flex min-h-screen w-full container my-auto mx-auto bg-background">
       <form onSubmit={handleSubmit} className="w-full max-w-[400px] mx-auto flex flex-col my-auto rounded-xl pb-[64px] md:pb-0">
-          <h1 className="text-2xl font-extrabold leading-none tracking-tight">Reset your password</h1>
+          <h2 className="text-2xl font-extrabold leading-none tracking-tight">Reset Password</h2>
           <p className="mt-2 mb-[22px] text-base text-muted-foreground">Enter a new password for {email}</p>
         <div className="space-y-[6px] mb-[20px]">
           <Label className="font-normal" htmlFor="np">Password</Label>

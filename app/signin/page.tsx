@@ -16,7 +16,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 import { useRouter } from "next/navigation";
-import { Turnstile } from "@/components/ui/turnstile";
 
 type AuthStep = 
   | "signIn" 
@@ -59,7 +58,7 @@ function SignInPageContent() {
                 {step === "verifyEmail" && (
                   <>
                                       <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Check your email
+                      Check Email
                     </h2>
                     <p className="mt-2 mb-[22px] text-base text-muted-foreground">
                       Enter the 6-digit code sent to {email}
@@ -77,7 +76,7 @@ function SignInPageContent() {
                 {step === "resetPassword" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                      Reset password
+                      Reset Password
                     </h2>
                     <p className="mt-2 mb-[22px] text-base text-muted-foreground">Submit the email associated with your account and we&apos;ll send you a link to reset your password</p>
                     <ResetPasswordRequest 
@@ -94,7 +93,7 @@ function SignInPageContent() {
                 {step === "signIn" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                     Sign in
+                      Sign In
                     </h2>
                     <div className="mt-2 mb-[22px] text-base text-muted-foreground">
                       Don&apos;t have an account?{" "}
@@ -128,7 +127,7 @@ function SignInPageContent() {
                 {step === "signUp" && (
                   <>
                     <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                    Sign up
+                      Sign Up
                     </h2>
                     <div className="mt-2 mb-[22px] text-base text-muted-foreground">
                       Already have an account?{" "}
@@ -156,7 +155,7 @@ function SignInPageContent() {
             {step === "linkSent" && (
               <>
                 <h2 className="text-2xl font-extrabold leading-none tracking-tight">
-                  Check your email
+                  Check Email
                 </h2>
                 <p className="mt-2 text-base text-muted-foreground">A password reset link has been sent to {email}</p>
               </>
@@ -215,6 +214,8 @@ function SignInWithPassword({
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <form
@@ -332,6 +333,8 @@ function SignInWithPassword({
           required 
           placeholder="Email"
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
       </div>
       
@@ -355,13 +358,12 @@ function SignInWithPassword({
           required 
           placeholder="Password"
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
         />
       </div>
       
-      {/* Cloudflare Turnstile */}
-      <Turnstile />
-      
-      <Button type="submit" className="w-full font-semibold text-sm">
+      <Button type="submit" className="w-full font-semibold text-sm" disabled={!email.trim() || !password.trim()}>
         Sign in
       </Button>
       
@@ -410,17 +412,17 @@ function SignUpWithPassword({
     // If confirmPassword field is empty, don't show a mismatch error.
     // If a mismatch error was previously set, clear it.
     if (confirmPassword.length === 0) {
-      setPasswordError((prevError) => prevError === "Passwords do not match." ? null : prevError);
+      setPasswordError((prevError) => prevError === "Passwords do not match" ? null : prevError);
       return;
     }
 
     // Only evaluate when the user has paused typing in the confirmPassword field
     if (debouncedConfirmPassword === confirmPassword) {
       if (password !== debouncedConfirmPassword) {
-        setPasswordError("Passwords do not match.");
+        setPasswordError("Passwords do not match");
       } else {
         // Passwords match
-        setPasswordError((prevError) => prevError === "Passwords do not match." ? null : prevError);
+        setPasswordError((prevError) => prevError === "Passwords do not match" ? null : prevError);
       }
     }
     // No action if the user is still actively typing in confirmPassword
@@ -446,7 +448,7 @@ function SignUpWithPassword({
         setPasswordError(null); // Clear previous password-related errors at the start of a new submission
 
         if (password !== confirmPassword) {
-          setPasswordError("Passwords do not match.");
+          setPasswordError("Passwords do not match");
           return;
         }
 
@@ -568,9 +570,6 @@ function SignUpWithPassword({
         )}
       </div>
       
-      {/* Cloudflare Turnstile */}
-      <Turnstile />
-      
       <Button 
         type="submit" 
         className="w-full font-semibold text-sm" 
@@ -598,6 +597,11 @@ function ResetPasswordRequest({
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [email, setEmail] = useState("");
+
+  const isValidEmail = (emailToTest: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToTest);
+  };
 
   return (
     <form
@@ -639,13 +643,16 @@ function ResetPasswordRequest({
           placeholder="Email"
           required 
           className="shadow-none bg-secondary/50 border-text-muted-foreground/90 text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
       </div>
       
-      {/* Cloudflare Turnstile */}
-      <Turnstile />
-      
-      <Button type="submit" className="w-full font-semibold" disabled={submitting}>
+      <Button 
+        type="submit" 
+        className="w-full font-semibold" 
+        disabled={submitting || !email.trim() || !isValidEmail(email)}
+      >
         Submit
       </Button>
     </form>
@@ -767,7 +774,7 @@ function SignUpVerification({
           value={otp} 
           onChange={(value) => { setOtp(value); setOtpError(null); }}
         >
-          <InputOTPGroup className="w-full flex font-semibold">
+          <InputOTPGroup className="w-full flex font-semibold justify-center">
             <InputOTPSlot index={0} />
             <InputOTPSlot index={1} />
             <InputOTPSlot index={2} />
@@ -778,8 +785,6 @@ function SignUpVerification({
         </InputOTP>
       </div>
       {otpError && <p className="text-sm text-red-500 text-center px-1">{otpError}</p>}
-      {/* Cloudflare Turnstile */}
-      <Turnstile />
       <Button type="submit" className="w-full font-semibold" disabled={isLoading || otp.length < 6}>
         {isLoading && !showResendOtpButton ? "Verifying..." : "Verify"}
       </Button>
@@ -797,4 +802,3 @@ function SignUpVerification({
     </form>
   );
 }
-
