@@ -117,7 +117,7 @@ function SignInPageContent() {
                           toast({
                             title: "Navigation Error",
                             description: "Could not proceed to email verification.",
-                            variant: "destructive",
+                            
                           });
                         }
                       }}
@@ -246,7 +246,7 @@ function SignInWithPassword({
               toast({
                 title: "Error",
                 description: "Could not retrieve email to proceed with verification.",
-                variant: "destructive",
+                
               });
             }
           } else if (result && (typeof result.signingIn === 'undefined' || result.signingIn === true )){
@@ -258,7 +258,7 @@ function SignInWithPassword({
             toast({
               title: "Sign-In Issue",
               description: "An unexpected issue occurred during sign-in. Please try again.",
-              variant: "destructive",
+              
             });
           }
         } catch (error: any) {
@@ -298,7 +298,7 @@ function SignInWithPassword({
               toast({
                 title: "Verification Error",
                 description: (verifyError.data?.message || verifyError.message || "Could not send verification code. Please try again."),
-                variant: "destructive",
+                
               });
             }
           } else if (lowerErrorMessage.includes("invalidsecret") || 
@@ -308,21 +308,21 @@ function SignInWithPassword({
             toast({
               title: "Sign-In Failed",
               description: "The email or password you entered is incorrect. Please try again.",
-              variant: "destructive",
+              
             });
           } else if (lowerErrorMessage.includes("invalidaccountid")) {
             // Specific handling for account not found
             toast({
               title: "Account Not Found",
               description: "No account found with that email address. Please check your email or sign up.",
-              variant: "destructive",
+              
             });
           } else {
             // Generic sign-in error for other cases
             toast({
               title: "Could not sign in",
               description: (originalErrorMessage || "An unexpected error occurred. Please try again."),
-              variant: "destructive",
+              
             });
           }
         }
@@ -520,7 +520,7 @@ function SignUpWithPassword({
               toast({
                 title: "Email already registered",
                 description: "This email address is already associated with an account. Please sign in instead.",
-                variant: "destructive",
+                
               });
               // Automatically switch to sign-in tab
               onSignIn();
@@ -528,7 +528,7 @@ function SignUpWithPassword({
               toast({
                 title: "Could not create account",
                 description: error instanceof Error ? error.message : "Please try again",
-                variant: "destructive",
+                
               });
             }
           });
@@ -659,7 +659,7 @@ function ResetPasswordRequest({
             toast({
               title: "Could not send reset code",
               description: "Please check your email address",
-              variant: "destructive",
+              
             });
             setSubmitting(false);
           });
@@ -751,7 +751,7 @@ function SignUpVerification({
         toast({
           title: "Verification Failed",
           description: "The code is invalid or has expired. Click 'Resend Code' to get a new one.",
-          variant: "destructive",
+          
         });
       } else {
         console.log("OTP Error: Entered generic failure block."); // For debugging
@@ -760,7 +760,7 @@ function SignUpVerification({
         toast({
           title: "Verification Error",
           description: clientErrorMessage,
-          variant: "destructive",
+          
         });
       }
     } finally {
@@ -790,7 +790,7 @@ function SignUpVerification({
       toast({
         title: "Resend Failed",
         description: resendErrorMessage,
-        variant: "destructive",
+        
       });
       setShowResendOtpButton(true); // Keep resend button visible if it fails
     } finally {
