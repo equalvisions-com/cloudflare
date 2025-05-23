@@ -25,29 +25,61 @@ export const ResendOTPPasswordReset = Email({
     url.searchParams.set("email", email);
 
     const html = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; color: #333;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #4f46e5; font-size: 24px; margin-bottom: 10px;">Reset Your Password</h1>
-        </div>
-        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px;">
-          <p style="font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            Click the button below to reset your password.
-          </p>
-          <p style="text-align:center;margin:32px 0">
-            <a href="${url.toString()}" 
-               style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
-              Reset password
-            </a>
-          </p>
-          <p style="font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            This link expires ${expires?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || "soon"}.
-          </p>
-          <p style="font-size: 16px; line-height: 1.5; color: #666;">
-            If you didn't request this password reset, you can safely ignore this
-            email.
-          </p>
-        </div>
-      </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    /* In dark mode: white p text & white button bg with black link text */
+    @media (prefers-color-scheme: dark) {
+      .email-content p {
+        color: #ffffff !important;
+      }
+      .button-cell {
+        background-color: #ffffff !important;
+      }
+      .button-cell a {
+        color: #000000 !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:20px;font-family:Arial,sans-serif;">
+  <div class="email-content" style="max-width:600px;margin:0 auto;padding:20px;background-color:#f9fafb;border-radius:8px;color:#333;">
+    <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
+    <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+      We received a request to reset the password for the account associated with ${email}.
+    </p>
+    <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+      To reset your password, click the button. The link is valid for the next 5 minutes.
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
+      <tr>
+        <td class="button-cell" align="center" style="background-color:#4f46e5;border-radius:6px;">
+          <a
+            href="${url.toString()}"
+            target="_blank"
+            style="
+              display:inline-block;
+              width:100%;
+              padding:12px 0;
+              font-size:16px;
+              line-height:1.5;
+              font-weight:600;
+              color:#ffffff;
+              text-decoration:none;
+            "
+          >
+            Reset Password
+          </a>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
     `;
 
     const { error } = await resend.emails.send({
