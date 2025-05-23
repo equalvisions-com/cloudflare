@@ -61,8 +61,19 @@ export const ResendOTPPasswordReset = Email({
             text-decoration: none;
           }
           
+          /* CSS Custom Properties */
+          :root {
+            --button-bg: #000000;
+            --button-text: #ffffff;
+          }
+          
           /* Dark mode support - more aggressive targeting */
           @media (prefers-color-scheme: dark) {
+            :root {
+              --button-bg: #ffffff;
+              --button-text: #000000;
+            }
+            
             body, .email-container, table[class="email-container"] {
               color: #ffffff !important;
             }
@@ -75,42 +86,57 @@ export const ResendOTPPasswordReset = Email({
             .email-text, .email-secondary {
               color: #cccccc !important;
             }
+            
+            /* Multiple button targeting approaches */
             .email-button, 
             a[class="email-button"], 
             .email-button:visited, 
             .email-button:hover,
             .email-button:link,
             .email-button:active {
+              background: #ffffff !important;
               background-color: #ffffff !important;
               color: #000000 !important;
-              border: 2px solid #ffffff !important;
             }
+            
             /* Apple Mail specific fixes */
             [data-ogsc] .email-button, 
             [data-ogsc] a[class="email-button"],
             [data-ogsc] .email-button:visited,
             [data-ogsc] .email-button:hover {
+              background: #ffffff !important;
               background-color: #ffffff !important;
               color: #000000 !important;
-              border: 2px solid #ffffff !important;
             }
+            
             /* Force background for Apple Mail */
             u + .body .email-button {
+              background: #ffffff !important;
               background-color: #ffffff !important;
               color: #000000 !important;
-              border: 2px solid #ffffff !important;
             }
+            
             /* Additional Apple Mail targeting */
             .body .email-button {
+              background: #ffffff !important;
               background-color: #ffffff !important;
               color: #000000 !important;
-              border: 2px solid #ffffff !important;
             }
+            
             /* Meta refresh targeting for Apple Mail */
             meta[name="color-scheme"] ~ * .email-button {
+              background: #ffffff !important;
               background-color: #ffffff !important;
               color: #000000 !important;
-              border: 2px solid #ffffff !important;
+            }
+            
+            /* Webkit specific for Apple Mail */
+            @supports (-webkit-appearance: none) {
+              .email-button {
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                color: #000000 !important;
+              }
             }
           }
           
@@ -119,9 +145,8 @@ export const ResendOTPPasswordReset = Email({
             color: #000000;
           }
           .email-button, .email-button:visited, .email-button:hover {
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border: 2px solid #000000 !important;
+            background-color: var(--button-bg, #000000) !important;
+            color: var(--button-text, #ffffff) !important;
           }
           .email-text {
             color: #666666;
@@ -174,7 +199,7 @@ export const ResendOTPPasswordReset = Email({
                       <tr>
                         <td style="padding: 32px 0;">
                           <!--[if mso]>
-                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:48px;v-text-anchor:middle;width:100%;" arcsize="12%" stroke="t" strokecolor="#000000" strokeweight="2px" fillcolor="#000000">
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:48px;v-text-anchor:middle;width:100%;" arcsize="12%" stroke="f" fillcolor="#000000">
                           <w:anchorlock/>
                           <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:600;">Reset password</center>
                           </v:roundrect>
@@ -182,7 +207,7 @@ export const ResendOTPPasswordReset = Email({
                           <!--[if !mso]><!-->
                           <a href="${url.toString()}" 
                              class="email-button"
-                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; background-color: #000000; border: 2px solid #000000; text-align: center; box-sizing: border-box; -webkit-text-size-adjust: none;">
+                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 6px; text-align: center; box-sizing: border-box; -webkit-text-size-adjust: none; background: #000000; color: #ffffff;">
                             Reset password
                           </a>
                           <!--<![endif]-->
