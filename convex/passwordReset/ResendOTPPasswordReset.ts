@@ -28,209 +28,47 @@ export const ResendOTPPasswordReset = Email({
       <!DOCTYPE html>
       <html lang="en">
       <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="color-scheme" content="light dark">
-        <meta name="supported-color-schemes" content="light dark">
-        <title>Reset Your Password</title>
-        <!--[if mso]>
-        <noscript>
-          <xml>
-            <o:OfficeDocumentSettings>
-              <o:PixelsPerInch>96</o:PixelsPerInch>
-            </o:OfficeDocumentSettings>
-          </xml>
-        </noscript>
-        <![endif]-->
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <style>
-          /* Reset styles */
-          body, table, td, p, a, li, blockquote {
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-          }
-          table, td {
-            mso-table-lspace: 0pt;
-            mso-table-rspace: 0pt;
-          }
-          img {
-            -ms-interpolation-mode: bicubic;
-            border: 0;
-            height: auto;
-            line-height: 100%;
-            outline: none;
-            text-decoration: none;
-          }
-          
-          /* CSS Custom Properties */
-          :root {
-            --button-bg: #000000;
-            --button-text: #ffffff;
-          }
-          
-          /* Dark mode support - more aggressive targeting */
+          /* In dark mode: white p text & white button bg with black link text */
           @media (prefers-color-scheme: dark) {
-            :root {
-              --button-bg: #ffffff;
-              --button-text: #000000;
-            }
-            
-            body, .email-container, table[class="email-container"] {
+            .email-content p {
               color: #ffffff !important;
             }
-            h1, .email-title {
-              color: #ffffff !important;
-            }
-            p, .email-paragraph {
-              color: #ffffff !important;
-            }
-            .email-text, .email-secondary {
-              color: #cccccc !important;
-            }
-            
-            /* Table-based button targeting */
-            .email-button-table, 
-            table[class="email-button-table"] {
+            .button-cell {
               background-color: #ffffff !important;
             }
-            
-            /* Button text targeting */
-            .email-button, 
-            a[class="email-button"], 
-            .email-button:visited, 
-            .email-button:hover,
-            .email-button:link,
-            .email-button:active {
+            .button-cell a {
               color: #000000 !important;
             }
-            
-            /* Apple Mail specific fixes */
-            [data-ogsc] .email-button-table,
-            [data-ogsc] table[class="email-button-table"] {
-              background-color: #ffffff !important;
-            }
-            
-            [data-ogsc] .email-button, 
-            [data-ogsc] a[class="email-button"] {
-              color: #000000 !important;
-            }
-            
-            /* Force background for Apple Mail */
-            u + .body .email-button-table {
-              background-color: #ffffff !important;
-            }
-            
-            u + .body .email-button {
-              color: #000000 !important;
-            }
-            
-            /* Additional Apple Mail targeting */
-            .body .email-button-table {
-              background-color: #ffffff !important;
-            }
-            
-            .body .email-button {
-              color: #000000 !important;
-            }
-            
-            /* Webkit specific for Apple Mail */
-            @supports (-webkit-appearance: none) {
-              .email-button-table {
-                background-color: #ffffff !important;
-              }
-              .email-button {
-                color: #000000 !important;
-              }
-            }
-          }
-          
-          /* Light mode (default) */
-          .email-container {
-            color: #000000;
-          }
-          .email-button-table {
-            background-color: var(--button-bg, #000000) !important;
-          }
-          .email-button, .email-button:visited, .email-button:hover {
-            color: var(--button-text, #ffffff) !important;
-          }
-          .email-text {
-            color: #666666;
-          }
-          
-          /* Mobile responsive */
-          @media only screen and (max-width: 600px) {
-            .email-container {
-              width: 100% !important;
-              padding: 10px !important;
-            }
-            .email-button {
-              display: block !important;
-              width: 100% !important;
-              padding: 15px 20px !important;
-              font-size: 16px !important;
-            }
-          }
-          
-          /* Full width button */
-          .email-button {
-            width: 100% !important;
-            display: block !important;
-            box-sizing: border-box !important;
           }
         </style>
       </head>
-      <body style="margin: 0; padding: 0;" class="body">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-          <tr>
-            <td align="center" style="padding: 0;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; width: 100%; margin: 0 auto;">
-                <tr>
-                  <td style="padding: 0;">
-                    <!-- Content -->
-                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
-                      Hi,
-                    </p>
-                    
-                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
-                      We received a request to reset your password for the account associated with ${email}.
-                    </p>
-                    
-                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
-                      To reset your password, click the button. This link will expire in 5 minutes.
-                    </p>
-                    
-                    <!-- Button -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                      <tr>
-                        <td style="padding: 32px 0;">
-                          <!--[if mso]>
-                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:48px;v-text-anchor:middle;width:100%;" arcsize="12%" stroke="f" fillcolor="#000000">
-                          <w:anchorlock/>
-                          <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:600;">Reset password</center>
-                          </v:roundrect>
-                          <![endif]-->
-                                                              <!--[if !mso]><!-->
-                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-button-table" style="background-color: #000000; border-radius: 6px;">
-                            <tr>
-                              <td style="padding: 12px 24px; text-align: center;">
-                                <a href="${url.toString()}" 
-                                   class="email-button"
-                                   style="display: block; width: 100%; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; text-decoration: none; color: #ffffff; text-align: center; -webkit-text-size-adjust: none;">
-                                  Reset password
-                                </a>
-                              </td>
-                            </tr>
-                          </table>
-                          <!--<![endif]-->
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
+      <body style="margin:0;padding:20px;font-family:Arial,sans-serif;">
+        <div class="email-content" style="max-width:600px;margin:0 auto;padding:20px;">
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
+          
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+            We received a request to reset your password for the account associated with ${email}.
+          </p>
+          
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+            To reset your password, click the button. This link will expire in 5 minutes.
+          </p>
+          
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
+            <tr>
+              <td class="button-cell" align="center" style="background-color:#000000;border-radius:6px;">
+                <a href="${url.toString()}" 
+                   target="_blank" 
+                   style="display:inline-block;width:100%;padding:12px 0;font-size:16px;line-height:1.5;font-weight:600;color:#ffffff;text-decoration:none;">
+                  Reset Password
+                </a>
+              </td>
+            </tr>
+          </table>
+        </div>
       </body>
       </html>
     `;
