@@ -21,7 +21,7 @@ export const ResendOTPPasswordReset = Email({
 
     // Build the magic link
     const url = new URL(`${siteUrl.replace(/\/$/, "")}/reset-password`);
-    url.searchParams.set("code", token);
+    url.searchParams.set("token", token);
     url.searchParams.set("email", email);
 
     const html = `
