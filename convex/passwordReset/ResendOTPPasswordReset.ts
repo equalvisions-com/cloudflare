@@ -6,9 +6,11 @@ export const ResendOTPPasswordReset = Email({
   id: "resend-otp-password-reset",
   apiKey: process.env.AUTH_RESEND_KEY,
   maxAge: 5 * 60, // 5 minutes in seconds
+
   async generateVerificationToken() {
     return generateRandomString(6, alphabet("0-9"));
   },
+
   async sendVerificationRequest({
     identifier: email,
     provider,
@@ -88,7 +90,7 @@ export const ResendOTPPasswordReset = Email({
       subject: "Reset your password",
       html,
     });
-    
+
     if (error) {
       throw new Error(JSON.stringify(error));
     }
