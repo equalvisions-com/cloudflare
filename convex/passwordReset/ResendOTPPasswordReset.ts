@@ -38,9 +38,31 @@ export const ResendOTPPasswordReset = Email({
             }
             .button-cell {
               background-color: #ffffff !important;
+              opacity: 1 !important;
             }
             .button-cell a {
               color: #000000 !important;
+              opacity: 1 !important;
+            }
+            /* Additional Apple Mail targeting */
+            [data-ogsc] .button-cell {
+              background-color: #ffffff !important;
+              opacity: 1 !important;
+            }
+            [data-ogsc] .button-cell a {
+              color: #000000 !important;
+              opacity: 1 !important;
+            }
+            /* Force full opacity and contrast */
+            td.button-cell {
+              background-color: #ffffff !important;
+              opacity: 1 !important;
+              filter: none !important;
+            }
+            td.button-cell a {
+              color: #000000 !important;
+              opacity: 1 !important;
+              filter: none !important;
             }
           }
         </style>
