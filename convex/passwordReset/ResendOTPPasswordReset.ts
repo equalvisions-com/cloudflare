@@ -48,29 +48,10 @@ export const ResendOTPPasswordReset = Email({
             display: inline-block;
             width: 100%;
           }
-          
-          /* Default: no padding for Apple Mail */
-          .email-content {
-            padding: 0;
-          }
-          
-          /* Spark and other clients that need padding */
-          @media screen and (max-width: 9999px) {
-            .email-content {
-              padding: 0px 20px !important;
-            }
-          }
-          
-          /* Apple Mail specific - override to remove padding */
-          @supports (-webkit-appearance: none) {
-            .email-content {
-              padding: 0 !important;
-            }
-          }
         </style>
       </head>
       <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
-        <div class="email-content" style="max-width:600px;margin:0 auto;">
+        <div class="email-content" style="max-width:600px;margin:0 auto;padding:0px 20px;">
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
