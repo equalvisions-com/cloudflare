@@ -87,54 +87,57 @@ export const ResendOTPPasswordReset = Email({
               color: #cccccc !important;
             }
             
-            /* Multiple button targeting approaches */
+            /* Table-based button targeting */
+            .email-button-table, 
+            table[class="email-button-table"] {
+              background-color: #ffffff !important;
+            }
+            
+            /* Button text targeting */
             .email-button, 
             a[class="email-button"], 
             .email-button:visited, 
             .email-button:hover,
             .email-button:link,
             .email-button:active {
-              background: #ffffff !important;
-              background-color: #ffffff !important;
               color: #000000 !important;
             }
             
             /* Apple Mail specific fixes */
-            [data-ogsc] .email-button, 
-            [data-ogsc] a[class="email-button"],
-            [data-ogsc] .email-button:visited,
-            [data-ogsc] .email-button:hover {
-              background: #ffffff !important;
+            [data-ogsc] .email-button-table,
+            [data-ogsc] table[class="email-button-table"] {
               background-color: #ffffff !important;
+            }
+            
+            [data-ogsc] .email-button, 
+            [data-ogsc] a[class="email-button"] {
               color: #000000 !important;
             }
             
             /* Force background for Apple Mail */
-            u + .body .email-button {
-              background: #ffffff !important;
+            u + .body .email-button-table {
               background-color: #ffffff !important;
+            }
+            
+            u + .body .email-button {
               color: #000000 !important;
             }
             
             /* Additional Apple Mail targeting */
-            .body .email-button {
-              background: #ffffff !important;
+            .body .email-button-table {
               background-color: #ffffff !important;
-              color: #000000 !important;
             }
             
-            /* Meta refresh targeting for Apple Mail */
-            meta[name="color-scheme"] ~ * .email-button {
-              background: #ffffff !important;
-              background-color: #ffffff !important;
+            .body .email-button {
               color: #000000 !important;
             }
             
             /* Webkit specific for Apple Mail */
             @supports (-webkit-appearance: none) {
-              .email-button {
-                background: #ffffff !important;
+              .email-button-table {
                 background-color: #ffffff !important;
+              }
+              .email-button {
                 color: #000000 !important;
               }
             }
@@ -144,8 +147,10 @@ export const ResendOTPPasswordReset = Email({
           .email-container {
             color: #000000;
           }
-          .email-button, .email-button:visited, .email-button:hover {
+          .email-button-table {
             background-color: var(--button-bg, #000000) !important;
+          }
+          .email-button, .email-button:visited, .email-button:hover {
             color: var(--button-text, #ffffff) !important;
           }
           .email-text {
@@ -204,12 +209,18 @@ export const ResendOTPPasswordReset = Email({
                           <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:600;">Reset password</center>
                           </v:roundrect>
                           <![endif]-->
-                          <!--[if !mso]><!-->
-                          <a href="${url.toString()}" 
-                             class="email-button"
-                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 6px; text-align: center; box-sizing: border-box; -webkit-text-size-adjust: none; background: #000000; color: #ffffff;">
-                            Reset password
-                          </a>
+                                                              <!--[if !mso]><!-->
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-button-table" style="background-color: #000000; border-radius: 6px;">
+                            <tr>
+                              <td style="padding: 12px 24px; text-align: center;">
+                                <a href="${url.toString()}" 
+                                   class="email-button"
+                                   style="display: block; width: 100%; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; text-decoration: none; color: #ffffff; text-align: center; -webkit-text-size-adjust: none;">
+                                  Reset password
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
                           <!--<![endif]-->
                         </td>
                       </tr>
