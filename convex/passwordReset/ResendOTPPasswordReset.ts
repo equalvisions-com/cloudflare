@@ -5,7 +5,7 @@ import { Resend } from "resend";
 export const ResendOTPPasswordReset = Email({
   id: "resend-otp-password-reset",
   apiKey: process.env.AUTH_RESEND_KEY,
-  maxAge: 5 * 60, // 5 minutes in seconds
+  maxAge: 5 * 60, // 5 minutes
   async generateVerificationToken() {
     return generateRandomString(6, alphabet("0-9"));
   },
@@ -16,49 +16,87 @@ export const ResendOTPPasswordReset = Email({
     expires,
   }) {
     const resend = new Resend(provider.apiKey);
-    const siteUrl = process.env.SITE_URL; // e.g. https://your-app.com
+    const siteUrl = process.env.SITE_URL;
     if (!siteUrl) throw new Error("SITE_URL not set");
 
-    // Build the magic link
     const url = new URL(`${siteUrl.replace(/\/$/, "")}/reset-password`);
-    url.searchParams.set("token", token);
+    url.searchParams.set("code", token);
     url.searchParams.set("email", email);
 
     const html = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; color: #333;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #4f46e5; font-size: 24px; margin-bottom: 10px;">Reset Your Password</h1>
-        </div>
-        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px;">
-          <p style="font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            Click the button below to reset your password.
-          </p>
-          <p style="text-align:center;margin:32px 0">
-            <a href="${url.toString()}" 
-               style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
-              Reset password
-            </a>
-          </p>
-          <p style="font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            This link expires ${expires?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || "soon"}.
-          </p>
-          <p style="font-size: 16px; line-height: 1.5; color: #666;">
-            If you didn't request this password reset, you can safely ignore this
-            email.
-          </p>
-        </div>
-      </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>Password Reset</title>
+</head>
+<body
+  bgcolor="#ffffff"
+  style="font-family: Arial, sans-serif; background-color: #ffffff !important; color: #000000 !important; margin: 0; padding: 20px;"
+>
+  <!--[if mso]>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
+      <tr>
+        <td align="center">
+  <![endif]-->
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="padding: 20px; border-radius: 8px; background-color: #ffffff;">
+      <p
+        style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;"
+      >
+        Hi,
+      </p>
+      <p
+        style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;"
+      >
+        We received a request to reset your password for the account associated
+        with {{email}}.
+      </p>
+      <p
+        style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;"
+      >
+        To reset your password, click the button. This link will expire in 5
+        minutes.
+      </p>
+      <p style="margin: 0 0 20px;">
+        <a
+          href="${url.toString()}"
+          style="
+            background-color: #000000;
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            display: block;
+            width: 100%;
+            text-align: center;
+            box-sizing: border-box;
+          "
+          >Reset Password</a
+        >
+      </p>
+    </div>
+  </div>
+  <!--[if mso]>
+        </td>
+      </tr>
+    </table>
+  <![endif]-->
+</body>
+</html>
     `;
 
     const { error } = await resend.emails.send({
-      from: process.env.AUTH_EMAIL ?? "My App <noreply@socialnetworksandbox.com>",
+      from:
+        process.env.AUTH_EMAIL ?? "My App <noreply@socialnetworksandbox.com>",
       to: [email],
       subject: "Reset your password",
       html,
     });
-    
-    if (error) {
-      throw new Error(JSON.stringify(error));
-    }
+    if (error) throw new Error(JSON.stringify(error));
   },
 });
