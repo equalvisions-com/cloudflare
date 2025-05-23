@@ -75,16 +75,21 @@ export const ResendOTPPasswordReset = Email({
             .email-text, .email-secondary {
               color: #cccccc !important;
             }
-            .email-button, a[class="email-button"] {
+            .email-button, a[class="email-button"], .email-button:visited, .email-button:hover {
               background-color: #ffffff !important;
               color: #000000 !important;
               border: 2px solid #ffffff !important;
             }
             /* Apple Mail specific fixes */
-            [data-ogsc] .email-button {
+            [data-ogsc] .email-button, [data-ogsc] a[class="email-button"] {
               background-color: #ffffff !important;
               color: #000000 !important;
               border: 2px solid #ffffff !important;
+            }
+            /* Force background for Apple Mail */
+            u + .body .email-button {
+              background-color: #ffffff !important;
+              color: #000000 !important;
             }
           }
           
@@ -92,10 +97,10 @@ export const ResendOTPPasswordReset = Email({
           .email-container {
             color: #000000;
           }
-          .email-button {
-            background-color: #000000;
-            color: #ffffff;
-            border: 2px solid #000000;
+          .email-button, .email-button:visited, .email-button:hover {
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 2px solid #000000 !important;
           }
           .email-text {
             color: #666666;
@@ -123,7 +128,7 @@ export const ResendOTPPasswordReset = Email({
           }
         </style>
       </head>
-      <body style="margin: 0; padding: 0;">
+      <body style="margin: 0; padding: 0;" class="body">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
           <tr>
             <td align="center" style="padding: 0;">
@@ -148,19 +153,18 @@ export const ResendOTPPasswordReset = Email({
                       <tr>
                         <td style="padding: 32px 0;">
                           <!--[if mso]>
-                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:40px;v-text-anchor:middle;width:100%;" arcsize="15%" stroke="f" fillcolor="#000000">
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:48px;v-text-anchor:middle;width:100%;" arcsize="12%" stroke="t" strokecolor="#000000" strokeweight="2px" fillcolor="#000000">
                           <w:anchorlock/>
-                          <center>
-                          <![endif]-->
-                          <a href="${url.toString()}" 
-                             class="email-button"
-                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; background-color: #000000; border: 2px solid #000000; mso-padding-alt: 0; text-align: center; box-sizing: border-box;">
-                            <span style="mso-text-raise: 4px;">Reset password</span>
-                          </a>
-                          <!--[if mso]>
-                          </center>
+                          <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:600;">Reset password</center>
                           </v:roundrect>
                           <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="${url.toString()}" 
+                             class="email-button"
+                             style="display: block !important; width: 100% !important; padding: 12px 24px !important; font-family: Arial, sans-serif !important; font-size: 16px !important; font-weight: 600 !important; color: #ffffff !important; text-decoration: none !important; border-radius: 6px !important; background-color: #000000 !important; border: 2px solid #000000 !important; text-align: center !important; box-sizing: border-box !important; -webkit-text-size-adjust: none !important;">
+                            Reset password
+                          </a>
+                          <!--<![endif]-->
                         </td>
                       </tr>
                     </table>
