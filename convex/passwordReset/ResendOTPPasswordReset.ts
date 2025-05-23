@@ -75,13 +75,21 @@ export const ResendOTPPasswordReset = Email({
             .email-text, .email-secondary {
               color: #cccccc !important;
             }
-            .email-button, a[class="email-button"], .email-button:visited, .email-button:hover {
+            .email-button, 
+            a[class="email-button"], 
+            .email-button:visited, 
+            .email-button:hover,
+            .email-button:link,
+            .email-button:active {
               background-color: #ffffff !important;
               color: #000000 !important;
               border: 2px solid #ffffff !important;
             }
             /* Apple Mail specific fixes */
-            [data-ogsc] .email-button, [data-ogsc] a[class="email-button"] {
+            [data-ogsc] .email-button, 
+            [data-ogsc] a[class="email-button"],
+            [data-ogsc] .email-button:visited,
+            [data-ogsc] .email-button:hover {
               background-color: #ffffff !important;
               color: #000000 !important;
               border: 2px solid #ffffff !important;
@@ -90,6 +98,19 @@ export const ResendOTPPasswordReset = Email({
             u + .body .email-button {
               background-color: #ffffff !important;
               color: #000000 !important;
+              border: 2px solid #ffffff !important;
+            }
+            /* Additional Apple Mail targeting */
+            .body .email-button {
+              background-color: #ffffff !important;
+              color: #000000 !important;
+              border: 2px solid #ffffff !important;
+            }
+            /* Meta refresh targeting for Apple Mail */
+            meta[name="color-scheme"] ~ * .email-button {
+              background-color: #ffffff !important;
+              color: #000000 !important;
+              border: 2px solid #ffffff !important;
             }
           }
           
@@ -161,7 +182,7 @@ export const ResendOTPPasswordReset = Email({
                           <!--[if !mso]><!-->
                           <a href="${url.toString()}" 
                              class="email-button"
-                             style="display: block !important; width: 100% !important; padding: 12px 24px !important; font-family: Arial, sans-serif !important; font-size: 16px !important; font-weight: 600 !important; color: #ffffff !important; text-decoration: none !important; border-radius: 6px !important; background-color: #000000 !important; border: 2px solid #000000 !important; text-align: center !important; box-sizing: border-box !important; -webkit-text-size-adjust: none !important;">
+                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; background-color: #000000; border: 2px solid #000000; text-align: center; box-sizing: border-box; -webkit-text-size-adjust: none;">
                             Reset password
                           </a>
                           <!--<![endif]-->
