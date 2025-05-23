@@ -72,11 +72,11 @@ export const ResendOTPPasswordReset = Email({
                 </v:roundrect>
                 <![endif]-->
                 <!--[if !mso]><!-->
-                <div class="button-wrapper" style="background-color:#333333;border-radius:6px;display:inline-block;width:100%;text-align:center;">
+                <div class="button-wrapper" style="background-color:#333333;border-radius:6px;display:inline-block;width:100%;text-align:center;padding:12px 24px;">
                   <a href="${url.toString()}" 
                      class="button-cell" 
                      target="_blank" 
-                     style="display:block;width:100%;padding:12px 24px;font-size:16px;line-height:1.5;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;background-color:#333333;">
+                     style="display:block;width:100%;font-size:16px;line-height:1.5;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;background-color:#333333;">
                     Reset Password
                   </a>
                 </div>
