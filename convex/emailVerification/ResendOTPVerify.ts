@@ -23,46 +23,19 @@ export const ResendOTPVerify = Email({
       <head>
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-        <style>
-          /* Simple button styling that works in both light and dark modes */
-          .button-cell {
-            background-color: #333333 !important;
-            border-radius: 6px;
-          }
-          .button-cell a {
-            color: #ffffff !important;
-            text-decoration: none;
-            display: block;
-          }
-          /* Spark-specific button styling */
-          .button-wrapper {
-            background-color: #333333;
-            border-radius: 6px;
-            display: inline-block;
-            width: 100%;
-          }
-        </style>
       </head>
       <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
         <div class="email-content" style="max-width:600px;margin:0 auto;padding:0px 20px;">
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
-            Please verify your email address.
+            Please verify your email address. This code will expire in 5 minutes.
           </p>
           
-          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
-            Your verification code is:<br/>
-          </p>
-          
-          <p style="margin:0 0 20px;font-size:36px;font-weight:bold;color:#333333;text-align:center;letter-spacing:4px;font-family:monospace,Arial,sans-serif;">
+           <p style="margin:0 0 20px;font-size:36px;font-weight:bold;text-align:center;letter-spacing:4px;font-family:monospace,Arial,sans-serif;">
             ${token}
           </p>
-          
-          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
-            This code will expire in 5 minutes.
-          </p>
-        </div>
+                </div>
       </body>
       </html>
     `;
@@ -70,7 +43,7 @@ export const ResendOTPVerify = Email({
     const { error } = await resend.emails.send({
       from: process.env.AUTH_EMAIL ?? "Grasper <noreply@socialnetworksandbox.com>",
       to: [email],
-      subject: "Verify your e-mail for Grasper",
+      subject: "Verify your account",
       html,
     });
     if (error) {
