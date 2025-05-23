@@ -38,9 +38,6 @@ export const ResendOTPPasswordReset = Email({
       background-color: #ffffff !important;
       color: #000000    !important;
     }
-    a {
-      color: #ffffff !important;
-    }
     @media (prefers-color-scheme: dark) {
       html, body, .email-container {
         background-color: #ffffff !important;
@@ -56,50 +53,58 @@ export const ResendOTPPasswordReset = Email({
 >
   <!--[if mso]>
     <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
-      <tr>
-        <td align="center">
+      <tr><td align="center">
   <![endif]-->
-  <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <div style="padding: 20px; border-radius: 8px; background-color: #ffffff;">
-      <p style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;">Hi,</p>
-      <p style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;">
+  <div class="email-container" style="max-width:600px;margin:0 auto;background-color:#ffffff;">
+    <div style="padding:20px;border-radius:8px;background-color:#ffffff;">
+      <p style="font-size:16px;line-height:1.5;margin:0 0 20px;">Hi,</p>
+      <p style="font-size:16px;line-height:1.5;margin:0 0 20px;">
         We received a request to reset your password for the account associated with ${email}.
       </p>
-      <p style="font-size: 16px; line-height: 1.5; margin: 0 0 20px;">
+      <p style="font-size:16px;line-height:1.5;margin:0 0 20px;">
         To reset your password, click the button. This link will expire in 5 minutes.
       </p>
-      <p style="margin: 0 0 20px;">
-        <a
-          href="${url.toString()}"
-          style="
-            background-color: #000000;
-            color: #ffffff;
-            padding: 12px 24px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            display: block;
-            width: 100%;
-            text-align: center;
-            box-sizing: border-box;
-          "
-        >
-          Reset Password
-        </a>
-      </p>
+      <!-- table‑based full‑width button -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="#000000" style="border-radius:6px; text-align:center;">
+                  <a
+                    href="${url.toString()}"
+                    target="_blank"
+                    style="
+                      display:inline-block;
+                      width:100%;
+                      padding:12px 0;
+                      font-weight:600;
+                      color:#ffffff;
+                      text-decoration:none;
+                      font-size:16px;
+                      line-height:1.5;
+                    "
+                  >
+                    Reset Password
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </div>
   </div>
   <!--[if mso]>
-        </td>
-      </tr>
-    </table>
+        </td></tr></table>
   <![endif]-->
 </body>
 </html>
     `;
 
     const { error } = await resend.emails.send({
-      from: process.env.AUTH_EMAIL ?? "My App <noreply@socialnetworksandbox.com>",
+      from:
+        process.env.AUTH_EMAIL ?? "My App <noreply@socialnetworksandbox.com>",
       to: [email],
       subject: "Reset your password",
       html,
