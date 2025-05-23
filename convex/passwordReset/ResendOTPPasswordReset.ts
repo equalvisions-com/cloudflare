@@ -51,7 +51,7 @@ export const ResendOTPPasswordReset = Email({
         </style>
       </head>
       <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
-        <div class="email-content" style="max-width:600px;margin:0 auto;">
+        <div class="email-content" style="max-width:600px;margin:0 auto;padding:20px;">
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
