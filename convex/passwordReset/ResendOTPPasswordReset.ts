@@ -31,39 +31,15 @@ export const ResendOTPPasswordReset = Email({
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <style>
-          /* In dark mode: white p text & white button bg with black link text */
-          @media (prefers-color-scheme: dark) {
-            .email-content p {
-              color: #ffffff !important;
-            }
-            .button-cell {
-              background-color: #ffffff !important;
-              opacity: 1 !important;
-            }
-            .button-cell a {
-              color: #000000 !important;
-              opacity: 1 !important;
-            }
-            /* Additional Apple Mail targeting */
-            [data-ogsc] .button-cell {
-              background-color: #ffffff !important;
-              opacity: 1 !important;
-            }
-            [data-ogsc] .button-cell a {
-              color: #000000 !important;
-              opacity: 1 !important;
-            }
-            /* Force full opacity and contrast */
-            td.button-cell {
-              background-color: #ffffff !important;
-              opacity: 1 !important;
-              filter: none !important;
-            }
-            td.button-cell a {
-              color: #000000 !important;
-              opacity: 1 !important;
-              filter: none !important;
-            }
+          /* Simple button styling that works in both light and dark modes */
+          .button-cell {
+            background-color: #333333 !important;
+            border-radius: 6px;
+          }
+          .button-cell a {
+            color: #ffffff !important;
+            text-decoration: none;
+            display: block;
           }
         </style>
       </head>
@@ -81,10 +57,10 @@ export const ResendOTPPasswordReset = Email({
           
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
             <tr>
-              <td class="button-cell" align="center" style="background-color:#000000;border-radius:6px;">
+              <td class="button-cell" align="center" style="background-color:#333333;border-radius:6px;padding:12px 24px;">
                 <a href="${url.toString()}" 
                    target="_blank" 
-                   style="display:inline-block;width:100%;padding:12px 0;font-size:16px;line-height:1.5;font-weight:600;color:#ffffff;text-decoration:none;">
+                   style="display:block;width:100%;font-size:16px;line-height:1.5;font-weight:600;color:#ffffff;text-decoration:none;">
                   Reset Password
                 </a>
               </td>
