@@ -16,11 +16,58 @@ export const ResendOTPVerify = Email({
       throw new Error("Resend API key is not configured for email verification.");
     }
     const resend = new ResendAPI(provider.apiKey);
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <style>
+          /* Simple button styling that works in both light and dark modes */
+          .button-cell {
+            background-color: #333333 !important;
+            border-radius: 6px;
+          }
+          .button-cell a {
+            color: #ffffff !important;
+            text-decoration: none;
+            display: block;
+          }
+          /* Spark-specific button styling */
+          .button-wrapper {
+            background-color: #333333;
+            border-radius: 6px;
+            display: inline-block;
+            width: 100%;
+          }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
+        <div class="email-content" style="max-width:600px;margin:0 auto;padding:0px 20px;">
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
+          
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+            Please verify your email address for your Grasper account: ${email}.
+          </p>
+          
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+            Your verification code is: <strong style="font-size:32px;font-weight:bold;color:#333333;">${token}</strong>
+          </p>
+          
+          <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
+            This code will expire in 5 minutes.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+
     const { error } = await resend.emails.send({
       from: process.env.AUTH_EMAIL ?? "Grasper <noreply@socialnetworksandbox.com>",
       to: [email],
       subject: "Verify your e-mail for Grasper",
-      text: `Your verification code is ${token}\n\nThe code expires ${expires?.toLocaleString()}.`,
+      html,
     });
     if (error) {
       console.error("Resend error:", error);
