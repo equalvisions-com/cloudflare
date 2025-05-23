@@ -61,25 +61,35 @@ export const ResendOTPPasswordReset = Email({
             text-decoration: none;
           }
           
-          /* Dark mode support */
+          /* Dark mode support - more aggressive targeting */
           @media (prefers-color-scheme: dark) {
-            .email-container {
-              background-color: #000000 !important;
+            body, .email-container, table[class="email-container"] {
               color: #ffffff !important;
             }
-            .email-button {
+            h1, .email-title {
+              color: #ffffff !important;
+            }
+            p, .email-paragraph {
+              color: #ffffff !important;
+            }
+            .email-text, .email-secondary {
+              color: #cccccc !important;
+            }
+            .email-button, a[class="email-button"] {
               background-color: #ffffff !important;
               color: #000000 !important;
               border: 2px solid #ffffff !important;
             }
-            .email-text {
-              color: #cccccc !important;
+            /* Apple Mail specific fixes */
+            [data-ogsc] .email-button {
+              background-color: #ffffff !important;
+              color: #000000 !important;
+              border: 2px solid #ffffff !important;
             }
           }
           
           /* Light mode (default) */
           .email-container {
-            background-color: #ffffff;
             color: #000000;
           }
           .email-button {
@@ -104,55 +114,56 @@ export const ResendOTPPasswordReset = Email({
               font-size: 16px !important;
             }
           }
+          
+          /* Full width button */
+          .email-button {
+            width: 100% !important;
+            display: block !important;
+            box-sizing: border-box !important;
+          }
         </style>
       </head>
-      <body style="margin: 0; padding: 0; background-color: #ffffff;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #ffffff;">
+      <body style="margin: 0; padding: 0;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
           <tr>
             <td align="center" style="padding: 0;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; width: 100%; background-color: #ffffff; margin: 0 auto;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; width: 100%; margin: 0 auto;">
                 <tr>
                   <td style="padding: 0;">
-                    <!-- Header -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                      <tr>
-                        <td align="center" style="padding-bottom: 30px;">
-                          <h1 style="margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; color: #000000; line-height: 1.2;">Reset Your Password</h1>
-                        </td>
-                      </tr>
-                    </table>
-                    
                     <!-- Content -->
-                    <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
-                      Click the button below to reset your password.
+                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
+                      Hi,
+                    </p>
+                    
+                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
+                      We received a request to reset your password for the account associated with ${email}.
+                    </p>
+                    
+                    <p class="email-paragraph" style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
+                      To reset your password, click the button. This link will expire in 5 minutes.
                     </p>
                     
                     <!-- Button -->
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                       <tr>
-                        <td align="center" style="padding: 32px 0;">
-                          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                            <tr>
-                              <td align="center" style="border-radius: 6px; background-color: #000000;">
-                                <a href="${url.toString()}" 
-                                   class="email-button"
-                                   style="display: inline-block; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; background-color: #000000; border: 2px solid #000000;">
-                                  Reset password
-                                </a>
-                              </td>
-                            </tr>
-                          </table>
+                        <td style="padding: 32px 0;">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url.toString()}" style="height:40px;v-text-anchor:middle;width:100%;" arcsize="15%" stroke="f" fillcolor="#000000">
+                          <w:anchorlock/>
+                          <center>
+                          <![endif]-->
+                          <a href="${url.toString()}" 
+                             class="email-button"
+                             style="display: block; width: 100%; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; background-color: #000000; border: 2px solid #000000; mso-padding-alt: 0; text-align: center; box-sizing: border-box;">
+                            <span style="mso-text-raise: 4px;">Reset password</span>
+                          </a>
+                          <!--[if mso]>
+                          </center>
+                          </v:roundrect>
+                          <![endif]-->
                         </td>
                       </tr>
                     </table>
-                    
-                    <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;">
-                      This link expires ${expires?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || "soon"}.
-                    </p>
-                    
-                    <p class="email-text" style="margin: 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #666666;">
-                      If you didn't request this password reset, you can safely ignore this email.
-                    </p>
                   </td>
                 </tr>
               </table>
