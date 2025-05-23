@@ -48,11 +48,15 @@ export const ResendOTPVerify = Email({
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hi,</p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
-            Please verify your email address for your Grasper account: ${email}.
+            Please verify your email address.
           </p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
-            Your verification code is: <strong style="font-size:32px;font-weight:bold;color:#333333;">${token}</strong>
+            Your verification code is:<br/>
+          </p>
+          
+          <p style="margin:0 0 20px;font-size:36px;font-weight:bold;color:#333333;text-align:center;letter-spacing:4px;font-family:monospace,Arial,sans-serif;">
+            ${token}
           </p>
           
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">
