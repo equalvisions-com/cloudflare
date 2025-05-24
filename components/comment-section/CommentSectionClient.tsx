@@ -196,7 +196,7 @@ const Comment = memo(({
           <div className="flex-1">
             <div className="flex items-center mb-1">
               {username ? (
-                <Link href={`/@${username}`} className="text-sm font-bold leading-none hover:underline">
+                <Link href={`/@${username}`} className="text-sm font-bold leading-none hover:none overflow-anywhere">
                   {displayName}
                 </Link>
               ) : (

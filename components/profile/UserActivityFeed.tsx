@@ -448,7 +448,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
           <div className="flex-1 flex">
             <div className="flex-1">
               <div className="flex items-center mb-1">
-                <span className="text-sm font-bold leading-none">{displayName}</span>
+                <span className="text-sm font-bold leading-none overflow-anywhere">{displayName}</span>
               </div>
               <p className="text-sm">{reply.content}</p>
 
@@ -680,7 +680,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
               <div className="flex-1">
                 <div className="flex items-center mb-0">
                   <div className="leading-none mt-[-3px] mb-[5px]">
-                    <span className="text-sm font-bold leading-none">{name}</span>
+                    <span className="text-sm font-bold leading-none overflow-anywhere">{name}</span>
                   </div>
                 </div>
                 
