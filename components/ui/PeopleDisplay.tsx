@@ -234,7 +234,7 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
           <div className="flex-1 min-w-0 space-y-2 pt-0">
             <div className="flex justify-between items-start gap-4">
               <Link href={`/@${user.username}`} className="block flex-1" prefetch={false}>
-                <h3 className="text-base font-bold leading-tight line-clamp-1">
+                <h3 className="text-base font-bold leading-tight line-clamp-1 overflow-anywhere">
                   {user.name || user.username}
                 </h3>
                 <div className="text-muted-foreground text-xs font-normal mt-[1px]">
@@ -260,7 +260,7 @@ export const UserCard = memo(({ user }: { user: UserProfile }) => {
                 )}
               </div>
             </div>
-            <Link href={`/@${user.username}`} className="block !mt-[5px] text-muted-foreground" prefetch={false}>
+            <Link href={`/@${user.username}`} className="block !mt-[5px] text-muted-foreground overflow-anywhere" prefetch={false}>
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {user.bio || ''}
               </p>
