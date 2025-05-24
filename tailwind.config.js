@@ -79,5 +79,14 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
-}; 
+  plugins: [
+    require("tailwindcss-animate"),
+    function ({ addUtilities }) {
+      addUtilities({
+        ".overflow-anywhere": {
+          "overflow-wrap": "anywhere",
+        },
+      });
+    },
+  ],
+};

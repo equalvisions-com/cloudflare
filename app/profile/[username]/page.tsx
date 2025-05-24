@@ -185,7 +185,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 <div className="flex flex-col items-start text-left max-w-[70%]">
                   {/* Group 1: Title */}
                   <div className="w-full">
-                    <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
+                    <h1 className="text-2xl font-extrabold break-words leading-none tracking-tight m-0 p-0">
                       {profile.name || normalizedUsername}
                     </h1>
                     <p className="text-sm leading-none mt-1 text-muted-foreground font-medium">
@@ -195,7 +195,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                   
                   {/* Group 2: Bio (with 12px gap) */}
                   {profile.bio && (
-                    <p className="w-full text-sm text-primary" style={{ marginTop: '10px' }}>{profile.bio}</p>
+                    <p className="w-full text-sm break-words text-primary" style={{ marginTop: '10px' }}>{profile.bio}</p>
                   )}
                   
                   {/* Group 3: Follower/Friend Counts (with 12px gap) */}

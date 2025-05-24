@@ -218,8 +218,8 @@ const SidebarComponent = () => {
                       )}
                     </div>
                     <div className="mt-[-3px]">
-                      <div className="font-bold text-sm line-clamp-1">{displayName}</div>
-                      <div className="text-muted-foreground text-xs line-clamp-1">@{username}</div>
+                      <div className="font-bold text-sm line-clamp-1 overflow-anywhere">{displayName}</div>
+                      <div className="text-muted-foreground text-xs line-clamp-1 overflow-anywhere">@{username}</div>
                     </div>
                   </div>
                 </DropdownMenuTrigger>
