@@ -3,6 +3,15 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 
+// Rate limiting constants for comment likes
+const COMMENT_LIKE_RATE_LIMITS = {
+  PER_COMMENT_COOLDOWN: 500,      // 0.5 seconds between like/unlike on same comment
+  BURST_LIMIT: 5,                // 5 comment likes max
+  BURST_WINDOW: 30000,            // in 30 seconds
+  HOURLY_LIMIT: 50,              // 50 comment likes per hour
+  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
+};
+
 // Toggle like status for a comment
 export const toggleCommentLike = mutation({
   args: {
@@ -21,7 +30,7 @@ export const toggleCommentLike = mutation({
       
     if (!comment) throw new Error("Comment not found");
 
-    // Check if the user has already liked this comment
+    // 1. Check if already liked (per-comment cooldown)
     const existingLike = await ctx.db
       .query("commentLikes")
       .withIndex("by_user_comment", (q) => 
@@ -29,18 +38,47 @@ export const toggleCommentLike = mutation({
       )
       .first();
 
-    // If like exists, remove it; otherwise, add it
     if (existingLike) {
+      // Per-comment cooldown: 0.5 seconds between like/unlike on same comment
+      const timeSinceLastAction = Date.now() - existingLike._creationTime;
+      if (timeSinceLastAction < COMMENT_LIKE_RATE_LIMITS.PER_COMMENT_COOLDOWN) {
+        throw new Error("Please wait before toggling again");
+      }
+      // If cooldown passed, this is an unlike action - delete and return
       await ctx.db.delete(existingLike._id);
-      return { isLiked: false };
-    } else {
-      await ctx.db.insert("commentLikes", {
-        userId,
-        commentId: args.commentId,
-        likedAt: Date.now(),
-      });
-      return { isLiked: true };
+      return { isLiked: false, action: "unliked" };
     }
+
+    // 2. Burst protection: Max 10 comment likes in 30 seconds
+    const burstCheck = await ctx.db
+      .query("commentLikes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_LIKE_RATE_LIMITS.BURST_WINDOW))
+      .take(COMMENT_LIKE_RATE_LIMITS.BURST_LIMIT + 1);
+
+    if (burstCheck.length >= COMMENT_LIKE_RATE_LIMITS.BURST_LIMIT) {
+      throw new Error("Too many comment likes too quickly. Please slow down.");
+    }
+
+    // 3. Hourly limit: Max 100 comment likes per hour
+    const hourlyCheck = await ctx.db
+      .query("commentLikes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_LIKE_RATE_LIMITS.HOURLY_WINDOW))
+      .take(COMMENT_LIKE_RATE_LIMITS.HOURLY_LIMIT + 1);
+
+    if (hourlyCheck.length >= COMMENT_LIKE_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly comment like limit reached. Try again later.");
+    }
+
+    // All rate limit checks passed - create new like
+    await ctx.db.insert("commentLikes", {
+      userId,
+      commentId: args.commentId,
+      likedAt: Date.now(),
+    });
+    
+    return { isLiked: true, action: "liked" };
   },
 });
 
@@ -133,4 +171,4 @@ export const batchGetCommentLikes = query({
       count: likesCountMap.get(commentId.toString()) || 0
     }));
   },
-}); 
+});

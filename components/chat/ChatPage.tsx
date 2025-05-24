@@ -72,7 +72,7 @@ function useTouchActiveState() {
 
 export function ChatPage() {
   // Get user profile data from context
-  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
+  const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
   
   // State for managing messages and input
   const {
@@ -735,6 +735,7 @@ export function ChatPage() {
 
   // New function to handle topic card clicks
   const handleTopicClick = (topic: string, subtopic: string) => {
+    if (!isAuthenticated) return;
     if (textareaRef.current) {
       // Set an appropriate starter question based on the topic
       const starterQuestions = {
@@ -865,19 +866,20 @@ export function ChatPage() {
                     className={cn(
                       "relative w-full rounded-3xl border border-input p-3 cursor-text",
                       "bg-secondary/0",
-                      isLoading && "opacity-100"
+                      isLoading && "opacity-100",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
                     )}
                     onClick={handleInputContainerClick}
                   >
                     <div className="pb-9">
                       <Textarea
                         ref={textareaRef}
-                        placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
+                        placeholder={!isAuthenticated ? "Please log in to chat" : (isLoading ? "Waiting for response..." : "Ask me about anything...")}
                         className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight disabled:opacity-100"
                         value={input}
                         onChange={customHandleInputChange}
                         onKeyDown={handleKeyDown}
-                        disabled={isLoading}
+                        disabled={isLoading || !isAuthenticated}
                       />
                     </div>
 
@@ -891,14 +893,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "newsletters" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
+                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "newsletters" ? "active" : "inactive"}
                               onClick={() => toggleButton("newsletters")}
                               onTouchStart={() => handleTouchStart("newsletters")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
@@ -912,14 +915,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "podcasts" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
+                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "podcasts" ? "active" : "inactive"}
                               onClick={() => toggleButton("podcasts")}
                               onTouchStart={() => handleTouchStart("podcasts")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
@@ -933,14 +937,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "articles" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
+                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "articles" ? "active" : "inactive"}
                               onClick={() => toggleButton("articles")}
                               onTouchStart={() => handleTouchStart("articles")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
@@ -953,10 +958,10 @@ export function ChatPage() {
                         <Button
                           type="submit"
                           size="icon"
-                          disabled={!input.trim() || isLoading || activeButton === "none"}
+                          disabled={!input.trim() || isLoading || activeButton === "none" || !isAuthenticated}
                           className={cn(
                             "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                            (!input.trim() || activeButton === "none") && "opacity-50 cursor-not-allowed",
+                            (!input.trim() || activeButton === "none" || !isAuthenticated) && "opacity-50 cursor-not-allowed",
                             isLoading && "opacity-100 cursor-not-allowed"
                           )}
                         >
@@ -974,8 +979,11 @@ export function ChatPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Sports card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
-                    onClick={() => handleTopicClick('sports', 'NFL')}
+                    className={cn(
+                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={() => isAuthenticated && handleTopicClick('sports', 'NFL')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
                       <span className="mr-2">🏈</span>
@@ -986,8 +994,11 @@ export function ChatPage() {
                   
                   {/* Investing card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
-                    onClick={() => handleTopicClick('investing', 'Bitcoin')}
+                    className={cn(
+                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={() => isAuthenticated && handleTopicClick('investing', 'Bitcoin')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
                       <span className="mr-2">📈</span>
@@ -998,8 +1009,11 @@ export function ChatPage() {
                   
                   {/* Pop Culture card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
-                    onClick={() => handleTopicClick('politics', 'Kendrick Lamar')}
+                    className={cn(
+                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={() => isAuthenticated && handleTopicClick('politics', 'Kendrick Lamar')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
                       <span className="mr-2">🍿</span>
@@ -1010,8 +1024,11 @@ export function ChatPage() {
                   
                   {/* Technology card */}
                   <div 
-                    className="border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors"
-                    onClick={() => handleTopicClick('technology', 'AI')}
+                    className={cn(
+                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={() => isAuthenticated && handleTopicClick('technology', 'AI')}
                   >
                     <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
                       <span className="mr-2">🤖</span>
@@ -1032,6 +1049,13 @@ export function ChatPage() {
           }}
         >
           <div className="mx-auto flex flex-col p-0 max-w-screen-lg">
+            {!isAuthenticated && (
+              <div className="w-full text-center px-4 pt-2">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  Please log in to continue chatting.
+                </p>
+              </div>
+            )}
             <div className="w-full md:flex md:justify-center">
               <div className="w-full pl-4 pr-4 pt-4 pb-4">
                 <form onSubmit={customHandleSubmit} className="w-full">
@@ -1040,19 +1064,20 @@ export function ChatPage() {
                     className={cn(
                       "relative w-full rounded-3xl border border-input p-3 cursor-text",
                       "bg-secondary/0",
-                      isLoading && "opacity-100"
+                      isLoading && "opacity-100",
+                      !isAuthenticated && "opacity-50 cursor-not-allowed"
                     )}
                     onClick={handleInputContainerClick}
                   >
                     <div className="pb-9">
                       <Textarea
                         ref={textareaRef}
-                        placeholder={isLoading ? "Waiting for response..." : "Ask me about anything..."}
+                        placeholder={!isAuthenticated ? "Please log in to chat" : (isLoading ? "Waiting for response..." : "Ask me about anything...")}
                         className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-foreground placeholder:text-muted-foreground placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight disabled:opacity-100"
                         value={input}
                         onChange={customHandleInputChange}
                         onKeyDown={handleKeyDown}
-                        disabled={isLoading}
+                        disabled={isLoading || !isAuthenticated}
                       />
                     </div>
 
@@ -1066,14 +1091,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "newsletters" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80"
+                                activeTouchButton === "newsletters" && activeButton !== "newsletters" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "newsletters" ? "active" : "inactive"}
                               onClick={() => toggleButton("newsletters")}
                               onTouchStart={() => handleTouchStart("newsletters")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Mail className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "newsletters" && "font-medium text-primary-foreground")}>
@@ -1087,14 +1113,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "podcasts" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80"
+                                activeTouchButton === "podcasts" && activeButton !== "podcasts" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "podcasts" ? "active" : "inactive"}
                               onClick={() => toggleButton("podcasts")}
                               onTouchStart={() => handleTouchStart("podcasts")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Podcast className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "podcasts" && "font-medium text-primary-foreground")}>
@@ -1108,14 +1135,15 @@ export function ChatPage() {
                               className={cn(
                                 "chat-filter-button rounded-full h-8 px-3 flex items-center gap-1.5 shrink-0 hover:bg-primary hover:text-primary-foreground group shadow-none bg-background/60 transition-none border disabled:opacity-100",
                                 activeButton === "articles" && "bg-primary text-primary-foreground",
-                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80"
+                                activeTouchButton === "articles" && activeButton !== "articles" && "bg-background/80",
+                                !isAuthenticated && "opacity-50 cursor-not-allowed"
                               )}
                               data-state={activeButton === "articles" ? "active" : "inactive"}
                               onClick={() => toggleButton("articles")}
                               onTouchStart={() => handleTouchStart("articles")}
                               onTouchEnd={handleTouchEnd}
                               onTouchCancel={handleTouchEnd}
-                              disabled={isLoading}
+                              disabled={isLoading || !isAuthenticated}
                             >
                               <Newspaper className={cn("h-4 w-4 text-foreground group-hover:text-primary-foreground transition-none", activeButton === "articles" && "text-primary-foreground")} />
                               <span className={cn("text-foreground text-sm group-hover:text-primary-foreground transition-none", activeButton === "articles" && "font-medium text-primary-foreground")}>
@@ -1128,10 +1156,10 @@ export function ChatPage() {
                         <Button
                           type="submit"
                           size="icon"
-                          disabled={!input.trim() || isLoading || activeButton === "none"}
+                          disabled={!input.trim() || isLoading || activeButton === "none" || !isAuthenticated}
                           className={cn(
                             "rounded-full h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0",
-                            (!input.trim() || activeButton === "none") && "opacity-50 cursor-not-allowed",
+                            (!input.trim() || activeButton === "none" || !isAuthenticated) && "opacity-50 cursor-not-allowed",
                             isLoading && "opacity-100 cursor-not-allowed"
                           )}
                         >

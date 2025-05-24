@@ -11,6 +11,7 @@ import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import dynamic from "next/dynamic";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
+import { Toaster } from "@/components/ui/toaster";
 
 // Dynamically import audio components with ssr disabled
 const AudioProvider = dynamic(
@@ -137,6 +138,7 @@ export default function RootLayout({
                     <MobileDock />
                   </ScrollResetter>
                 </UserData>
+                <Toaster />
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>

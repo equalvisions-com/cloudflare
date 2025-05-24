@@ -7,8 +7,8 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Repeat } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
-import { useToast } from "@/components/ui/use-toast";
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useToast } from "@/components/ui/use-toast";
 
 interface RetweetButtonProps {
   entryGuid: string;
@@ -40,10 +40,10 @@ const RetweetButtonClientComponent = ({
   initialData = { isRetweeted: false, count: 0 }
 }: RetweetButtonProps) => {
   const router = useRouter();
-  const { toast } = useToast();
   const { isAuthenticated } = useConvexAuth();
   const retweet = useMutation(api.retweets.retweet);
   const unretweet = useMutation(api.retweets.unretweet);
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -118,13 +118,14 @@ const RetweetButtonClientComponent = ({
     try {
       if (isRetweeted) {
         await unretweet({ entryGuid });
-        if (isMountedRef.current) {
-          toast({
-            title: "Removed from your posts",
-            description: "This post has been removed from your profile.",
-            duration: 3000,
-          });
-        }
+        // Optional: Show success toast for unretweet
+        // if (isMountedRef.current) {
+        //   toast({
+        //     title: "Removed from your posts",
+        //     description: "This post has been removed from your profile.",
+        //     duration: 3000,
+        //   });
+        // }
       } else {
         await retweet({
           entryGuid,
@@ -133,13 +134,14 @@ const RetweetButtonClientComponent = ({
           pubDate,
           link,
         });
-        if (isMountedRef.current) {
-          toast({
-            title: "Added to your posts",
-            description: "This post will now appear on your profile.",
-            duration: 3000,
-          });
-        }
+        // Optional: Show success toast for retweet
+        // if (isMountedRef.current) {
+        //   toast({
+        //     title: "Added to your posts",
+        //     description: "This post will now appear on your profile.",
+        //     duration: 3000,
+        //   });
+        // }
       }
       // Convex will automatically update the UI with the new state
       // No need to manually update as the useQuery hook will receive the update
@@ -148,11 +150,25 @@ const RetweetButtonClientComponent = ({
       console.error('Error updating retweet status:', err);
       if (isMountedRef.current) {
         setOptimisticState(null);
+        
+        const errorMessage = (err as Error).message || 'Something went wrong';
+        let toastTitle = "Error";
+        let toastDescription = errorMessage;
+
+        if (errorMessage.includes("Too many retweets too quickly. Please slow down.")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "Too many shares too quickly. Please slow down.";
+        } else if (errorMessage.includes("Please wait before toggling retweet again")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You're toggling shares too quickly. Please wait a moment.";
+        } else if (errorMessage.includes("Hourly retweet limit reached. Try again later.")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "Hourly shares limit reached. Try again later.";
+        }
+        
         toast({
-          title: "Error",
-          description: "There was an error processing your request.",
-          variant: "destructive",
-          duration: 3000,
+          title: toastTitle,
+          description: toastDescription,
         });
       }
     }

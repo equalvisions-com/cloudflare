@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 
 type FriendshipStatus = {
   exists: boolean;
@@ -48,6 +49,7 @@ const SimpleFriendButtonComponent = ({
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -103,7 +105,6 @@ const SimpleFriendButtonComponent = ({
     try {
       const result = await sendRequest({ requesteeId: userId });
       if (result && isMountedRef.current) {
-        // Optimistically update UI with the returned friendship ID
         setCurrentStatus({
           exists: true,
           status: "pending",
@@ -113,12 +114,36 @@ const SimpleFriendButtonComponent = ({
       }
     } catch (error) {
       console.error("Failed to send friend request:", error);
+      const errorMessage = (error as Error).message || "An unknown error occurred";
+      let toastTitle = "Error Sending Request";
+      let toastDescription = "Could not send friend request. Please try again.";
+
+      if (errorMessage.includes("Cannot send friend request to yourself")) {
+        toastDescription = "You cannot send a friend request to yourself.";
+      } else if (errorMessage.includes("Please wait before sending another request")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're sending friend requests too quickly. Please slow down.";
+      } else if (errorMessage.includes("Friend request already sent")) {
+        toastDescription = "You have already sent a friend request to this user.";
+      } else if (errorMessage.includes("Friendship already exists")) {
+        toastDescription = "You are already friends with this user or a request is pending.";
+      } else if (errorMessage.includes("Too many friend requests too quickly")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're sending friend requests too quickly. Please slow down.";
+      } else if (errorMessage.includes("Hourly friend request limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Hourly friend request limit reached. Try again later.";
+      } else if (errorMessage.includes("Daily friend request limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Daily friend request limit reached. Try again tomorrow.";
+      }
+      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
       }
     }
-  }, [isAuthenticated, router, userId, sendRequest]);
+  }, [isAuthenticated, router, userId, sendRequest, toast]);
 
   // Handle accept friend request
   const handleAcceptFriend = useCallback(async () => {
@@ -132,7 +157,6 @@ const SimpleFriendButtonComponent = ({
     setIsActionLoading(true);
     try {
       await acceptRequest({ friendshipId: currentStatus.friendshipId });
-      // Optimistically update UI
       if (isMountedRef.current) {
         setCurrentStatus({
           ...currentStatus,
@@ -141,12 +165,24 @@ const SimpleFriendButtonComponent = ({
       }
     } catch (error) {
       console.error("Failed to accept friend request:", error);
+      const errorMessage = (error as Error).message || "An unknown error occurred";
+      let toastTitle = "Error Accepting Request";
+      let toastDescription = "Could not accept friend request. Please try again.";
+
+      if (errorMessage.includes("Friend request not found")) {
+        toastDescription = "The friend request could not be found. It might have been withdrawn.";
+      } else if (errorMessage.includes("Not authorized to accept this friend request")) {
+        toastDescription = "You are not authorized to accept this friend request.";
+      } else if (errorMessage.includes("Friend request is not pending")) {
+        toastDescription = "This friend request is no longer pending.";
+      }
+      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
       }
     }
-  }, [isAuthenticated, router, currentStatus, acceptRequest]);
+  }, [isAuthenticated, router, currentStatus, acceptRequest, toast]);
 
   // Handle unfriend or cancel request
   const handleUnfriend = useCallback(async () => {
@@ -160,7 +196,6 @@ const SimpleFriendButtonComponent = ({
     setIsActionLoading(true);
     try {
       await deleteFriendship({ friendshipId: currentStatus.friendshipId });
-      // Optimistically update UI
       if (isMountedRef.current) {
         setCurrentStatus({
           exists: false,
@@ -171,12 +206,22 @@ const SimpleFriendButtonComponent = ({
       }
     } catch (error) {
       console.error("Failed to unfriend:", error);
+      const errorMessage = (error as Error).message || "An unknown error occurred";
+      let toastTitle = "Error Modifying Friendship";
+      let toastDescription = "Could not update friendship status. Please try again.";
+
+      if (errorMessage.includes("Friendship not found")) {
+        toastDescription = "The friendship record could not be found.";
+      } else if (errorMessage.includes("Not authorized to delete this friendship")) {
+        toastDescription = "You are not authorized to modify this friendship.";
+      }
+      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
       }
     }
-  }, [isAuthenticated, router, currentStatus, deleteFriendship]);
+  }, [isAuthenticated, router, currentStatus, deleteFriendship, toast]);
 
   // Memoize the signin redirect handler
   const handleSignInRedirect = useCallback(() => {

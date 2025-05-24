@@ -3,6 +3,17 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 
+// Rate limiting constants for following
+const FOLLOWING_RATE_LIMITS = {
+  PER_USER_COOLDOWN: 1000,        // 1 second between follow/unfollow same user
+  BURST_LIMIT: 30,                // 30 follows max
+  BURST_WINDOW: 30000,            // in 30 seconds
+  HOURLY_LIMIT: 100,              // 100 follows per hour
+  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
+  DAILY_LIMIT: 500,               // 500 follows per day (anti-spam)
+  DAILY_WINDOW: 86400000,         // 24 hours
+};
+
 export const follow = mutation({
   args: {
     postId: v.id("posts"),
@@ -18,14 +29,52 @@ export const follow = mutation({
       throw new Error("Not authenticated");
     }
     
-    // Check if already following
+    // 1. Check if already following (per-post cooldown)
     const existing = await ctx.db
       .query("following")
       .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
       .first();
 
     if (existing) {
+      // Per-post cooldown: 2 seconds between follow/unfollow on same post
+      const timeSinceLastAction = Date.now() - existing._creationTime;
+      if (timeSinceLastAction < FOLLOWING_RATE_LIMITS.PER_USER_COOLDOWN) {
+        throw new Error("Please wait before toggling follow again");
+      }
       return; // Already following
+    }
+
+    // 2. Burst protection: Max 10 follows in 1 minute
+    const burstCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.BURST_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.BURST_LIMIT + 1);
+
+    if (burstCheck.length >= FOLLOWING_RATE_LIMITS.BURST_LIMIT) {
+      throw new Error("Too many follows too quickly. Please slow down.");
+    }
+
+    // 3. Hourly limit: Max 100 follows per hour
+    const hourlyCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.HOURLY_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.HOURLY_LIMIT + 1);
+
+    if (hourlyCheck.length >= FOLLOWING_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly follow limit reached. Try again later.");
+    }
+
+    // 4. Daily limit: Max 500 follows per day
+    const dailyCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.DAILY_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.DAILY_LIMIT + 1);
+
+    if (dailyCheck.length >= FOLLOWING_RATE_LIMITS.DAILY_LIMIT) {
+      throw new Error("Daily follow limit reached. Try again tomorrow.");
     }
 
     // Get user with only the fields we need
@@ -50,7 +99,7 @@ export const follow = mutation({
       }
     }
 
-    // Create following record
+    // All rate limit checks passed - create following record
     await ctx.db.insert("following", {
       userId,
       postId,
@@ -60,6 +109,7 @@ export const follow = mutation({
     return {
       success: true,
       feedUrl,
+      action: "followed"
     };
   },
 });
@@ -88,6 +138,12 @@ export const unfollow = mutation({
       return { success: false, error: "Not following this feed" };
     }
 
+    // Per-post cooldown: 2 seconds between follow/unfollow on same post
+    const timeSinceLastAction = Date.now() - following._creationTime;
+    if (timeSinceLastAction < FOLLOWING_RATE_LIMITS.PER_USER_COOLDOWN) {
+      throw new Error("Please wait before toggling follow again");
+    }
+
     // Get user with only the fields we need
     const user = await ctx.db
       .query("users")
@@ -109,6 +165,7 @@ export const unfollow = mutation({
 
     return {
       success: true,
+      action: "unfollowed"
     };
   },
 });
@@ -350,6 +407,54 @@ export const followFeed = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    // 1. Check if already following (per-post cooldown)
+    const existing = await ctx.db
+      .query("following")
+      .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
+      .first();
+      
+    if (existing) {
+      // Per-post cooldown: 2 seconds between follow/unfollow on same post
+      const timeSinceLastAction = Date.now() - existing._creationTime;
+      if (timeSinceLastAction < FOLLOWING_RATE_LIMITS.PER_USER_COOLDOWN) {
+        throw new Error("Please wait before toggling follow again");
+      }
+      return { success: false, message: "Already following this feed" };
+    }
+
+    // 2. Burst protection: Max 10 follows in 1 minute
+    const burstCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.BURST_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.BURST_LIMIT + 1);
+
+    if (burstCheck.length >= FOLLOWING_RATE_LIMITS.BURST_LIMIT) {
+      throw new Error("Too many follows too quickly. Please slow down.");
+    }
+
+    // 3. Hourly limit: Max 100 follows per hour
+    const hourlyCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.HOURLY_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.HOURLY_LIMIT + 1);
+
+    if (hourlyCheck.length >= FOLLOWING_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly follow limit reached. Try again later.");
+    }
+
+    // 4. Daily limit: Max 500 follows per day
+    const dailyCheck = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FOLLOWING_RATE_LIMITS.DAILY_WINDOW))
+      .take(FOLLOWING_RATE_LIMITS.DAILY_LIMIT + 1);
+
+    if (dailyCheck.length >= FOLLOWING_RATE_LIMITS.DAILY_LIMIT) {
+      throw new Error("Daily follow limit reached. Try again tomorrow.");
+    }
     
     // Get only required user fields with query filtering rather than full document
     let user = await ctx.db
@@ -365,23 +470,13 @@ export const followFeed = mutation({
       throw new Error("User not found");
     }
     
-    // Check if already following
-    const existing = await ctx.db
-      .query("following")
-      .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
-      .first();
-      
-    if (existing) {
-      return { success: false, message: "Already following this feed" };
-    }
-    
-    // Add new following entry
+    // All rate limit checks passed - add new following entry
     await ctx.db.insert("following", {
       userId,
       postId,
       feedUrl,
     });
     
-    return { success: true };
+    return { success: true, action: "followed" };
   },
-}); 
+});

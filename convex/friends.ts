@@ -3,6 +3,17 @@ import { mutation, query, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+// Rate limiting constants for friend requests
+const FRIEND_RATE_LIMITS = {
+  PER_USER_COOLDOWN: 1000,        // 1 second between requests to same user
+  BURST_LIMIT: 10,                 // 10 requests max
+  BURST_WINDOW: 120000,           // in 2 minutes
+  HOURLY_LIMIT: 25,               // 25 requests per hour
+  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
+  DAILY_LIMIT: 75,                // 75 requests per day
+  DAILY_WINDOW: 86400000,         // 24 hours in milliseconds
+};
+
 // Helper function to check friendship status between two users
 export async function checkFriendshipStatus(
   ctx: QueryCtx,
@@ -472,16 +483,21 @@ export const sendFriendRequest = mutation({
       throw new Error("Cannot send friend request to yourself");
     }
 
-    // Check if a friendship already exists
+    // 1. Check if a friendship already exists (per-user cooldown)
     const existingFriendship = await ctx.db
       .query("friends")
       .withIndex("by_users", (q) => 
         q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
       )
       .first()
-      .then(doc => doc ? { _id: doc._id } : null);
+      .then(doc => doc ? { _id: doc._id, _creationTime: doc._creationTime } : null);
 
     if (existingFriendship) {
+      // Per-user cooldown: 5 seconds between requests to same user
+      const timeSinceLastAction = Date.now() - existingFriendship._creationTime;
+      if (timeSinceLastAction < FRIEND_RATE_LIMITS.PER_USER_COOLDOWN) {
+        throw new Error("Please wait before sending another request to this user");
+      }
       throw new Error("Friend request already sent");
     }
 
@@ -506,7 +522,40 @@ export const sendFriendRequest = mutation({
       }
     }
 
-    // Create a new friend request
+    // 2. Burst protection: Max 3 friend requests in 2 minutes
+    const burstCheck = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", (q) => q.eq("requesterId", requesterId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.BURST_WINDOW))
+      .take(FRIEND_RATE_LIMITS.BURST_LIMIT + 1);
+
+    if (burstCheck.length >= FRIEND_RATE_LIMITS.BURST_LIMIT) {
+      throw new Error("Too many friend requests too quickly. Please slow down.");
+    }
+
+    // 3. Hourly limit: Max 20 friend requests per hour
+    const hourlyCheck = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", (q) => q.eq("requesterId", requesterId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.HOURLY_WINDOW))
+      .take(FRIEND_RATE_LIMITS.HOURLY_LIMIT + 1);
+
+    if (hourlyCheck.length >= FRIEND_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly friend request limit reached. Try again later.");
+    }
+
+    // 4. Daily limit: Max 75 friend requests per day
+    const dailyCheck = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", (q) => q.eq("requesterId", requesterId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.DAILY_WINDOW))
+      .take(FRIEND_RATE_LIMITS.DAILY_LIMIT + 1);
+
+    if (dailyCheck.length >= FRIEND_RATE_LIMITS.DAILY_LIMIT) {
+      throw new Error("Daily friend request limit reached. Try again tomorrow.");
+    }
+
+    // All rate limit checks passed - create a new friend request
     return ctx.db.insert("friends", {
       requesterId,
       requesteeId,
@@ -954,4 +1003,4 @@ export const getMyPendingFriendRequestCount = query({
     
     return totalPendingRequests;
   },
-}); 
+});

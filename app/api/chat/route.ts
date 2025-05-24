@@ -3,6 +3,7 @@ import { streamText, jsonSchema } from 'ai';
 import { openai as openaiClient } from '@ai-sdk/openai';
 import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
 import { executeRead } from '@/lib/database';
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
 // Define a type for the entry rows to fix type errors
 interface EntryRow {
@@ -285,6 +286,15 @@ export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
+    const token = await convexAuthNextjsToken().catch(() => null); // Get token, default to null on error
+
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const { messages, activeButton } = await req.json();
 
     // Only keep messages from the most recent user query onward.

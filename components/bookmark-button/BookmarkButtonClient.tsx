@@ -8,6 +8,7 @@ import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useToast } from "@/components/ui/use-toast";
 
 interface BookmarkButtonProps {
   entryGuid: string;
@@ -41,6 +42,7 @@ const BookmarkButtonClientComponent = ({
   const { isAuthenticated } = useConvexAuth();
   const bookmark = useMutation(api.bookmarks.bookmark);
   const removeBookmark = useMutation(api.bookmarks.removeBookmark);
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -127,6 +129,27 @@ const BookmarkButtonClientComponent = ({
       console.error('Error updating bookmark status:', err);
       if (isMountedRef.current) {
         setOptimisticState(null);
+
+        const errorMessage = (err as Error).message || 'Something went wrong';
+        let toastTitle = "Error";
+        let toastDescription = errorMessage;
+
+        if (errorMessage.includes("Please wait before toggling again")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You're toggling bookmarks too quickly. Please slow down.";
+        } else if (errorMessage.includes("Too many bookmarks too quickly")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "Too many bookmarks too quickly. Please slow down.";
+        } else if (errorMessage.includes("Hourly bookmark limit reached")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "Hourly bookmark limit reached. Try again later.";
+        }
+        // No specific toast for "Not authenticated" as user is redirected.
+
+        toast({
+          title: toastTitle,
+          description: toastDescription,
+        });
       }
     }
   }, [
@@ -139,7 +162,8 @@ const BookmarkButtonClientComponent = ({
     feedUrl, 
     title, 
     pubDate, 
-    link
+    link,
+    toast
   ]);
 
   return (

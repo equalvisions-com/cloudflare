@@ -8,6 +8,7 @@ import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CommentLikeButtonProps {
   commentId: Id<"comments">;
@@ -47,6 +48,7 @@ const CommentLikeButtonComponent = ({
   // Add authentication and router hooks
   const { isAuthenticated } = useConvexAuth();
   const router = useRouter();
+  const { toast } = useToast();
   
   useEffect(() => {
     // Set mounted flag to true
@@ -135,13 +137,38 @@ const CommentLikeButtonComponent = ({
         setOptimisticIsLiked(null);
         setOptimisticCount(null);
         setOptimisticTimestamp(null);
+
+        const errorMessage = (error as Error).message || 'Something went wrong';
+        let toastTitle = "Error";
+        let toastDescription = "Could not update like status. Please try again."; // Generic default
+
+        if (errorMessage.includes("Please wait before toggling again")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You're liking comments too quickly. Please slow down.";
+        } else if (errorMessage.includes("Too many comment likes too quickly")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You're liking comments too quickly. Please slow down.";
+        } else if (errorMessage.includes("Hourly comment like limit reached")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "Hourly limit for liking comments reached. Try again later.";
+        } else if (errorMessage.includes("Comment not found")) {
+          // Keep generic message for this, as it might be a sync issue
+          toastTitle = "Error";
+          toastDescription = "Could not find the comment to like. It might have been deleted.";
+        }
+        // No specific toast for "Not authenticated" as user is redirected.
+
+        toast({
+          title: toastTitle,
+          description: toastDescription,
+        });
       }
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
     }
-  }, [isAuthenticated, router, isSubmitting, isLiked, count, toggleLike, commentId]);
+  }, [isAuthenticated, router, isSubmitting, isLiked, count, toggleLike, commentId, toast]);
   
   return (
     <Button

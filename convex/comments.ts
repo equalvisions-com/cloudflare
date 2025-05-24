@@ -3,6 +3,17 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 
+// Rate limiting constants for comments
+const COMMENT_RATE_LIMITS = {
+  PER_ENTRY_COOLDOWN: 5000,      // 5 seconds between comments on same entry
+  REPLY_COOLDOWN: 2000,          // 2 seconds between replies
+  BURST_LIMIT: 3,                // 3 comments max
+  BURST_WINDOW: 30000,           // in 30 seconds
+  REPLY_BURST_LIMIT: 5,          // 5 replies max in burst window
+  HOURLY_LIMIT: 20,              // 20 comments per hour
+  HOURLY_WINDOW: 3600000,        // 1 hour in milliseconds
+};
+
 export const addComment = mutation({
   args: {
     entryGuid: v.string(),
@@ -14,7 +25,9 @@ export const addComment = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the user to get their username with field filtering
+    const isReply = !!args.parentId;
+
+    // Get the user to get their username
     const user = await ctx.db
       .query("users")
       .filter((q: any) => q.eq(q.field("_id"), userId))
@@ -24,31 +37,66 @@ export const addComment = mutation({
       } : null);
       
     if (!user) throw new Error("User not found");
-
-    // Use username or default to "Guest"
     const username = user.username;
 
-    // Validate content - updated to match client-side limits
+    // Validate content
     const content = args.content.trim();
     if (!content) throw new Error("Comment cannot be empty");
     if (content.length > 500) throw new Error("Comment too long (max 500 characters)");
 
-    // Basic content sanitization - remove control characters
+    // Basic content sanitization
     const sanitizedContent = content.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-    
-    // Check for rate limiting (max 5 comments per minute)
-    const oneMinuteAgo = Date.now() - 60 * 1000;
-    const recentComments = await ctx.db
+
+    // 1. Per-entry cooldown check
+    const cooldownTime = isReply ? 
+      COMMENT_RATE_LIMITS.REPLY_COOLDOWN : 
+      COMMENT_RATE_LIMITS.PER_ENTRY_COOLDOWN;
+
+    const lastCommentOnEntry = await ctx.db
       .query("comments")
-      .filter((q: any) => q.eq(q.field("userId"), userId))
-      .filter((q: any) => q.gt(q.field("createdAt"), oneMinuteAgo))
-      .collect();
-    
-    if (recentComments.length >= 5) {
-      throw new Error("Rate limit exceeded. Please try again in a minute.");
+      .withIndex("by_entry_time", q => 
+        q.eq("entryGuid", args.entryGuid)
+      )
+      .filter(q => q.eq(q.field("userId"), userId))
+      .order("desc")
+      .first();
+
+    if (lastCommentOnEntry) {
+      const timeSinceLastAction = Date.now() - lastCommentOnEntry._creationTime;
+      if (timeSinceLastAction < cooldownTime) {
+        const waitTime = Math.ceil((cooldownTime - timeSinceLastAction) / 1000);
+        throw new Error(`Please wait ${waitTime} seconds before commenting again`);
+      }
     }
 
-    // If this is a reply, verify parent exists
+    // 2. Burst protection
+    const burstLimit = isReply ? 
+      COMMENT_RATE_LIMITS.REPLY_BURST_LIMIT : 
+      COMMENT_RATE_LIMITS.BURST_LIMIT;
+
+    const burstCheck = await ctx.db
+      .query("comments")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_RATE_LIMITS.BURST_WINDOW))
+      .take(burstLimit + 1);
+
+    if (burstCheck.length >= burstLimit) {
+      const actionType = isReply ? "replies" : "comments";
+      throw new Error(`Too many ${actionType} too quickly. Please slow down.`);
+    }
+
+    // 3. Hourly limit
+    const hourlyCheck = await ctx.db
+      .query("comments")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_RATE_LIMITS.HOURLY_WINDOW))
+      .take(COMMENT_RATE_LIMITS.HOURLY_LIMIT + 1);
+
+    if (hourlyCheck.length >= COMMENT_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly comment limit reached. Try again later.");
+    }
+
+    // 4. If this is a reply, verify parent exists and belongs to same entry
     if (args.parentId) {
       const parent = await ctx.db
         .query("comments")
@@ -65,10 +113,10 @@ export const addComment = mutation({
       }
     }
 
-    // Create the comment
+    // All rate limit checks passed - create the comment
     const commentId = await ctx.db.insert("comments", {
       userId,
-      username, // Use the username from the user table
+      username,
       entryGuid: args.entryGuid,
       feedUrl: args.feedUrl,
       content: sanitizedContent,
@@ -76,7 +124,7 @@ export const addComment = mutation({
       parentId: args.parentId,
     });
 
-    return commentId;
+    return { action: "created", commentId };
   },
 });
 
@@ -437,4 +485,4 @@ async function getUserDataForComment(ctx: any, commentId: Id<"comments">) {
       profileImage: user.profileImage
     } : undefined
   };
-} 
+}

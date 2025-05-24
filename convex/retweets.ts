@@ -2,6 +2,15 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+// Rate limiting constants for retweets
+const RETWEET_RATE_LIMITS = {
+  PER_POST_COOLDOWN: 2000,        // 2 seconds between retweet/unretweet on same post
+  BURST_LIMIT: 3,                 // 3 retweets max
+  BURST_WINDOW: 30000,            // in 30 seconds
+  HOURLY_LIMIT: 25,               // 25 retweets per hour (more restrictive than likes)
+  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
+};
+
 // Retweet an entry
 export const retweet = mutation({
   args: {
@@ -17,19 +26,47 @@ export const retweet = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Check if already retweeted
+    // 1. Check if already retweeted (per-post cooldown)
     const existing = await ctx.db
       .query("retweets")
       .withIndex("by_user_entry", (q) => q.eq("userId", userId).eq("entryGuid", args.entryGuid))
       .unique();
 
     if (existing) {
-      // Already retweeted, return the existing ID
-      return { success: true, id: existing._id };
+      // Per-post cooldown: 2 seconds between retweet/unretweet on same post
+      const timeSinceLastAction = Date.now() - existing._creationTime;
+      if (timeSinceLastAction < RETWEET_RATE_LIMITS.PER_POST_COOLDOWN) {
+        throw new Error("Please wait before toggling retweet again");
+      }
+      // If cooldown passed, this is an unretweet action - delete and return
+      await ctx.db.delete(existing._id);
+      return { action: "unretweeted", retweetId: existing._id };
     }
 
-    // Create new retweet
-    const id = await ctx.db.insert("retweets", {
+    // 2. Burst protection: Max 3 retweets in 30 seconds
+    const burstCheck = await ctx.db
+      .query("retweets")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - RETWEET_RATE_LIMITS.BURST_WINDOW))
+      .take(RETWEET_RATE_LIMITS.BURST_LIMIT + 1); // Check for limit + 1
+
+    if (burstCheck.length >= RETWEET_RATE_LIMITS.BURST_LIMIT) {
+      throw new Error("Too many retweets too quickly. Please slow down.");
+    }
+
+    // 3. Hourly limit: Max 25 retweets per hour
+    const hourlyCheck = await ctx.db
+      .query("retweets")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - RETWEET_RATE_LIMITS.HOURLY_WINDOW))
+      .take(RETWEET_RATE_LIMITS.HOURLY_LIMIT + 1); // Check for limit + 1
+
+    if (hourlyCheck.length >= RETWEET_RATE_LIMITS.HOURLY_LIMIT) {
+      throw new Error("Hourly retweet limit reached. Try again later.");
+    }
+
+    // All rate limit checks passed - create new retweet
+    const retweetId = await ctx.db.insert("retweets", {
       userId,
       entryGuid: args.entryGuid,
       feedUrl: args.feedUrl,
@@ -39,7 +76,7 @@ export const retweet = mutation({
       retweetedAt: Date.now(),
     });
 
-    return { success: true, id };
+    return { action: "retweeted", retweetId };
   },
 });
 
@@ -59,13 +96,18 @@ export const unretweet = mutation({
       .withIndex("by_user_entry", (q) => q.eq("userId", userId).eq("entryGuid", args.entryGuid))
       .unique();
 
-    if (existing) {
-      await ctx.db.delete(existing._id);
-      return { success: true };
+    if (!existing) {
+      return { success: true, notFound: true };
     }
 
-    // Not found, but we'll consider this a success since the end state is what was requested
-    return { success: true, notFound: true };
+    // Per-post cooldown: 2 seconds between retweet/unretweet on same post
+    const timeSinceLastAction = Date.now() - existing._creationTime;
+    if (timeSinceLastAction < RETWEET_RATE_LIMITS.PER_POST_COOLDOWN) {
+      throw new Error("Please wait before toggling retweet again");
+    }
+
+    await ctx.db.delete(existing._id);
+    return { action: "unretweeted", retweetId: existing._id };
   },
 });
 
@@ -182,4 +224,4 @@ export const batchGetRetweetCounts = query({
     
     return results;
   },
-}); 
+});

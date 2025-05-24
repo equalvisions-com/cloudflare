@@ -10,6 +10,7 @@ import useSWR, { mutate as globalMutate } from 'swr';
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 // Global mutation key for followed posts - update to use the main /api/rss endpoint with refresh flag
 export const FOLLOWED_POSTS_KEY = '/api/rss?refresh=true';
@@ -60,6 +61,7 @@ const FollowButtonComponent = ({
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
   const { followPost, unfollowPost } = useFollowActions();
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -200,6 +202,35 @@ const FollowButtonComponent = ({
       if (isMountedRef.current && optimisticUpdateApplied) {
         await mutate(previousState, false);
       }
+      
+      // Show toast notification for the error
+      const errorMessage = (err as Error).message || "An unknown error occurred";
+      let toastTitle = "Error";
+      let toastDescription = "Could not update follow status. Please try again.";
+
+      if (errorMessage.includes("Please wait before toggling follow again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're toggling follows too quickly. Please slow down.";
+      } else if (errorMessage.includes("Too many follows too quickly")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Too many follows too quickly. Please slow down.";
+      } else if (errorMessage.includes("Hourly follow limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Hourly follow limit reached. Try again later.";
+      } else if (errorMessage.includes("Daily follow limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Daily follow limit reached. Try again tomorrow.";
+      } else if (errorMessage.includes("User not found")) {
+        // Keep generic message for this, as it's a server-side issue
+        toastDescription = "Could not update follow status due to a server error.";
+      }
+      // No specific toast for "Not authenticated" as user is redirected.
+
+      toast({
+        title: toastTitle,
+        description: toastDescription,
+      });
+
     } finally {
       // Clear busy state after operation completes
       if (isMountedRef.current) {
@@ -221,7 +252,8 @@ const FollowButtonComponent = ({
     followPost, 
     feedUrl,
     isBusy,
-    isInitialLoading
+    isInitialLoading,
+    toast
   ]);
 
   // Determine the display state based on visual state or actual state

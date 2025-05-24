@@ -8,6 +8,7 @@ import { Heart } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useToast } from "@/components/ui/use-toast";
 
 interface LikeButtonProps {
   entryGuid: string;
@@ -41,6 +42,7 @@ export const LikeButtonClient = memo(function LikeButtonClient({
   const { isAuthenticated } = useConvexAuth();
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -126,6 +128,27 @@ export const LikeButtonClient = memo(function LikeButtonClient({
     } catch (err) {
       // Revert optimistic update on error
       console.error('Error updating like status:', err);
+      
+      const errorMessage = (err as Error).message || 'Something went wrong';
+      let toastTitle = "Error";
+      let toastDescription = errorMessage;
+
+      if (errorMessage.includes("Too many likes too quickly. Please slow down.")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Too many likes too quickly. Please slow down.";
+      } else if (errorMessage.includes("Please wait before toggling again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're toggling likes too quickly. Please slow down.";
+      } else if (errorMessage.includes("Hourly like limit reached. Try again later.")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Hourly like limit reached. Try again later.";
+      }
+
+      // Show user-friendly error message
+      toast({
+        title: toastTitle,
+        description: toastDescription,
+      });
       if (isMountedRef.current) {
         setOptimisticState(null);
       }
@@ -141,7 +164,8 @@ export const LikeButtonClient = memo(function LikeButtonClient({
     feedUrl, 
     title, 
     pubDate, 
-    link
+    link,
+    toast
   ]);
 
   return (

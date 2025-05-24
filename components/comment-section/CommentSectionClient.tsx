@@ -27,6 +27,7 @@ import { CommentLikeButton } from "@/components/comment-section/CommentLikeButto
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CommentSectionProps {
   entryGuid: string;
@@ -358,6 +359,7 @@ export function CommentSectionClient({
   const { isAuthenticated } = useConvexAuth();
   const router = useRouter();
   const viewer = useQuery(api.users.viewer);
+  const { toast } = useToast();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -456,13 +458,49 @@ export function CommentSectionClient({
       if (isMountedRef.current) {
         setOptimisticCount(null);
         setOptimisticTimestamp(null);
+
+        const errorMessage = (error as Error).message || 'Something went wrong';
+        let toastTitle = "Error Adding Comment";
+        let toastDescription = errorMessage;
+
+        if (errorMessage.includes("Comment cannot be empty")) {
+          toastTitle = "Validation Error";
+          toastDescription = "Comment cannot be empty. Please enter some text.";
+        } else if (errorMessage.includes("Comment too long")) {
+          toastTitle = "Validation Error";
+          toastDescription = "Your comment is too long. Maximum 500 characters allowed.";
+        } else if (errorMessage.includes("Please wait") && errorMessage.includes("seconds before commenting again")) {
+          toastTitle = "Rate Limit Exceeded";
+          // Extract the dynamic wait time if needed, or use a generic message
+          toastDescription = "You're commenting too quickly. Please slow down."; 
+        } else if (errorMessage.includes("Too many comments too quickly")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You've posted too many comments quickly. Please slow down.";
+        } else if (errorMessage.includes("Too many replies too quickly")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You've posted too many replies quickly. Please slow down.";
+        } else if (errorMessage.includes("Hourly comment limit reached")) {
+          toastTitle = "Rate Limit Exceeded";
+          toastDescription = "You've reached the hourly limit for comments. Please try again later.";
+        } else if (errorMessage.includes("Parent comment not found")) {
+          toastTitle = "Error Replying";
+          toastDescription = "The comment you are replying to could not be found. It might have been deleted.";
+        } else if (errorMessage.includes("Parent comment belongs to different entry")) {
+          toastTitle = "Error Replying";
+          toastDescription = "There was an issue linking your reply to the original post.";
+        }
+
+        toast({
+          title: toastTitle,
+          description: toastDescription,
+        });
       }
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
     }
-  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting, isAuthenticated, router]);
+  }, [comment, addComment, entryGuid, feedUrl, commentCount, replyToComment, isSubmitting, isAuthenticated, router, toast]);
   
   // Function to handle initiating a reply to a comment
   const handleReply = useCallback((comment: CommentFromAPI) => {
