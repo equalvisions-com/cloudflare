@@ -66,7 +66,7 @@ function SignInPageContent() {
                     <SignUpVerification
                       email={email}
                       onSuccess={() => {
-                        router.push("/");        
+                        router.push("/onboarding");        
                         setStep("signIn");
                       }}
                     />
@@ -176,7 +176,7 @@ function SignInWithGoogle() {
       variant="outline"
       type="button"
       onClick={() => {
-        void signIn("google", { redirectTo: "/" });
+        void signIn("google", { redirectTo: "/onboarding" });
       }}
     >
       <svg viewBox="0 0 24 24" className="mr-0 h-4 w-4">
@@ -251,7 +251,7 @@ function SignInWithPassword({
             }
           } else if (result && (typeof result.signingIn === 'undefined' || result.signingIn === true )){
             // Assume successful sign-in if signingIn is true or not present (older auth behavior might not have this field on success)
-            router.push("/");
+            router.push("/onboarding");
           } else {
             // Unexpected result structure
             console.error("Unexpected sign-in result structure:", result);
@@ -500,10 +500,14 @@ function SignUpWithPassword({
                 onVerificationNeeded(emailFromForm);
               } else {
                 console.error("Email not found in signup form for verification step.");
+                toast({
+                  title: "Sign-Up Error",
+                  description: "Could not retrieve email for verification. Please try signing up again or sign in if you have an account.",
+                });
                 onSignIn();
               }
             } else {
-              onSignIn();
+              router.push("/onboarding");
             }
           })
           .catch((error) => {

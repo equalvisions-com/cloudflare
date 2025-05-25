@@ -104,12 +104,6 @@ export default convexAuthNextjsMiddleware(
     if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
       return nextjsMiddlewareRedirect(request, "/onboarding");
     }
-
-    // For routes where onboarding status matters but we're unsure (no cookie),
-    // let the page render without middleware blocking, and component will handle it
-    if (skipOnboardingCheck) {
-      return response;
-    }
     
     return response;
   },
