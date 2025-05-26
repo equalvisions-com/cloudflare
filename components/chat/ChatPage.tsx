@@ -31,6 +31,9 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { BackButton } from '@/components/back-button';
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
@@ -73,6 +76,10 @@ function useTouchActiveState() {
 export function ChatPage() {
   // Get user profile data from context
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
+  const { toast } = useToast();
+  
+  // Add rate limit status query
+  const rateLimitStatus = useQuery(api.chat.getRateLimitStatus);
   
   // State for managing messages and input
   const {
@@ -152,7 +159,7 @@ export function ChatPage() {
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, rateLimitStatus]);
 
   // Additional scroll handler for carousel content load
   useEffect(() => {
@@ -185,7 +192,7 @@ export function ChatPage() {
       });
       observer.disconnect();
     };
-  }, [messages]);
+  }, [messages, rateLimitStatus]);
 
   // Save the current selection state
   const saveSelectionState = () => {
@@ -602,6 +609,17 @@ export function ChatPage() {
   const customHandleSubmit = (e: React.FormEvent<HTMLFormElement> | Event) => {
     e.preventDefault();
     
+    // Check if user has remaining messages
+    if (rateLimitStatus?.remaining === 0) {
+      // Show rate limit message
+      toast({
+        variant: "destructive",
+        title: "Rate Limit Exceeded",
+        description: "You've reached your daily limit of 50 messages. Try again tomorrow!",
+      });
+      return;
+    }
+
     // Only submit if there's input, we're not already streaming, and a button is selected
     if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
       // Check if this is the first message being sent
@@ -833,6 +851,13 @@ export function ChatPage() {
                   {renderMessage(message)}
                 </div>
               ))}
+            </div>
+          )}
+          {isStreaming && lastMessageId !== null && <TypingIndicator />}
+          {/* Show remaining messages */}
+          {isAuthenticated && rateLimitStatus && (
+            <div className="text-center text-xs text-muted-foreground pt-2">
+              {rateLimitStatus.remaining} messages remaining today
             </div>
           )}
         </div>

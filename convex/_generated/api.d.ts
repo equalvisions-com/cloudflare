@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as categories from "../categories.js";
+import type * as chat from "../chat.js";
 import type * as commentLikes from "../commentLikes.js";
 import type * as comments from "../comments.js";
 import type * as emailVerification_ResendOTPVerify from "../emailVerification/ResendOTPVerify.js";
@@ -35,7 +36,6 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-
 /**
  * A utility for referencing Convex functions in your app's API.
  *
@@ -48,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   bookmarks: typeof bookmarks;
   categories: typeof categories;
+  chat: typeof chat;
   commentLikes: typeof commentLikes;
   comments: typeof comments;
   "emailVerification/ResendOTPVerify": typeof emailVerification_ResendOTPVerify;
@@ -79,125 +80,146 @@ export declare const internal: FilterApi<
 >;
 
 export declare const components: {
-  r2: {
+  rateLimiter: {
     lib: {
-      deleteMetadata: FunctionReference<
-        "mutation",
-        "internal",
-        { bucket: string; key: string },
-        null
-      >;
-      deleteObject: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          accessKeyId: string;
-          bucket: string;
-          endpoint: string;
-          key: string;
-          secretAccessKey: string;
-        },
-        null
-      >;
-      deleteR2Object: FunctionReference<
-        "action",
-        "internal",
-        {
-          accessKeyId: string;
-          bucket: string;
-          endpoint: string;
-          key: string;
-          secretAccessKey: string;
-        },
-        null
-      >;
-      getMetadata: FunctionReference<
+      checkRateLimit: FunctionReference<
         "query",
         "internal",
         {
-          accessKeyId: string;
-          bucket: string;
-          endpoint: string;
-          key: string;
-          secretAccessKey: string;
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
         },
-        {
-          bucket: string;
-          bucketLink: string;
-          contentType?: string;
-          key: string;
-          lastModified: string;
-          link: string;
-          sha256?: string;
-          size?: number;
-          url: string;
-        } | null
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
       >;
-      insertMetadata: FunctionReference<
+      clearAll: FunctionReference<
+        "mutation",
+        "internal",
+        { before?: number },
+        null
+      >;
+      rateLimit: FunctionReference<
         "mutation",
         "internal",
         {
-          bucket: string;
-          contentType?: string;
-          key: string;
-          lastModified: string;
-          link: string;
-          sha256?: string;
-          size?: number;
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
         },
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
+      >;
+      resetRateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        { key?: string; name: string },
         null
       >;
-      listMetadata: FunctionReference<
+    };
+    public: {
+      checkRateLimit: FunctionReference<
         "query",
         "internal",
         {
-          accessKeyId: string;
-          bucket: string;
-          cursor?: string;
-          endpoint: string;
-          limit?: number;
-          secretAccessKey: string;
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
         },
-        {
-          continueCursor: string;
-          isDone: boolean;
-          page: Array<{
-            bucket: string;
-            bucketLink: string;
-            contentType?: string;
-            key: string;
-            lastModified: string;
-            link: string;
-            sha256?: string;
-            size?: number;
-            url: string;
-          }>;
-          pageStatus?: null | "SplitRecommended" | "SplitRequired";
-          splitCursor?: null | string;
-        }
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
       >;
-      store: FunctionReference<
-        "action",
+      rateLimit: FunctionReference<
+        "mutation",
         "internal",
         {
-          accessKeyId: string;
-          bucket: string;
-          endpoint: string;
-          secretAccessKey: string;
-          url: string;
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
         },
-        any
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
       >;
-      syncMetadata: FunctionReference<
-        "action",
+      resetRateLimit: FunctionReference<
+        "mutation",
         "internal",
-        {
-          accessKeyId: string;
-          bucket: string;
-          endpoint: string;
-          key: string;
-          secretAccessKey: string;
-        },
+        { key?: string; name: string },
         null
       >;
     };

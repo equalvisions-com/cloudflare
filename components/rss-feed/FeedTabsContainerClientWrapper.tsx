@@ -8,15 +8,13 @@ import type { FeaturedEntry } from "@/lib/featured_kv";
 // Error fallback component
 function FeedErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
-    <div className="text-center py-8 text-destructive">
-      <h3 className="text-lg font-semibold mb-2">Something went wrong</h3>
-      <p className="mb-4">{error.message}</p>
+    <div className="text-center py-8">
+ 
       <button 
         onClick={resetErrorBoundary}
         className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
       >
-        Try again
-      </button>
+Refresh      </button>
     </div>
   );
 }

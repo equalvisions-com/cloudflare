@@ -4,6 +4,8 @@ import { openai as openaiClient } from '@ai-sdk/openai';
 import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
 import { executeRead } from '@/lib/database';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "@/convex/_generated/api";
 
 // Define a type for the entry rows to fix type errors
 interface EntryRow {
@@ -286,8 +288,7 @@ export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    const token = await convexAuthNextjsToken().catch(() => null); // Get token, default to null on error
-
+    const token = await convexAuthNextjsToken().catch(() => null);
     if (!token) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -296,6 +297,38 @@ export async function POST(req: Request) {
     }
 
     const { messages, activeButton } = await req.json();
+    
+    // Check rate limit with Convex
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    convex.setAuth(token);
+    
+    const rateLimitResult = await convex.mutation(api.chat.sendChatMessage, {
+      message: messages[messages.length - 1]?.content || "",
+      activeButton
+    });
+
+    // Corrected to use 'ok' and 'retryAfter' based on the actual API
+    if (rateLimitResult.limited && rateLimitResult.retryAfterMs) { // Check if limited and retryAfterMs is available
+      return new Response(JSON.stringify({ 
+        error: 'Rate limit exceeded',
+        retryAfterMs: rateLimitResult.retryAfterMs 
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil(rateLimitResult.retryAfterMs / 1000))
+        },
+      });
+    } else if (rateLimitResult.limited) { // Handle cases where retryAfterMs might not be set but still limited
+       return new Response(JSON.stringify({ 
+        error: 'Rate limit exceeded'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+      });
+    }
 
     // Only keep messages from the most recent user query onward.
     // This assumes that the latest user message indicates a new topic.
