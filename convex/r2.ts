@@ -20,7 +20,7 @@ export const r2 = {
     }
     
     // Return direct public URL
-    return `https://pub-9b8cc0b27a384f7aacf50e33dfd3d7d9.r2.dev/${path}`;
+    return ` https://socialnetworksandbox.com/${path}`;
   },
   
   // Preserve original methods by passing through to the base client
