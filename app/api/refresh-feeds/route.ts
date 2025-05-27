@@ -493,8 +493,15 @@ async function getNewEntriesExcludingGuids(
     }
     
     // This is where we'll add the chronological filter
-    if (newestTimestamp && filteredEntries.length > 0) {
-      // Further filter entries to only those newer than the newest entry in initial data
+    // IMPORTANT: Only apply chronological filtering if feeds were recently refreshed
+    // If feeds were stale for a long time (>1 hour), we want to show older entries that are new to the database
+    const oldestLastFetchedTime = Math.min(...feeds.map(feed => Number(feed.last_fetched)));
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    const feedsWereVeryStale = oldestLastFetchedTime < oneHourAgo;
+    
+    if (newestTimestamp && filteredEntries.length > 0 && !feedsWereVeryStale) {
+      // Only apply chronological filter if feeds were recently refreshed
+      // This prevents filtering out older entries when feeds have been stale for a long time
       const chronologicalEntries = filteredEntries.filter(entry => {
         const entryDate = new Date(entry.pub_date).getTime();
         return entryDate > newestTimestamp!;
@@ -506,6 +513,8 @@ async function getNewEntriesExcludingGuids(
       } else {
         devLog(`🔄 SERVERLESS: Chronological filter: No entries filtered out (all ${filteredEntries.length} entries are newer than ${new Date(newestTimestamp).toISOString()})`);
       }
+    } else if (newestTimestamp && feedsWereVeryStale) {
+      devLog(`🔄 SERVERLESS: Chronological filter SKIPPED: feeds were very stale (oldest: ${new Date(oldestLastFetchedTime).toISOString()}), showing older entries that are new to database`);
     } else if (newestTimestamp) {
       devLog(`🔄 SERVERLESS: Chronological filter skipped: no filteredEntries (${filteredEntries.length})`);
     } else {
