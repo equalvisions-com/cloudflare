@@ -50,6 +50,26 @@ const logger = {
   }
 };
 
+// Helper function to consistently parse dates from the database
+const parseEntryDate = (dateString: string | Date): Date => {
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+  
+  // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+  const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+  
+  if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
+    // Convert MySQL datetime string - do NOT add 'Z' as the database times are in local timezone (EST)
+    // Adding 'Z' incorrectly treats EST times as UTC, causing a 4-hour offset
+    const [datePart, timePart] = dateString.split(' ');
+    return new Date(`${datePart}T${timePart}`); // No 'Z' - let JS interpret as local time
+  }
+  
+  // Handle other formats
+  return new Date(dateString);
+};
+
 interface RSSEntryWithData {
   entry: RSSItem;
   initialData: {
@@ -120,19 +140,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
-    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    let pubDate: Date;
-    
-    if (typeof entry.pubDate === 'string' && mysqlDateRegex.test(entry.pubDate)) {
-      // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = entry.pubDate.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-    } else {
-      // Handle other formats
-      pubDate = new Date(entry.pubDate);
-    }
-    
+    // Use the consistent date parsing helper
+    const pubDate = parseEntryDate(entry.pubDate);
     const now = new Date();
     
     // Ensure we're working with valid dates
@@ -974,19 +983,19 @@ const RSSEntriesClientComponent = ({
       })));
       
       const sortedInitialEntries = [...initialData.entries].sort((a, b) => {
-        const dateA = new Date(a.entry.pubDate).getTime();
-        const dateB = new Date(b.entry.pubDate).getTime();
+        const dateA = parseEntryDate(a.entry.pubDate).getTime();
+        const dateB = parseEntryDate(b.entry.pubDate).getTime();
         return dateB - dateA; // Newest first
       });
       
       console.log('🔥 INIT: After sorting, top 3 entries:', sortedInitialEntries.slice(0, 3).map(e => ({
         title: e.entry.title,
         pubDate: e.entry.pubDate,
-        timestamp: new Date(e.entry.pubDate).getTime()
+        timestamp: parseEntryDate(e.entry.pubDate).getTime()
       })));
       
       if (sortedInitialEntries[0]?.entry.pubDate) {
-        const newestInitialDate = new Date(sortedInitialEntries[0].entry.pubDate);
+        const newestInitialDate = parseEntryDate(sortedInitialEntries[0].entry.pubDate);
         console.log('🔥 INIT: Newest entry candidate:', {
           title: sortedInitialEntries[0].entry.title,
           pubDate: sortedInitialEntries[0].entry.pubDate,
@@ -1492,8 +1501,8 @@ const RSSEntriesClientComponent = ({
         if (currentEntries.length > 0) {
           // Sort by publication date in descending order to find the newest
           const sortedEntries = [...currentEntries].sort((a, b) => {
-            const dateA = new Date(a.entry.pubDate).getTime();
-            const dateB = new Date(b.entry.pubDate).getTime();
+            const dateA = parseEntryDate(a.entry.pubDate).getTime();
+            const dateB = parseEntryDate(b.entry.pubDate).getTime();
             return dateB - dateA; // Newest first
           });
           
@@ -1505,12 +1514,12 @@ const RSSEntriesClientComponent = ({
           logger.debug(`📅 Top 3 entries after sorting:`, sortedEntries.slice(0, 3).map(e => ({
             title: e.entry.title,
             pubDate: e.entry.pubDate,
-            timestamp: new Date(e.entry.pubDate).getTime()
+            timestamp: parseEntryDate(e.entry.pubDate).getTime()
           })));
           
           // Get the date of the newest entry
           if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
-            const candidateDate = new Date(sortedEntries[0].entry.pubDate);
+            const candidateDate = parseEntryDate(sortedEntries[0].entry.pubDate);
             const currentTime = Date.now();
             
             console.log('🔥 TRIGGER REFRESH: candidateDate =', candidateDate.toISOString());
