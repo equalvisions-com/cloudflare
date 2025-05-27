@@ -14,13 +14,14 @@ export const revalidate = 0;
 
 // Helper function to log only in development
 const devLog = (message: string, data?: unknown) => {
-  if (process.env.NODE_ENV !== 'production') {
+  // TEMPORARILY ENABLE LOGS IN PRODUCTION FOR DEBUGGING
+  // if (process.env.NODE_ENV !== 'production') {
     if (data) {
       console.log(message, data);
     } else {
       console.log(message);
     }
-  }
+  // }
 };
 
 // Helper function to log errors in both environments
