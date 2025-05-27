@@ -1398,11 +1398,21 @@ const RSSEntriesClientComponent = ({
     console.log('🔥 TRIGGER REFRESH: Function called');
     logger.debug('🔥 TRIGGER REFRESH: Function called via logger');
     
+    // DEBUGGING: Show current state
+    console.log('🔥 TRIGGER REFRESH: State check', {
+      isRefreshing,
+      hasRefreshed,
+      willSkip: isRefreshing || hasRefreshed
+    });
+    
     // Don't refresh if we've already refreshed or are currently refreshing
     if (isRefreshing || hasRefreshed) {
+      console.log('🔥 TRIGGER REFRESH: Skipping refresh - already refreshed or currently refreshing');
       logger.debug('Skipping refresh: already refreshed or currently refreshing');
       return;
     }
+    
+    console.log('🔥 TRIGGER REFRESH: Proceeding with refresh logic');
     
     // Use ONLY the server-provided complete list from our state
     // This is the most reliable source of truth for ALL followed feeds
