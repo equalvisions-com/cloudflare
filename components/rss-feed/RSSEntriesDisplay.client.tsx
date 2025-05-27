@@ -965,19 +965,48 @@ const RSSEntriesClientComponent = ({
     // CRITICAL: Capture the newest entry date from initial data BEFORE any refresh
     // This ensures we have a baseline that doesn't include refresh results
     if (initialData.entries.length > 0) {
+      console.log('🔥 INIT: About to capture pre-refresh newest entry date');
+      console.log('🔥 INIT: initialData.entries.length =', initialData.entries.length);
+      console.log('🔥 INIT: Sample entries:', initialData.entries.slice(0, 5).map(e => ({
+        title: e.entry.title,
+        pubDate: e.entry.pubDate,
+        guid: e.entry.guid
+      })));
+      
       const sortedInitialEntries = [...initialData.entries].sort((a, b) => {
         const dateA = new Date(a.entry.pubDate).getTime();
         const dateB = new Date(b.entry.pubDate).getTime();
         return dateB - dateA; // Newest first
       });
       
+      console.log('🔥 INIT: After sorting, top 3 entries:', sortedInitialEntries.slice(0, 3).map(e => ({
+        title: e.entry.title,
+        pubDate: e.entry.pubDate,
+        timestamp: new Date(e.entry.pubDate).getTime()
+      })));
+      
       if (sortedInitialEntries[0]?.entry.pubDate) {
         const newestInitialDate = new Date(sortedInitialEntries[0].entry.pubDate);
+        console.log('🔥 INIT: Newest entry candidate:', {
+          title: sortedInitialEntries[0].entry.title,
+          pubDate: sortedInitialEntries[0].entry.pubDate,
+          timestamp: newestInitialDate.getTime(),
+          currentTime: Date.now(),
+          isValid: !isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()
+        });
+        
         if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
           preRefreshNewestEntryDateRef.current = newestInitialDate.toISOString();
+          console.log('🔥 INIT: SET preRefreshNewestEntryDateRef.current =', preRefreshNewestEntryDateRef.current);
           logger.debug(`📅 CAPTURED pre-refresh newest entry date: ${preRefreshNewestEntryDateRef.current} from entry: "${sortedInitialEntries[0].entry.title}"`);
+        } else {
+          console.log('🔥 INIT: Invalid date, not setting preRefreshNewestEntryDateRef');
         }
+      } else {
+        console.log('🔥 INIT: No pubDate found in top entry');
       }
+    } else {
+      console.log('🔥 INIT: No initial entries to process');
     }
     
     // Cache all feed metadata from initial entries for consistent rendering
