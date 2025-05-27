@@ -20,7 +20,7 @@ export const r2 = {
     }
     
     // Return direct public URL
-    return ` https://images.socialnetworksandbox.com/${path}`;
+    return `https://images.socialnetworksandbox.com/${path}`;
   },
   
   // Preserve original methods by passing through to the base client
