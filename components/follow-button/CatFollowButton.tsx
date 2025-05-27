@@ -23,6 +23,7 @@ interface FollowButtonProps {
   isAuthenticated?: boolean; // Make optional to maintain backward compatibility
   className?: string; // Add className prop
   disableAutoFetch?: boolean; // New prop to control when we should skip individual fetching
+  showIcon?: boolean; // New prop to control icon visibility
 }
 
 const fetcher = async (key: string) => {
@@ -56,7 +57,8 @@ const FollowButtonComponent = ({
   initialIsFollowing,
   isAuthenticated: serverIsAuthenticated,
   className,
-  disableAutoFetch = false
+  disableAutoFetch = false,
+  showIcon = true
 }: FollowButtonProps) => {
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
@@ -133,13 +135,6 @@ const FollowButtonComponent = ({
   // Determine if button is in loading state
   const isInitialLoading = !disableAutoFetch && !isLoaded && shouldFetch && isValidating;
   
-  // Reset visual state when actual state changes
-  useEffect(() => {
-    if (visualState !== null) {
-      setVisualState(null);
-    }
-  }, [isFollowing, visualState]);
-  
   // Memoize the click handler to prevent unnecessary recreations between renders
   const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
@@ -161,7 +156,8 @@ const FollowButtonComponent = ({
     setIsBusy(true);
 
     // Set visual state to show target state immediately
-    setVisualState(isFollowing ? 'follow' : 'following');
+    const targetState = isFollowing ? 'follow' : 'following';
+    setVisualState(targetState);
 
     // Store current state for potential rollback
     const previousState = { isFollowing };
@@ -192,15 +188,29 @@ const FollowButtonComponent = ({
           globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/follows')),
           globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/profile'))
         ]);
+        
+        // Clear visual state immediately on success to prevent flickering
+        if (isMountedRef.current) {
+          setVisualState(null);
+        }
       } else {
         // Only revalidate if the operation wasn't successful
         await mutate(undefined, true);
+        // Reset visual state on failure
+        if (isMountedRef.current) {
+          setVisualState(null);
+        }
       }
     } catch (err) {
       console.error('Error updating follow status:', err);
       // Roll back to previous state if there was an error
       if (isMountedRef.current && optimisticUpdateApplied) {
         await mutate(previousState, false);
+      }
+      
+      // Reset visual state on error
+      if (isMountedRef.current) {
+        setVisualState(null);
       }
       
       // Show toast notification for the error
@@ -232,13 +242,14 @@ const FollowButtonComponent = ({
       });
 
     } finally {
-      // Clear busy state after operation completes
+      // Clear busy state after operation completes with minimal delay
       if (isMountedRef.current) {
-        // Add a small delay to ensure UI remains stable
+        // Reduced delay to minimize flickering
         setTimeout(() => {
-          setIsBusy(false);
-          setVisualState(null);
-        }, 300);
+          if (isMountedRef.current) {
+            setIsBusy(false);
+          }
+        }, 100);
       }
     }
   }, [

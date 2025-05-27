@@ -29,10 +29,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       ? parseInt(searchParams.get('totalEntries') || '0', 10) 
       : null;
     
+    // CRITICAL FIX: Get current entries count from client to calculate correct offset
+    // This accounts for new entries that may have been added to the top of the feed
+    const currentEntriesCount = searchParams.get('currentEntriesCount')
+      ? parseInt(searchParams.get('currentEntriesCount') || '0', 10)
+      : null;
+    
     // Get feed URLs from query params, if available
     const feedUrlsParam = searchParams.get('feedUrls');
     
     console.log(`📡 API: /api/rss/paginate called with page=${page}, pageSize=${pageSize}`);
+    
+    if (currentEntriesCount !== null) {
+      console.log(`📊 API: Client has ${currentEntriesCount} entries, using as offset for pagination`);
+    }
     
     if (!postTitlesParam && !feedUrlsParam) {
       console.error('❌ API: Either post titles or feed URLs are required');
@@ -86,8 +96,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // creating and refreshing feeds. This makes pagination much faster and smoother.
     console.log(`⏩ API: Skipping feed refresh check - the refresh-feeds endpoint handles refreshing`);
     
-    // Calculate offset for pagination
-    const offset = (page - 1) * pageSize;
+    // CRITICAL FIX: Calculate offset based on current entries count if available
+    // This prevents duplication when new entries are added to the top of the feed
+    let offset: number;
+    if (currentEntriesCount !== null && currentEntriesCount > 0) {
+      // Use the current entries count as the offset to get the next batch
+      offset = currentEntriesCount;
+      console.log(`📊 API: Using current entries count as offset: ${offset}`);
+    } else {
+      // Fallback to traditional page-based offset calculation
+      offset = (page - 1) * pageSize;
+      console.log(`📊 API: Using traditional page-based offset: ${offset} (page ${page})`);
+    }
     
     // Build SQL query based on whether we have titles, URLs, or both
     // Use a two-step approach for better performance:

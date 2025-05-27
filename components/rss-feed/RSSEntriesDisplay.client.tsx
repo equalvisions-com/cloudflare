@@ -15,7 +15,7 @@ import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButto
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Mail, Loader2, ArrowUp, ArrowDown } from "lucide-react";
+import { Podcast, Mail, Loader2, ArrowUp, ArrowDown, MoveUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -799,6 +799,7 @@ const RSSEntriesClientComponent = ({
   // Add state for notification
   const [showNotification, setShowNotification] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationImages, setNotificationImages] = useState<string[]>([]);
 
   // Add state for mediaTypes
   const mediaTypesRef = useRef<string[] | undefined>(initialData?.mediaTypes);
@@ -1048,6 +1049,13 @@ const RSSEntriesClientComponent = ({
       if (initialData?.feedUrls && initialData.feedUrls.length > 0) {
         baseUrl.searchParams.set('feedUrls', feedUrlsParam);
       }
+      
+      // CRITICAL FIX: Pass the current number of entries the client has
+      // This allows the server to calculate the correct offset that accounts for new entries
+      // added to the top of the feed by the refresh process
+      const currentEntriesCount = entriesStateRef.current.length;
+      baseUrl.searchParams.set('currentEntriesCount', currentEntriesCount.toString());
+      logger.debug(`📊 Passing current entries count for offset calculation: ${currentEntriesCount}`);
       
       // Pass the total entries to avoid unnecessary COUNT queries on the server
       // Use our dynamically updated totalEntriesRef instead of the static initialData
@@ -1306,6 +1314,17 @@ const RSSEntriesClientComponent = ({
       // Save the count for notification
       setNotificationCount(sortedNewEntries.length);
       
+      // Extract featured images from the first 3 new entries
+      const featuredImages = sortedNewEntries
+        .slice(0, 3) // Take only first 3 entries
+        .map(entry => {
+          // Try to get featured image from postMetadata first, then from entry
+          return entry.postMetadata?.featuredImg || entry.entry.image || '';
+        })
+        .filter(img => img !== ''); // Remove empty strings
+      
+      setNotificationImages(featuredImages);
+      
       // Show notification
       setShowNotification(true);
       
@@ -1315,7 +1334,7 @@ const RSSEntriesClientComponent = ({
       // Set a timer to hide the notification after a few seconds
       setTimeout(() => {
         setShowNotification(false);
-      }, 3000);
+      }, 5000);
       
     } catch (error) {
       logger.error('Error handling new entries:', error);
@@ -1362,7 +1381,7 @@ const RSSEntriesClientComponent = ({
       // Get all entries from both our state and initial data to find the newest one
       const allAvailableEntries = [
         ...entriesStateRef.current,
-        ...initialData.entries
+        ...(initialData?.entries || [])
       ];
       
       if (allAvailableEntries.length > 0) {
@@ -1452,15 +1471,13 @@ const RSSEntriesClientComponent = ({
       setIsRefreshing(false);
     }
   }, [
-    initialData?.entries, 
+    // Only include dependencies that should actually trigger a recreation of this callback
+    // Remove initialData?.entries and callback dependencies that cause unnecessary recreations
     initialData?.feedUrls, 
     isRefreshing, 
-    hasRefreshed, 
-    updateTotalEntriesState, 
-    updatePostTitlesState,
-    postTitlesRef,
-    entriesStateRef,
-    mediaTypesRef
+    hasRefreshed
+    // Removed: initialData?.entries, updateTotalEntriesState, updatePostTitlesState, postTitlesRef, entriesStateRef, mediaTypesRef
+    // These are accessed via refs or are stable, so they don't need to be in dependencies
   ]);
 
   // Trigger one-time refresh after initial render - always refresh immediately
@@ -1582,8 +1599,29 @@ const RSSEntriesClientComponent = ({
       {/* Floating notification for new posts */}
       {showNotification && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out">
-          <div className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md text-sm font-medium">
-            {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
+          <div className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2">
+            {notificationImages.length > 0 ? (
+              <div className="flex items-center gap-1">
+                <MoveUp className="h-3 w-3" />
+                <div className="flex items-center -space-x-1">
+                  {notificationImages.map((imageUrl, index) => (
+                    <div key={index} className="relative w-4 h-4 rounded-full overflow-hidden">
+                      <Image
+                        src={imageUrl}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="16px"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <span className="text-sm font-medium">
+                {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
+              </span>
+            )}
           </div>
         </div>
       )}
