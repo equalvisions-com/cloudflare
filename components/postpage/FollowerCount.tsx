@@ -75,10 +75,10 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
                       </Link>
                       <div className="flex flex-col flex-1">
                         <Link href={`/@${follower.username}`}>
-                          <span className="text-sm font-bold">{follower.name || follower.username}</span>
+                          <span className="text-sm font-bold overflow-anywhere">{follower.name || follower.username}</span>
                         </Link>
                         <Link href={`/@${follower.username}`} className="mt-[-4px]">
-                          <span className="text-xs text-muted-foreground">@{follower.username}</span>
+                          <span className="text-xs text-muted-foreground overflow-anywhere">@{follower.username}</span>
                         </Link>
                       </div>
                       <SimpleFriendButton
