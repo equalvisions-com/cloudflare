@@ -1394,6 +1394,10 @@ const RSSEntriesClientComponent = ({
   
   // Add function to trigger one-time background refresh
   const triggerOneTimeRefresh = useCallback(async () => {
+    // DEBUGGING: Test if this function is being called
+    console.log('🔥 TRIGGER REFRESH: Function called');
+    logger.debug('🔥 TRIGGER REFRESH: Function called via logger');
+    
     // Don't refresh if we've already refreshed or are currently refreshing
     if (isRefreshing || hasRefreshed) {
       logger.debug('Skipping refresh: already refreshed or currently refreshing');
@@ -1425,7 +1429,7 @@ const RSSEntriesClientComponent = ({
       newestEntryDate = preRefreshNewestEntryDateRef.current;
       logger.debug(`📅 Using pre-refresh newest entry date: ${newestEntryDate}`);
     } else {
-      // Fallback: Only use current state entries (not initial data) to avoid stale data
+      // Fallback: Only use current state entries, not initial data, to avoid stale data
       logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
       logger.debug(`📅 Current state has ${entriesStateRef.current.length} entries`);
       logger.debug(`📅 Sample current entries:`, entriesStateRef.current.slice(0, 3).map(e => ({
