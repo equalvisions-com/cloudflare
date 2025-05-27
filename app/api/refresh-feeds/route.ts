@@ -228,7 +228,7 @@ export async function POST(request: Request) {
     }
     
     // Return combined result
-    return NextResponse.json({ 
+    const responseData = { 
       success: true, 
       refreshedAny,
       entries: refreshedAny ? newEntries.entries : [],
@@ -236,7 +236,22 @@ export async function POST(request: Request) {
       totalEntries: refreshedAny ? newEntries.totalEntries : 0, // Include total entry count for client state update
       postTitles: normalizedPostTitles, // Include the full list of post titles for client state
       refreshTimestamp: new Date().toISOString()
-    }, {
+    };
+    
+    // SERVERLESS DEBUG: Add comprehensive logging of the response
+    devLog('🔄 SERVERLESS: Final API response structure:', {
+      success: responseData.success,
+      refreshedAny: responseData.refreshedAny,
+      entriesCount: responseData.entries.length,
+      newEntriesCount: responseData.newEntriesCount,
+      totalEntries: responseData.totalEntries,
+      postTitlesCount: responseData.postTitles.length,
+      hasEntries: responseData.entries.length > 0,
+      firstEntryGuid: responseData.entries.length > 0 ? responseData.entries[0].entry.guid : 'N/A',
+      firstEntryTitle: responseData.entries.length > 0 ? responseData.entries[0].entry.title : 'N/A'
+    });
+    
+    return NextResponse.json(responseData, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'Pragma': 'no-cache',
@@ -371,6 +386,28 @@ async function getNewEntriesExcludingGuids(
     
     devLog(`Filtered to ${uniqueEntries.length} entries not in client after excluding ${existingGuids.length} existing GUIDs`);
     
+    // SERVERLESS DEBUG: Log sample of unique entries found
+    if (uniqueEntries.length > 0) {
+      devLog('🔄 SERVERLESS: Sample of unique entries found:', {
+        totalUnique: uniqueEntries.length,
+        sampleEntries: uniqueEntries.slice(0, 3).map(e => ({
+          guid: e.guid,
+          title: e.title,
+          feedTitle: e.feed_title,
+          pubDate: e.pub_date,
+          createdAt: e.created_at
+        }))
+      });
+    } else {
+      devLog('🔄 SERVERLESS: No unique entries found after GUID filtering');
+      devLog('🔄 SERVERLESS: Existing GUIDs sample:', existingGuids.slice(0, 5));
+      devLog('🔄 SERVERLESS: Database entries sample:', entries.slice(0, 3).map(e => ({
+        guid: e.guid,
+        title: e.title,
+        feedTitle: e.feed_title
+      })));
+    }
+    
     // IF uniqueEntries is excessively large (e.g., >100), this suggests that:
     // 1. We have feeds that were recently created and all entries are appearing as "new"
     // 2. The client might only have the first page of entries loaded
@@ -455,21 +492,35 @@ async function getNewEntriesExcludingGuids(
     }
     
     // This is where we'll add the chronological filter
-    if (newestTimestamp && uniqueEntries.length > 0) {
+    if (newestTimestamp && filteredEntries.length > 0) {
       // Further filter entries to only those newer than the newest entry in initial data
-      const chronologicalEntries = uniqueEntries.filter(entry => {
+      const chronologicalEntries = filteredEntries.filter(entry => {
         const entryDate = new Date(entry.pub_date).getTime();
         return entryDate > newestTimestamp!;
       });
       
-      if (chronologicalEntries.length !== uniqueEntries.length) {
-        devLog(`Filtered out ${uniqueEntries.length - chronologicalEntries.length} entries older than newest entry (${new Date(newestTimestamp).toISOString()})`);
+      if (chronologicalEntries.length !== filteredEntries.length) {
+        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries (filtered out ${filteredEntries.length - chronologicalEntries.length} entries older than ${new Date(newestTimestamp).toISOString()})`);
         filteredEntries = chronologicalEntries;
+      } else {
+        devLog(`🔄 SERVERLESS: Chronological filter: No entries filtered out (all ${filteredEntries.length} entries are newer than ${new Date(newestTimestamp).toISOString()})`);
       }
+    } else if (newestTimestamp) {
+      devLog(`🔄 SERVERLESS: Chronological filter skipped: no filteredEntries (${filteredEntries.length})`);
+    } else {
+      devLog(`🔄 SERVERLESS: Chronological filter skipped: no newestTimestamp provided`);
     }
     
+    // SERVERLESS DEBUG: Log final filtering results
+    devLog(`🔄 SERVERLESS: Final filtering results:`, {
+      originalEntries: entries.length,
+      afterGuidFilter: uniqueEntries.length,
+      afterAllFilters: filteredEntries.length,
+      willReturn: Math.min(filteredEntries.length, 50)
+    });
+    
     if (filteredEntries.length === 0) {
-      devLog('No new entries after applying all filters');
+      devLog('🔄 SERVERLESS: No new entries after applying all filters - returning empty result');
       return { entries: [], totalEntries: 0, hasMore: false };
     }
     
@@ -478,9 +529,12 @@ async function getNewEntriesExcludingGuids(
       .sort((a, b) => new Date(b.pub_date).getTime() - new Date(a.pub_date).getTime())
       .slice(0, 50); // Limit to 50 new entries at a time
     
+    devLog(`🔄 SERVERLESS: Limited entries to ${limitedEntries.length} (from ${filteredEntries.length} filtered entries)`);
+    
     // Get authentication token for Convex queries
     const token = await convexAuthNextjsToken();
     if (!token) {
+      devLog('🔄 SERVERLESS: No auth token available - returning empty result');
       return { entries: [], totalEntries: 0, hasMore: false };
     }
     
@@ -498,6 +552,8 @@ async function getNewEntriesExcludingGuids(
       feedUrl: entry.feed_url
     }));
     
+    devLog(`🔄 SERVERLESS: Mapped ${mappedEntries.length} entries to expected format`);
+    
     // Get unique entry guids for batch query
     const guids = mappedEntries.map(entry => entry.guid);
     
@@ -508,6 +564,8 @@ async function getNewEntriesExcludingGuids(
       { token }
     );
     
+    devLog(`🔄 SERVERLESS: Fetched entry data for ${entryData?.length || 0} entries from Convex`);
+    
     // Fetch post metadata
     const feedUrls = [...new Set(mappedEntries.map(entry => entry.feedUrl))];
     const postMetadata = await fetchQuery(
@@ -515,6 +573,8 @@ async function getNewEntriesExcludingGuids(
       { feedUrls },
       { token }
     );
+    
+    devLog(`🔄 SERVERLESS: Fetched post metadata for ${postMetadata?.length || 0} feeds from Convex`);
     
     // Create a map of feed URLs to post metadata
     const postMetadataMap = new Map();
@@ -560,13 +620,27 @@ async function getNewEntriesExcludingGuids(
     });
     
     const hasMoreNewEntries = filteredEntries.length > limitedEntries.length;
-    devLog(`Returning ${entriesWithPublicData.length} new entries (has more: ${hasMoreNewEntries})`);
+    devLog(`🔄 SERVERLESS: Returning ${entriesWithPublicData.length} new entries (has more: ${hasMoreNewEntries})`);
     
-    return {
+    // SERVERLESS DEBUG: Log final result structure
+    const result = {
       entries: entriesWithPublicData,
       totalEntries: filteredEntries.length,
       hasMore: hasMoreNewEntries
     };
+    
+    devLog(`🔄 SERVERLESS: Final getNewEntriesExcludingGuids result:`, {
+      entriesCount: result.entries.length,
+      totalEntries: result.totalEntries,
+      hasMore: result.hasMore,
+      sampleEntry: result.entries.length > 0 ? {
+        guid: result.entries[0].entry.guid,
+        title: result.entries[0].entry.title,
+        feedTitle: result.entries[0].entry.feedTitle
+      } : null
+    });
+    
+    return result;
   } catch (error) {
     errorLog('❌ Error querying new entries:', error);
     return { entries: [], totalEntries: 0, hasMore: false };
