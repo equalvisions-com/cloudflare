@@ -806,6 +806,9 @@ const RSSEntriesClientComponent = ({
   // Add state for mediaTypes
   const mediaTypesRef = useRef<string[] | undefined>(initialData?.mediaTypes);
 
+  // Add a ref to store the newest entry date from BEFORE any refresh
+  const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
+
   // Update state and refs together for better consistency
   const updateEntriesState = useCallback((newEntries: RSSEntryWithData[]) => {
     entriesStateRef.current = newEntries;
@@ -957,6 +960,24 @@ const RSSEntriesClientComponent = ({
       logger.debug('Server provided mediaTypes:', initialData.mediaTypes);
     } else {
       logger.warn('No mediaTypes provided by server!');
+    }
+    
+    // CRITICAL: Capture the newest entry date from initial data BEFORE any refresh
+    // This ensures we have a baseline that doesn't include refresh results
+    if (initialData.entries.length > 0) {
+      const sortedInitialEntries = [...initialData.entries].sort((a, b) => {
+        const dateA = new Date(a.entry.pubDate).getTime();
+        const dateB = new Date(b.entry.pubDate).getTime();
+        return dateB - dateA; // Newest first
+      });
+      
+      if (sortedInitialEntries[0]?.entry.pubDate) {
+        const newestInitialDate = new Date(sortedInitialEntries[0].entry.pubDate);
+        if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
+          preRefreshNewestEntryDateRef.current = newestInitialDate.toISOString();
+          logger.debug(`📅 CAPTURED pre-refresh newest entry date: ${preRefreshNewestEntryDateRef.current} from entry: "${sortedInitialEntries[0].entry.title}"`);
+        }
+      }
     }
     
     // Cache all feed metadata from initial entries for consistent rendering
@@ -1398,63 +1419,48 @@ const RSSEntriesClientComponent = ({
     // This prevents older entries from newly created feeds from appearing at the top
     let newestEntryDate: string | undefined = undefined;
     
-    try {
-      // Get all entries from both our state and initial data to find the newest one
-      const allAvailableEntries = [
-        ...entriesStateRef.current,
-        ...(initialData?.entries || [])
-      ];
+    // CRITICAL FIX: Use the pre-refresh newest entry date that was captured from initial data
+    // This prevents using entries that were just inserted during previous refresh cycles
+    if (preRefreshNewestEntryDateRef.current) {
+      newestEntryDate = preRefreshNewestEntryDateRef.current;
+      logger.debug(`📅 Using pre-refresh newest entry date: ${newestEntryDate}`);
+    } else {
+      // Fallback: Only use current state entries (not initial data) to avoid stale data
+      logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
       
-      // Debug: Log what entries we're considering
-      logger.debug(`🔍 CLIENT: Finding newest entry from ${allAvailableEntries.length} total entries:`, {
-        fromState: entriesStateRef.current.length,
-        fromInitialData: initialData?.entries?.length || 0,
-        sampleEntries: allAvailableEntries.slice(0, 5).map(e => ({
-          title: e.entry.title,
-          pubDate: e.entry.pubDate,
-          guid: e.entry.guid
-        }))
-      });
-      
-      if (allAvailableEntries.length > 0) {
-        // Sort by publication date in descending order to find the newest
-        const sortedEntries = [...allAvailableEntries].sort((a, b) => {
-          const dateA = new Date(a.entry.pubDate).getTime();
-          const dateB = new Date(b.entry.pubDate).getTime();
-          return dateB - dateA; // Newest first
-        });
+      try {
+        // Only use entries from current state, not initial data
+        const currentEntries = entriesStateRef.current;
         
-        // Debug: Log the top 3 entries after sorting
-        logger.debug(`🔍 CLIENT: Top 3 entries after sorting by pubDate:`, 
-          sortedEntries.slice(0, 3).map(e => ({
-            title: e.entry.title,
-            pubDate: e.entry.pubDate,
-            timestamp: new Date(e.entry.pubDate).getTime()
-          }))
-        );
-        
-        // Get the date of the newest entry
-        if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
-          const candidateDate = new Date(sortedEntries[0].entry.pubDate);
-          const currentTime = Date.now();
+        if (currentEntries.length > 0) {
+          // Sort by publication date in descending order to find the newest
+          const sortedEntries = [...currentEntries].sort((a, b) => {
+            const dateA = new Date(a.entry.pubDate).getTime();
+            const dateB = new Date(b.entry.pubDate).getTime();
+            return dateB - dateA; // Newest first
+          });
           
-          logger.debug(`🔍 CLIENT: Selected newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
-          
-          // Validate that the date is not in the future (no buffer - exact comparison)
-          if (candidateDate.getTime() <= currentTime) {
-            newestEntryDate = candidateDate.toISOString();
-            logger.debug(`Found valid newest entry date: ${newestEntryDate}`);
-          } else {
-            // If the newest entry is in the future, use current time instead
-            const futureMs = candidateDate.getTime() - currentTime;
-            logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
-            newestEntryDate = new Date().toISOString();
+          // Get the date of the newest entry
+          if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
+            const candidateDate = new Date(sortedEntries[0].entry.pubDate);
+            const currentTime = Date.now();
+            
+            // Validate that the date is not in the future (no buffer - exact comparison)
+            if (candidateDate.getTime() <= currentTime) {
+              newestEntryDate = candidateDate.toISOString();
+              logger.debug(`📅 Fallback: Found valid newest entry date: ${newestEntryDate} from "${sortedEntries[0].entry.title}"`);
+            } else {
+              // If the newest entry is in the future, use current time instead
+              const futureMs = candidateDate.getTime() - currentTime;
+              logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
+              newestEntryDate = new Date().toISOString();
+            }
           }
         }
+      } catch (error) {
+        logger.error('Error determining newest entry date:', error);
+        // Continue without the newest date - better than not refreshing
       }
-    } catch (error) {
-      logger.error('Error determining newest entry date:', error);
-      // Continue without the newest date - better than not refreshing
     }
     
     setIsRefreshing(true);
