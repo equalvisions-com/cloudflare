@@ -493,28 +493,30 @@ async function getNewEntriesExcludingGuids(
     }
     
     // This is where we'll add the chronological filter
-    // IMPORTANT: Only apply chronological filtering if feeds were recently refreshed
-    // If feeds were stale for a long time (>1 hour), we want to show older entries that are new to the database
+    // IMPORTANT: Always respect chronological order, but be more lenient for very stale feeds
     const oldestLastFetchedTime = Math.min(...feeds.map(feed => Number(feed.last_fetched)));
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     const feedsWereVeryStale = oldestLastFetchedTime < oneHourAgo;
     
-    if (newestTimestamp && filteredEntries.length > 0 && !feedsWereVeryStale) {
-      // Only apply chronological filter if feeds were recently refreshed
-      // This prevents filtering out older entries when feeds have been stale for a long time
+    if (newestTimestamp && filteredEntries.length > 0) {
+      // For very stale feeds, allow a small buffer (5 minutes) to account for timing differences
+      // For recent feeds, use strict chronological filtering
+      const timeBuffer = feedsWereVeryStale ? (5 * 60 * 1000) : 0; // 5 minutes for stale feeds, 0 for recent
+      const effectiveNewestTimestamp = newestTimestamp - timeBuffer;
+      
       const chronologicalEntries = filteredEntries.filter(entry => {
         const entryDate = new Date(entry.pub_date).getTime();
-        return entryDate > newestTimestamp!;
+        return entryDate > effectiveNewestTimestamp;
       });
       
       if (chronologicalEntries.length !== filteredEntries.length) {
-        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries (filtered out ${filteredEntries.length - chronologicalEntries.length} entries older than ${new Date(newestTimestamp).toISOString()})`);
+        const bufferNote = feedsWereVeryStale ? ` (with 5min buffer for stale feeds)` : '';
+        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries (filtered out ${filteredEntries.length - chronologicalEntries.length} entries older than ${new Date(effectiveNewestTimestamp).toISOString()}${bufferNote})`);
         filteredEntries = chronologicalEntries;
       } else {
-        devLog(`🔄 SERVERLESS: Chronological filter: No entries filtered out (all ${filteredEntries.length} entries are newer than ${new Date(newestTimestamp).toISOString()})`);
+        const bufferNote = feedsWereVeryStale ? ` (with 5min buffer)` : '';
+        devLog(`🔄 SERVERLESS: Chronological filter: No entries filtered out (all ${filteredEntries.length} entries are newer than ${new Date(effectiveNewestTimestamp).toISOString()}${bufferNote})`);
       }
-    } else if (newestTimestamp && feedsWereVeryStale) {
-      devLog(`🔄 SERVERLESS: Chronological filter SKIPPED: feeds were very stale (oldest: ${new Date(oldestLastFetchedTime).toISOString()}), showing older entries that are new to database`);
     } else if (newestTimestamp) {
       devLog(`🔄 SERVERLESS: Chronological filter skipped: no filteredEntries (${filteredEntries.length})`);
     } else {
