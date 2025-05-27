@@ -989,48 +989,20 @@ const RSSEntriesClientComponent = ({
     // CRITICAL: Capture the newest entry date from initial data BEFORE any refresh
     // This ensures we have a baseline that doesn't include refresh results
     if (initialData.entries.length > 0) {
-      console.log('🔥 INIT: About to capture pre-refresh newest entry date');
-      console.log('🔥 INIT: initialData.entries.length =', initialData.entries.length);
-      console.log('🔥 INIT: Sample entries:', initialData.entries.slice(0, 5).map(e => ({
-        title: e.entry.title,
-        pubDate: e.entry.pubDate,
-        guid: e.entry.guid
-      })));
-      
       const sortedInitialEntries = [...initialData.entries].sort((a, b) => {
         const dateA = parseEntryDate(a.entry.pubDate).getTime();
         const dateB = parseEntryDate(b.entry.pubDate).getTime();
         return dateB - dateA; // Newest first
       });
       
-      console.log('🔥 INIT: After sorting, top 3 entries:', sortedInitialEntries.slice(0, 3).map(e => ({
-        title: e.entry.title,
-        pubDate: e.entry.pubDate,
-        timestamp: parseEntryDate(e.entry.pubDate).getTime()
-      })));
-      
       if (sortedInitialEntries[0]?.entry.pubDate) {
         const newestInitialDate = parseEntryDate(sortedInitialEntries[0].entry.pubDate);
-        console.log('🔥 INIT: Newest entry candidate:', {
-          title: sortedInitialEntries[0].entry.title,
-          pubDate: sortedInitialEntries[0].entry.pubDate,
-          timestamp: newestInitialDate.getTime(),
-          currentTime: Date.now(),
-          isValid: !isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()
-        });
         
         if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
           preRefreshNewestEntryDateRef.current = formatDateForAPI(newestInitialDate);
-          console.log('🔥 INIT: SET preRefreshNewestEntryDateRef.current =', preRefreshNewestEntryDateRef.current);
           logger.debug(`📅 CAPTURED pre-refresh newest entry date: ${preRefreshNewestEntryDateRef.current} from entry: "${sortedInitialEntries[0].entry.title}"`);
-        } else {
-          console.log('🔥 INIT: Invalid date, not setting preRefreshNewestEntryDateRef');
         }
-      } else {
-        console.log('🔥 INIT: No pubDate found in top entry');
       }
-    } else {
-      console.log('🔥 INIT: No initial entries to process');
     }
     
     // Cache all feed metadata from initial entries for consistent rendering
@@ -1360,9 +1332,9 @@ const RSSEntriesClientComponent = ({
       return;
     }
     
-    logger.debug(`🔄 SERVERLESS: handleNewEntries called with ${entries.length} entries`);
-    logger.debug(`🔄 SERVERLESS: Current entries count before update: ${entriesStateRef.current.length}`);
-    logger.debug(`🔄 SERVERLESS: Component mounted: ${isMountedRef.current}`);
+    logger.debug(`🔄 handleNewEntries called with ${entries.length} entries`);
+    logger.debug(`🔄 Current entries count before update: ${entriesStateRef.current.length}`);
+    logger.debug(`🔄 Component mounted: ${isMountedRef.current}`);
     
     try {
       // Get current entries from ref for consistency
@@ -1375,11 +1347,11 @@ const RSSEntriesClientComponent = ({
       const uniqueNewEntries = entries.filter(entry => !existingGuids.has(entry.entry.guid));
       
       if (uniqueNewEntries.length === 0) {
-        logger.debug('🔄 SERVERLESS: No unique new entries to show after filtering');
+        logger.debug('No unique new entries to show after filtering');
         return;
       }
       
-      logger.debug(`🔄 SERVERLESS: Found ${uniqueNewEntries.length} unique new entries after deduplication`);
+      logger.debug(`🔄 Found ${uniqueNewEntries.length} unique new entries after deduplication`);
       
       // Sort new entries by publication date in descending order (newest first)
       // This ensures proper chronological ordering across all RSS feeds
@@ -1389,7 +1361,7 @@ const RSSEntriesClientComponent = ({
         return dateB - dateA; // Descending order (newest first)
       });
       
-      logger.debug(`🔄 SERVERLESS: Prepending ${sortedNewEntries.length} chronologically sorted entries to ${currentEntries.length} existing entries`);
+      logger.debug(`🔄 Prepending ${sortedNewEntries.length} chronologically sorted entries to ${currentEntries.length} existing entries`);
       
       // Save the count for notification
       setNotificationCount(sortedNewEntries.length);
@@ -1407,65 +1379,51 @@ const RSSEntriesClientComponent = ({
       
       // Show notification
       setShowNotification(true);
-      logger.debug(`🔄 SERVERLESS: Notification set to show with count: ${sortedNewEntries.length}`);
+      logger.debug(`🔄 Notification set to show with count: ${sortedNewEntries.length}`);
       
       // Prepend sorted new entries to the existing ones using our update function to keep refs in sync
       const newEntriesArray = [...sortedNewEntries, ...currentEntries];
-      logger.debug(`🔄 SERVERLESS: About to update entries state with ${newEntriesArray.length} total entries`);
+      logger.debug(`🔄 About to update entries state with ${newEntriesArray.length} total entries`);
       
       updateEntriesState(newEntriesArray);
       
-      logger.debug(`🔄 SERVERLESS: Entries state updated. New total: ${newEntriesArray.length}`);
+      logger.debug(`🔄 Entries state updated. New total: ${newEntriesArray.length}`);
       
       // Set a timer to hide the notification after a few seconds
       setTimeout(() => {
         if (isMountedRef.current) {
         setShowNotification(false);
-          logger.debug(`🔄 SERVERLESS: Notification hidden after timeout`);
+          logger.debug(`🔄 Notification hidden after timeout`);
         }
       }, 5000);
       
     } catch (error) {
-      logger.error('🔄 SERVERLESS: Error handling new entries:', error);
+      logger.error('🔄 Error handling new entries:', error);
     }
   }, [updateEntriesState]);
 
   // Update the effect that processes new entries
   useEffect(() => {
-    logger.debug(`🔄 SERVERLESS: useEffect for newEntries triggered. Length: ${newEntries.length}`);
+    logger.debug(`🔄 useEffect for newEntries triggered. Length: ${newEntries.length}`);
     
     // When new entries are received, handle them automatically
     if (newEntries.length > 0) {
-      logger.debug(`🔄 SERVERLESS: Processing ${newEntries.length} new entries via useEffect`);
+      logger.debug(`🔄 Processing ${newEntries.length} new entries via useEffect`);
       handleNewEntries(newEntries);
       setNewEntries([]); // Clear after handling
-      logger.debug(`🔄 SERVERLESS: Cleared newEntries state after processing`);
+      logger.debug(`🔄 Cleared newEntries state after processing`);
     } else {
-      logger.debug(`🔄 SERVERLESS: No new entries to process in useEffect`);
+      logger.debug(`🔄 No new entries to process in useEffect`);
     }
   }, [newEntries, handleNewEntries]);
   
   // Add function to trigger one-time background refresh
   const triggerOneTimeRefresh = useCallback(async () => {
-    // DEBUGGING: Test if this function is being called
-    console.log('🔥 TRIGGER REFRESH: Function called');
-    logger.debug('🔥 TRIGGER REFRESH: Function called via logger');
-    
-    // DEBUGGING: Show current state
-    console.log('🔥 TRIGGER REFRESH: State check', {
-      isRefreshing,
-      hasRefreshed,
-      willSkip: isRefreshing || hasRefreshed
-    });
-    
     // Don't refresh if we've already refreshed or are currently refreshing
     if (isRefreshing || hasRefreshed) {
-      console.log('🔥 TRIGGER REFRESH: Skipping refresh - already refreshed or currently refreshing');
       logger.debug('Skipping refresh: already refreshed or currently refreshing');
       return;
     }
-    
-    console.log('🔥 TRIGGER REFRESH: Proceeding with refresh logic');
     
     // Use ONLY the server-provided complete list from our state
     // This is the most reliable source of truth for ALL followed feeds
@@ -1476,9 +1434,6 @@ const RSSEntriesClientComponent = ({
     
     // Ensure we pass the server-provided mediaTypes - use the ref to ensure persistence
     const currentMediaTypes = mediaTypesRef.current || [];
-    
-    console.log('🔥 TRIGGER REFRESH: About to calculate newest entry date');
-    console.log('🔥 TRIGGER REFRESH: preRefreshNewestEntryDateRef.current =', preRefreshNewestEntryDateRef.current);
     
     logger.debug(`🔄 Refreshing using server-provided data:
     - Post titles: ${currentPostTitles.length}
@@ -1493,12 +1448,9 @@ const RSSEntriesClientComponent = ({
     // This prevents using entries that were just inserted during previous refresh cycles
     if (preRefreshNewestEntryDateRef.current) {
       newestEntryDate = preRefreshNewestEntryDateRef.current;
-      console.log('🔥 TRIGGER REFRESH: Using pre-refresh date:', newestEntryDate);
       logger.debug(`📅 Using pre-refresh newest entry date: ${newestEntryDate}`);
     } else {
       // Fallback: Only use current state entries, not initial data, to avoid stale data
-      console.log('🔥 TRIGGER REFRESH: No pre-refresh date, calculating from current state');
-      console.log('🔥 TRIGGER REFRESH: entriesStateRef.current.length =', entriesStateRef.current.length);
       logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
       logger.debug(`📅 Current state has ${entriesStateRef.current.length} entries`);
       logger.debug(`📅 Sample current entries:`, entriesStateRef.current.slice(0, 3).map(e => ({
@@ -1511,19 +1463,12 @@ const RSSEntriesClientComponent = ({
         // Only use entries from current state, not initial data
         const currentEntries = entriesStateRef.current;
         
-        console.log('🔥 TRIGGER REFRESH: currentEntries.length =', currentEntries.length);
-        
         if (currentEntries.length > 0) {
           // Sort by publication date in descending order to find the newest
           const sortedEntries = [...currentEntries].sort((a, b) => {
             const dateA = parseEntryDate(a.entry.pubDate).getTime();
             const dateB = parseEntryDate(b.entry.pubDate).getTime();
             return dateB - dateA; // Newest first
-          });
-          
-          console.log('🔥 TRIGGER REFRESH: After sorting, top entry:', {
-            title: sortedEntries[0]?.entry.title,
-            pubDate: sortedEntries[0]?.entry.pubDate
           });
           
           logger.debug(`📅 Top 3 entries after sorting:`, sortedEntries.slice(0, 3).map(e => ({
@@ -1537,39 +1482,29 @@ const RSSEntriesClientComponent = ({
             const candidateDate = parseEntryDate(sortedEntries[0].entry.pubDate);
             const currentTime = Date.now();
             
-            console.log('🔥 TRIGGER REFRESH: candidateDate =', candidateDate.toISOString());
-            console.log('🔥 TRIGGER REFRESH: currentTime =', new Date(currentTime).toISOString());
-            console.log('🔥 TRIGGER REFRESH: candidateDate <= currentTime =', candidateDate.getTime() <= currentTime);
-            
             logger.debug(`📅 Candidate newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
             
             // Validate that the date is not in the future (no buffer - exact comparison)
             if (candidateDate.getTime() <= currentTime) {
               newestEntryDate = formatDateForAPI(candidateDate);
-              console.log('🔥 TRIGGER REFRESH: Set newestEntryDate to:', newestEntryDate);
               logger.debug(`📅 Fallback: Found valid newest entry date: ${newestEntryDate} from "${sortedEntries[0].entry.title}"`);
             } else {
               // If the newest entry is in the future, use current time instead
               const futureMs = candidateDate.getTime() - currentTime;
-              console.log('🔥 TRIGGER REFRESH: Entry is in future, using current time');
               logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
               newestEntryDate = formatDateForAPI(new Date());
             }
           }
         } else {
-          console.log('🔥 TRIGGER REFRESH: No current entries available');
           logger.debug(`📅 No current entries available for newest date calculation`);
         }
       } catch (error) {
-        console.log('🔥 TRIGGER REFRESH: Error in date calculation:', error);
         logger.error('Error determining newest entry date:', error);
         // Continue without the newest date - better than not refreshing
       }
     }
     
     logger.debug(`📅 FINAL: Will send newestEntryDate: ${newestEntryDate} to refresh API`);
-    
-    console.log('🔥 TRIGGER REFRESH: FINAL newestEntryDate =', newestEntryDate);
     
     setIsRefreshing(true);
     setRefreshError(null);
@@ -1601,7 +1536,7 @@ const RSSEntriesClientComponent = ({
       const data = await response.json();
       
       // SERVERLESS FIX: Add comprehensive logging of the response
-      logger.debug(`🔄 SERVERLESS: Refresh API response:`, {
+      logger.debug(`🔄 Refresh API response:`, {
         success: data.success,
         refreshedAny: data.refreshedAny,
         entriesCount: data.entries?.length || 0,
@@ -1631,9 +1566,9 @@ const RSSEntriesClientComponent = ({
           logger.debug(`✅ Successfully refreshed feeds, found ${data.newEntriesCount} truly new entries`);
           
           if (data.entries && data.entries.length > 0) {
-            // SERVERLESS FIX: Add more robust logging and validation for serverless environments
-            logger.debug(`🔄 SERVERLESS: Processing ${data.entries.length} new entries from refresh response`);
-            logger.debug(`🔄 SERVERLESS: Entry sample:`, data.entries[0]);
+            // Add more robust logging and validation for serverless environments
+            logger.debug(`🔄 Processing ${data.entries.length} new entries from refresh response`);
+            logger.debug(`🔄 Entry sample:`, data.entries[0]);
             
             // Validate that entries have the expected structure
             const validEntries = data.entries.filter((entry: any) => {
@@ -1644,19 +1579,19 @@ const RSSEntriesClientComponent = ({
                              entry.postMetadata;
               
               if (!isValid) {
-                logger.warn(`🔄 SERVERLESS: Invalid entry structure:`, entry);
+                logger.warn(`🔄 Invalid entry structure:`, entry);
               }
               
               return isValid;
             });
             
             if (validEntries.length > 0) {
-              logger.debug(`🔄 SERVERLESS: Setting ${validEntries.length} valid new entries to state`);
+              logger.debug(`🔄 Setting ${validEntries.length} valid new entries to state`);
               
               // Force a state update by using a functional update
               setNewEntries(prevNewEntries => {
-                logger.debug(`🔄 SERVERLESS: Previous newEntries length: ${prevNewEntries.length}`);
-                logger.debug(`🔄 SERVERLESS: Setting new entries length: ${validEntries.length}`);
+                logger.debug(`🔄 Previous newEntries length: ${prevNewEntries.length}`);
+                logger.debug(`🔄 Setting new entries length: ${validEntries.length}`);
                 return validEntries;
               });
               
@@ -1664,13 +1599,13 @@ const RSSEntriesClientComponent = ({
               // This ensures the entries get processed even if the useEffect doesn't fire properly
               setTimeout(() => {
                 if (isMountedRef.current) {
-                  logger.debug(`🔄 SERVERLESS: Fallback - directly calling handleNewEntries with ${validEntries.length} entries`);
+                  logger.debug(`🔄 Fallback - directly calling handleNewEntries with ${validEntries.length} entries`);
                   handleNewEntries(validEntries);
                 }
               }, 100); // Small delay to allow state to settle
               
             } else {
-              logger.warn(`🔄 SERVERLESS: No valid entries found after validation`);
+              logger.warn(`🔄 No valid entries found after validation`);
             }
           } else {
             logger.debug('No new entries found after refresh');

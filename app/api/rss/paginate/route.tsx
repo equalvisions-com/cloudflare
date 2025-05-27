@@ -38,12 +38,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Get feed URLs from query params, if available
     const feedUrlsParam = searchParams.get('feedUrls');
     
-    console.log(`📡 API: /api/rss/paginate called with page=${page}, pageSize=${pageSize}`);
-    
-    if (currentEntriesCount !== null) {
-      console.log(`📊 API: Client has ${currentEntriesCount} entries, using as offset for pagination`);
-    }
-    
     if (!postTitlesParam && !feedUrlsParam) {
       console.error('❌ API: Either post titles or feed URLs are required');
       return NextResponse.json(
@@ -66,7 +60,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
-      console.log(`📋 API: Post titles: ${postTitles.join(', ')}`);
     }
     
     // Parse feed URLs if provided
@@ -84,17 +77,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
-      console.log(`🔗 API: Feed URLs: ${feedUrls.length} URLs provided`);
     }
     
     if (postTitles.length === 0 && feedUrls.length === 0) {
-      console.warn('⚠️ API: No post titles or feed URLs provided');
       return NextResponse.json({ entries: [], hasMore: false, totalEntries: 0, postTitles: [] });
     }
 
     // Skip refresh checks for all pages - the dedicated refresh-feeds endpoint now handles
     // creating and refreshing feeds. This makes pagination much faster and smoother.
-    console.log(`⏩ API: Skipping feed refresh check - the refresh-feeds endpoint handles refreshing`);
     
     // CRITICAL FIX: Calculate offset based on current entries count if available
     // This prevents duplication when new entries are added to the top of the feed
@@ -102,11 +92,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (currentEntriesCount !== null && currentEntriesCount > 0) {
       // Use the current entries count as the offset to get the next batch
       offset = currentEntriesCount;
-      console.log(`📊 API: Using current entries count as offset: ${offset}`);
     } else {
       // Fallback to traditional page-based offset calculation
       offset = (page - 1) * pageSize;
-      console.log(`📊 API: Using traditional page-based offset: ${offset} (page ${page})`);
     }
     
     // Build SQL query based on whether we have titles, URLs, or both
@@ -160,7 +148,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     // If no feed IDs were found, return empty result early
     if (feedIds.length === 0) {
-      console.log('No matching feeds found for the provided titles or URLs');
       return NextResponse.json({
         entries: [],
         hasMore: false,
@@ -169,8 +156,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         feedUrls
       });
     }
-    
-    console.log(`🔍 API: Found ${feedIds.length} matching feeds`);
     
     // Step 2: Use the feed IDs to query entries efficiently
     // Create placeholders for the feed IDs
@@ -195,8 +180,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     // Only fetch count if we don't have the cached value and it's the first page or cached value is null
     if (cachedTotalEntries === null) {
-      console.log('🔢 API: Fetching total count of entries');
-      
       // Build the count query using feed IDs for better performance
       const countQuery = `
         SELECT COUNT(e.id) as total
@@ -207,11 +190,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Execute count query with feed IDs
       const countResult = await executeRead(countQuery, feedIds);
       totalEntries = Number((countResult.rows[0] as { total: number }).total);
-      console.log(`🔢 API: Found ${totalEntries} total entries across ${feedIds.length} feeds (from database)`);
     } else {
       // Use the cached total entries value
       totalEntries = cachedTotalEntries;
-      console.log(`🔢 API: Using cached total count: ${totalEntries} entries`);
     }
     
     // Execute entries query with feed IDs
@@ -220,7 +201,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Log query execution time
     const queryEndTime = performance.now();
     const queryDuration = queryEndTime - queryStartTime;
-    console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
     
     const entries = entriesResult.rows as JoinedRSSEntry[];
     
@@ -229,8 +209,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (cachedTotalEntries !== null && 
         ((offset >= totalEntries && entries.length > 0) || 
          (totalEntries <= offset + entries.length && entries.length === pageSize))) {
-      
-      console.log(`⚠️ API: Count inconsistency detected! Cached count (${totalEntries}) but found ${entries.length} entries at offset ${offset}`);
       
       // Force recalculation of the total count using feed IDs
       const recountQuery = `
@@ -242,12 +220,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const countResult = await executeRead(recountQuery, feedIds);
       const recalculatedTotal = Number((countResult.rows[0] as { total: number }).total);
       
-      console.log(`🔄 API: Recalculated total entries: ${recalculatedTotal} (was ${totalEntries})`);
       totalEntries = recalculatedTotal;
     }
-    
-    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
-    console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
     // Map the entries to the expected format
     const mappedEntries: RSSItem[] = entries.map(entry => ({
@@ -267,8 +241,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // then we definitely have more entries
     const hasMore = entries.length === pageSize && 
                     totalEntries > (offset + entries.length);
-    
-    console.log(`🚀 API: Returning ${mappedEntries.length} merged entries for page ${page} (total: ${totalEntries}, hasMore: ${hasMore})`);
     
     // Prepare the response data
     const responseData = {
