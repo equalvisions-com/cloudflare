@@ -70,6 +70,21 @@ const parseEntryDate = (dateString: string | Date): Date => {
   return new Date(dateString);
 };
 
+// Helper function to format dates back to MySQL format without timezone conversion
+const formatDateForAPI = (date: Date): string => {
+  // Format as YYYY-MM-DDTHH:MM:SS.sssZ but preserve the original timezone intent
+  // Since our database stores EST times, we need to format without UTC conversion
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  // Return in ISO format but using local time components (no UTC conversion)
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+};
+
 interface RSSEntryWithData {
   entry: RSSItem;
   initialData: {
@@ -1005,7 +1020,7 @@ const RSSEntriesClientComponent = ({
         });
         
         if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
-          preRefreshNewestEntryDateRef.current = newestInitialDate.toISOString();
+          preRefreshNewestEntryDateRef.current = formatDateForAPI(newestInitialDate);
           console.log('🔥 INIT: SET preRefreshNewestEntryDateRef.current =', preRefreshNewestEntryDateRef.current);
           logger.debug(`📅 CAPTURED pre-refresh newest entry date: ${preRefreshNewestEntryDateRef.current} from entry: "${sortedInitialEntries[0].entry.title}"`);
         } else {
@@ -1530,7 +1545,7 @@ const RSSEntriesClientComponent = ({
             
             // Validate that the date is not in the future (no buffer - exact comparison)
             if (candidateDate.getTime() <= currentTime) {
-              newestEntryDate = candidateDate.toISOString();
+              newestEntryDate = formatDateForAPI(candidateDate);
               console.log('🔥 TRIGGER REFRESH: Set newestEntryDate to:', newestEntryDate);
               logger.debug(`📅 Fallback: Found valid newest entry date: ${newestEntryDate} from "${sortedEntries[0].entry.title}"`);
             } else {
@@ -1538,7 +1553,7 @@ const RSSEntriesClientComponent = ({
               const futureMs = candidateDate.getTime() - currentTime;
               console.log('🔥 TRIGGER REFRESH: Entry is in future, using current time');
               logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
-              newestEntryDate = new Date().toISOString();
+              newestEntryDate = formatDateForAPI(new Date());
             }
           }
         } else {
