@@ -1405,6 +1405,17 @@ const RSSEntriesClientComponent = ({
         ...(initialData?.entries || [])
       ];
       
+      // Debug: Log what entries we're considering
+      logger.debug(`🔍 CLIENT: Finding newest entry from ${allAvailableEntries.length} total entries:`, {
+        fromState: entriesStateRef.current.length,
+        fromInitialData: initialData?.entries?.length || 0,
+        sampleEntries: allAvailableEntries.slice(0, 5).map(e => ({
+          title: e.entry.title,
+          pubDate: e.entry.pubDate,
+          guid: e.entry.guid
+        }))
+      });
+      
       if (allAvailableEntries.length > 0) {
         // Sort by publication date in descending order to find the newest
         const sortedEntries = [...allAvailableEntries].sort((a, b) => {
@@ -1413,10 +1424,21 @@ const RSSEntriesClientComponent = ({
           return dateB - dateA; // Newest first
         });
         
+        // Debug: Log the top 3 entries after sorting
+        logger.debug(`🔍 CLIENT: Top 3 entries after sorting by pubDate:`, 
+          sortedEntries.slice(0, 3).map(e => ({
+            title: e.entry.title,
+            pubDate: e.entry.pubDate,
+            timestamp: new Date(e.entry.pubDate).getTime()
+          }))
+        );
+        
         // Get the date of the newest entry
         if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
           const candidateDate = new Date(sortedEntries[0].entry.pubDate);
           const currentTime = Date.now();
+          
+          logger.debug(`🔍 CLIENT: Selected newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
           
           // Validate that the date is not in the future (no buffer - exact comparison)
           if (candidateDate.getTime() <= currentTime) {
