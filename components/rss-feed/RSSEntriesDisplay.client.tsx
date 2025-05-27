@@ -1427,6 +1427,12 @@ const RSSEntriesClientComponent = ({
     } else {
       // Fallback: Only use current state entries (not initial data) to avoid stale data
       logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
+      logger.debug(`📅 Current state has ${entriesStateRef.current.length} entries`);
+      logger.debug(`📅 Sample current entries:`, entriesStateRef.current.slice(0, 3).map(e => ({
+        title: e.entry.title,
+        pubDate: e.entry.pubDate,
+        guid: e.entry.guid
+      })));
       
       try {
         // Only use entries from current state, not initial data
@@ -1440,10 +1446,18 @@ const RSSEntriesClientComponent = ({
             return dateB - dateA; // Newest first
           });
           
+          logger.debug(`📅 Top 3 entries after sorting:`, sortedEntries.slice(0, 3).map(e => ({
+            title: e.entry.title,
+            pubDate: e.entry.pubDate,
+            timestamp: new Date(e.entry.pubDate).getTime()
+          })));
+          
           // Get the date of the newest entry
           if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
             const candidateDate = new Date(sortedEntries[0].entry.pubDate);
             const currentTime = Date.now();
+            
+            logger.debug(`📅 Candidate newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
             
             // Validate that the date is not in the future (no buffer - exact comparison)
             if (candidateDate.getTime() <= currentTime) {
@@ -1456,12 +1470,16 @@ const RSSEntriesClientComponent = ({
               newestEntryDate = new Date().toISOString();
             }
           }
+        } else {
+          logger.debug(`📅 No current entries available for newest date calculation`);
         }
       } catch (error) {
         logger.error('Error determining newest entry date:', error);
         // Continue without the newest date - better than not refreshing
       }
     }
+    
+    logger.debug(`📅 FINAL: Will send newestEntryDate: ${newestEntryDate} to refresh API`);
     
     setIsRefreshing(true);
     setRefreshError(null);
