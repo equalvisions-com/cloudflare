@@ -1,9 +1,9 @@
-import { checkAndRefreshFeeds } from "@/lib/rss.server";
-import { executeRead } from "@/lib/database";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { executeRead } from '@/lib/database';
+import { checkAndRefreshFeeds } from '@/lib/rss.server';
 
 // Add Edge Runtime configuration
 export const runtime = 'edge';
@@ -24,7 +24,7 @@ const devLog = (message: string, data?: unknown) => {
   // }
 };
 
-// Helper function to log errors in both environments
+// Helper function to log errors
 const errorLog = (message: string, error?: unknown) => {
   if (error) {
     console.error(message, error);
@@ -35,115 +35,58 @@ const errorLog = (message: string, error?: unknown) => {
 
 export async function POST(request: Request) {
   try {
-    const { postTitles, feedUrls, mediaTypes, existingGuids = [], newestEntryDate } = await request.json();
-    
-    // More detailed logging of inputs
+    const body = await request.json();
+    const { postTitles, feedUrls, mediaTypes, existingGuids = [], newestEntryDate } = body;
+
     devLog('📥 API: Received refresh request with', {
       postTitlesCount: postTitles?.length || 0,
       feedUrlsCount: feedUrls?.length || 0,
       mediaTypesCount: mediaTypes?.length || 0,
       existingGuidsCount: existingGuids?.length || 0,
-      newestEntryDate: newestEntryDate || 'Not provided'
+      newestEntryDate
     });
-    
-    // Validate that at least one of postTitles or feedUrls is provided
-    if ((!postTitles || !Array.isArray(postTitles) || postTitles.length === 0) &&
-        (!feedUrls || !Array.isArray(feedUrls) || feedUrls.length === 0)) {
-      errorLog('❌ API: Both postTitles and feedUrls arrays are missing or empty');
-      return NextResponse.json(
-        { success: false, error: 'Invalid input: Either postTitles or feedUrls must be provided and cannot be empty' },
-        { status: 400 }
-      );
+
+    // Validate input
+    if (!postTitles || !Array.isArray(postTitles) || postTitles.length === 0) {
+      return Response.json({ success: false, error: 'Invalid postTitles' }, { status: 400 });
     }
-    
-    // Get authentication token
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+
+    if (!feedUrls || !Array.isArray(feedUrls) || feedUrls.length === 0) {
+      return Response.json({ success: false, error: 'Invalid feedUrls' }, { status: 400 });
     }
+
+    if (postTitles.length !== feedUrls.length) {
+      return Response.json({ success: false, error: 'postTitles and feedUrls arrays must have the same length' }, { status: 400 });
+    }
+
+    // Normalize arrays to ensure consistent data
+    const normalizedPostTitles = postTitles.map((title: string) => String(title).trim());
+    const normalizedFeedUrls = feedUrls.map((url: string) => String(url).trim());
+    const normalizedMediaTypesArray = mediaTypes ? mediaTypes.map((type: string) => String(type).trim()) : [];
+
+    // Check which feeds need refreshing (older than 4 hours)
+    const staleFeedTitles = await checkFeedsNeedingRefresh(normalizedPostTitles);
     
-    // Normalize the arrays to ensure they have matching lengths
-    // Remove duplicates from feedUrls and mediaTypes
-    const uniqueFeedUrls = feedUrls ? [...new Set(feedUrls)] : [];
-    const uniqueMediaTypes = mediaTypes && Array.isArray(mediaTypes) ? [...mediaTypes] : [];
-    
-    // Log the mediaTypes we received in the request
-    devLog('📊 API: Received mediaTypes array:', {
-      mediaTypesInRequest: mediaTypes, 
-      uniqueMediaTypes,
-      count: uniqueMediaTypes.length
-    });
-    
-    // Ensure we have valid postTitles and feedUrls arrays
-    let normalizedPostTitles = postTitles && postTitles.length > 0 ? postTitles : [];
-    
-    // If we have postTitles but no feedUrls, or if feedUrls is shorter than postTitles,
-    // we'll need to handle this special case
-    let normalizedFeedUrls: string[] = [];
-    // Use a more specific type that accepts both string and null
-    let normalizedMediaTypesArray: Array<string | null> = [];
-    
-    if (normalizedPostTitles.length > 0) {
-      // Case 1: We have postTitles, derive normalized arrays from them
-      normalizedMediaTypesArray = normalizedPostTitles.map((title: string, index: number) => {
-        // Preserve original mediaType if available
-        return index < uniqueMediaTypes.length ? uniqueMediaTypes[index] : null;
-      });
-      
-      if (uniqueFeedUrls.length > 0) {
-        // If we have both postTitles and feedUrls, match them
-        normalizedFeedUrls = normalizedPostTitles.map((title: string, index: number) => {
-          return uniqueFeedUrls[index % uniqueFeedUrls.length] || '';
-        });
-      } else {
-        // If we only have postTitles but no feedUrls, create empty placeholders
-        normalizedFeedUrls = normalizedPostTitles.map(() => '');
-      }
-    } else if (uniqueFeedUrls.length > 0) {
-      // Case 2: We only have feedUrls, derive normalized arrays from them
-      normalizedPostTitles = (uniqueFeedUrls as string[]).map((url: string) => {
-        // Extract a title from the URL if possible, otherwise use the URL
-        try {
-          const urlObj = new URL(url);
-          return urlObj.hostname.replace(/^www\./, '');
-        } catch (e) {
-          // If URL parsing fails, just use the string itself
-          return url;
-        }
-      });
-      
-      normalizedFeedUrls = uniqueFeedUrls as string[];
-      
-      normalizedMediaTypesArray = (uniqueFeedUrls as string[]).map((url: string, index: number) => {
-        // Preserve original mediaType if available
-        return uniqueMediaTypes.length > index ? uniqueMediaTypes[index] : null;
+    if (staleFeedTitles.length === 0) {
+      devLog('✅ API: All feeds are up to date, no refresh needed');
+      return Response.json({ 
+        success: true, 
+        refreshedAny: false,
+        entries: [],
+        newEntriesCount: 0,
+        totalEntries: 0,
+        postTitles: normalizedPostTitles,
+        refreshTimestamp: new Date().toISOString()
       });
     }
-    
-    devLog('🔄 API: Using normalized arrays...', { 
-      normalizedPostTitles, 
-      normalizedFeedUrls,
-      normalizedMediaTypesArray,
-      originalMediaTypes: uniqueMediaTypes // Log original for comparison
-    });
-    
-    // Get information about which feeds need refreshing (for logging purposes only)
-    // We'll refresh/create feeds regardless of the result
-    const feedsToRefresh = await checkFeedsNeedingRefresh(postTitles);
-    if (feedsToRefresh.length > 0) {
-      devLog(`🔄 API: Found ${feedsToRefresh.length}/${postTitles.length} feeds needing refresh`);
-    } else {
-      devLog('⏭️ API: All existing feeds were refreshed within the last 4 hours');
-    }
-    
+
+    devLog(`Found ${staleFeedTitles.length} stale feeds that need refreshing:`, staleFeedTitles);
+
     let refreshedAny = false;
-    
+
     // Check if any feeds are new (don't exist yet)
-    const allExistingFeeds = await getAllExistingFeeds(postTitles);
-    const newFeeds = postTitles.filter((title: string) => !allExistingFeeds.includes(title));
+    const allExistingFeeds = await getAllExistingFeeds(normalizedPostTitles);
+    const newFeeds = normalizedPostTitles.filter((title: string) => !allExistingFeeds.includes(title));
     
     if (newFeeds.length > 0) {
       devLog(`🆕 API: Found ${newFeeds.length} new feeds to create: ${newFeeds.join(', ')}`);
@@ -151,162 +94,133 @@ export async function POST(request: Request) {
     }
     
     // Only consider it a refresh if we have new feeds or some feeds need refreshing
-    if (feedsToRefresh.length > 0 || newFeeds.length > 0) {
+    if (staleFeedTitles.length > 0 || newFeeds.length > 0) {
       // Always call checkAndRefreshFeeds to both refresh existing feeds AND create new ones
       devLog(`🔄 API: Checking and refreshing feeds, will create missing ones if needed`);
       
       // Convert array to all strings (replacing null with undefined) to match function signature
-      const stringMediaTypes = normalizedMediaTypesArray.map(mt => mt === null ? undefined : mt) as string[] | undefined;
+      const stringMediaTypes = normalizedMediaTypesArray.map((mt: any) => mt === null ? undefined : mt) as string[] | undefined;
       
-      await checkAndRefreshFeeds(postTitles, normalizedFeedUrls, stringMediaTypes);
+      await checkAndRefreshFeeds(normalizedPostTitles, normalizedFeedUrls, stringMediaTypes);
       refreshedAny = true;
     } else {
       devLog('⏭️ API: Skipping refresh - no feeds need refreshing and no new feeds');
     }
-    
-    // Only get new entries if we actually refreshed anything
-    // Define a type for the result of getNewEntriesExcludingGuids
-    interface EntriesResult {
-      entries: Array<{
-        entry: {
-          guid: string;
-          title: string;
-          link: string;
-          pubDate: string;
-          description?: string;
-          content?: string;
-          image?: string;
-          mediaType?: string;
-          feedTitle?: string;
-          feedUrl: string;
-        };
-        initialData: {
-          likes: { isLiked: boolean; count: number };
-          comments: { count: number };
-          retweets?: { isRetweeted: boolean; count: number };
-        };
-        postMetadata: any;
-      }>;
-      totalEntries: number;
-      hasMore: boolean;
-    }
-    
-    // Initialize with proper typing
-    let newEntries: EntriesResult = { entries: [], totalEntries: 0, hasMore: false };
+
+    // Get new entries that were inserted during this refresh cycle
+    let newEntries: any = { entries: [], totalEntries: 0, hasMore: false };
     
     if (refreshedAny) {
-      // Get new entries excluding existing ones and older than newestEntryDate
-      // We only check for new entries if we refreshed something
-      newEntries = await getNewEntriesExcludingGuids(postTitles, existingGuids, newestEntryDate);
+      // Get new entries excluding existing ones
+      newEntries = await getNewEntriesFromRefresh(normalizedPostTitles, existingGuids, newestEntryDate);
       
-      // Log information about new entries by feed
       if (newEntries.entries.length > 0) {
-        // Group entries by feed title for better logging
-        const entriesByFeed = new Map<string, number>();
-        newEntries.entries.forEach(e => {
-          const feedTitle = e.entry.feedTitle || 'Unknown';
-          entriesByFeed.set(feedTitle, (entriesByFeed.get(feedTitle) || 0) + 1);
-        });
-        
-        // Log a summary of entries by feed
-        devLog('📊 API: New entries by feed:');
-        entriesByFeed.forEach((count, feed) => {
-          devLog(`   - ${feed}: ${count} new entries`);
-        });
-        
-        // Sort array for consistent ordering
-        const sortedSummary = Array.from(entriesByFeed.entries())
-          .sort((a, b) => b[1] - a[1]) // Sort by count descending
-          .map(([feed, count]) => `${feed} (${count})`)
-          .join(', ');
-        
-        devLog(`✅ API: Found ${newEntries.entries.length} new entries - ${sortedSummary}`);
+        devLog(`✅ API: Found ${newEntries.entries.length} new entries from refresh`);
       } else {
         devLog('✅ API: No new entries found after refresh');
       }
     } else {
       devLog('⏭️ API: Skipping entry check since no feeds were refreshed or created');
     }
-    
+
     // Return combined result
     const responseData = { 
       success: true, 
       refreshedAny,
       entries: refreshedAny ? newEntries.entries : [],
       newEntriesCount: refreshedAny ? newEntries.entries.length : 0,
-      totalEntries: refreshedAny ? newEntries.totalEntries : 0, // Include total entry count for client state update
-      postTitles: normalizedPostTitles, // Include the full list of post titles for client state
+      totalEntries: refreshedAny ? newEntries.totalEntries : 0,
+      postTitles: normalizedPostTitles,
       refreshTimestamp: new Date().toISOString()
     };
     
-    // SERVERLESS DEBUG: Add comprehensive logging of the response
     devLog('🔄 SERVERLESS: Final API response structure:', {
       success: responseData.success,
       refreshedAny: responseData.refreshedAny,
       entriesCount: responseData.entries.length,
       newEntriesCount: responseData.newEntriesCount,
       totalEntries: responseData.totalEntries,
-      postTitlesCount: responseData.postTitles.length,
-      hasEntries: responseData.entries.length > 0,
-      firstEntryGuid: responseData.entries.length > 0 ? responseData.entries[0].entry.guid : 'N/A',
-      firstEntryTitle: responseData.entries.length > 0 ? responseData.entries[0].entry.title : 'N/A'
+      sampleEntry: responseData.entries.length > 0 ? {
+        guid: responseData.entries[0].entry.guid,
+        title: responseData.entries[0].entry.title,
+        feedTitle: responseData.entries[0].entry.feedTitle
+      } : null
     });
     
-    return NextResponse.json(responseData, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+    return Response.json(responseData);
   } catch (error) {
-    errorLog('❌ API: Error refreshing feeds:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to refresh feeds' },
-      { status: 500 }
-    );
+    errorLog('❌ API: Error in refresh-feeds:', error);
+    return Response.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Function to check which feeds need refreshing (older than 4 hours)
+// Helper function to check which feeds need refreshing
 async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]> {
   try {
     if (!postTitles || postTitles.length === 0) {
       return [];
     }
-    
-    // Define how old is "stale" - 4 hours
-    const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
-    
+
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
-    
-    // Query to find which feeds need refreshing
+
+    // Query to find feeds that need refreshing (older than 4 hours)
+    const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
     const query = `
       SELECT title
       FROM rss_feeds
-      WHERE title IN (${placeholders})
-      AND (last_fetched IS NULL OR last_fetched < ?)
+      WHERE title IN (${placeholders}) AND last_fetched < ?
     `;
-    
+
     const result = await executeRead(query, [...postTitles, fourHoursAgo]);
-    
-    // Extract titles of feeds needing refresh
-    const staleFeeds = (result.rows as { title: string }[]).map(row => row.title);
-    
-    devLog(`Found ${staleFeeds.length} stale feeds that need refreshing:`, staleFeeds);
-    
-    return staleFeeds;
+
+    // Extract titles of feeds that need refreshing
+    const staleFeedTitles = (result.rows as { title: string }[]).map(row => row.title);
+
+    devLog(`Found ${staleFeedTitles.length} feeds needing refresh out of ${postTitles.length} requested`);
+
+    return staleFeedTitles;
   } catch (error) {
     errorLog('Error checking feeds needing refresh:', error);
     return []; // Return empty array on error to be safe
   }
 }
 
-// Helper function to get only new entries excluding existing ones
-async function getNewEntriesExcludingGuids(
-  postTitles: string[], 
-  existingGuids: string[] = [],
+// Helper function to get all existing feeds
+async function getAllExistingFeeds(postTitles: string[]): Promise<string[]> {
+  try {
+    if (!postTitles || postTitles.length === 0) {
+      return [];
+    }
+
+    // Create placeholders for the SQL query
+    const placeholders = postTitles.map(() => '?').join(',');
+
+    // Query to find which feeds already exist
+    const query = `
+      SELECT title
+      FROM rss_feeds
+      WHERE title IN (${placeholders})
+    `;
+    
+    const result = await executeRead(query, [...postTitles]);
+    
+    // Extract titles of feeds already existing
+    const existingFeeds = (result.rows as { title: string }[]).map(row => row.title);
+    
+    devLog(`Found ${existingFeeds.length} existing feeds:`, existingFeeds);
+    
+    return existingFeeds;
+  } catch (error) {
+    errorLog('Error querying existing feeds:', error);
+    return []; // Return empty array on error to be safe
+  }
+}
+
+// Helper function to get new entries from refresh
+async function getNewEntriesFromRefresh(
+  postTitles: string[],
+  existingGuids: string[],
   newestEntryDate?: string
 ) {
   try {
@@ -317,56 +231,9 @@ async function getNewEntriesExcludingGuids(
     // Create a set of existing GUIDs for efficient lookup
     const existingGuidsSet = new Set(existingGuids);
     
-    // First get the last_fetched timestamps for all feeds to determine what's truly new
+    // Get all entries for these feeds
     const titlePlaceholders = postTitles.map(() => '?').join(',');
     
-    // Get the last_fetched timestamps for all requested feeds
-    const feedsQuery = `
-      SELECT id, title, last_fetched 
-      FROM rss_feeds 
-      WHERE title IN (${titlePlaceholders})
-    `;
-    
-    const feedsResult = await executeRead(feedsQuery, [...postTitles]);
-    const feeds = feedsResult.rows as { id: number; title: string; last_fetched: string }[];
-    
-    // Check if we have any feeds
-    if (!feeds || feeds.length === 0) {
-      devLog(`No feeds found for titles: ${postTitles.join(', ')}`);
-      return { entries: [], totalEntries: 0, hasMore: false };
-    }
-    
-    // Parse the newest entry date if provided, or use a reasonable fallback
-    let newestTimestamp: number | null = null;
-    if (newestEntryDate) {
-      try {
-        newestTimestamp = new Date(newestEntryDate).getTime();
-        devLog(`Using client-provided newest entry date: ${newestEntryDate}`);
-      } catch (e) {
-        devLog(`Error parsing newestEntryDate: ${e}`);
-        newestTimestamp = null;
-      }
-    }
-    
-    // Get the oldest last_fetched time as our cutoff to determine what's truly new
-    // With this approach, we'll only get entries created after the last refresh
-    const oldestLastFetched = Math.min(...feeds.map(feed => Number(feed.last_fetched)));
-    
-    // If we don't have a valid last_fetched (e.g., new feeds), use a reasonable default (1 hour ago)
-    const cutoffTimestamp = isNaN(oldestLastFetched) || oldestLastFetched === 0 
-      ? Date.now() - (60 * 60 * 1000) // 1 hour ago as fallback
-      : oldestLastFetched;
-      
-    // Log detailed debug information about timestamps
-    devLog(`Feed last_fetched timestamps: ${feeds.map(f => `${f.title}: ${new Date(Number(f.last_fetched)).toISOString()}`).join(', ')}`);
-    devLog(`Using cutoff timestamp for new entries: ${new Date(cutoffTimestamp).toISOString()}`);
-    
-    // Instead of using the created_at field (which might have values from when the entry was initially 
-    // added to the database), we'll get all entries and filter them client-side since most feeds will 
-    // have already been fetched recently, and we already know the entries to exclude by GUID.
-    // This provides a more reliable filtering mechanism.
-    
-    // Build a query that gets only entries for these feeds without the timestamp filter
     const entriesQuery = `
       SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
@@ -375,161 +242,33 @@ async function getNewEntriesExcludingGuids(
       ORDER BY e.pub_date DESC
     `;
     
-    // Execute query for all entries
     const entriesResult = await executeRead(entriesQuery, [...postTitles]);
     const entries = entriesResult.rows as any[];
     
     devLog(`Retrieved ${entries.length} total entries for these feeds`);
     
-    // Since most feeds are already refreshed, the first filtering step is to exclude
-    // entries we've already seen (by GUID)
+    // Filter out entries we've already seen (by GUID)
     const uniqueEntries = entries.filter(entry => !existingGuidsSet.has(entry.guid));
     
     devLog(`Filtered to ${uniqueEntries.length} entries not in client after excluding ${existingGuids.length} existing GUIDs`);
     
-    // SERVERLESS DEBUG: Log sample of unique entries found
-    if (uniqueEntries.length > 0) {
-      devLog('🔄 SERVERLESS: Sample of unique entries found:', {
-        totalUnique: uniqueEntries.length,
-        sampleEntries: uniqueEntries.slice(0, 3).map(e => ({
-          guid: e.guid,
-          title: e.title,
-          feedTitle: e.feed_title,
-          pubDate: e.pub_date,
-          createdAt: e.created_at
-        }))
-      });
-    } else {
-      devLog('🔄 SERVERLESS: No unique entries found after GUID filtering');
-      devLog('🔄 SERVERLESS: Existing GUIDs sample:', existingGuids.slice(0, 5));
-      devLog('🔄 SERVERLESS: Database entries sample:', entries.slice(0, 3).map(e => ({
-        guid: e.guid,
-        title: e.title,
-        feedTitle: e.feed_title
-      })));
-    }
-    
-    // IF uniqueEntries is excessively large (e.g., >100), this suggests that:
-    // 1. We have feeds that were recently created and all entries are appearing as "new"
-    // 2. The client might only have the first page of entries loaded
-    
-    // In this case, we'll restrict to truly new entries based on additional criteria:
     let filteredEntries = uniqueEntries;
     
-    // Only apply the extra filtering if we have excessive entries
-    if (uniqueEntries.length > 100) {
-      devLog(`Large number of new entries detected (${uniqueEntries.length}), applying additional filtering`);
-      
-      // Check for new feeds (feeds with last_fetched close to now)
-      const newlyCreatedFeeds = feeds.filter(feed => {
-        // A feed is considered "new" if it was created in the last 10 minutes
-        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-        return Number(feed.last_fetched) > tenMinutesAgo;
-      });
-      
-      // If we have new feeds, we need a special approach
-      if (newlyCreatedFeeds.length > 0) {
-        devLog(`Detected ${newlyCreatedFeeds.length} newly created feeds, restricting entries to first page for these`);
-        
-        // For new feeds, only return the most recent entries (equivalent to the first page)
-        const entriesByFeed = new Map<string, any[]>();
-        
-        // Group entries by feed title
-        for (const entry of uniqueEntries) {
-          if (!entriesByFeed.has(entry.feed_title)) {
-            entriesByFeed.set(entry.feed_title, []);
-          }
-          entriesByFeed.get(entry.feed_title)!.push(entry);
-        }
-        
-        // For each feed, only take the 30 most recent entries if it's a new feed
-        const limitedEntries: any[] = [];
-        
-        for (const feed of feeds) {
-          const feedEntries = entriesByFeed.get(feed.title) || [];
-          
-          // Sort entries by pub_date (newest first)
-          feedEntries.sort((a, b) => new Date(b.pub_date).getTime() - new Date(a.pub_date).getTime());
-          
-          // For new feeds, limit to 30 entries (first page equivalent)
-          // For existing feeds with a proper last_fetched, include all entries
-          const isNewFeed = newlyCreatedFeeds.some(f => f.title === feed.title);
-          
-          if (isNewFeed) {
-            limitedEntries.push(...feedEntries.slice(0, 30));
-            devLog(`Including first 30 entries for new feed: ${feed.title}`);
-          } else {
-            // For existing feeds, include entries created after the last_fetched time
-            const feedLastFetched = Number(feed.last_fetched);
-            
-            // Get entries newer than the feed's last_fetched timestamp
-            const newFeedEntries = feedEntries.filter(entry => {
-              const entryDate = new Date(entry.created_at).getTime();
-              return entryDate > feedLastFetched;
-            });
-            
-            if (newFeedEntries.length > 0) {
-              limitedEntries.push(...newFeedEntries);
-              devLog(`Including ${newFeedEntries.length} truly new entries for existing feed: ${feed.title}`);
-            } else {
-              devLog(`No new entries for existing feed: ${feed.title}`);
-            }
-          }
-        }
-        
-        filteredEntries = limitedEntries;
-      } else {
-        // No new feeds - actually use created_at/updated_at to filter
-        filteredEntries = uniqueEntries.filter(entry => {
-          const entryCreatedAt = new Date(entry.created_at).getTime();
-          const entryUpdatedAt = new Date(entry.updated_at).getTime();
-          
-          // Entry is new if it was created or updated after the cutoff
-          return entryCreatedAt > cutoffTimestamp || entryUpdatedAt > cutoffTimestamp;
+    // Apply chronological filter to maintain proper chronological order
+    if (newestEntryDate && filteredEntries.length > 0) {
+      try {
+        const newestTimestamp = new Date(newestEntryDate).getTime();
+        const chronologicalEntries = filteredEntries.filter(entry => {
+          const entryDate = new Date(entry.pub_date).getTime();
+          return entryDate > newestTimestamp;
         });
         
-        devLog(`Filtered to ${filteredEntries.length} entries created/updated after the cutoff timestamp`);
-      }
-    }
-    
-    // This is where we'll add the chronological filter
-    // IMPORTANT: Always respect chronological order, but be more lenient for very stale feeds
-    const oldestLastFetchedTime = Math.min(...feeds.map(feed => Number(feed.last_fetched)));
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    const feedsWereVeryStale = oldestLastFetchedTime < oneHourAgo;
-    
-    if (newestTimestamp && filteredEntries.length > 0) {
-      // For very stale feeds, allow a small buffer (5 minutes) to account for timing differences
-      // For recent feeds, use strict chronological filtering
-      const timeBuffer = feedsWereVeryStale ? (5 * 60 * 1000) : 0; // 5 minutes for stale feeds, 0 for recent
-      const effectiveNewestTimestamp = newestTimestamp - timeBuffer;
-      
-      const chronologicalEntries = filteredEntries.filter(entry => {
-        const entryDate = new Date(entry.pub_date).getTime();
-        return entryDate > effectiveNewestTimestamp;
-      });
-      
-      if (chronologicalEntries.length !== filteredEntries.length) {
-        const bufferNote = feedsWereVeryStale ? ` (with 5min buffer for stale feeds)` : '';
-        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries (filtered out ${filteredEntries.length - chronologicalEntries.length} entries older than ${new Date(effectiveNewestTimestamp).toISOString()}${bufferNote})`);
+        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries`);
         filteredEntries = chronologicalEntries;
-      } else {
-        const bufferNote = feedsWereVeryStale ? ` (with 5min buffer)` : '';
-        devLog(`🔄 SERVERLESS: Chronological filter: No entries filtered out (all ${filteredEntries.length} entries are newer than ${new Date(effectiveNewestTimestamp).toISOString()}${bufferNote})`);
+      } catch (e) {
+        devLog(`⚠️ Error parsing newestEntryDate: ${e}`);
       }
-    } else if (newestTimestamp) {
-      devLog(`🔄 SERVERLESS: Chronological filter skipped: no filteredEntries (${filteredEntries.length})`);
-    } else {
-      devLog(`🔄 SERVERLESS: Chronological filter skipped: no newestTimestamp provided`);
     }
-    
-    // SERVERLESS DEBUG: Log final filtering results
-    devLog(`🔄 SERVERLESS: Final filtering results:`, {
-      originalEntries: entries.length,
-      afterGuidFilter: uniqueEntries.length,
-      afterAllFilters: filteredEntries.length,
-      willReturn: Math.min(filteredEntries.length, 50)
-    });
     
     if (filteredEntries.length === 0) {
       devLog('🔄 SERVERLESS: No new entries after applying all filters - returning empty result');
@@ -564,8 +303,6 @@ async function getNewEntriesExcludingGuids(
       feedUrl: entry.feed_url
     }));
     
-    devLog(`🔄 SERVERLESS: Mapped ${mappedEntries.length} entries to expected format`);
-    
     // Get unique entry guids for batch query
     const guids = mappedEntries.map(entry => entry.guid);
     
@@ -576,8 +313,6 @@ async function getNewEntriesExcludingGuids(
       { token }
     );
     
-    devLog(`🔄 SERVERLESS: Fetched entry data for ${entryData?.length || 0} entries from Convex`);
-    
     // Fetch post metadata
     const feedUrls = [...new Set(mappedEntries.map(entry => entry.feedUrl))];
     const postMetadata = await fetchQuery(
@@ -585,8 +320,6 @@ async function getNewEntriesExcludingGuids(
       { feedUrls },
       { token }
     );
-    
-    devLog(`🔄 SERVERLESS: Fetched post metadata for ${postMetadata?.length || 0} feeds from Convex`);
     
     // Create a map of feed URLs to post metadata
     const postMetadataMap = new Map();
@@ -605,9 +338,7 @@ async function getNewEntriesExcludingGuids(
     
     // Combine all data efficiently
     const entriesWithPublicData = mappedEntries.map((entry, index) => {
-      // Create a safe fallback for post metadata
       const feedUrl = entry.feedUrl;
-      // Retrieve the full metadata including verified status
       const metadata = postMetadataMap.get(feedUrl);
       
       const fallbackMetadata = {
@@ -626,30 +357,22 @@ async function getNewEntriesExcludingGuids(
           comments: { count: 0 },
           retweets: { isRetweeted: false, count: 0 }
         },
-        // Use the retrieved metadata or the fallback
         postMetadata: metadata || fallbackMetadata 
       };
     });
     
     const hasMoreNewEntries = filteredEntries.length > limitedEntries.length;
-    devLog(`🔄 SERVERLESS: Returning ${entriesWithPublicData.length} new entries (has more: ${hasMoreNewEntries})`);
     
-    // SERVERLESS DEBUG: Log final result structure
     const result = {
       entries: entriesWithPublicData,
       totalEntries: filteredEntries.length,
       hasMore: hasMoreNewEntries
     };
     
-    devLog(`🔄 SERVERLESS: Final getNewEntriesExcludingGuids result:`, {
+    devLog(`🔄 SERVERLESS: Final result:`, {
       entriesCount: result.entries.length,
       totalEntries: result.totalEntries,
-      hasMore: result.hasMore,
-      sampleEntry: result.entries.length > 0 ? {
-        guid: result.entries[0].entry.guid,
-        title: result.entries[0].entry.title,
-        feedTitle: result.entries[0].entry.feedTitle
-      } : null
+      hasMore: result.hasMore
     });
     
     return result;
@@ -658,34 +381,3 @@ async function getNewEntriesExcludingGuids(
     return { entries: [], totalEntries: 0, hasMore: false };
   }
 }
-
-// Function to get all existing feeds
-async function getAllExistingFeeds(postTitles: string[]): Promise<string[]> {
-  try {
-    if (!postTitles || postTitles.length === 0) {
-      return [];
-    }
-    
-    // Create placeholders for the SQL query
-    const placeholders = postTitles.map(() => '?').join(',');
-    
-    // Query to find which feeds already exist
-    const query = `
-      SELECT title
-      FROM rss_feeds
-      WHERE title IN (${placeholders})
-    `;
-    
-    const result = await executeRead(query, [...postTitles]);
-    
-    // Extract titles of existing feeds
-    const existingFeeds = (result.rows as { title: string }[]).map(row => row.title);
-    
-    devLog(`Found ${existingFeeds.length} existing feeds out of ${postTitles.length} requested`);
-    
-    return existingFeeds;
-  } catch (error) {
-    errorLog('Error checking existing feeds:', error);
-    return []; // Return empty array on error to be safe
-  }
-} 

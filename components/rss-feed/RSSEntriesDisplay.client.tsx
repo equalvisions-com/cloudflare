@@ -1344,7 +1344,7 @@ const RSSEntriesClientComponent = ({
       // Set a timer to hide the notification after a few seconds
       setTimeout(() => {
         if (isMountedRef.current) {
-          setShowNotification(false);
+        setShowNotification(false);
           logger.debug(`🔄 SERVERLESS: Notification hidden after timeout`);
         }
       }, 5000);
@@ -1687,7 +1687,7 @@ const RSSEntriesClientComponent = ({
               </div>
             ) : (
               <span className="text-sm font-medium">
-                {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
+            {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
               </span>
             )}
           </div>
