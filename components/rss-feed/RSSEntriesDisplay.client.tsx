@@ -1284,7 +1284,9 @@ const RSSEntriesClientComponent = ({
       return;
     }
     
-    logger.debug(`Handling ${entries.length} new entries automatically`);
+    logger.debug(`🔄 SERVERLESS: handleNewEntries called with ${entries.length} entries`);
+    logger.debug(`🔄 SERVERLESS: Current entries count before update: ${entriesStateRef.current.length}`);
+    logger.debug(`🔄 SERVERLESS: Component mounted: ${isMountedRef.current}`);
     
     try {
       // Get current entries from ref for consistency
@@ -1297,9 +1299,11 @@ const RSSEntriesClientComponent = ({
       const uniqueNewEntries = entries.filter(entry => !existingGuids.has(entry.entry.guid));
       
       if (uniqueNewEntries.length === 0) {
-        logger.debug('No unique new entries to show after filtering');
+        logger.debug('🔄 SERVERLESS: No unique new entries to show after filtering');
         return;
       }
+      
+      logger.debug(`🔄 SERVERLESS: Found ${uniqueNewEntries.length} unique new entries after deduplication`);
       
       // Sort new entries by publication date in descending order (newest first)
       // This ensures proper chronological ordering across all RSS feeds
@@ -1309,7 +1313,7 @@ const RSSEntriesClientComponent = ({
         return dateB - dateA; // Descending order (newest first)
       });
       
-      logger.debug(`Prepending ${sortedNewEntries.length} chronologically sorted entries to ${currentEntries.length} existing entries`);
+      logger.debug(`🔄 SERVERLESS: Prepending ${sortedNewEntries.length} chronologically sorted entries to ${currentEntries.length} existing entries`);
       
       // Save the count for notification
       setNotificationCount(sortedNewEntries.length);
@@ -1327,26 +1331,41 @@ const RSSEntriesClientComponent = ({
       
       // Show notification
       setShowNotification(true);
+      logger.debug(`🔄 SERVERLESS: Notification set to show with count: ${sortedNewEntries.length}`);
       
       // Prepend sorted new entries to the existing ones using our update function to keep refs in sync
-      updateEntriesState([...sortedNewEntries, ...currentEntries]);
+      const newEntriesArray = [...sortedNewEntries, ...currentEntries];
+      logger.debug(`🔄 SERVERLESS: About to update entries state with ${newEntriesArray.length} total entries`);
+      
+      updateEntriesState(newEntriesArray);
+      
+      logger.debug(`🔄 SERVERLESS: Entries state updated. New total: ${newEntriesArray.length}`);
       
       // Set a timer to hide the notification after a few seconds
       setTimeout(() => {
-        setShowNotification(false);
+        if (isMountedRef.current) {
+          setShowNotification(false);
+          logger.debug(`🔄 SERVERLESS: Notification hidden after timeout`);
+        }
       }, 5000);
       
     } catch (error) {
-      logger.error('Error handling new entries:', error);
+      logger.error('🔄 SERVERLESS: Error handling new entries:', error);
     }
   }, [updateEntriesState]);
 
   // Update the effect that processes new entries
   useEffect(() => {
+    logger.debug(`🔄 SERVERLESS: useEffect for newEntries triggered. Length: ${newEntries.length}`);
+    
     // When new entries are received, handle them automatically
     if (newEntries.length > 0) {
+      logger.debug(`🔄 SERVERLESS: Processing ${newEntries.length} new entries via useEffect`);
       handleNewEntries(newEntries);
       setNewEntries([]); // Clear after handling
+      logger.debug(`🔄 SERVERLESS: Cleared newEntries state after processing`);
+    } else {
+      logger.debug(`🔄 SERVERLESS: No new entries to process in useEffect`);
     }
   }, [newEntries, handleNewEntries]);
   
@@ -1432,6 +1451,16 @@ const RSSEntriesClientComponent = ({
       
       const data = await response.json();
       
+      // SERVERLESS FIX: Add comprehensive logging of the response
+      logger.debug(`🔄 SERVERLESS: Refresh API response:`, {
+        success: data.success,
+        refreshedAny: data.refreshedAny,
+        entriesCount: data.entries?.length || 0,
+        newEntriesCount: data.newEntriesCount,
+        hasEntries: !!(data.entries && Array.isArray(data.entries)),
+        responseKeys: Object.keys(data)
+      });
+      
       if (data.success) {
         // Mark that we've completed a refresh regardless of whether anything was refreshed
         setHasRefreshed(true);
@@ -1453,8 +1482,47 @@ const RSSEntriesClientComponent = ({
           logger.debug(`✅ Successfully refreshed feeds, found ${data.newEntriesCount} truly new entries`);
           
           if (data.entries && data.entries.length > 0) {
-            setNewEntries(data.entries);
-            logger.debug(`Retrieved ${data.entries.length} new entries to prepend`);
+            // SERVERLESS FIX: Add more robust logging and validation for serverless environments
+            logger.debug(`🔄 SERVERLESS: Processing ${data.entries.length} new entries from refresh response`);
+            logger.debug(`🔄 SERVERLESS: Entry sample:`, data.entries[0]);
+            
+            // Validate that entries have the expected structure
+            const validEntries = data.entries.filter((entry: any) => {
+              const isValid = entry && 
+                             entry.entry && 
+                             entry.entry.guid && 
+                             entry.entry.title && 
+                             entry.postMetadata;
+              
+              if (!isValid) {
+                logger.warn(`🔄 SERVERLESS: Invalid entry structure:`, entry);
+              }
+              
+              return isValid;
+            });
+            
+            if (validEntries.length > 0) {
+              logger.debug(`🔄 SERVERLESS: Setting ${validEntries.length} valid new entries to state`);
+              
+              // Force a state update by using a functional update
+              setNewEntries(prevNewEntries => {
+                logger.debug(`🔄 SERVERLESS: Previous newEntries length: ${prevNewEntries.length}`);
+                logger.debug(`🔄 SERVERLESS: Setting new entries length: ${validEntries.length}`);
+                return validEntries;
+              });
+              
+              // Also trigger the handler directly as a fallback for serverless environments
+              // This ensures the entries get processed even if the useEffect doesn't fire properly
+              setTimeout(() => {
+                if (isMountedRef.current) {
+                  logger.debug(`🔄 SERVERLESS: Fallback - directly calling handleNewEntries with ${validEntries.length} entries`);
+                  handleNewEntries(validEntries);
+                }
+              }, 100); // Small delay to allow state to settle
+              
+            } else {
+              logger.warn(`🔄 SERVERLESS: No valid entries found after validation`);
+            }
           } else {
             logger.debug('No new entries found after refresh');
           }
