@@ -78,6 +78,16 @@ interface RSSEntryWithData {
   };
 }
 
+// Interface for post metadata used within the component
+interface InternalPostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  categorySlug?: string;
+  postSlug?: string;
+  verified?: boolean;
+}
+
 interface RSSEntryProps {
   entryWithData: RSSEntryWithData;
 }
@@ -731,14 +741,6 @@ const EntriesContent = React.memo<EntriesContentProps>(
 
 // Add displayName to avoid React DevTools issues
 EntriesContent.displayName = 'EntriesContent';
-
-export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
-  return (
-    <ErrorBoundary>
-      <RSSEntriesClient {...props} />
-    </ErrorBoundary>
-  );
-});
 
 // Create the client component that will be memoized
 const RSSEntriesClientComponent = ({ 
@@ -1413,8 +1415,19 @@ const RSSEntriesClientComponent = ({
         
         // Get the date of the newest entry
         if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
-          newestEntryDate = new Date(sortedEntries[0].entry.pubDate).toISOString();
-          logger.debug(`Found newest entry date: ${newestEntryDate}`);
+          const candidateDate = new Date(sortedEntries[0].entry.pubDate);
+          const currentTime = Date.now();
+          
+          // Validate that the date is not in the future (no buffer - exact comparison)
+          if (candidateDate.getTime() <= currentTime) {
+            newestEntryDate = candidateDate.toISOString();
+            logger.debug(`Found valid newest entry date: ${newestEntryDate}`);
+          } else {
+            // If the newest entry is in the future, use current time instead
+            const futureMs = candidateDate.getTime() - currentTime;
+            logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
+            newestEntryDate = new Date().toISOString();
+          }
         }
       }
     } catch (error) {
@@ -1744,12 +1757,10 @@ const RSSEntriesClientComponent = ({
 export const RSSEntriesClient = memo(RSSEntriesClientComponent);
 RSSEntriesClient.displayName = 'RSSEntriesClient';
 
-// Interface for post metadata used within the component
-interface InternalPostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  categorySlug?: string;
-  postSlug?: string;
-  verified?: boolean;
-} 
+export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+  return (
+    <ErrorBoundary>
+      <RSSEntriesClient {...props} />
+    </ErrorBoundary>
+  );
+}); 

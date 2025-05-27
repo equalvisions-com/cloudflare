@@ -254,20 +254,84 @@ async function getNewEntriesFromRefresh(
     
     let filteredEntries = uniqueEntries;
     
-    // Apply chronological filter to maintain proper chronological order
+    // Apply chronological filter ONLY if we have a valid newestEntryDate
     if (newestEntryDate && filteredEntries.length > 0) {
       try {
-        const newestTimestamp = new Date(newestEntryDate).getTime();
-        const chronologicalEntries = filteredEntries.filter(entry => {
-          const entryDate = new Date(entry.pub_date).getTime();
-          return entryDate > newestTimestamp;
-        });
+        // Parse the client's newest entry date
+        const clientNewestDate = new Date(newestEntryDate);
         
-        devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries`);
-        filteredEntries = chronologicalEntries;
+        // Validate the date
+        if (isNaN(clientNewestDate.getTime())) {
+          devLog(`⚠️ Invalid newestEntryDate: ${newestEntryDate}, skipping chronological filter`);
+        } else {
+          const clientNewestTimestamp = clientNewestDate.getTime();
+          
+          // Debug: Log the filtering criteria
+          devLog(`🔄 SERVERLESS: Chronological filter - client newest entry:`, {
+            newestEntryDate,
+            clientNewestTimestamp,
+            sampleEntryDates: filteredEntries.slice(0, 3).map(e => ({
+              title: e.title,
+              pubDate: e.pub_date,
+              timestamp: new Date(e.pub_date).getTime()
+            }))
+          });
+          
+          // Filter entries to only include those NEWER than the client's newest entry
+          // Use EXACT comparison - no buffers or timezone adjustments
+          const chronologicalEntries = filteredEntries.filter(entry => {
+            try {
+              // Parse the entry's publication date
+              const entryDate = new Date(entry.pub_date);
+              
+              // Skip invalid dates
+              if (isNaN(entryDate.getTime())) {
+                devLog(`⚠️ Invalid entry date: ${entry.pub_date} for entry: ${entry.title}`);
+                return false;
+              }
+              
+              const entryTimestamp = entryDate.getTime();
+              
+              // EXACT comparison: only include entries that are strictly newer
+              return entryTimestamp > clientNewestTimestamp;
+            } catch (e) {
+              devLog(`⚠️ Error parsing entry date ${entry.pub_date}: ${e}`);
+              return false;
+            }
+          });
+          
+          devLog(`🔄 SERVERLESS: Chronological filter: ${filteredEntries.length} -> ${chronologicalEntries.length} entries (showing only entries newer than ${newestEntryDate})`);
+          
+          // Log which entries were filtered out for debugging
+          if (chronologicalEntries.length < filteredEntries.length) {
+            const filteredOut = filteredEntries.length - chronologicalEntries.length;
+            devLog(`🔄 SERVERLESS: Filtered out ${filteredOut} entries that were not newer than client's newest entry`);
+            
+            // Show a sample of filtered out entries for debugging
+            const sampleFilteredOut = filteredEntries
+              .filter(entry => {
+                const entryTimestamp = new Date(entry.pub_date).getTime();
+                return entryTimestamp <= clientNewestTimestamp;
+              })
+              .slice(0, 3)
+              .map(e => ({
+                title: e.title,
+                pubDate: e.pub_date,
+                timestamp: new Date(e.pub_date).getTime(),
+                isOlderThanClient: new Date(e.pub_date).getTime() <= clientNewestTimestamp
+              }));
+            
+            devLog(`🔄 SERVERLESS: Sample filtered out entries:`, sampleFilteredOut);
+          }
+          
+          filteredEntries = chronologicalEntries;
+        }
       } catch (e) {
-        devLog(`⚠️ Error parsing newestEntryDate: ${e}`);
+        devLog(`⚠️ Error in chronological filtering: ${e}`);
+        // Continue without chronological filtering if there's an error
       }
+    } else {
+      devLog(`🔄 SERVERLESS: Skipping chronological filter - newestEntryDate: ${newestEntryDate}, entries: ${filteredEntries.length}`);
     }
     
     if (filteredEntries.length === 0) {
