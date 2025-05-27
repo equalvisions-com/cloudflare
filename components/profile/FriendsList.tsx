@@ -161,7 +161,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
                   </Link>
                   <div className="flex flex-col flex-1">
                     <Link href={`/@${friend.profile.username}`} onClick={() => setOpen(false)}>
-                      <span className="text-sm font-bold">{friend.profile.name || friend.profile.username}</span>
+                      <span className="text-sm font-bold overflow-anywhere">{friend.profile.name || friend.profile.username}</span>
                     </Link>
                      <Link href={`/@${friend.profile.username}`} onClick={() => setOpen(false)} className="mt-[-4px]">
                       <span className="text-xs text-muted-foreground">@{friend.profile.username}</span>

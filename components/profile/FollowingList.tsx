@@ -227,7 +227,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                         href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
                         onClick={() => setOpen(false)}
                       >
-                        <div className="text-sm font-bold">
+                        <div className="text-sm font-bold overflow-anywhere">
                           {item.post.title} {item.post.verified && <VerifiedBadge className="inline-block align-text-middle ml-0.5 h-3.5 w-3.5" />}
                         </div>
                       </Link>

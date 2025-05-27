@@ -1039,7 +1039,7 @@ const ActivityCard = React.memo(({
 
       <div className="p-4">
         {/* Activity header with icon and description */}
-        <div className="flex items-start mb-2 relative h-[16px]">
+        <div className="flex items-start mb-2 relative overflow-anywhere h-[16px]">
           <div className="mr-2">
              {/* Use memoized ActivityIcon */}
             <ActivityIcon type={activity.type} />
@@ -1711,7 +1711,7 @@ const ActivityGroupRenderer = React.memo(({
       {/* ... Rest of ActivityGroupRenderer JSX ... */}
       <div className="p-4">
         {/* Activity header with icon and description */}
-        <div className="flex items-start mb-2 relative h-[16px]">
+        <div className="flex items-start mb-2 overflow-anywhere relative h-[16px]">
           <div className="mr-2">
              {/* Use memoized ActivityIcon */}
             <ActivityIcon type={group.firstActivity.type} />

@@ -154,12 +154,6 @@ export const BookmarksContent = ({ userId, initialData }: BookmarksContentProps)
      console.log('[BookmarksContent RENDER] No initialData or no bookmarks in initialData. Showing no bookmarks message.');
       return (
         <div className="flex-1 p-6 text-center">
-            <div className="p-8 border border-gray-200 rounded-lg">
-              <h2 className="text-xl font-semibold mb-2">No Bookmarks Yet</h2>
-              <p className="text-gray-500">
-                You haven&apos;t bookmarked anything. Start exploring and save your favorites!
-              </p>
-            </div>
           </div>
       );
   }

@@ -201,7 +201,7 @@ const Comment = memo(({
                   {displayName}
                 </Link>
               ) : (
-                <span className="text-sm font-bold leading-none">{displayName}</span>
+                <span className="text-sm font-bold overflow-anywhere leading-none">{displayName}</span>
               )}
             </div>
             <p className="text-sm">{comment.content}</p>
