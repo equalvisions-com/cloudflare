@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { postTitles, feedUrls, mediaTypes, existingGuids = [], newestEntryDate } = body;
-
+    
     devLog('📥 API: Received refresh request with', {
       postTitlesCount: postTitles?.length || 0,
       feedUrlsCount: feedUrls?.length || 0,
@@ -81,9 +81,9 @@ export async function POST(request: Request) {
     }
 
     devLog(`Found ${staleFeedTitles.length} stale feeds that need refreshing:`, staleFeedTitles);
-
+    
     let refreshedAny = false;
-
+    
     // Check if any feeds are new (don't exist yet)
     const allExistingFeeds = await getAllExistingFeeds(normalizedPostTitles);
     const newFeeds = normalizedPostTitles.filter((title: string) => !allExistingFeeds.includes(title));
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     } else {
       devLog('⏭️ API: Skipping refresh - no feeds need refreshing and no new feeds');
     }
-
+    
     // Get new entries that were inserted during this refresh cycle
     let newEntries: any = { entries: [], totalEntries: 0, hasMore: false };
     
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     } else {
       devLog('⏭️ API: Skipping entry check since no feeds were refreshed or created');
     }
-
+    
     // Return combined result
     const responseData = { 
       success: true, 
@@ -160,10 +160,10 @@ async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]>
     if (!postTitles || postTitles.length === 0) {
       return [];
     }
-
+    
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
-
+    
     // Query to find feeds that need refreshing (older than 4 hours)
     const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
     const query = `
@@ -171,14 +171,14 @@ async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]>
       FROM rss_feeds
       WHERE title IN (${placeholders}) AND last_fetched < ?
     `;
-
+    
     const result = await executeRead(query, [...postTitles, fourHoursAgo]);
-
+    
     // Extract titles of feeds that need refreshing
     const staleFeedTitles = (result.rows as { title: string }[]).map(row => row.title);
-
+    
     devLog(`Found ${staleFeedTitles.length} feeds needing refresh out of ${postTitles.length} requested`);
-
+    
     return staleFeedTitles;
   } catch (error) {
     errorLog('Error checking feeds needing refresh:', error);
@@ -219,7 +219,7 @@ async function getAllExistingFeeds(postTitles: string[]): Promise<string[]> {
 
 // Helper function to get new entries from refresh
 async function getNewEntriesFromRefresh(
-  postTitles: string[],
+  postTitles: string[], 
   existingGuids: string[],
   newestEntryDate?: string
 ) {
@@ -231,26 +231,34 @@ async function getNewEntriesFromRefresh(
     // Create a set of existing GUIDs for efficient lookup
     const existingGuidsSet = new Set(existingGuids);
     
-    // Get all entries for these feeds
+    // CRITICAL FIX: Instead of getting ALL entries from the database,
+    // we need to get only entries that were inserted in the last few minutes
+    // This ensures we only return entries that were actually inserted during this refresh cycle
+    
     const titlePlaceholders = postTitles.map(() => '?').join(',');
+    
+    // Get entries that were created in the last 5 minutes (during this refresh cycle)
+    // This is much more accurate than trying to filter all historical entries
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
     const entriesQuery = `
       SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title IN (${titlePlaceholders})
+        AND e.created_at >= ?
       ORDER BY e.pub_date DESC
     `;
     
-    const entriesResult = await executeRead(entriesQuery, [...postTitles]);
+    const entriesResult = await executeRead(entriesQuery, [...postTitles, fiveMinutesAgo]);
     const entries = entriesResult.rows as any[];
     
-    devLog(`Retrieved ${entries.length} total entries for these feeds`);
+    devLog(`Retrieved ${entries.length} recently created entries (created in last 5 minutes) for these feeds`);
     
-    // Filter out entries we've already seen (by GUID)
+    // Filter out entries we've already seen (by GUID) - these are the truly new ones
     const uniqueEntries = entries.filter(entry => !existingGuidsSet.has(entry.guid));
     
-    devLog(`Filtered to ${uniqueEntries.length} entries not in client after excluding ${existingGuids.length} existing GUIDs`);
+    devLog(`Filtered to ${uniqueEntries.length} truly new entries after excluding ${existingGuids.length} existing GUIDs`);
     
     let filteredEntries = uniqueEntries;
     
@@ -444,4 +452,4 @@ async function getNewEntriesFromRefresh(
     errorLog('❌ Error querying new entries:', error);
     return { entries: [], totalEntries: 0, hasMore: false };
   }
-}
+} 
