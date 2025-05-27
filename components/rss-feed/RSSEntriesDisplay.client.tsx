@@ -1424,6 +1424,9 @@ const RSSEntriesClientComponent = ({
     // Ensure we pass the server-provided mediaTypes - use the ref to ensure persistence
     const currentMediaTypes = mediaTypesRef.current || [];
     
+    console.log('🔥 TRIGGER REFRESH: About to calculate newest entry date');
+    console.log('🔥 TRIGGER REFRESH: preRefreshNewestEntryDateRef.current =', preRefreshNewestEntryDateRef.current);
+    
     logger.debug(`🔄 Refreshing using server-provided data:
     - Post titles: ${currentPostTitles.length}
     - Feed URLs: ${currentFeedUrls.length}
@@ -1437,9 +1440,12 @@ const RSSEntriesClientComponent = ({
     // This prevents using entries that were just inserted during previous refresh cycles
     if (preRefreshNewestEntryDateRef.current) {
       newestEntryDate = preRefreshNewestEntryDateRef.current;
+      console.log('🔥 TRIGGER REFRESH: Using pre-refresh date:', newestEntryDate);
       logger.debug(`📅 Using pre-refresh newest entry date: ${newestEntryDate}`);
     } else {
       // Fallback: Only use current state entries, not initial data, to avoid stale data
+      console.log('🔥 TRIGGER REFRESH: No pre-refresh date, calculating from current state');
+      console.log('🔥 TRIGGER REFRESH: entriesStateRef.current.length =', entriesStateRef.current.length);
       logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
       logger.debug(`📅 Current state has ${entriesStateRef.current.length} entries`);
       logger.debug(`📅 Sample current entries:`, entriesStateRef.current.slice(0, 3).map(e => ({
@@ -1452,12 +1458,19 @@ const RSSEntriesClientComponent = ({
         // Only use entries from current state, not initial data
         const currentEntries = entriesStateRef.current;
         
+        console.log('🔥 TRIGGER REFRESH: currentEntries.length =', currentEntries.length);
+        
         if (currentEntries.length > 0) {
           // Sort by publication date in descending order to find the newest
           const sortedEntries = [...currentEntries].sort((a, b) => {
             const dateA = new Date(a.entry.pubDate).getTime();
             const dateB = new Date(b.entry.pubDate).getTime();
             return dateB - dateA; // Newest first
+          });
+          
+          console.log('🔥 TRIGGER REFRESH: After sorting, top entry:', {
+            title: sortedEntries[0]?.entry.title,
+            pubDate: sortedEntries[0]?.entry.pubDate
           });
           
           logger.debug(`📅 Top 3 entries after sorting:`, sortedEntries.slice(0, 3).map(e => ({
@@ -1471,29 +1484,39 @@ const RSSEntriesClientComponent = ({
             const candidateDate = new Date(sortedEntries[0].entry.pubDate);
             const currentTime = Date.now();
             
+            console.log('🔥 TRIGGER REFRESH: candidateDate =', candidateDate.toISOString());
+            console.log('🔥 TRIGGER REFRESH: currentTime =', new Date(currentTime).toISOString());
+            console.log('🔥 TRIGGER REFRESH: candidateDate <= currentTime =', candidateDate.getTime() <= currentTime);
+            
             logger.debug(`📅 Candidate newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
             
             // Validate that the date is not in the future (no buffer - exact comparison)
             if (candidateDate.getTime() <= currentTime) {
               newestEntryDate = candidateDate.toISOString();
+              console.log('🔥 TRIGGER REFRESH: Set newestEntryDate to:', newestEntryDate);
               logger.debug(`📅 Fallback: Found valid newest entry date: ${newestEntryDate} from "${sortedEntries[0].entry.title}"`);
             } else {
               // If the newest entry is in the future, use current time instead
               const futureMs = candidateDate.getTime() - currentTime;
+              console.log('🔥 TRIGGER REFRESH: Entry is in future, using current time');
               logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
               newestEntryDate = new Date().toISOString();
             }
           }
         } else {
+          console.log('🔥 TRIGGER REFRESH: No current entries available');
           logger.debug(`📅 No current entries available for newest date calculation`);
         }
       } catch (error) {
+        console.log('🔥 TRIGGER REFRESH: Error in date calculation:', error);
         logger.error('Error determining newest entry date:', error);
         // Continue without the newest date - better than not refreshing
       }
     }
     
     logger.debug(`📅 FINAL: Will send newestEntryDate: ${newestEntryDate} to refresh API`);
+    
+    console.log('🔥 TRIGGER REFRESH: FINAL newestEntryDate =', newestEntryDate);
     
     setIsRefreshing(true);
     setRefreshError(null);
