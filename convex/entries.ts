@@ -441,7 +441,7 @@ export const getEntryWithComments = query({
             _id: user._id,
             username: user.username,
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );

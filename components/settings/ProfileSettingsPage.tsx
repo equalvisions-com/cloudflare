@@ -35,6 +35,7 @@ type ProfileSettingsPageProps = {
     name: string | undefined;
     bio: string | undefined;
     profileImage: string | undefined;
+    profileImageKey: string | undefined;
     rssKeys: string[];
     isBoarded: boolean;
   } | null;
@@ -51,7 +52,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
   const [previewImage, setPreviewImage] = useState<string | null>(userProfile?.profileImage || null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [profileImageKey, setProfileImageKey] = useState<string | null>(null);
+  const [profileImageKey, setProfileImageKey] = useState<string | null>(userProfile?.profileImageKey || null);
   
   // Delete account state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -78,6 +79,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       setName(userProfile.name || "");
       setBio(userProfile.bio || "");
       setPreviewImage(userProfile.profileImage || null);
+      setProfileImageKey(userProfile.profileImageKey || null);
     }
   }, [userProfile]);
 
@@ -169,7 +171,11 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
           finalProfileImageKey = uploadData.key;
         } catch (error) {
           console.error("Failed to upload image:", error);
-          alert("Failed to upload image: " + (error instanceof Error ? error.message : String(error)));
+          toast({
+            title: "Image Upload Error",
+            description: "Failed to upload image. Please try again later or contact support.",
+            variant: "destructive"
+          });
           setIsLoading(false);
           setIsUploading(false);
           return; // Stop the submission if upload failed
@@ -179,12 +185,23 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       }
       
       // Now update the profile with the new details and possibly new image key
-      await updateProfile({
+      const updateData: {
+        name: string | null;
+        bio: string | null;
+        profileImage: null;
+        profileImageKey?: string;
+      } = {
         name: name || null,
         bio: bio || null,
         profileImage: null, // We're only using R2 now
-        profileImageKey: finalProfileImageKey,
-      });
+      };
+      
+      // Only include profileImageKey if we actually have a new image
+      if (finalProfileImageKey) {
+        updateData.profileImageKey = finalProfileImageKey;
+      }
+      
+      await updateProfile(updateData);
       
       // Clear the file selection
       setSelectedFile(null);
@@ -192,8 +209,34 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
         fileInputRef.current.value = '';
       }
       
+      // Show success toast
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+        variant: "default"
+      });
+      
     } catch (error) {
       console.error("Failed to update profile:", error);
+      
+      // Handle specific error types with appropriate toast messages
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes("Profile update limit exceeded")) {
+        // Rate limit error - show specific toast
+        toast({
+          title: "Rate Limit Exceeded",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      } else {
+        // Generic error - show general toast
+        toast({
+          title: "Profile Update Error",
+          description: "Failed to update profile. Please try again later or contact support.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }

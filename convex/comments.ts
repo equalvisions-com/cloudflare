@@ -217,7 +217,7 @@ export const getComments = query({
             _id: user._id,
             username: user.username || user.name || "Guest",
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );
@@ -316,7 +316,7 @@ export const batchGetComments = query({
             _id: user._id,
             username: user.username || user.name || "Guest",
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );
@@ -401,7 +401,7 @@ export const getCommentReplies = query({
             _id: user._id,
             username: user.username || user.name || "Guest",
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );
@@ -465,7 +465,7 @@ async function getUserDataForComment(ctx: any, commentId: Id<"comments">) {
       _id: user._id,
       username: user.username || user.name || "Guest",
       name: user.name,
-      profileImage: user.profileImage || user.image
+      profileImage: user.profileImage
     } : null);
   
   return {

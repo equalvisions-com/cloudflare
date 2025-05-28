@@ -98,7 +98,6 @@ interface Comment {
     name?: string;
     username?: string;
     profileImage?: string;
-    image?: string;
   } | null;
 }
 
@@ -371,11 +370,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
       }
     };
 
-    // Get profile image - check multiple possible locations based on data structure
-    const profileImageUrl =
-      reply.user?.profileImage || // From profiles table
-      reply.user?.image ||        // From users table
-      null;                       // Fallback
+    // Get profile image
+    const profileImageUrl = reply.user?.profileImage || null;
 
     // Get display name from various possible locations
     const displayName =

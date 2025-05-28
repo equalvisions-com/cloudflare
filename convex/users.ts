@@ -4,6 +4,25 @@ import { v } from "convex/values";
 import { r2 } from "./r2";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { RateLimiter } from "@convex-dev/rate-limiter";
+import { components } from "./_generated/api";
+
+/** How many profile updates a user may make per day. */
+const DAILY_PROFILE_LIMIT = 3;
+/** One day in milliseconds. */
+const DAY = 24 * 60 * 60 * 1000;
+
+// -----------------------------------------------------------------------------
+// Rate-limiter configuration for profile updates
+// -----------------------------------------------------------------------------
+export const profileUpdateLimiter = new RateLimiter(components.rateLimiter, {
+  daily: {
+    kind: "fixed window",
+    period: DAY,
+    rate: DAILY_PROFILE_LIMIT,
+    capacity: DAILY_PROFILE_LIMIT,
+  },
+});
 
 export const viewer = query({
   args: {},
@@ -31,7 +50,6 @@ export const viewer = query({
       email: userData.email,
       isAnonymous: userData.isAnonymous,
       isBoarded: userData.isBoarded ?? false,
-      image: userData.image,
       profileImage: userData.profileImage
     };
   },
@@ -84,7 +102,8 @@ export const getProfile = query({
         username: user.username || "Guest",
         name: user.name,
         bio: user.bio,
-        profileImage: user.profileImage || user.image,
+        profileImage: user.profileImage,
+        profileImageKey: user.profileImageKey,
         rssKeys: user.rssKeys || [],
         isBoarded: user.isBoarded ?? false
       } : null);
@@ -105,7 +124,7 @@ export const getUserProfile = query({
         username: user.username || "Guest",
         name: user.name,
         bio: user.bio,
-        profileImage: user.profileImage || user.image,
+        profileImage: user.profileImage,
         rssKeys: user.rssKeys || []
       } : null);
 
@@ -129,7 +148,7 @@ export const getProfileByUsername = query({
       username: user.username,
       name: user.name,
       bio: user.bio,
-      profileImage: user.profileImage || user.image,
+      profileImage: user.profileImage,
       rssKeys: user.rssKeys || []
     };
   },
@@ -143,7 +162,7 @@ export const getUserByUsernameOptimized = query({
     fields: v.optional(v.array(v.string()))
   },
   handler: async (ctx, args) => {
-    const { username, fields = ["_id", "username", "name", "bio", "profileImage", "image"] } = args;
+    const { username, fields = ["_id", "username", "name", "bio", "profileImage"] } = args;
     
     // First get the base user document - but only retrieve it once
     const user = await ctx.db
@@ -160,10 +179,7 @@ export const getUserByUsernameOptimized = query({
     
     // Only include fields that were requested
     fields.forEach(field => {
-      if (field === "profileImage" && !user.profileImage) {
-        // Handle the special case for profileImage fallback
-        result.profileImage = user.image;
-      } else if (field in user) {
+      if (field in user) {
         // Handle standard fields
         result[field] = user[field as keyof typeof user];
       } else if (field === "rssKeys" && !user.rssKeys) {
@@ -227,6 +243,12 @@ export const updateProfile = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Unauthenticated");
+    }
+
+    // Check rate limit - consume one token from the user's daily bucket
+    const limitResult = await profileUpdateLimiter.limit(ctx, "daily", { key: userId });
+    if (!limitResult.ok) {
+      throw new Error(`Profile update limit exceeded. You can only update your profile ${DAILY_PROFILE_LIMIT} times per day. Try again in ${Math.ceil(limitResult.retryAfter / (1000 * 60))} minutes.`);
     }
 
     const user = await ctx.db
@@ -389,7 +411,7 @@ async function getFriendsWithProfiles(
             _id: user._id,
             username: user.username,
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null
         )
     )
@@ -457,7 +479,7 @@ export const getProfilePageData = query({
       username: user.username,
       name: user.name,
       bio: user.bio,
-      profileImage: user.profileImage || user.image
+      profileImage: user.profileImage
     };
 
     // Get friendship status if authenticated
@@ -1118,7 +1140,6 @@ export const searchUsersOptimized = query({
         name: user.name,
         bio: user.bio,
         profileImage: user.profileImage,
-        image: user.image,
         isAnonymous: user.isAnonymous,
         isBoarded: user.isBoarded
       })));
@@ -1238,7 +1259,7 @@ export const searchUsersOptimized = query({
           username: user.username || "Guest",
           name: user.name,
           bio: user.bio || "",
-          profileImage: user.profileImage || user.image,
+          profileImage: user.profileImage,
           isAuthenticated: !!currentUserId,
           friendshipStatus
         };
@@ -1278,7 +1299,6 @@ export const getRandomUsers = query({
         name: user.name,
         bio: user.bio,
         profileImage: user.profileImage,
-        image: user.image,
         isAnonymous: user.isAnonymous,
         isBoarded: user.isBoarded
       })));
@@ -1309,7 +1329,7 @@ export const getRandomUsers = query({
         username: user.username || "Guest",
         name: user.name,
         bio: user.bio || "",
-        profileImage: user.profileImage || user.image,
+        profileImage: user.profileImage,
         isAuthenticated: false,
         friendshipStatus: null
       }));
@@ -1371,7 +1391,7 @@ export const getRandomUsers = query({
           username: user.username || "Guest",
           name: user.name,
           bio: user.bio || "",
-          profileImage: user.profileImage || user.image,
+          profileImage: user.profileImage,
           isAuthenticated: true,
           friendshipStatus: {
             exists: true, 
@@ -1395,7 +1415,7 @@ export const getRandomUsers = query({
         username: user.username || "Guest",
         name: user.name,
         bio: user.bio || "",
-        profileImage: user.profileImage || user.image,
+        profileImage: user.profileImage,
         isAuthenticated: true,
         friendshipStatus
       };

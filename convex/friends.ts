@@ -423,7 +423,7 @@ export const getFriendsByUsername = query({
             userId: user._id, // Include userId for backward compatibility
             username: user.username || "Guest",
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );
@@ -948,7 +948,7 @@ export const friendRequests = query({
             _id: user._id,
             username: user.username,
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null);
           
         if (!friendUser) {

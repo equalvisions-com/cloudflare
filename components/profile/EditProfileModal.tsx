@@ -18,6 +18,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2, Upload } from "lucide-react";
 import Image from 'next/image';
+import { useToast } from "@/components/ui/use-toast";
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export function EditProfileModal({
   initialData 
 }: EditProfileModalProps) {
   const router = useRouter();
+  const { toast } = useToast();
   // Form state
   const [name, setName] = useState(initialData.name || "");
   const [bio, setBio] = useState(initialData.bio || "");
@@ -108,7 +110,11 @@ export function EditProfileModal({
           finalProfileImageKey = uploadData.key; // Use the new key from successful upload
         } catch (error) {
           console.error("Failed to upload image:", error);
-          alert("Failed to upload image: " + (error instanceof Error ? error.message : String(error)));
+          toast({
+            title: "Image Upload Error",
+            description: "Failed to upload image. Please try again later or contact support.",
+            variant: "destructive"
+          });
           setIsLoading(false); // Stop loading if upload fails
           setIsUploading(false);
           return; 
@@ -117,12 +123,23 @@ export function EditProfileModal({
         }
       }
       
-      await updateProfile({
+      const updateData: {
+        name: string | null;
+        bio: string | null;
+        profileImage: null;
+        profileImageKey?: string;
+      } = {
         name: name.trim() === "" ? null : name.trim(), // Send null if name is empty after trim
         bio: bio.trim() === "" ? null : bio.trim(),   // Send null if bio is empty after trim
         profileImage: null, // Deprecated, R2 key is used
-        profileImageKey: finalProfileImageKey, 
-      });
+      };
+      
+      // Only include profileImageKey if we actually have a new image
+      if (finalProfileImageKey) {
+        updateData.profileImageKey = finalProfileImageKey;
+      }
+      
+      await updateProfile(updateData);
       
       setSelectedFile(null);
       if (fileInputRef.current) {
@@ -133,8 +150,25 @@ export function EditProfileModal({
       router.refresh(); // Refresh data on the current page
     } catch (error) {
       console.error("Failed to update profile:", error);
-      // Consider showing a user-friendly error message here, e.g., using a toast notification
-      alert("Failed to update profile: " + (error instanceof Error ? error.message : String(error)));
+      
+      // Handle specific error types with appropriate toast messages
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes("Profile update limit exceeded")) {
+        // Rate limit error - show specific toast
+        toast({
+          title: "Rate Limit Exceeded",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      } else {
+        // Generic error - show general toast
+        toast({
+          title: "Profile Update Error", 
+          description: "Failed to update profile. Please try again later or contact support.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }

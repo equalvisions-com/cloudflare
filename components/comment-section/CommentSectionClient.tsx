@@ -74,7 +74,6 @@ interface UserProfile {
   rssKeys?: string[];
   email?: string;
   emailVerificationTime?: number;
-  image?: string;
   isAnonymous?: boolean;
   // Use Record<string, unknown> instead of any for additional properties
   // This maintains type safety while allowing for extra properties
@@ -120,11 +119,8 @@ const Comment = memo(({
   const isCommentFromCurrentUser = isAuthenticated && viewer && 
     (viewer._id === comment.userId);
   
-  // Get profile image - check multiple possible locations based on data structure
-  const profileImageUrl = 
-    comment.user?.profileImage || // From profiles table
-    comment.user?.image ||        // From users table
-    null;                         // Fallback
+  // Get profile image
+  const profileImageUrl = comment.user?.profileImage || null;
     
   // Get display name from various possible locations
   const displayName = 

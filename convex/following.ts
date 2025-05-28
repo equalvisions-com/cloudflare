@@ -220,7 +220,7 @@ export const getFollowers = query({
             _id: user._id,
             username: user.username || user.name || "User",
             name: user.name,
-            profileImage: user.profileImage || user.image
+            profileImage: user.profileImage
           } : null)
       )
     );
