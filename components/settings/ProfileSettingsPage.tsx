@@ -226,8 +226,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
         // Rate limit error - show specific toast
         toast({
           title: "Rate Limit Exceeded",
-          description: errorMessage,
-          variant: "destructive"
+          description: "You can only change your profile 3 times per day. Try again later.",
         });
       } else {
         // Generic error - show general toast

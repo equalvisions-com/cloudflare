@@ -239,14 +239,16 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   // Show edit profile button on own profile
   if (currentStatus?.status === "self" && isAuthenticated) {
     return (
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground", className)}
-        onClick={handleEditProfileClick}
-      >
-        <UserPen className="h-4 w-4" />
-        Edit Profile
+      <>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className={cn("rounded-lg h-9 font-semibold text-sm px-4 py-2 shadow-none bg-transparent text-muted-foreground border border-input hover:bg-accent hover:text-accent-foreground", className)}
+          onClick={handleEditProfileClick}
+        >
+          <UserPen className="h-4 w-4" />
+          Edit Profile
+        </Button>
         
         {isEditModalOpen && user && (
           <Suspense fallback={null}>
@@ -258,7 +260,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
             />
           </Suspense>
         )}
-      </Button>
+      </>
     );
   }
 

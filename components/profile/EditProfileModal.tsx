@@ -158,8 +158,7 @@ export function EditProfileModal({
         // Rate limit error - show specific toast
         toast({
           title: "Rate Limit Exceeded",
-          description: errorMessage,
-          variant: "destructive"
+          description: "You can only change your profile 3 times per day. Try again later.",
         });
       } else {
         // Generic error - show general toast
@@ -192,6 +191,9 @@ export function EditProfileModal({
 
   // Handle cancel with cleanup
   const handleCancel = () => {
+    // Don't allow cancel if currently loading/uploading
+    if (isLoading) return;
+    
     // Clean up any object URLs we created to avoid memory leaks
     if (selectedFile && previewImage && previewImage.startsWith('blob:')) {
       URL.revokeObjectURL(previewImage);
@@ -203,16 +205,25 @@ export function EditProfileModal({
     }
     
     // Reset to initial state
+    setName(initialData.name || "");
+    setBio(initialData.bio || "");
     setPreviewImage(initialData.profileImage || null);
     setSelectedFile(null);
-    setProfileImageKey(null);
+    setProfileImageKey(initialData.profileImageKey || null);
     
     // Close the modal
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        if (!open && !isLoading) {
+          handleCancel();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
