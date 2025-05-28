@@ -70,6 +70,25 @@ const parseEntryDate = (dateString: string | Date): Date => {
   return new Date(dateString);
 };
 
+// Helper function specifically for timestamp display - treats database dates as UTC
+const parseEntryDateForDisplay = (dateString: string | Date): Date => {
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+  
+  // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+  const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+  
+  if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
+    // Convert MySQL datetime string to UTC time for consistent display
+    const [datePart, timePart] = dateString.split(' ');
+    return new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+  }
+  
+  // Handle other formats
+  return new Date(dateString);
+};
+
 // Helper function to format dates back to MySQL format without timezone conversion
 const formatDateForAPI = (date: Date): string => {
   // Format as YYYY-MM-DDTHH:MM:SS.sssZ but preserve the original timezone intent
@@ -155,8 +174,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   // Format the timestamp based on age
   const timestamp = useMemo(() => {
-    // Use the consistent date parsing helper
-    const pubDate = parseEntryDate(entry.pubDate);
+    // Use the display-specific date parsing helper for consistent timestamp display
+    const pubDate = parseEntryDateForDisplay(entry.pubDate);
     const now = new Date();
     
     // Ensure we're working with valid dates
