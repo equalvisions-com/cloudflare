@@ -1,15 +1,25 @@
 "use client";
 
+import React from "react";
 import { PostTabsWrapperWithSearch } from "./PostTabsWrapperWithSearch";
-import { ReactNode } from "react";
+import type { RSSItem } from "@/lib/rss";
+
+// Define RSSEntryWithData interface for type safety
+interface RSSEntryWithData {
+  entry: RSSItem;
+  initialData: {
+    likes: { isLiked: boolean; count: number };
+    comments: { count: number };
+    retweets?: { isRetweeted: boolean; count: number };
+  };
+}
 
 interface PostPageClientScopeProps {
-  title: string;
   mediaType?: string;
   postTitle: string;
   feedUrl: string;
   rssData: {
-    entries: any[];
+    entries: RSSEntryWithData[];
     totalEntries: number;
     hasMore: boolean;
   } | null;
@@ -17,8 +27,7 @@ interface PostPageClientScopeProps {
   verified?: boolean;
 }
 
-export function PostPageClientScope({ 
-  title, 
+export const PostPageClientScope = React.memo(function PostPageClientScope({ 
   mediaType, 
   postTitle, 
   feedUrl, 
@@ -36,4 +45,4 @@ export function PostPageClientScope({
       verified={verified}
     />
   );
-} 
+}); 

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ButtonHTMLAttributes } from "react";
@@ -10,7 +11,11 @@ interface PostSearchButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> 
   title?: string;
 }
 
-export function PostSearchButton({ className, title, ...props }: PostSearchButtonProps) {
+export const PostSearchButton = React.memo(function PostSearchButton({ 
+  className, 
+  title, 
+  ...props 
+}: PostSearchButtonProps) {
   return (
     <Button 
       variant="secondary"
@@ -28,4 +33,4 @@ export function PostSearchButton({ className, title, ...props }: PostSearchButto
       <span className="sr-only">Search</span>
     </Button>
   );
-} 
+}); 

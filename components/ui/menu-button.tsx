@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Ellipsis, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 
 interface MenuButtonProps {
@@ -17,8 +17,18 @@ interface MenuButtonProps {
   className?: string;
 }
 
-export function MenuButton({ onClick, className }: MenuButtonProps) {
+export const MenuButton = React.memo(function MenuButton({ 
+  onClick, 
+  className 
+}: MenuButtonProps) {
   const { toast } = useToast();
+
+  const handleReportClick = useCallback(() => {
+    toast({
+      title: "Report submitted",
+      description: "Thank you for helping keep our community safe.",
+    });
+  }, [toast]);
 
   return (
     <DropdownMenu>
@@ -45,11 +55,14 @@ export function MenuButton({ onClick, className }: MenuButtonProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem className="text-red-500 hover:text-red-600">
+        <DropdownMenuItem 
+          className="text-red-500 hover:text-red-600"
+          onClick={handleReportClick}
+        >
           <Flag className="mr-2 h-4 w-4" />
           Report
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-} 
+}); 

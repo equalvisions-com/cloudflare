@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
 import { usePostSearch } from "./PostSearchContext";
@@ -29,7 +29,7 @@ interface PostTabsWrapperWithSearchProps {
   verified?: boolean;
 }
 
-export function PostTabsWrapperWithSearch({
+export const PostTabsWrapperWithSearch = React.memo(function PostTabsWrapperWithSearch({
   postTitle,
   feedUrl,
   rssData,
@@ -47,50 +47,51 @@ export function PostTabsWrapperWithSearch({
   
   const [isFetchingSearch, setIsFetchingSearch] = useState(false);
 
-  // Handle search query changes from context
-  useEffect(() => {
-    const fetchSearchResults = async () => {
-      if (!searchQuery || !postTitle || !feedUrl) {
-        setSearchResults(null); 
-        setIsFetchingSearch(false);
-        return;
+  // Memoize the search function for better performance
+  const fetchSearchResults = useCallback(async () => {
+    if (!searchQuery || !postTitle || !feedUrl) {
+      setSearchResults(null); 
+      setIsFetchingSearch(false);
+      return;
+    }
+    
+    setIsFetchingSearch(true);
+    try {
+      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=1&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}`;
+      
+      const result = await fetch(apiUrl);
+      
+      if (!result.ok) {
+        throw new Error(`Search API error: ${result.status}`);
       }
       
-      setIsFetchingSearch(true);
-      try {
-        const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=1&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}`;
-        
-        const result = await fetch(apiUrl);
-        
-        if (!result.ok) {
-          throw new Error(`Search API error: ${result.status}`);
-        }
-        
-        const data = await result.json();
-        
-        // Transform the API response to match our expected format
-        const transformedData = {
-          entries: data.entries || [],
-          totalEntries: data.totalEntries || 0,
-          hasMore: data.hasMore || false
-        };
-        
-        setSearchResults(transformedData);
-      } catch (error) {
-        console.error('Error searching entries:', error);
-        setSearchResults(null);
-      } finally {
-        setIsFetchingSearch(false);
-      }
-    };
-    
+      const data = await result.json();
+      
+      // Transform the API response to match our expected format
+      const transformedData = {
+        entries: data.entries || [],
+        totalEntries: data.totalEntries || 0,
+        hasMore: data.hasMore || false
+      };
+      
+      setSearchResults(transformedData);
+    } catch (error) {
+      console.error('Error searching entries:', error);
+      setSearchResults(null);
+    } finally {
+      setIsFetchingSearch(false);
+    }
+  }, [searchQuery, postTitle, feedUrl, mediaType]);
+
+  // Handle search query changes from context
+  useEffect(() => {
     if (searchQuery && searchQuery.trim().length > 0) {
       fetchSearchResults();
     } else {
       setSearchResults(null);
       setIsFetchingSearch(false);
     }
-  }, [searchQuery, postTitle, feedUrl, mediaType]);
+  }, [searchQuery, fetchSearchResults]);
 
   // If there's an active search query
   if (searchQuery && searchQuery.trim().length > 0) {
@@ -137,4 +138,4 @@ export function PostTabsWrapperWithSearch({
       verified={verified}
     />
   );
-} 
+}); 

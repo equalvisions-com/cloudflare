@@ -38,19 +38,16 @@ function getCachedCount(feedUrl: string): number | null {
   const cached = countCache.get(feedUrl);
   
   if (!cached) {
-    console.log(`🔍 Count cache MISS for feed: ${feedUrl}`);
     return null;
   }
   
   const now = Date.now();
   if (now - cached.timestamp > COUNT_CACHE_TTL) {
     // Cache expired
-    console.log(`⏰ Count cache EXPIRED for feed: ${feedUrl}`);
     countCache.delete(feedUrl);
     return null;
   }
   
-  console.log(`✅ Count cache HIT for feed: ${feedUrl}, count: ${cached.count}`);
   return cached.count;
 }
 
@@ -60,19 +57,15 @@ function setCachedCount(feedUrl: string, count: number): void {
     count,
     timestamp: Date.now()
   });
-  console.log(`💾 Set count cache for feed: ${feedUrl}, count: ${count}`);
 }
 
 // Function to invalidate cached count (useful after feed refresh)
 function invalidateCountCache(feedUrl: string): void {
   countCache.delete(feedUrl);
-  console.log(`🗑️ Invalidated count cache for feed: ${feedUrl}`);
 }
 
 export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
   try {
-    console.log(`🔍 SERVER: Fetching entries for feed: ${feedUrl}`);
-    
     // First, check if feeds need refreshing and create if doesn't exist
     let feedRefreshed = false;
     try {
@@ -81,7 +74,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
         [feedUrl], 
         mediaType ? [mediaType] : undefined
       );
-      console.log('✅ Feed refresh/creation check completed');
       
       // Invalidate cache after refresh
       invalidateCountCache(feedUrl);
@@ -98,7 +90,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
     const feedRows = feedResult.rows as Array<{ id: number }>;
     if (!feedRows.length) {
-      console.log('⚠️ Feed not found after refresh attempt, something went wrong');
       return null;
     }
 
@@ -117,7 +108,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     
     // If no entries found after refresh, something is wrong with the feed
     if (!entryRows.length) {
-      console.log('⚠️ No entries found for feed after refresh attempt');
       return null;
     }
 
@@ -161,7 +151,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       setCachedCount(feedUrl, totalCount);
     } else {
       totalCount = cachedCount;
-      console.log(`📊 Using cached count: ${totalCount} for feed: ${feedUrl}`);
     }
 
     // Get metrics data with proper error handling
@@ -197,8 +186,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
         mediaType: mediaType || 'article'
       }
     }));
-
-    console.log(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries`);
 
     return {
       entries: entriesWithPublicData,

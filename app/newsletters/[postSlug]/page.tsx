@@ -11,10 +11,7 @@ import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { MenuButton } from "@/components/ui/menu-button";
 import { ShareButton } from "@/components/ui/share-button";
-import { BackButton } from "@/components/back-button";
-import { Podcast, Mail } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
@@ -258,7 +255,6 @@ export default async function PostPage({ params }: PostPageProps) {
         <PostContent post={post} followState={followState} rssData={rssData} />
         {rssData ? (
           <PostPageClientScope
-            title={post.title}
             mediaType={post.mediaType}
             postTitle={post.title}
             feedUrl={post.feedUrl}

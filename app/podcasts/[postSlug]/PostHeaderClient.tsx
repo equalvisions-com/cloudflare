@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, KeyboardEvent, useEffect } from "react";
+import React, { useState, KeyboardEvent, useEffect, useCallback } from "react";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { MenuButton } from "@/components/ui/menu-button";
 import { usePostSearch } from "./PostSearchContext";
 
-export function PostHeaderUserMenu() {
+export const PostHeaderUserMenu = React.memo(function PostHeaderUserMenu() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
   
   if (!isBoarded) return null;
@@ -24,9 +24,15 @@ export function PostHeaderUserMenu() {
       pendingFriendRequestCount={pendingFriendRequestCount}
     />
   );
-}
+});
 
-export function PostSearchHeader({ title, mediaType }: { title: string; mediaType?: string }) {
+export const PostSearchHeader = React.memo(function PostSearchHeader({ 
+  title, 
+  mediaType 
+}: { 
+  title: string; 
+  mediaType?: string 
+}) {
   const [isSearching, setIsSearching] = useState(false);
   const [localSearchValue, setLocalSearchValue] = useState("");
   const { isAuthenticated } = useSidebar();
@@ -42,20 +48,24 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
     setLocalSearchValue(searchQuery);
   }, [searchQuery]);
 
-  const toggleSearch = () => {
+  const toggleSearch = useCallback(() => {
     const newVisibility = !isSearching;
     setIsSearching(newVisibility);
     if (!newVisibility) {
       setSearchQuery("");
       setLocalSearchValue("");
     }
-  };
+  }, [isSearching, setSearchQuery]);
 
-  const handleSearch = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleSearch = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && localSearchValue.trim().length > 0) {
       setSearchQuery(localSearchValue.trim());
     }
-  };
+  }, [localSearchValue, setSearchQuery]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalSearchValue(e.target.value);
+  }, []);
 
   return (
     <div className="w-full border-b py-2">
@@ -69,7 +79,7 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
             <Input
               type="text"
               value={localSearchValue}
-              onChange={(e) => setLocalSearchValue(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleSearch}
               placeholder={`Search ${title}...`}
               className="pl-9 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"
@@ -111,4 +121,4 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
       )}
     </div>
   );
-} 
+}); 

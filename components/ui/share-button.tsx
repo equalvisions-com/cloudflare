@@ -1,8 +1,8 @@
 "use client";
 
+import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useCallback, useState } from "react";
 import { Share } from "lucide-react";
 
 interface ShareButtonProps {
@@ -12,7 +12,12 @@ interface ShareButtonProps {
   children?: React.ReactNode;
 }
 
-export function ShareButton({ onClick, className, shareUrl, children }: ShareButtonProps) {
+export const ShareButton = React.memo(function ShareButton({ 
+  onClick, 
+  className, 
+  shareUrl, 
+  children 
+}: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false);
 
   const handleShare = useCallback(async (e: React.MouseEvent) => {
@@ -66,4 +71,4 @@ export function ShareButton({ onClick, className, shareUrl, children }: ShareBut
       )}
     </Button>
   );
-} 
+}); 

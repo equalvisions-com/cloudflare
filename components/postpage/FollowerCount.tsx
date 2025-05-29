@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -12,7 +13,6 @@ import {
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { SimpleFriendButton } from "@/components/ui/SimpleFriendButton";
@@ -26,24 +26,35 @@ interface Props {
   mediaType?: string;
 }
 
-export function FollowerCount({ followerCount, postId, totalEntries, mediaType }: Props) {
+export const FollowerCount = React.memo(function FollowerCount({ 
+  followerCount, 
+  postId, 
+  totalEntries, 
+  mediaType 
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const followers = useQuery(api.following.getFollowers, 
     isOpen ? { postId } : "skip"
   );
 
-  const getContentLabel = () => {
+  const getContentLabel = useCallback(() => {
     switch (mediaType?.toLowerCase()) {
       case 'podcast':
         return totalEntries === 1 ? 'Episode' : 'Episodes';
       case 'newsletter':
         return totalEntries === 1 ? 'Newsletter' : 'Newsletters';
+      default:
+        return totalEntries === 1 ? 'Post' : 'Posts';
     }
-  };
+  }, [mediaType, totalEntries]);
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+  }, []);
 
   return (
     <div className="max-w-4xl text-sm flex items-center gap-4">
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer open={isOpen} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none">
               <span className="leading-none font-medium mr-[-3px]">{followerCount}</span>{' '}
@@ -109,4 +120,4 @@ export function FollowerCount({ followerCount, postId, totalEntries, mediaType }
       ) : null}
     </div>
   );
-} 
+}); 

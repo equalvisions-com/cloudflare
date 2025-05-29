@@ -67,7 +67,7 @@ const FeedTabContent = React.memo(({
 
   return (
     <RSSFeedClient
-      key={`feed-client-default`}
+      key={`feed-client-${postTitle}`}
       postTitle={postTitle}
       feedUrl={feedUrl}
       initialData={rssData}
@@ -87,7 +87,7 @@ export function PostTabsWrapper({
   mediaType,
   verified
 }: PostTabsWrapperProps) {
-  const contentKey = `feed-content-default`;
+  const contentKey = `feed-content-${postTitle}`;
   
   return (
     <div className="w-full">

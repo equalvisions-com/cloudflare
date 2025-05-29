@@ -23,23 +23,8 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 
-// Add a consistent logging utility
+// Production-ready error logging utility
 const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
   error: (message: string, error?: unknown) => {
     console.error(`❌ ${message}`, error !== undefined ? error : '');
   }
@@ -586,6 +571,24 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   // Add a state variable to track initial render
   const [isInitialRender, setIsInitialRender] = useState(true);
   
+  // Use refs to track current values to avoid stale closures
+  const currentPageRef = useRef(currentPage);
+  const hasMoreRef = useRef(hasMoreState);
+  const isLoadingRef = useRef(isLoading);
+  
+  // Update refs whenever state changes
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+  
+  useEffect(() => {
+    hasMoreRef.current = hasMoreState;
+  }, [hasMoreState]);
+  
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+  
   // --- Drawer state for comments ---
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
@@ -603,17 +606,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     setCommentDrawerOpen(true);
   }, []);
   
-  // Debug log the initial data
+  // Reset state when initial data changes
   useEffect(() => {
     if (initialData) {
-      logger.debug('Initial data received in client:', {
-        entriesCount: initialData.entries?.length || 0,
-        hasMore: initialData.hasMore,
-        totalEntries: initialData.totalEntries,
-      });
-      
-      // Always reset state completely when initialData changes (including when search changes)
-      // This ensures pagination works correctly after search state changes
+      // Always reset state completely when initialData changes
+      // This ensures pagination works correctly after any data changes
       setAllEntriesState(initialData.entries || []);
       setCurrentPage(1);
       setHasMoreState(initialData.hasMore || false);
@@ -679,46 +676,33 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       }));
   }, [transformParams]);
   
-  // Create stable reference for loading dependencies
-  const loadingDeps = useMemo(() => ({
-    isActive,
-    isLoading, 
-    hasMoreState,
-    currentPage,
-    createApiUrl,
-    transformApiEntries,
-    ITEMS_PER_REQUEST
-  }), [isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries, ITEMS_PER_REQUEST]);
-  
   const loadMoreEntries = useCallback(async () => {
-    const { isActive, isLoading, hasMoreState, currentPage, createApiUrl, transformApiEntries } = loadingDeps;
+    // Use refs to get current values and avoid stale closures
+    const currentPageValue = currentPageRef.current;
+    const hasMoreValue = hasMoreRef.current;
+    const isLoadingValue = isLoadingRef.current;
     
-    if (!isActive || isLoading || !hasMoreState) {
-      logger.debug(`Not loading more: isLoading=${isLoading}, hasMoreState=${hasMoreState}`);
+    if (!isActive || isLoadingValue || !hasMoreValue) {
       return;
     }
     
     setIsLoading(true);
-    const nextPage = currentPage + 1;
+    const nextPage = currentPageValue + 1;
     
     try {
       const apiUrl = createApiUrl(nextPage);
-      logger.debug(`Fetching page ${nextPage} from API`);
       
       const response = await fetch(apiUrl);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data = await response.json();
-      logger.debug(`Received data from API - entries: ${data.entries?.length || 0}, hasMore: ${data.hasMore}, total: ${data.totalEntries}`);
       
       if (!data.entries?.length) {
-        logger.debug('No entries returned from API');
         setIsLoading(false);
         return;
       }
       
       const transformedEntries = transformApiEntries(data.entries);
-      logger.debug(`Transformed ${transformedEntries.length} entries`);
       
       setAllEntriesState(prev => [...prev, ...transformedEntries]);
       setCurrentPage(nextPage);
@@ -730,7 +714,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [loadingDeps]);
+  }, [isActive, createApiUrl, transformApiEntries]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 
@@ -806,14 +790,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     // Skip auto-loading on initial render to prevent layout shift
     if (isInitialRender) {
-      logger.debug('Skipping auto-load on initial render to prevent layout shift');
       setIsInitialRender(false);
       return;
     }
     
     // Only proceed with auto-loading if we have at least page size of entries already viewed
     if (allEntriesCount < ITEMS_PER_REQUEST) {
-      logger.debug(`Not enough entries viewed yet (${allEntriesCount}/${ITEMS_PER_REQUEST}), skipping auto-load`);
       return;
     }
     
@@ -822,7 +804,6 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     // If the document is shorter than the viewport, load more
     if (documentHeight <= viewportHeight && allEntriesCount > 0) {
-      logger.debug('Content is shorter than viewport, loading more entries');
       loadMoreEntries();
     }
   }, [heightCheckDeps, loadMoreRef]);
