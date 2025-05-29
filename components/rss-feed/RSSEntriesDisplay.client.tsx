@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, memo, useDeferredValue } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, memo, useDeferredValue, useReducer } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -13,9 +13,8 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { Podcast, Mail, Loader2, ArrowUp, ArrowDown, MoveUp } from "lucide-react";
+import { Podcast, Mail, Loader2, ArrowDown, MoveUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useQuery } from "convex/react";
@@ -24,27 +23,12 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import useSWR from 'swr';
 import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
 import { NoFocusWrapper } from "@/utils/NoFocusButton";
-import { NoFocusLinkWrapper, NoFocusAnchor } from "@/utils/NoFocusLink";
+import { NoFocusLinkWrapper } from "@/utils/NoFocusLink";
 import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 
-// Add a consistent logging utility
+// Production-ready error logging utility
 const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
   error: (message: string, error?: unknown) => {
     console.error(`❌ ${message}`, error !== undefined ? error : '');
   }
@@ -140,6 +124,161 @@ interface InternalPostMetadata {
   categorySlug?: string;
   postSlug?: string;
   verified?: boolean;
+}
+
+// Interface for refresh API response
+interface RefreshApiResponse {
+  success: boolean;
+  error?: string;
+  refreshedAny?: boolean;
+  entries?: RSSEntryWithData[];
+  postTitles?: string[];
+  totalEntries?: number;
+}
+
+// Consolidated state interface for better state management
+interface FeedState {
+  // Core data
+  entries: RSSEntryWithData[];
+  currentPage: number;
+  hasMore: boolean;
+  totalEntries: number;
+  postTitles: string[];
+  
+  // Loading states
+  isLoading: boolean;
+  isRefreshing: boolean;
+  hasRefreshed: boolean;
+  
+  // Error states
+  fetchError: Error | null;
+  refreshError: string | null;
+  
+  // UI states
+  commentDrawerOpen: boolean;
+  selectedCommentEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+  
+  // Notification states
+  showNotification: boolean;
+  notificationCount: number;
+  notificationImages: string[];
+  
+  // New entries buffer
+  newEntries: RSSEntryWithData[];
+  
+  // Initialization flag
+  hasInitialized: boolean;
+}
+
+// Action types for state management
+type FeedAction =
+  | { type: 'INITIALIZE'; payload: { entries: RSSEntryWithData[]; hasMore: boolean; totalEntries: number; postTitles: string[] } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_REFRESHING'; payload: boolean }
+  | { type: 'SET_HAS_REFRESHED'; payload: boolean }
+  | { type: 'SET_FETCH_ERROR'; payload: Error | null }
+  | { type: 'SET_REFRESH_ERROR'; payload: string | null }
+  | { type: 'UPDATE_ENTRIES'; payload: RSSEntryWithData[] }
+  | { type: 'APPEND_ENTRIES'; payload: RSSEntryWithData[] }
+  | { type: 'SET_PAGE'; payload: number }
+  | { type: 'SET_HAS_MORE'; payload: boolean }
+  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
+  | { type: 'SET_POST_TITLES'; payload: string[] }
+  | { type: 'SET_COMMENT_DRAWER'; payload: { open: boolean; entry?: { entryGuid: string; feedUrl: string; initialData?: { count: number } } | null } }
+  | { type: 'SET_NOTIFICATION'; payload: { show: boolean; count?: number; images?: string[] } }
+  | { type: 'SET_NEW_ENTRIES'; payload: RSSEntryWithData[] }
+  | { type: 'CLEAR_NEW_ENTRIES' }
+  | { type: 'RESET_TO_INITIAL'; payload: { entries: RSSEntryWithData[]; hasMore: boolean; totalEntries: number } };
+
+// Reducer for consolidated state management
+function feedReducer(state: FeedState, action: FeedAction): FeedState {
+  switch (action.type) {
+    case 'INITIALIZE':
+      return {
+        ...state,
+        entries: action.payload.entries,
+        hasMore: action.payload.hasMore,
+        totalEntries: action.payload.totalEntries,
+        postTitles: action.payload.postTitles,
+        currentPage: 1,
+        hasInitialized: true,
+        hasRefreshed: false,
+        fetchError: null,
+        refreshError: null
+      };
+    
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    
+    case 'SET_REFRESHING':
+      return { ...state, isRefreshing: action.payload };
+    
+    case 'SET_HAS_REFRESHED':
+      return { ...state, hasRefreshed: action.payload };
+    
+    case 'SET_FETCH_ERROR':
+      return { ...state, fetchError: action.payload };
+    
+    case 'SET_REFRESH_ERROR':
+      return { ...state, refreshError: action.payload };
+    
+    case 'UPDATE_ENTRIES':
+      return { ...state, entries: action.payload };
+    
+    case 'APPEND_ENTRIES':
+      return { ...state, entries: [...state.entries, ...action.payload] };
+    
+    case 'SET_PAGE':
+      return { ...state, currentPage: action.payload };
+    
+    case 'SET_HAS_MORE':
+      return { ...state, hasMore: action.payload };
+    
+    case 'SET_TOTAL_ENTRIES':
+      return { ...state, totalEntries: action.payload };
+    
+    case 'SET_POST_TITLES':
+      return { ...state, postTitles: action.payload };
+    
+    case 'SET_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawerOpen: action.payload.open,
+        selectedCommentEntry: action.payload.entry || null
+      };
+    
+    case 'SET_NOTIFICATION':
+      return {
+        ...state,
+        showNotification: action.payload.show,
+        notificationCount: action.payload.count || 0,
+        notificationImages: action.payload.images || []
+      };
+    
+    case 'SET_NEW_ENTRIES':
+      return { ...state, newEntries: action.payload };
+    
+    case 'CLEAR_NEW_ENTRIES':
+      return { ...state, newEntries: [] };
+    
+    case 'RESET_TO_INITIAL':
+      return {
+        ...state,
+        entries: action.payload.entries,
+        hasMore: action.payload.hasMore,
+        totalEntries: action.payload.totalEntries,
+        currentPage: 1,
+        fetchError: null,
+        refreshError: null
+      };
+    
+    default:
+      return state;
+  }
 }
 
 interface RSSEntryProps {
@@ -518,7 +657,7 @@ interface EntriesContentProps {
   isPending: boolean;
   loadMore: () => void;
   entryMetrics: Record<string, EntryMetrics> | null;
-  postMetadata?: Map<string, any>;
+  postMetadata?: Map<string, InternalPostMetadata>;
   initialData: {
     entries: RSSEntryWithData[];
     totalEntries?: number;
@@ -526,7 +665,7 @@ interface EntriesContentProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
-    feedMetadataCache: Record<string, any>;
+    feedMetadataCache: Record<string, InternalPostMetadata>;
   };
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
@@ -547,9 +686,9 @@ function EntriesContentComponent({
   isInitializing = false,
   pageSize
 }: EntriesContentProps) {
-  // Debug logging for pagination
+  // Remove debug logging for production
   useEffect(() => {
-    logger.debug(`📊 EntriesContent rendered with ${paginatedEntries.length} entries, hasMore: ${hasMore}, isPending: ${isPending}, isInitializing: ${isInitializing}`);
+    // Component rendered - tracking for internal state management only
   }, [paginatedEntries.length, hasMore, isPending, isInitializing]);
   
   // Add ref for tracking if endReached was already called
@@ -622,24 +761,18 @@ function EntriesContentComponent({
     );
   }, [entryMetrics, postMetadata, initialData.feedMetadataCache, onOpenCommentDrawer]);
   
-  // Handle endReached separately to improve debugging
+  // Handle endReached for pagination
   const handleEndReached = useCallback(() => {
     // Check if we're at the end and should load more
     if (hasMore && !isPending && !endReachedCalledRef.current) {
-      logger.debug('📜 Virtuoso reached end of list, loading more entries');
       endReachedCalledRef.current = true;
       loadMore();
-    } else if (endReachedCalledRef.current) {
-      logger.debug('📜 Virtuoso endReached already called, waiting for completion');
-    } else {
-      logger.debug(`📜 Not loading more: hasMore=${hasMore}, isPending=${isPending}`);
     }
   }, [hasMore, isPending, loadMore]);
   
   // Create a manual load more handler
   const handleManualLoadMore = useCallback(() => {
     if (hasMore && !isPending) {
-      logger.debug('📜 Manual load more button clicked');
       loadMore();
     }
   }, [hasMore, isPending, loadMore]);
@@ -661,7 +794,6 @@ function EntriesContentComponent({
         (entries) => {
           const [entry] = entries;
           if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
-            logger.debug('📜 Load more element visible, triggering load');
             endReachedCalledRef.current = true;
             loadMore();
           }
@@ -697,10 +829,6 @@ function EntriesContentComponent({
     
     // Only log the first time to avoid duplicate messages
     if (!hasLoggedInitialCreateRef.current) {
-      logger.debug('🎯 Creating Virtuoso component instance', {
-        entriesCount: paginatedEntries.length,
-        timestamp: new Date().toISOString(),
-      });
       hasLoggedInitialCreateRef.current = true;
     }
     
@@ -791,103 +919,115 @@ const RSSEntriesClientComponent = ({
   pageSize = 30, 
   isActive = true
 }: RSSEntriesClientProps) => {
-  const [isLoading, setIsLoading] = useState(false);
+  // Consolidated state management using useReducer
+  const [state, dispatch] = useReducer(feedReducer, {
+    // Core data
+    entries: [],
+    currentPage: 1,
+    hasMore: false,
+    totalEntries: 0,
+    postTitles: [],
+    
+    // Loading states
+    isLoading: false,
+    isRefreshing: false,
+    hasRefreshed: false,
+    
+    // Error states
+    fetchError: null,
+    refreshError: null,
+    
+    // UI states
+    commentDrawerOpen: false,
+    selectedCommentEntry: null,
+    
+    // Notification states
+    showNotification: false,
+    notificationCount: 0,
+    notificationImages: [],
+    
+    // New entries buffer
+    newEntries: [],
+    
+    // Initialization flag
+    hasInitialized: false
+  });
+
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
   
-  // Track errors for better error handling
-  const [fetchError, setFetchError] = useState<Error | null>(null);
-  
   // Use a fixed number of items per request for consistency
   const ITEMS_PER_REQUEST = pageSize;
   
-  // Track all entries manually - store in a ref to prevent loss during tab switching
-  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>([]);
+  // Persistent refs for state that needs to survive tab switches
   const entriesStateRef = useRef<RSSEntryWithData[]>([]);
+  const currentPageRef = useRef(1);
+  const hasMoreRef = useRef(false);
+  const postTitlesRef = useRef<string[]>(initialData?.postTitles || []);
+  const totalEntriesRef = useRef(initialData?.totalEntries || 0);
   
   // Add a persistent cache for feed metadata to ensure consistency during pagination
-  const feedMetadataCache = useRef<Record<string, any>>({});
+  const feedMetadataCache = useRef<Record<string, InternalPostMetadata>>({});
   
-  // Store pagination state in refs to preserve during tab switches
-  const [currentPage, setCurrentPage] = useState(1);
-  const currentPageRef = useRef(1);
-  const [hasMoreState, setHasMoreState] = useState(false);
-  const hasMoreRef = useRef(false);
-  
-  // Track currently followed post titles for accurate pagination
-  const [currentPostTitles, setCurrentPostTitles] = useState<string[]>(initialData?.postTitles || []);
-  const postTitlesRef = useRef<string[]>(initialData?.postTitles || []);
-  
-  // Track if we've initialized with the initial data
-  const hasInitializedRef = useRef(false);
-  
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Add state for Twitter-style refresh
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [newEntries, setNewEntries] = useState<RSSEntryWithData[]>([]);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [hasRefreshed, setHasRefreshed] = useState(false); // Track if we've already done a refresh
-  
-  // Add state for total entries count that can be updated
-  const [totalEntriesCount, setTotalEntriesCount] = useState(initialData?.totalEntries || 0);
-  const totalEntriesRef = useRef(initialData?.totalEntries || 0);
-
-  // Add state for notification
-  const [showNotification, setShowNotification] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
-  const [notificationImages, setNotificationImages] = useState<string[]>([]);
-
   // Add state for mediaTypes
   const mediaTypesRef = useRef<string[] | undefined>(initialData?.mediaTypes);
 
   // Add a ref to store the newest entry date from BEFORE any refresh
   const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
-
-  // Update state and refs together for better consistency
-  const updateEntriesState = useCallback((newEntries: RSSEntryWithData[]) => {
-    entriesStateRef.current = newEntries;
-    setAllEntriesState(newEntries);
+  
+  // Memory leak prevention - store active timeouts for cleanup
+  const activeTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  
+  // Helper function to create managed timeouts
+  const createManagedTimeout = useCallback((callback: () => void, delay: number) => {
+    const timeoutId = setTimeout(() => {
+      activeTimeoutsRef.current.delete(timeoutId);
+      if (isMountedRef.current) {
+        callback();
+      }
+    }, delay);
+    
+    activeTimeoutsRef.current.add(timeoutId);
+    return timeoutId;
+  }, []);
+  
+  // Helper function to clear managed timeout
+  const clearManagedTimeout = useCallback((timeoutId: NodeJS.Timeout) => {
+    clearTimeout(timeoutId);
+    activeTimeoutsRef.current.delete(timeoutId);
   }, []);
 
-  const updatePageState = useCallback((page: number) => {
-    currentPageRef.current = page;
-    setCurrentPage(page);
-  }, []);
+  // Sync refs with state for tab switching persistence
+  useEffect(() => {
+    entriesStateRef.current = state.entries;
+    currentPageRef.current = state.currentPage;
+    hasMoreRef.current = state.hasMore;
+    postTitlesRef.current = state.postTitles;
+    totalEntriesRef.current = state.totalEntries;
+  }, [state.entries, state.currentPage, state.hasMore, state.postTitles, state.totalEntries]);
 
-  const updateHasMoreState = useCallback((hasMore: boolean) => {
-    hasMoreRef.current = hasMore;
-    setHasMoreState(hasMore);
-  }, []);
-
-  // Add function to update post titles
-  const updatePostTitlesState = useCallback((titles: string[]) => {
-    postTitlesRef.current = titles;
-    setCurrentPostTitles(titles);
-  }, []);
-
-  // Update the updateTotalEntriesState function
-  const updateTotalEntriesState = useCallback((count: number) => {
-    totalEntriesRef.current = count;
-    setTotalEntriesCount(count);
-  }, []);
-
-  // Set up the mounted ref
+  // Set up the mounted ref with comprehensive cleanup
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
     
+    // Capture the current timeouts set for cleanup
+    const currentTimeouts = activeTimeoutsRef.current;
+    
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
+      
+      // Clear all active timeouts to prevent memory leaks
+      currentTimeouts.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+      currentTimeouts.clear();
+      
+      // Clear any pending state updates
+      // Note: React handles this automatically, but being explicit helps with debugging
     };
   }, []);
 
@@ -983,26 +1123,17 @@ const RSSEntriesClientComponent = ({
   }, [isActive]);
 
   // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
+  useFeedFocusPrevention(isActive && !state.commentDrawerOpen, '.rss-feed-container');
 
   // Initialize with initial data only once
   useEffect(() => {
-    if (!initialData?.entries?.length || hasInitializedRef.current) return;
+    if (!initialData?.entries?.length || state.hasInitialized) return;
     
-    logger.debug('Initializing feed with initial data:', {
-      entriesCount: initialData.entries.length,
-      hasMore: initialData.hasMore,
-      totalEntries: initialData.totalEntries,
-      postTitles: initialData.postTitles?.length || 0,
-      feedUrls: initialData.feedUrls?.length || 0, 
-      mediaTypes: initialData.mediaTypes?.length || 0
-    });
-
-    // Log actual mediaTypes to help with debugging
-    if (initialData.mediaTypes && initialData.mediaTypes.length > 0) {
-      logger.debug('Server provided mediaTypes:', initialData.mediaTypes);
-    } else {
-      logger.warn('No mediaTypes provided by server!');
+    // Initialize feed with initial data
+    
+    // Log actual mediaTypes for server validation
+    if (!initialData.mediaTypes || initialData.mediaTypes.length === 0) {
+      // No mediaTypes provided by server - this may affect functionality
     }
     
     // CRITICAL: Capture the newest entry date from initial data BEFORE any refresh
@@ -1019,7 +1150,6 @@ const RSSEntriesClientComponent = ({
         
         if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
           preRefreshNewestEntryDateRef.current = formatDateForAPI(newestInitialDate);
-          logger.debug(`📅 CAPTURED pre-refresh newest entry date: ${preRefreshNewestEntryDateRef.current} from entry: "${sortedInitialEntries[0].entry.title}"`);
         }
       }
     }
@@ -1032,18 +1162,11 @@ const RSSEntriesClientComponent = ({
     });
     
     // Initialize all our state
-    updateEntriesState(initialData.entries);
-    updateHasMoreState(!!initialData.hasMore);
-    updatePageState(1);
-    
-    // Update total entries count
-    if (initialData.totalEntries) {
-      updateTotalEntriesState(initialData.totalEntries);
-    }
+    dispatch({ type: 'INITIALIZE', payload: { entries: initialData.entries, hasMore: !!initialData.hasMore, totalEntries: initialData.totalEntries || 0, postTitles: initialData.postTitles || [] } });
     
     // Update post titles
     if (initialData.postTitles) {
-      updatePostTitlesState(initialData.postTitles);
+      dispatch({ type: 'SET_POST_TITLES', payload: initialData.postTitles });
     }
     
     // Create a ref for mediaTypes to ensure persistence
@@ -1052,48 +1175,44 @@ const RSSEntriesClientComponent = ({
     }
     
     // Mark as initialized so we don't reset when tabs switch
-    hasInitializedRef.current = true;
-  }, [initialData, updateEntriesState, updateHasMoreState, updatePageState, updateTotalEntriesState, updatePostTitlesState]);
+    // DO NOT set hasRefreshed to true here - that prevents the automatic refresh!
+  }, [initialData, dispatch]);
 
   // When returning to active tab, use the stored refs to restore state if needed
   useEffect(() => {
-    if (isActive && hasInitializedRef.current) {
+    if (isActive && state.hasInitialized) {
       // Only restore if the states don't match the refs (might happen due to React rendering)
-      if (allEntriesState.length === 0 && entriesStateRef.current.length > 0) {
-        logger.debug('Restoring entries from ref on tab activation');
-        setAllEntriesState(entriesStateRef.current);
+      if (state.entries.length === 0 && entriesStateRef.current.length > 0) {
+        dispatch({ type: 'UPDATE_ENTRIES', payload: entriesStateRef.current });
       }
       
-      if (currentPage !== currentPageRef.current) {
-        setCurrentPage(currentPageRef.current);
+      if (state.currentPage !== currentPageRef.current) {
+        dispatch({ type: 'SET_PAGE', payload: currentPageRef.current });
       }
       
-      if (hasMoreState !== hasMoreRef.current) {
-        setHasMoreState(hasMoreRef.current);
+      if (state.hasMore !== hasMoreRef.current) {
+        dispatch({ type: 'SET_HAS_MORE', payload: hasMoreRef.current });
       }
       
-      if (totalEntriesCount !== totalEntriesRef.current) {
-        setTotalEntriesCount(totalEntriesRef.current);
+      if (state.totalEntries !== totalEntriesRef.current) {
+        dispatch({ type: 'SET_TOTAL_ENTRIES', payload: totalEntriesRef.current });
       }
     }
-  }, [isActive, allEntriesState, currentPage, hasMoreState, totalEntriesCount]);
+  }, [isActive, state, currentPageRef, hasMoreRef, totalEntriesRef]);
 
   // Function to load more entries - update to use refs
   const loadMoreEntries = useCallback(async () => {
     // Only load more if the tab is active and not already loading/no more data
-    if (!isActive || isLoading || !hasMoreRef.current) { 
-      logger.debug(`⚠️ Not loading more: isActive=${isActive}, isLoading=${isLoading}, hasMoreState=${hasMoreRef.current}`);
+    if (!isActive || state.isLoading || !hasMoreRef.current) { 
       return;
     }
     
     if (!isMountedRef.current) {
-      logger.debug('Component not mounted, skipping loadMore');
       return;
     }
     
     // Set loading state immediately to prevent multiple calls
-    setIsLoading(true);
-    logger.debug(`📥 Loading more entries, current page: ${currentPageRef.current}, next page: ${currentPageRef.current + 1}, current entries: ${entriesStateRef.current.length}`);
+    dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
       // Use ONLY the server-provided complete list of post titles
@@ -1102,8 +1221,6 @@ const RSSEntriesClientComponent = ({
       
       // Also include feed URLs for proper pagination of newly created feeds
       const feedUrlsParam = JSON.stringify(initialData?.feedUrls || []);
-      
-      logger.debug(`📋 Using ${postTitlesRef.current.length} post titles and ${initialData?.feedUrls?.length || 0} feed URLs from server for pagination`);
       
       // Make a direct fetch to the API
       const baseUrl = new URL('/api/rss/paginate', window.location.origin);
@@ -1122,19 +1239,15 @@ const RSSEntriesClientComponent = ({
       // added to the top of the feed by the refresh process
       const currentEntriesCount = entriesStateRef.current.length;
       baseUrl.searchParams.set('currentEntriesCount', currentEntriesCount.toString());
-      logger.debug(`📊 Passing current entries count for offset calculation: ${currentEntriesCount}`);
       
       // Pass the total entries to avoid unnecessary COUNT queries on the server
       // Use our dynamically updated totalEntriesRef instead of the static initialData
       if (totalEntriesRef.current > 0) {
         baseUrl.searchParams.set('totalEntries', totalEntriesRef.current.toString());
-        logger.debug(`📊 Passing updated totalEntries: ${totalEntriesRef.current}`);
       }
       
       // Add cache busting parameter to ensure we get fresh data
       baseUrl.searchParams.set('t', Date.now().toString());
-      
-      logger.debug(`📡 Fetching page ${nextPage} from API: ${baseUrl.toString()}`);
       
       const response = await fetch(baseUrl.toString());
       if (!response.ok) {
@@ -1142,22 +1255,15 @@ const RSSEntriesClientComponent = ({
       }
       
       const data = await response.json();
-      logger.debug(`📦 Received data from API:`, {
-        entriesCount: data.entries?.length || 0,
-        hasMore: data.hasMore,
-        totalEntries: data.totalEntries
-      });
       
       // Update total entries if provided in response
       if (data.totalEntries && data.totalEntries !== totalEntriesRef.current) {
-        logger.debug(`📊 Updating totalEntries from ${totalEntriesRef.current} to ${data.totalEntries}`);
-        updateTotalEntriesState(data.totalEntries);
+        dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
       }
       
       // Update post titles from the response if available
       if (data.postTitles && data.postTitles.length > 0) {
-        logger.debug(`📋 Updating post titles from response: ${data.postTitles.length} titles`);
-        updatePostTitlesState(data.postTitles);
+        dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
       }
       
       // Transform the entries to match the expected format
@@ -1224,57 +1330,53 @@ const RSSEntriesClientComponent = ({
         })
         .filter(Boolean) as RSSEntryWithData[];
       
-      logger.debug(`✅ Transformed ${transformedEntries.length} entries`);
-      
       // Update state with new entries, only if component is still mounted
       if (isMountedRef.current) {
         // Use our updateX functions to keep refs and state in sync
         const updatedEntries = [...entriesStateRef.current, ...transformedEntries];
         
         // Batch state updates to reduce re-renders
-        updateEntriesState(updatedEntries);
-        updatePageState(nextPage);
-        updateHasMoreState(data.hasMore);
+        dispatch({ type: 'UPDATE_ENTRIES', payload: updatedEntries });
+        dispatch({ type: 'SET_PAGE', payload: nextPage });
+        dispatch({ type: 'SET_HAS_MORE', payload: data.hasMore });
       }
       
     } catch (error) {
       logger.error('❌ Error loading more entries:', error);
       if (isMountedRef.current) {
-        setFetchError(error instanceof Error ? error : new Error(String(error)));
+        dispatch({ type: 'SET_FETCH_ERROR', payload: error instanceof Error ? error : new Error(String(error)) });
       }
     } finally {
       if (isMountedRef.current) {
-        setIsLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     }
   }, [
     initialData, 
-    isLoading, 
+    state.isLoading, 
     ITEMS_PER_REQUEST, 
     isActive, 
-    updateEntriesState, 
-    updatePageState, 
-    updateHasMoreState, 
-    updateTotalEntriesState,
-    updatePostTitlesState, 
+    dispatch, 
+    currentPageRef, 
+    hasMoreRef, 
+    totalEntriesRef,
     postTitlesRef
   ]);
   
-  // Extract all entry GUIDs for metrics query
+  // Extract all entry GUIDs for metrics query - optimized
   const entryGuids = useMemo(() => {
-    return allEntriesState
-      .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.guid)
+    return state.entries
+      .filter((entry: RSSEntryWithData) => entry?.entry?.guid)
       .map((entry: RSSEntryWithData) => entry.entry.guid);
-  }, [allEntriesState]);
+  }, [state.entries]);
   
-  // Extract unique feed URLs for metadata query
+  // Extract unique feed URLs for metadata query - optimized
   const feedUrls = useMemo(() => {
-    return [...new Set(
-      allEntriesState
-        .filter((entry: RSSEntryWithData) => entry && entry.entry && entry.entry.feedUrl)
-        .map((entry: RSSEntryWithData) => entry.entry.feedUrl)
-    )];
-  }, [allEntriesState]);
+    const urls = state.entries
+      .filter((entry: RSSEntryWithData) => entry?.entry?.feedUrl)
+      .map((entry: RSSEntryWithData) => entry.entry.feedUrl);
+    return [...new Set(urls)];
+  }, [state.entries]);
   
   // Use the combined query to fetch entry metrics - ONLY IF ACTIVE
   const combinedData = useQuery(
@@ -1285,17 +1387,30 @@ const RSSEntriesClientComponent = ({
   // Defer data updates to prevent synchronous re-renders that may cause scroll jumps
   const deferredCombinedData = useDeferredValue(combinedData);
   
-  // Update metadata cache with any new data from the Convex query
+  // Update metadata cache with any new data from the Convex query - optimized
   useEffect(() => {
     if (!deferredCombinedData?.postMetadata) return;
     
+    // Batch cache updates to reduce re-renders
+    const updates: Record<string, InternalPostMetadata> = {};
+    let hasUpdates = false;
+    
     deferredCombinedData.postMetadata.forEach(item => {
       if (item.feedUrl && item.metadata) {
-        // Update our metadata cache with latest Convex data
-        feedMetadataCache.current[item.feedUrl] = item.metadata;
+        // Only update if the data has actually changed
+        const existing = feedMetadataCache.current[item.feedUrl];
+        if (!existing || JSON.stringify(existing) !== JSON.stringify(item.metadata)) {
+          updates[item.feedUrl] = item.metadata;
+          hasUpdates = true;
+        }
       }
     });
-  }, [deferredCombinedData]);
+    
+    // Only update cache if there are actual changes
+    if (hasUpdates) {
+      Object.assign(feedMetadataCache.current, updates);
+    }
+  }, [deferredCombinedData?.postMetadata]);
   
   // Create a map for metrics lookups with better memoization
   const metricsMap = useMemo(() => {
@@ -1332,28 +1447,23 @@ const RSSEntriesClientComponent = ({
   const handleTryAgain = useCallback(() => {
     if (!isMountedRef.current) return;
     
-    setFetchError(null);
-    updateEntriesState(initialData?.entries || []);
-    updatePageState(1);
-    updateHasMoreState(!!initialData?.hasMore);
-  }, [initialData, updateEntriesState, updatePageState, updateHasMoreState]);
+    dispatch({ type: 'SET_FETCH_ERROR', payload: null });
+    dispatch({ type: 'UPDATE_ENTRIES', payload: initialData?.entries || [] });
+    dispatch({ type: 'SET_PAGE', payload: 1 });
+    dispatch({ type: 'SET_HAS_MORE', payload: !!initialData?.hasMore });
+  }, [initialData, dispatch]);
   
   // Memoize the comment drawer state change handler
   const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
     if (!isMountedRef.current) return;
-    setCommentDrawerOpen(open);
+    dispatch({ type: 'SET_COMMENT_DRAWER', payload: { open, entry: null } });
   }, []);
   
-  // Add function to handle new entries
+  // Add function to handle new entries - optimized with memory leak prevention
   const handleNewEntries = useCallback((entries: RSSEntryWithData[]) => {
     if (!entries.length) {
-      logger.debug('No new entries to handle');
       return;
     }
-    
-    logger.debug(`🔄 handleNewEntries called with ${entries.length} entries`);
-    logger.debug(`🔄 Current entries count before update: ${entriesStateRef.current.length}`);
-    logger.debug(`🔄 Component mounted: ${isMountedRef.current}`);
     
     try {
       // Get current entries from ref for consistency
@@ -1366,11 +1476,8 @@ const RSSEntriesClientComponent = ({
       const uniqueNewEntries = entries.filter(entry => !existingGuids.has(entry.entry.guid));
       
       if (uniqueNewEntries.length === 0) {
-        logger.debug('No unique new entries to show after filtering');
         return;
       }
-      
-      logger.debug(`🔄 Found ${uniqueNewEntries.length} unique new entries after deduplication`);
       
       // Sort new entries by publication date in descending order (newest first)
       // This ensures proper chronological ordering across all RSS feeds
@@ -1380,12 +1487,7 @@ const RSSEntriesClientComponent = ({
         return dateB - dateA; // Descending order (newest first)
       });
       
-      logger.debug(`🔄 Prepending ${sortedNewEntries.length} chronologically sorted entries to ${currentEntries.length} existing entries`);
-      
-      // Save the count for notification
-      setNotificationCount(sortedNewEntries.length);
-      
-      // Extract featured images from the first 3 new entries
+      // Save the count for notification and extract featured images
       const featuredImages = sortedNewEntries
         .slice(0, 3) // Take only first 3 entries
         .map(entry => {
@@ -1394,53 +1496,36 @@ const RSSEntriesClientComponent = ({
         })
         .filter(img => img !== ''); // Remove empty strings
       
-      setNotificationImages(featuredImages);
-      
-      // Show notification
-      setShowNotification(true);
-      logger.debug(`🔄 Notification set to show with count: ${sortedNewEntries.length}`);
+      dispatch({ type: 'SET_NOTIFICATION', payload: { show: true, count: sortedNewEntries.length, images: featuredImages } });
       
       // Prepend sorted new entries to the existing ones using our update function to keep refs in sync
       const newEntriesArray = [...sortedNewEntries, ...currentEntries];
-      logger.debug(`🔄 About to update entries state with ${newEntriesArray.length} total entries`);
       
-      updateEntriesState(newEntriesArray);
+      dispatch({ type: 'UPDATE_ENTRIES', payload: newEntriesArray });
       
-      logger.debug(`🔄 Entries state updated. New total: ${newEntriesArray.length}`);
-      
-      // Set a timer to hide the notification after a few seconds
-      setTimeout(() => {
-        if (isMountedRef.current) {
-        setShowNotification(false);
-          logger.debug(`🔄 Notification hidden after timeout`);
-        }
+      // Set a timer to hide the notification after a few seconds - with managed cleanup
+      createManagedTimeout(() => {
+        dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
       }, 5000);
       
     } catch (error) {
       logger.error('🔄 Error handling new entries:', error);
     }
-  }, [updateEntriesState]);
+  }, [dispatch, createManagedTimeout]);
 
   // Update the effect that processes new entries
   useEffect(() => {
-    logger.debug(`🔄 useEffect for newEntries triggered. Length: ${newEntries.length}`);
-    
     // When new entries are received, handle them automatically
-    if (newEntries.length > 0) {
-      logger.debug(`🔄 Processing ${newEntries.length} new entries via useEffect`);
-      handleNewEntries(newEntries);
-      setNewEntries([]); // Clear after handling
-      logger.debug(`🔄 Cleared newEntries state after processing`);
-    } else {
-      logger.debug(`🔄 No new entries to process in useEffect`);
+    if (state.newEntries.length > 0) {
+      handleNewEntries(state.newEntries);
+      dispatch({ type: 'CLEAR_NEW_ENTRIES' });
     }
-  }, [newEntries, handleNewEntries]);
+  }, [state.newEntries, handleNewEntries]);
   
-  // Add function to trigger one-time background refresh
+  // Add function to trigger one-time background refresh - optimized dependencies
   const triggerOneTimeRefresh = useCallback(async () => {
     // Don't refresh if we've already refreshed or are currently refreshing
-    if (isRefreshing || hasRefreshed) {
-      logger.debug('Skipping refresh: already refreshed or currently refreshing');
+    if (state.isRefreshing || state.hasRefreshed) {
       return;
     }
     
@@ -1454,11 +1539,6 @@ const RSSEntriesClientComponent = ({
     // Ensure we pass the server-provided mediaTypes - use the ref to ensure persistence
     const currentMediaTypes = mediaTypesRef.current || [];
     
-    logger.debug(`🔄 Refreshing using server-provided data:
-    - Post titles: ${currentPostTitles.length}
-    - Feed URLs: ${currentFeedUrls.length}
-    - Media types: ${currentMediaTypes.length} - ${currentMediaTypes.join(', ')}`);
-    
     // Find the newest entry from our existing entries to maintain chronological order
     // This prevents older entries from newly created feeds from appearing at the top
     let newestEntryDate: string | undefined = undefined;
@@ -1467,17 +1547,8 @@ const RSSEntriesClientComponent = ({
     // This prevents using entries that were just inserted during previous refresh cycles
     if (preRefreshNewestEntryDateRef.current) {
       newestEntryDate = preRefreshNewestEntryDateRef.current;
-      logger.debug(`📅 Using pre-refresh newest entry date: ${newestEntryDate}`);
     } else {
       // Fallback: Only use current state entries, not initial data, to avoid stale data
-      logger.debug(`📅 No pre-refresh date available, calculating from current state only`);
-      logger.debug(`📅 Current state has ${entriesStateRef.current.length} entries`);
-      logger.debug(`📅 Sample current entries:`, entriesStateRef.current.slice(0, 3).map(e => ({
-        title: e.entry.title,
-        pubDate: e.entry.pubDate,
-        guid: e.entry.guid
-      })));
-      
       try {
         // Only use entries from current state, not initial data
         const currentEntries = entriesStateRef.current;
@@ -1490,32 +1561,19 @@ const RSSEntriesClientComponent = ({
             return dateB - dateA; // Newest first
           });
           
-          logger.debug(`📅 Top 3 entries after sorting:`, sortedEntries.slice(0, 3).map(e => ({
-            title: e.entry.title,
-            pubDate: e.entry.pubDate,
-            timestamp: parseEntryDate(e.entry.pubDate).getTime()
-          })));
-          
           // Get the date of the newest entry
           if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
             const candidateDate = parseEntryDate(sortedEntries[0].entry.pubDate);
             const currentTime = Date.now();
             
-            logger.debug(`📅 Candidate newest entry: "${sortedEntries[0].entry.title}" with pubDate: ${sortedEntries[0].entry.pubDate}`);
-            
             // Validate that the date is not in the future (no buffer - exact comparison)
             if (candidateDate.getTime() <= currentTime) {
               newestEntryDate = formatDateForAPI(candidateDate);
-              logger.debug(`📅 Fallback: Found valid newest entry date: ${newestEntryDate} from "${sortedEntries[0].entry.title}"`);
             } else {
               // If the newest entry is in the future, use current time instead
-              const futureMs = candidateDate.getTime() - currentTime;
-              logger.warn(`⚠️ CLIENT: Newest entry date is ${(futureMs / 1000).toFixed(1)} seconds in the future, using current time instead`);
               newestEntryDate = formatDateForAPI(new Date());
             }
           }
-        } else {
-          logger.debug(`📅 No current entries available for newest date calculation`);
         }
       } catch (error) {
         logger.error('Error determining newest entry date:', error);
@@ -1523,14 +1581,10 @@ const RSSEntriesClientComponent = ({
       }
     }
     
-    logger.debug(`📅 FINAL: Will send newestEntryDate: ${newestEntryDate} to refresh API`);
-    
-    setIsRefreshing(true);
-    setRefreshError(null);
+    dispatch({ type: 'SET_REFRESHING', payload: true });
+    dispatch({ type: 'SET_REFRESH_ERROR', payload: null });
     
     try {
-      logger.debug('🔄 Starting one-time refresh of feeds (and creating missing ones)');
-      
       // Collect all existing entry GUIDs from the ref to avoid duplicates
       const existingGuids = entriesStateRef.current.map(entry => entry.entry.guid);
       
@@ -1552,103 +1606,67 @@ const RSSEntriesClientComponent = ({
         throw new Error(`API error: ${response.status}`);
       }
       
-      const data = await response.json();
-      
-      // SERVERLESS FIX: Add comprehensive logging of the response
-      logger.debug(`🔄 Refresh API response:`, {
-        success: data.success,
-        refreshedAny: data.refreshedAny,
-        entriesCount: data.entries?.length || 0,
-        newEntriesCount: data.newEntriesCount,
-        hasEntries: !!(data.entries && Array.isArray(data.entries)),
-        responseKeys: Object.keys(data)
-      });
+      const data: RefreshApiResponse = await response.json();
       
       if (data.success) {
         // Mark that we've completed a refresh regardless of whether anything was refreshed
-        setHasRefreshed(true);
+        dispatch({ type: 'SET_HAS_REFRESHED', payload: true });
         
         // Update post titles with the COMPLETE list of all followed titles
         // This is crucial for pagination to work with newly followed posts
         if (data.postTitles && data.postTitles.length > 0) {
-          logger.debug(`📋 Updating post titles from refresh response - COMPLETE LIST: ${data.postTitles.length} titles`);
-          updatePostTitlesState(data.postTitles);
+          dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
         }
         
         // Update total entries count if provided in the response
         if (data.totalEntries && data.totalEntries !== totalEntriesRef.current) {
-          logger.debug(`📊 Updating totalEntries from refresh response: ${data.totalEntries}`);
-          updateTotalEntriesState(data.totalEntries);
+          dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
         }
         
         if (data.refreshedAny) {
-          logger.debug(`✅ Successfully refreshed feeds, found ${data.newEntriesCount} truly new entries`);
-          
           if (data.entries && data.entries.length > 0) {
-            // Add more robust logging and validation for serverless environments
-            logger.debug(`🔄 Processing ${data.entries.length} new entries from refresh response`);
-            logger.debug(`🔄 Entry sample:`, data.entries[0]);
-            
             // Validate that entries have the expected structure
-            const validEntries = data.entries.filter((entry: any) => {
+            const validEntries = data.entries.filter((entry: RSSEntryWithData) => {
               const isValid = entry && 
                              entry.entry && 
                              entry.entry.guid && 
                              entry.entry.title && 
                              entry.postMetadata;
               
-              if (!isValid) {
-                logger.warn(`🔄 Invalid entry structure:`, entry);
-              }
-              
               return isValid;
             });
             
             if (validEntries.length > 0) {
-              logger.debug(`🔄 Setting ${validEntries.length} valid new entries to state`);
-              
               // Force a state update by using a functional update
-              setNewEntries(prevNewEntries => {
-                logger.debug(`🔄 Previous newEntries length: ${prevNewEntries.length}`);
-                logger.debug(`🔄 Setting new entries length: ${validEntries.length}`);
-                return validEntries;
-              });
+              dispatch({ type: 'SET_NEW_ENTRIES', payload: validEntries });
               
               // Also trigger the handler directly as a fallback for serverless environments
               // This ensures the entries get processed even if the useEffect doesn't fire properly
-              setTimeout(() => {
+              createManagedTimeout(() => {
                 if (isMountedRef.current) {
-                  logger.debug(`🔄 Fallback - directly calling handleNewEntries with ${validEntries.length} entries`);
                   handleNewEntries(validEntries);
                 }
               }, 100); // Small delay to allow state to settle
-              
-            } else {
-              logger.warn(`🔄 No valid entries found after validation`);
             }
-          } else {
-            logger.debug('No new entries found after refresh');
           }
-        } else {
-          logger.debug('✅ No feeds needed refreshing (all were fetched within 4 hours)');
         }
       } else {
         throw new Error(data.error || 'Unknown error during refresh');
       }
     } catch (error) {
       logger.error('❌ Error during background refresh:', error);
-      setRefreshError(typeof error === 'string' ? error : error instanceof Error ? error.message : 'Unknown error');
+      dispatch({ type: 'SET_REFRESH_ERROR', payload: typeof error === 'string' ? error : error instanceof Error ? error.message : 'Unknown error' });
     } finally {
-      setIsRefreshing(false);
+      dispatch({ type: 'SET_REFRESHING', payload: false });
     }
   }, [
-    // Only include dependencies that should actually trigger a recreation of this callback
-    // Remove initialData?.entries and callback dependencies that cause unnecessary recreations
-    initialData?.feedUrls, 
-    isRefreshing, 
-    hasRefreshed
-    // Removed: initialData?.entries, updateTotalEntriesState, updatePostTitlesState, postTitlesRef, entriesStateRef, mediaTypesRef
-    // These are accessed via refs or are stable, so they don't need to be in dependencies
+    // Optimized dependencies - only include what actually changes the behavior
+    state.isRefreshing, 
+    state.hasRefreshed,
+    initialData?.feedUrls,
+    dispatch,
+    createManagedTimeout,
+    handleNewEntries
   ]);
 
   // Trigger one-time refresh after initial render - always refresh immediately
@@ -1656,32 +1674,28 @@ const RSSEntriesClientComponent = ({
     // Only check if the component is active and hasn't already refreshed
     // IMPORTANT: We still refresh even when there are no entries, which is essential for
     // creating feeds that don't exist yet
-    if (!isActive || hasRefreshed) return;
+    if (!isActive || state.hasRefreshed || !state.hasInitialized) return;
     
     // Make sure we have initialData with either postTitles or feedUrls
     if (!initialData || (!initialData.postTitles?.length && !initialData.feedUrls?.length)) {
-      logger.warn('Cannot refresh: Missing initialData or both postTitles and feedUrls');
       return;
     }
     
     // Run immediately without delay
-    logger.debug('Triggering immediate automatic refresh for all feeds');
     triggerOneTimeRefresh();
     
-  }, [isActive, initialData, hasRefreshed, triggerOneTimeRefresh]);
+  }, [isActive, initialData, state.hasRefreshed, state.hasInitialized, triggerOneTimeRefresh]);
 
   // Add back handleOpenCommentDrawer
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
     if (!isMountedRef.current) return;
     
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
+    dispatch({ type: 'SET_COMMENT_DRAWER', payload: { open: true, entry: { entryGuid, feedUrl, initialData } } });
   }, []);
 
   // Extract the onSuccess callback to include updatePostTitlesState in dependencies
   const handleFollowedPostsUpdate = useCallback(async () => {
-    logger.debug('Followed posts update detected, refreshing feed data');
     if (isMountedRef.current) {
       // Fetch latest entries from server - but keep the old ones until we get new ones
       try {
@@ -1695,32 +1709,30 @@ const RSSEntriesClientComponent = ({
           // CRITICAL: Update our post titles list FIRST to ensure we have the complete list
           // This is especially important after following new posts
           if (data.postTitles) {
-            logger.debug(`📋 HIGH PRIORITY: Updating post titles after follow change - complete list: ${data.postTitles.length} titles`);
-            updatePostTitlesState(data.postTitles);
+            dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
           }
           
           // Update total entries count if available
           if (data.totalEntries) {
-            logger.debug(`📊 Updating totalEntries after follow change: ${data.totalEntries}`);
-            updateTotalEntriesState(data.totalEntries);
+            dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
           }
           
           // Only update entries if we got some
           if (data.entries && data.entries.length > 0) {
             // Use our update functions to keep refs and state in sync
-            updateEntriesState(data.entries);
-            updatePageState(1);
-            updateHasMoreState(!!data.hasMore);
+            dispatch({ type: 'UPDATE_ENTRIES', payload: data.entries });
+            dispatch({ type: 'SET_PAGE', payload: 1 });
+            dispatch({ type: 'SET_HAS_MORE', payload: !!data.hasMore });
             
             // Reset hasRefreshed so we can refresh again if needed
-            setHasRefreshed(false);
+            dispatch({ type: 'SET_HAS_REFRESHED', payload: false });
           }
         }
       } catch (error) {
         logger.error('Error refreshing feed after follow status change:', error);
       }
     }
-  }, [updatePostTitlesState, updateTotalEntriesState, updateEntriesState, updatePageState, updateHasMoreState]);
+  }, [dispatch]);
 
   // Listen for global followed posts changes with improved handling
   useSWR(FOLLOWED_POSTS_KEY, null, {
@@ -1734,20 +1746,20 @@ const RSSEntriesClientComponent = ({
   // Add a combined function to handle all refresh attempts
   const handleRefreshAttempt = useCallback(() => {
     // Clear all error states
-    setFetchError(null);
-    setRefreshError(null);
-    setIsRefreshing(false);
+    dispatch({ type: 'SET_FETCH_ERROR', payload: null });
+    dispatch({ type: 'SET_REFRESH_ERROR', payload: null });
+    dispatch({ type: 'SET_REFRESHING', payload: false });
     
     // Reset hasRefreshed to allow triggering a new refresh
-    setHasRefreshed(false);
+    dispatch({ type: 'SET_HAS_REFRESHED', payload: false });
     
     // Attempt to refresh immediately
     triggerOneTimeRefresh();
   }, [triggerOneTimeRefresh]);
 
   // Display error message if there's an error
-  if (fetchError) {
-    logger.error('Feed loading error', { message: fetchError.message || 'Error loading entries' });
+  if (state.fetchError) {
+    logger.error('Feed loading error', { message: state.fetchError.message || 'Error loading entries' });
     
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4">
@@ -1768,14 +1780,14 @@ const RSSEntriesClientComponent = ({
   return (
     <div className="w-full rss-feed-container">
       {/* Floating notification for new posts */}
-      {showNotification && (
+      {state.showNotification && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out">
           <div className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2">
-            {notificationImages.length > 0 ? (
+            {state.notificationImages.length > 0 ? (
               <div className="flex items-center gap-1">
                 <MoveUp className="h-3 w-3" />
                 <div className="flex items-center -space-x-1">
-                  {notificationImages.map((imageUrl, index) => (
+                  {state.notificationImages.map((imageUrl, index) => (
                     <div key={index} className="relative w-4 h-4 rounded-full overflow-hidden">
                       <Image
                         src={imageUrl}
@@ -1790,7 +1802,7 @@ const RSSEntriesClientComponent = ({
               </div>
             ) : (
               <span className="text-sm font-medium">
-            {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
+            {state.notificationCount} new {state.notificationCount === 1 ? 'post' : 'posts'}
               </span>
             )}
           </div>
@@ -1798,7 +1810,7 @@ const RSSEntriesClientComponent = ({
       )}
       
       {/* Show refresh button for any errors - no detailed error messages */}
-      {refreshError && (
+      {state.refreshError && (
         <div className="p-4 flex justify-center">
           <Button 
             variant="outline"
@@ -1813,10 +1825,10 @@ const RSSEntriesClientComponent = ({
       
       {/* Main content */}
       <EntriesContent
-        paginatedEntries={allEntriesState}
-        hasMore={hasMoreState}
+        paginatedEntries={state.entries}
+        hasMore={state.hasMore}
         loadMoreRef={loadMoreRef}
-        isPending={isLoading}
+        isPending={state.isLoading}
         loadMore={loadMoreEntries}
         entryMetrics={entryMetricsMap}
         postMetadata={postMetadataMap}
@@ -1825,17 +1837,17 @@ const RSSEntriesClientComponent = ({
           feedMetadataCache: feedMetadataCache.current
         }}
         onOpenCommentDrawer={handleOpenCommentDrawer}
-        isInitializing={!hasInitializedRef.current || allEntriesState.length === 0}
+        isInitializing={!state.hasInitialized || state.entries.length === 0}
         pageSize={ITEMS_PER_REQUEST}
       />
       
       {/* Comment drawer */}
-      {selectedCommentEntry && (
+      {state.selectedCommentEntry && (
         <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
+          entryGuid={state.selectedCommentEntry.entryGuid}
+          feedUrl={state.selectedCommentEntry.feedUrl}
+          initialData={state.selectedCommentEntry.initialData}
+          isOpen={state.commentDrawerOpen}
           setIsOpen={handleCommentDrawerOpenChange}
         />
       )}
@@ -1843,8 +1855,35 @@ const RSSEntriesClientComponent = ({
   );
 };
 
-// Export the memoized version of the component
-export const RSSEntriesClient = memo(RSSEntriesClientComponent);
+// Export the memoized version of the component with optimized comparison
+export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
+  // Custom comparison function for better performance
+  // Only re-render if these critical properties change
+  if (prevProps.isActive !== nextProps.isActive) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  
+  // Deep comparison for initialData only if necessary
+  if (!prevProps.initialData && nextProps.initialData) return false;
+  if (prevProps.initialData && !nextProps.initialData) return false;
+  
+  if (prevProps.initialData && nextProps.initialData) {
+    // Compare critical initialData properties
+    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
+    if (prevProps.initialData.totalEntries !== nextProps.initialData.totalEntries) return false;
+    if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
+    
+    // Compare arrays by length and first/last elements for performance
+    const prevTitles = prevProps.initialData.postTitles;
+    const nextTitles = nextProps.initialData.postTitles;
+    if (prevTitles?.length !== nextTitles?.length) return false;
+    if (prevTitles?.length && nextTitles?.length) {
+      if (prevTitles[0] !== nextTitles[0] || prevTitles[prevTitles.length - 1] !== nextTitles[nextTitles.length - 1]) return false;
+    }
+  }
+  
+  // If all checks pass, prevent re-render
+  return true;
+});
 RSSEntriesClient.displayName = 'RSSEntriesClient';
 
 export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {

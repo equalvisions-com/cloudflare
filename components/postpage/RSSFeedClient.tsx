@@ -554,9 +554,11 @@ interface RSSFeedClientProps {
   mediaType?: string;
   isActive?: boolean;
   verified?: boolean;
+  customLoadMore?: () => Promise<void>;
+  isSearchMode?: boolean;
 }
 
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified }: RSSFeedClientProps) {
+export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [fetchError, setFetchError] = useState<Error | null>(null);
   
@@ -677,6 +679,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
   }, [transformParams]);
   
   const loadMoreEntries = useCallback(async () => {
+    // If a custom load more function is provided (for search mode), use it instead
+    if (customLoadMore) {
+      return customLoadMore();
+    }
+    
     // Use refs to get current values and avoid stale closures
     const currentPageValue = currentPageRef.current;
     const hasMoreValue = hasMoreRef.current;
@@ -714,7 +721,7 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     } finally {
       setIsLoading(false);
     }
-  }, [isActive, createApiUrl, transformApiEntries]);
+  }, [customLoadMore, isActive, createApiUrl, transformApiEntries]);
   
   // Extract all entry GUIDs for metrics query
   const entryGuids = useMemo(() => 
