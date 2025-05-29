@@ -13,7 +13,7 @@ const DAY = 24 * 60 * 60 * 1000;
 // Rate-limiter configuration
 // -----------------------------------------------------------------------------
 export const chatLimiter = new RateLimiter(components.rateLimiter, {
-  daily: {
+  chat: {
     kind: "fixed window",
     period: DAY,
     rate: DAILY_LIMIT,
@@ -33,8 +33,8 @@ export const sendChatMessage = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Consume one token from the user's daily bucket
-    const limitResult = await chatLimiter.limit(ctx, "daily", { key: userId });
+    // Consume one token from the user's chat bucket
+    const limitResult = await chatLimiter.limit(ctx, "chat", { key: userId });
     if (!limitResult.ok) {
       return {
         limited: true,
@@ -70,7 +70,7 @@ export const getRateLimitStatus = query({
 
     while (low < high) {
       const mid = Math.ceil((low + high + 1) / 2);
-      const { ok } = await chatLimiter.check(ctx, "daily", {
+      const { ok } = await chatLimiter.check(ctx, "chat", {
         key: userId,
         count: mid,
       });
