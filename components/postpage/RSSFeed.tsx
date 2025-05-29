@@ -69,9 +69,9 @@ function invalidateCountCache(feedUrl: string): void {
   console.log(`🗑️ Invalidated count cache for feed: ${feedUrl}`);
 }
 
-export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string, searchQuery?: string) => {
+export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
   try {
-    console.log(`🔍 SERVER: Fetching entries for feed: ${feedUrl}${searchQuery ? `, search: ${searchQuery}` : ''}`);
+    console.log(`🔍 SERVER: Fetching entries for feed: ${feedUrl}`);
     
     // First, check if feeds need refreshing and create if doesn't exist
     let feedRefreshed = false;
@@ -107,50 +107,17 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       throw new Error('Invalid feed ID returned from database');
     }
 
-    // For search queries, fetch total count first to support pagination
-    let totalSearchCount = 0;
-    if (searchQuery) {
-      const countResult = await executeRead(
-        'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ? AND (title LIKE ? OR description LIKE ?)',
-        [feedId, `%${searchQuery}%`, `%${searchQuery}%`]
-      );
-      
-      const countRows = countResult.rows as Array<{ total: string | number }>;
-      const rawTotal = countRows[0]?.total;
-      totalSearchCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
-      
-      console.log(`📊 Found ${totalSearchCount} total matches for search: "${searchQuery}"`);
-    }
-
     // Get entries from PlanetScale with proper typing
-    // For search, still load initial PAGE_SIZE to support virtualization
     const entriesResult = await executeRead(
-      searchQuery 
-        ? 'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? AND (title LIKE ? OR description LIKE ?) ORDER BY pub_date DESC LIMIT ?'
-        : 'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ?',
-      searchQuery 
-        ? [feedId, `%${searchQuery}%`, `%${searchQuery}%`, PAGE_SIZE]
-        : [feedId, PAGE_SIZE]
+      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ?',
+      [feedId, PAGE_SIZE]
     );
 
     const entryRows = entriesResult.rows as RSSEntryRow[];
     
-    // If no entries found after refresh, something is wrong with the feed or no search results
+    // If no entries found after refresh, something is wrong with the feed
     if (!entryRows.length) {
-      console.log(searchQuery 
-        ? `⚠️ No entries found matching search: "${searchQuery}"` 
-        : '⚠️ No entries found for feed after refresh attempt');
-      
-      if (searchQuery) {
-        // Return empty results for search with proper structure
-        return {
-          entries: [],
-          totalEntries: 0,
-          hasMore: false,
-          postTitles: [postTitle],
-          feedUrls: [feedUrl]
-        };
-      }
+      console.log('⚠️ No entries found for feed after refresh attempt');
       return null;
     }
 
@@ -166,40 +133,35 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       feedUrl
     }));
 
-    // Get total count with proper handling based on search query
+    // Get total count with proper handling
     let totalCount: number;
     
-    if (searchQuery) {
-      // For search queries, use the count we already determined
-      totalCount = totalSearchCount;
-    } else {
-      // Check for cached count first (only for non-search queries)
-      const cachedCount = getCachedCount(feedUrl);
-      
-      if (cachedCount === null) {
-        // Get total count with error handling - use optimized COUNT(e.id) query
-        const countResult = await executeRead(
-          'SELECT COUNT(e.id) as total FROM rss_entries e WHERE e.feed_id = ?',
-          [feedId]
-        );
+    // Check for cached count first
+    const cachedCount = getCachedCount(feedUrl);
     
-        const countRows = countResult.rows as Array<{ total: string | number }>;
-        // Convert string to number if needed and provide fallback
-        const rawTotal = countRows[0]?.total;
-        totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
-    
-        // Only check if it's NaN, since we've already handled the conversion
-        if (isNaN(totalCount)) {
-          console.error('Invalid count value:', rawTotal);
-          totalCount = 0;
-        }
-        
-        // Cache the count
-        setCachedCount(feedUrl, totalCount);
-      } else {
-        totalCount = cachedCount;
-        console.log(`📊 Using cached count: ${totalCount} for feed: ${feedUrl}`);
+    if (cachedCount === null) {
+      // Get total count with error handling - use optimized COUNT(e.id) query
+      const countResult = await executeRead(
+        'SELECT COUNT(e.id) as total FROM rss_entries e WHERE e.feed_id = ?',
+        [feedId]
+      );
+
+      const countRows = countResult.rows as Array<{ total: string | number }>;
+      // Convert string to number if needed and provide fallback
+      const rawTotal = countRows[0]?.total;
+      totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
+
+      // Only check if it's NaN, since we've already handled the conversion
+      if (isNaN(totalCount)) {
+        console.error('Invalid count value:', rawTotal);
+        totalCount = 0;
       }
+      
+      // Cache the count
+      setCachedCount(feedUrl, totalCount);
+    } else {
+      totalCount = cachedCount;
+      console.log(`📊 Using cached count: ${totalCount} for feed: ${feedUrl}`);
     }
 
     // Get metrics data with proper error handling
@@ -236,15 +198,14 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       }
     }));
 
-    console.log(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries${searchQuery ? ` for search: "${searchQuery}" (total: ${totalCount})` : ''}`);
+    console.log(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries`);
 
     return {
       entries: entriesWithPublicData,
       totalEntries: totalCount,
       hasMore: entriesWithPublicData.length < totalCount,
       postTitles: [postTitle],
-      feedUrls: [feedUrl],
-      searchQuery: searchQuery || undefined
+      feedUrls: [feedUrl]
     };
 
   } catch (error) {
@@ -253,7 +214,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       error,
       feedUrl,
       postTitle,
-      searchQuery,
       timestamp: new Date().toISOString(),
       stack: error instanceof Error ? error.stack : undefined
     });

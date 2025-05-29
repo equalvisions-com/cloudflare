@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useState, KeyboardEvent, useEffect } from "react";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { Input } from "@/components/ui/input";
 import { X, Search } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { PostSearchButton } from "@/components/ui/PostSearchButton";
 import { SignInButton } from "@/components/ui/SignInButton";
 import { MenuButton } from "@/components/ui/menu-button";
+import { usePostSearch } from "./PostSearchContext";
 
 export function PostHeaderUserMenu() {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
@@ -28,57 +28,32 @@ export function PostHeaderUserMenu() {
 
 export function PostSearchHeader({ title, mediaType }: { title: string; mediaType?: string }) {
   const [isSearching, setIsSearching] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const [localSearchValue, setLocalSearchValue] = useState("");
   const { isAuthenticated } = useSidebar();
+  
+  const { searchQuery, setSearchQuery } = usePostSearch();
   
   // Format the media type for display
   const displayText = mediaType ? 
     mediaType.charAt(0).toUpperCase() + mediaType.slice(1) : 
     title;
 
+  useEffect(() => {
+    setLocalSearchValue(searchQuery);
+  }, [searchQuery]);
+
   const toggleSearch = () => {
-    if (isSearching) {
-      // If we were searching, clear it
-      setSearchValue("");
-      setIsSearching(false);
-      
-      // Check if we currently have a search query
-      const currentSearchQuery = searchParams.get("q");
-      
-      if (currentSearchQuery) {
-        // Remove search query and use router.refresh() to reset server components
-        // without a full page reload
-        const params = new URLSearchParams(searchParams);
-        params.delete("q");
-        router.replace(`${pathname}?${params.toString()}`);
-        
-        // Use router.refresh() to force a server component re-render
-        // This triggers a new data fetch without a full page reload
-        setTimeout(() => {
-          router.refresh();
-        }, 0);
-      }
-    } else {
-      // Just open the search box
-      setIsSearching(true);
+    const newVisibility = !isSearching;
+    setIsSearching(newVisibility);
+    if (!newVisibility) {
+      setSearchQuery("");
+      setLocalSearchValue("");
     }
   };
 
   const handleSearch = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && searchValue.trim().length > 0) {
-      // Add search query to URL parameters
-      const params = new URLSearchParams(searchParams);
-      params.set("q", searchValue.trim());
-      router.replace(`${pathname}?${params.toString()}`);
-      
-      // Use router.refresh() to force a server component re-render
-      // This will apply the search without a full page reload
-      setTimeout(() => {
-        router.refresh();
-      }, 0);
+    if (e.key === "Enter" && localSearchValue.trim().length > 0) {
+      setSearchQuery(localSearchValue.trim());
     }
   };
 
@@ -93,8 +68,8 @@ export function PostSearchHeader({ title, mediaType }: { title: string; mediaTyp
             />
             <Input
               type="text"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              value={localSearchValue}
+              onChange={(e) => setLocalSearchValue(e.target.value)}
               onKeyDown={handleSearch}
               placeholder={`Search ${title}...`}
               className="pl-9 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none"

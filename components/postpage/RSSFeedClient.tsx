@@ -563,7 +563,6 @@ interface RSSFeedClientProps {
     entries: RSSEntryWithData[];
     totalEntries: number;
     hasMore: boolean;
-    searchQuery?: string;
   };
   pageSize?: number;
   featuredImg?: string;
@@ -611,7 +610,6 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
         entriesCount: initialData.entries?.length || 0,
         hasMore: initialData.hasMore,
         totalEntries: initialData.totalEntries,
-        searchQuery: initialData.searchQuery
       });
       
       // Always reset state completely when initialData changes (including when search changes)
@@ -629,13 +627,12 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     feedUrl,
     pageSize: ITEMS_PER_REQUEST,
     totalEntries: initialData.totalEntries,
-    searchQuery: initialData.searchQuery,
     mediaType
-  }), [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, initialData.searchQuery, mediaType]);
+  }), [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, mediaType]);
   
   // Memoize URL creation for API requests with stable params reference
   const createApiUrl = useCallback((nextPage: number) => {
-    const { postTitle, feedUrl, pageSize, totalEntries, searchQuery, mediaType } = urlParams;
+    const { postTitle, feedUrl, pageSize, totalEntries, mediaType } = urlParams;
     
     const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
     baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
@@ -649,11 +646,6 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     
     if (mediaType) {
       baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
-    }
-    
-    // Pass search query if it exists
-    if (searchQuery) {
-      baseUrl.searchParams.set('q', encodeURIComponent(searchQuery));
     }
     
     return baseUrl.toString();

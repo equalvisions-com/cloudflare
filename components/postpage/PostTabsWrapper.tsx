@@ -35,7 +35,6 @@ interface PostTabsWrapperProps {
   } | null;
   featuredImg?: string;
   mediaType?: string;
-  searchQuery?: string;
   verified?: boolean;
 }
 
@@ -46,7 +45,6 @@ interface FeedTabContentProps {
   rssData: PostTabsWrapperProps['rssData'];
   featuredImg?: string;
   mediaType?: string;
-  searchQuery?: string;
   verified?: boolean;
 }
 
@@ -57,7 +55,6 @@ const FeedTabContent = React.memo(({
   rssData,
   featuredImg,
   mediaType,
-  searchQuery,
   verified
 }: FeedTabContentProps) => {
   if (!rssData) {
@@ -68,19 +65,9 @@ const FeedTabContent = React.memo(({
     );
   }
 
-  // Show no results message when searching
-  if (searchQuery && rssData.entries.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No results found for &ldquo;{searchQuery}&rdquo;</p>
-        <p className="text-sm mt-2">Try a different search term or clear your search.</p>
-      </div>
-    );
-  }
-
   return (
     <RSSFeedClient
-      key={`feed-client-${searchQuery || 'all'}`}
+      key={`feed-client-default`}
       postTitle={postTitle}
       feedUrl={feedUrl}
       initialData={rssData}
@@ -98,10 +85,9 @@ export function PostTabsWrapper({
   rssData, 
   featuredImg, 
   mediaType,
-  searchQuery,
   verified
 }: PostTabsWrapperProps) {
-  const contentKey = `feed-content-${searchQuery || 'all'}`;
+  const contentKey = `feed-content-default`;
   
   return (
     <div className="w-full">
@@ -112,7 +98,6 @@ export function PostTabsWrapper({
         rssData={rssData}
         featuredImg={featuredImg}
         mediaType={mediaType}
-        searchQuery={searchQuery}
         verified={verified}
       />
     </div>

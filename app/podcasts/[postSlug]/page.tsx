@@ -10,12 +10,13 @@ import { FollowButton } from "@/components/follow-button/FollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { MenuButton } from "@/components/ui/menu-button";
 import { ShareButton } from "@/components/ui/share-button";
 import { BackButton } from "@/components/back-button";
+import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
+import { PostSearchProvider } from "./PostSearchContext";
 import { Podcast, Mail } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
@@ -26,7 +27,6 @@ interface PostPageProps {
   params: Promise<{
     postSlug: string;
   }>;
-  searchParams?: { q?: string };
 }
 
 // Extend the Convex Post type with our additional fields
@@ -57,8 +57,8 @@ interface PageData {
   };
 }
 
-// Optimize data fetching with aggressive caching
-const getPageData = cache(async (postSlug: string, searchQuery?: string): Promise<PageData | null> => {
+// Optimize data fetching with aggressive caching - removed searchQuery parameter
+const getPageData = cache(async (postSlug: string): Promise<PageData | null> => {
   try {
     // First get the post data - we need this for everything else
     const post = await fetchQuery(api.posts.getByMediaTypeAndSlug, { 
@@ -79,12 +79,11 @@ const getPageData = cache(async (postSlug: string, searchQuery?: string): Promis
         ? fetchQuery(api.following.isFollowing, { postId: post._id }, { token })
         : Promise.resolve(false),
 
-      // Get RSS data using post data we already have
+      // Get RSS data using post data we already have - removed searchQuery
       getInitialEntries(
         post.title,
         post.feedUrl,
-        post.mediaType,
-        searchQuery
+        post.mediaType
       ),
 
       // Get follow states for related posts if they exist
@@ -244,38 +243,35 @@ function PostContent({ post, followState, rssData }: {
   );
 }
 
-// Main page component with optimized data fetching
-export default async function PostPage({ params, searchParams }: PostPageProps) {
+// Main page component with optimized data fetching - removed searchParams
+export default async function PostPage({ params }: PostPageProps) {
   const { postSlug } = await params;
-  const searchQuery = searchParams?.q;
-  const pageData = await getPageData(postSlug, searchQuery);
+  const pageData = await getPageData(postSlug);
   
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
-  // Generate a unique key for the TabsWrapper to force remount when search changes
-  const tabsKey = `tabs-${searchQuery || 'all'}`;
-
   return (
     <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostSearchHeader title={post.title} mediaType={post.mediaType} />
-      <PostContent post={post} followState={followState} rssData={rssData} />
-      {rssData ? (
-        <PostTabsWrapper
-          key={tabsKey}
-          postTitle={post.title}
-          feedUrl={post.feedUrl}
-          rssData={rssData}
-          featuredImg={post.featuredImg}
-          mediaType={post.mediaType}
-          searchQuery={searchQuery}
-          verified={post.verified}
-        />
-      ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          Unable to load feed data. Please try again later.
-        </div>
-      )}
+      <PostSearchProvider>
+        <PostSearchHeader title={post.title} mediaType={post.mediaType} />
+        <PostContent post={post} followState={followState} rssData={rssData} />
+        {rssData ? (
+          <PostPageClientScope
+            title={post.title}
+            mediaType={post.mediaType}
+            postTitle={post.title}
+            feedUrl={post.feedUrl}
+            rssData={rssData}
+            featuredImg={post.featuredImg}
+            verified={post.verified}
+          />
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            Unable to load feed data. Please try again later.
+          </div>
+        )}
+      </PostSearchProvider>
     </PostLayoutManager>
   );
 } 
