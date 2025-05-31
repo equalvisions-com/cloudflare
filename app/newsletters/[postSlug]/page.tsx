@@ -144,7 +144,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       : `Read ${post.title} newsletter articles. ${post.category} content with ${post.followerCount} followers.`;
 
     return {
-      title: `${post.title} | Newsletter on FocusFix`,
+      title: `${post.title} | Profile`,
       description,
       authors: [{ name: post.title }],
       creator: post.title,
@@ -161,7 +161,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         },
       },
       openGraph: {
-        title: `${post.title} | Newsletter on FocusFix`,
+        title: `${post.title} | Profile`,
         description,
         url: profileUrl,
         siteName: "FocusFix",
@@ -183,7 +183,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${post.title} | Newsletter on FocusFix`,
+        title: `${post.title} | Profile`,
         description,
         images: post.featuredImg ? [post.featuredImg] : [`${siteUrl}/og-default-newsletter.jpg`],
         creator: '@focusfix',
@@ -232,18 +232,18 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
-      // ProfilePage only (Google's 2024 guidance - choose one, not both)
+      // ProfilePage - mainEntity should be the newsletter creator/brand
       {
         "@type": "ProfilePage",
         "@id": `${profileUrl}#page`,
-        "name": `${post.title} Newsletter Profile`,
+        "name": `${post.title} Profile`,
         "description": description,
         "url": profileUrl,
         "mainEntity": {
-          "@id": `${profileUrl}#organization`
+          "@id": `${profileUrl}#publisher`
         },
         "about": {
-          "@id": `${profileUrl}#organization`
+          "@id": `${profileUrl}#publisher`
         }
       },
 
@@ -273,10 +273,10 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
         ]
       },
       
-      // Organization schema (always organization)
+      // Organization schema (the newsletter creator/brand - this is the mainEntity)
       {
         "@type": "Organization",
-        "@id": `${profileUrl}#organization`,
+        "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
         "logo": post.featuredImg ? {
@@ -291,7 +291,6 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
           "@type": "Audience",
           "audienceType": "newsletter readers"
         },
-        "publishingPrinciples": profileUrl,
         "potentialAction": {
           "@type": "SubscribeAction",
           "target": {
@@ -305,13 +304,22 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
         }
       },
 
+      // WebSite schema (FocusFix platform - separate from mainEntity)
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}#website`,
+        "name": "FocusFix",
+        "url": siteUrl,
+        "description": "Discover and follow your favorite newsletters, podcasts, and content creators."
+      },
+
       // COMPLIANT ItemList - semantic only, no rich result expectation
       // External URLs are kept for semantic understanding but won't trigger rich results
       ...(rssData?.entries?.length ? [{
         "@type": "ItemList",
         "@id": `${profileUrl}#itemlist`,
-        "name": `${post.title} Articles`,
-        "description": `Latest articles from ${post.title} newsletter`,
+        "name": `${post.title} Newsletter`,
+        "description": `Latest newsletters from ${post.title}`,
         "numberOfItems": Math.min(rssData.entries.length, 10),
         "itemListElement": rssData.entries.slice(0, 10).map((entryWithData: any, index: number) => {
           const entry = entryWithData.entry;

@@ -21,9 +21,9 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
 interface PostPageProps {
-  params: Promise<{
+  params: {
     postSlug: string;
-  }>;
+  };
 }
 
 // Extend the Convex Post type with our additional fields
@@ -128,44 +128,235 @@ const getPostData = cache(async (postSlug: string): Promise<Post | null> => {
   return pageData?.post || null;
 });
 
-// Generate static params for all podcast posts
-export async function generateStaticParams() {
-  const posts = await fetchQuery(api.posts.getPostsByMediaType, {
-    mediaType: "podcast",
-  });
-  
-  return posts.map(post => ({
-    postSlug: post.postSlug,
-  }));
-}
-
 // Generate metadata using cached post data
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
-    const { postSlug } = await params;
+    const { postSlug } = params;
     const post = await getPostData(postSlug);
     if (!post) return { title: "Post Not Found" };
 
-    const apiUrl = `/api/rss/${encodeURIComponent(post.title)}?feedUrl=${encodeURIComponent(post.feedUrl)}`;
+    const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+    const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
+    
+    // Enhanced description
+    const description = post.body 
+      ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
+      : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
 
     return {
-      title: post.title,
-      description: `${post.title} - ${post.category}`,
+      title: `${post.title} | Podcast Profile`,
+      description,
+      authors: [{ name: post.title }],
+      creator: post.title,
+      publisher: "FocusFix",
+      robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          'max-video-preview': -1,
+          'max-image-preview': 'large',
+          'max-snippet': -1,
+        },
+      },
       openGraph: {
-        images: post.featuredImg ? [post.featuredImg] : [],
+        title: `${post.title} | Podcast Profile`,
+        description,
+        url: profileUrl,
+        siteName: "FocusFix",
+        images: post.featuredImg ? [{
+          url: post.featuredImg,
+          width: 1200,
+          height: 630,
+          alt: `${post.title} podcast cover`,
+          type: 'image/jpeg',
+        }] : [{
+          url: `${siteUrl}/og-default-podcast.jpg`,
+          width: 1200,
+          height: 630,
+          alt: 'FocusFix Podcast',
+          type: 'image/jpeg',
+        }],
+        locale: 'en_US',
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${post.title} | Podcast Profile`,
+        description,
+        images: post.featuredImg ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
+        creator: '@focusfix',
+        site: '@focusfix',
+      },
+      alternates: {
+        canonical: profileUrl,
+        types: {
+          'application/rss+xml': [
+            {
+              url: post.feedUrl,
+              title: `${post.title} RSS Feed`
+            }
+          ]
+        }
       },
       other: {
-        'Link': [
-          ...(post.featuredImg ? [`<${post.featuredImg}>; rel=preload; as=image`] : []),
-          `<${apiUrl}>; rel=preload; as=fetch; crossorigin=anonymous; priority=high`,
-          `</api/convex/getFeedDataWithMetrics>; rel=preload; as=fetch; crossorigin=anonymous`,
-        ].join(', '),
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300'
-      }
+        'application-name': 'FocusFix',
+        'apple-mobile-web-app-title': 'FocusFix',
+        'apple-mobile-web-app-capable': 'yes',
+        'apple-mobile-web-app-status-bar-style': 'default',
+        'format-detection': 'telephone=no',
+        'mobile-web-app-capable': 'yes',
+        'msapplication-config': '/browserconfig.xml',
+        'msapplication-TileColor': '#000000',
+        'msapplication-tap-highlight': 'no',
+        'theme-color': '#000000',
+      },
+      verification: {
+        google: process.env.GOOGLE_SITE_VERIFICATION,
+      },
     };
   } catch {
     return { title: "Post Not Found" };
   }
+}
+
+// Helper function to generate consolidated structured data
+function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
+  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const description = post.body 
+    ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
+    : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
+
+  // Consolidated JSON-LD with @id for stable URIs and proper compliance
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      // ProfilePage - mainEntity should be the podcast creator/brand
+      {
+        "@type": "ProfilePage",
+        "@id": `${profileUrl}#page`,
+        "name": `${post.title} Podcast Profile`,
+        "description": description,
+        "url": profileUrl,
+        "mainEntity": {
+          "@id": `${profileUrl}#publisher`
+        },
+        "about": {
+          "@id": `${profileUrl}#series`
+        }
+      },
+
+      // Breadcrumb structured data (ACTIVE rich result - highest priority)
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${profileUrl}#breadcrumb`,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": siteUrl
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Podcasts",
+            "item": `${siteUrl}/podcasts`
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": post.title,
+            "item": profileUrl
+          }
+        ]
+      },
+      
+      // Organization schema (the podcast creator/brand - this is the mainEntity)
+      {
+        "@type": "Organization",
+        "@id": `${profileUrl}#publisher`,
+        "name": post.title,
+        "url": profileUrl,
+        "logo": post.featuredImg ? {
+          "@type": "ImageObject",
+          "url": post.featuredImg,
+          "width": 1200,
+          "height": 630
+        } : undefined,
+        "description": description,
+        "knowsAbout": post.category,
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "podcast listeners"
+        },
+        "potentialAction": {
+          "@type": "SubscribeAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": profileUrl,
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          }
+        }
+      },
+
+      // PodcastSeries schema (the show itself)
+      {
+        "@type": "PodcastSeries",
+        "@id": `${profileUrl}#series`,
+        "name": post.title,
+        "url": profileUrl,
+        "description": description,
+        "inLanguage": "en",
+        "image": post.featuredImg ? {
+          "@type": "ImageObject",
+          "url": post.featuredImg,
+          "width": 1200,
+          "height": 630
+        } : undefined,
+        "publisher": {
+          "@id": `${profileUrl}#publisher`
+        }
+      },
+
+      // WebSite schema (FocusFix platform - separate from mainEntity)
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}#website`,
+        "name": "FocusFix",
+        "url": siteUrl,
+        "description": "Discover and follow your favorite newsletters, podcasts, and content creators."
+      },
+
+      // COMPLIANT ItemList - semantic only, no rich result expectation
+      // External URLs are kept for semantic understanding but won't trigger rich results
+      ...(rssData?.entries?.length ? [{
+        "@type": "ItemList",
+        "@id": `${profileUrl}#itemlist`,
+        "name": `${post.title} Episodes`,
+        "description": `Latest episodes from ${post.title}`,
+        "numberOfItems": Math.min(rssData.entries.length, 10),
+        "itemListElement": rssData.entries.slice(0, 10).map((entryWithData: any, index: number) => {
+          const entry = entryWithData.entry;
+          return {
+            "@type": "ListItem",
+            "position": index + 1,
+            "url": entry.link, // External URL - semantic only, no rich result
+            "name": entry.title,
+            "description": entry.description || `${entry.title} from ${post.title}`,
+            "datePublished": new Date(entry.pubDate).toISOString(),
+            "image": entry.image || post.featuredImg
+          };
+        })
+      }] : [])
+    ]
+  };
+
+  return structuredData;
 }
 
 // Simplified PostContent component for detailed feed info
@@ -240,34 +431,50 @@ function PostContent({ post, followState, rssData }: {
   );
 }
 
-// Main page component with optimized data fetching - removed searchParams
+// Main page component with optimized data fetching
 export default async function PostPage({ params }: PostPageProps) {
-  const { postSlug } = await params;
+  const { postSlug } = params;
   const pageData = await getPageData(postSlug);
   
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
+  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
+  
+  // Generate consolidated structured data
+  const structuredData = generateStructuredData(post, profileUrl, rssData);
+
   return (
-    <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
-      <PostSearchProvider>
-        <PostSearchHeader title={post.title} mediaType={post.mediaType} />
-        <PostContent post={post} followState={followState} rssData={rssData} />
-        {rssData ? (
-          <PostPageClientScope
-            mediaType={post.mediaType}
-            postTitle={post.title}
-            feedUrl={post.feedUrl}
-            rssData={rssData}
-            featuredImg={post.featuredImg}
-            verified={post.verified}
-          />
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            Unable to load feed data. Please try again later.
-          </div>
-        )}
-      </PostSearchProvider>
-    </PostLayoutManager>
+    <>
+      {/* Consolidated JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData, null, 2)
+        }}
+      />
+      
+      <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
+        <PostSearchProvider>
+          <PostSearchHeader title={post.title} mediaType={post.mediaType} />
+          <PostContent post={post} followState={followState} rssData={rssData} />
+          {rssData ? (
+            <PostPageClientScope
+              mediaType={post.mediaType}
+              postTitle={post.title}
+              feedUrl={post.feedUrl}
+              rssData={rssData}
+              featuredImg={post.featuredImg}
+              verified={post.verified}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Unable to load feed data. Please try again later.
+            </div>
+          )}
+        </PostSearchProvider>
+      </PostLayoutManager>
+    </>
   );
 } 
