@@ -212,9 +212,6 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         'msapplication-tap-highlight': 'no',
         'theme-color': '#000000',
       },
-      verification: {
-        google: process.env.GOOGLE_SITE_VERIFICATION,
-      },
     };
   } catch {
     return { title: "Post Not Found" };
