@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { TrendingWidget } from "@/components/trending/TrendingWidget";
 import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkeleton";
@@ -13,10 +14,19 @@ import { BookmarksPageClientScope } from "./BookmarksPageClientScope";
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-export const metadata = {
-  title: "Your Bookmarks | Grasper",
-  description: "View all your saved bookmarks in one place",
-};
+/* ----------  a. Page-level metadata ---------- */
+export async function generateMetadata(): Promise<Metadata> {
+  // Only what humans need to see in the tab title
+  return {
+    title: 'Your Bookmarks – FocusFix',
+    description: 'All the posts, newsletters and podcasts you\'ve saved in one place.',
+    robots: {
+      index: false,
+      follow: false,          // nofollow is fine because no public links here
+      googleBot: { index: false, follow: false }
+    }
+  };
+}
 
 /**
  * Server component for the bookmarks page

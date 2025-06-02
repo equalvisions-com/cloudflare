@@ -17,45 +17,120 @@ export const runtime = 'edge';
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Chat',
-  description: 'Chat with our AI assistant',
-};
+/* ----------  a. Page-level meta  ---------- */
+export async function generateMetadata(): Promise<Metadata> {
+  const siteUrl = process.env.SITE_URL;
+  
+  return {
+    title: 'AI Chat – FocusFix',
+    description: 'Chat with AI about newsletters, podcasts, and content discovery. Get personalized recommendations.',
+    alternates: { canonical: `${siteUrl}/chat` },
+    openGraph: {
+      title: 'AI Chat – FocusFix',
+      description: 'Chat with AI about newsletters, podcasts, and content discovery.',
+      url: `${siteUrl}/chat`,
+      type: 'website'
+    },
+    twitter: { card: 'summary_large_image', title: 'AI Chat on FocusFix' }
+  };
+}
 
 export default function Page() {
-  return (
-    <div className="fixed inset-0 md:static md:inset-auto w-full">
-      <StandardSidebarLayout
-        rightSidebar={
-          <div className="sticky top-6">
-            <div className="flex flex-col gap-6">
-              {/* Search Component */}
-              <SidebarSearch />
-              
-              {/* Notifications Widget */}
-              <NotificationsWidgetServer />
-              
-              {/* Trending Widget */}
-              <Suspense fallback={<TrendingWidgetSkeleton />}>
-                <TrendingWidget />
-              </Suspense>
-              
-              {/* Featured Posts Widget */}
-              <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-                <FeaturedPostsWidget />
-              </Suspense>
-              
-              {/* Legal Widget */}
-              <LegalWidget />
-            </div>
-          </div>
+  const siteUrl = process.env.SITE_URL;
+
+  /** Optimized JSON-LD using @graph structure */
+  const jsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${siteUrl}/chat#breadcrumbs`,
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": `${siteUrl}/` },
+          { "@type": "ListItem", "position": 2, "name": "AI Chat", "item": `${siteUrl}/chat` }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": `${siteUrl}/chat#webapp`,
+        "name": "FocusFix AI Chat Assistant",
+        "url": `${siteUrl}/chat`,
+        "applicationCategory": "ChatApplication",
+        "operatingSystem": "Web Browser",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "featureList": [
+          "Personalised newsletter recommendations",
+          "Podcast discovery assistance",
+          "Real-time AI responses"
+        ],
+        "potentialAction": {
+          "@type": "InteractAction",
+          "target": {
+            "@type": "EntryPoint",
+            "url": `${siteUrl}/chat`,
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          }
         }
-        containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
-        mainContentClass={LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS}
-        rightSidebarClass={LAYOUT_CONSTANTS.RIGHT_SIDEBAR_CLASS}
-      >
-        <ChatPage />
-      </StandardSidebarLayout>
-    </div>
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${siteUrl}/chat#software`,
+        "name": "FocusFix AI Assistant",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Any",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "url": `${siteUrl}/chat`
+      }
+    ]
+  });
+
+  return (
+    <>
+      <script
+        id="chat-schema"
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: jsonLd }}
+      />
+      
+      <div className="fixed inset-0 md:static md:inset-auto w-full">
+        <StandardSidebarLayout
+          rightSidebar={
+            <div className="sticky top-6">
+              <div className="flex flex-col gap-6">
+                {/* Search Component */}
+                <SidebarSearch />
+                
+                {/* Notifications Widget */}
+                <NotificationsWidgetServer />
+                
+                {/* Trending Widget */}
+                <Suspense fallback={<TrendingWidgetSkeleton />}>
+                  <TrendingWidget />
+                </Suspense>
+                
+                {/* Featured Posts Widget */}
+                <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+                  <FeaturedPostsWidget />
+                </Suspense>
+                
+                {/* Legal Widget */}
+                <LegalWidget />
+              </div>
+            </div>
+          }
+          containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
+          mainContentClass={LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS}
+          rightSidebarClass={LAYOUT_CONSTANTS.RIGHT_SIDEBAR_CLASS}
+        >
+          <ChatPage />
+        </StandardSidebarLayout>
+      </div>
+    </>
   );
 }

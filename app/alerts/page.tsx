@@ -14,10 +14,19 @@ import NotificationsClientWrapper from './NotificationsClientWrapper';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-export const metadata: Metadata = {
-  title: "Notifications",
-  description: "View your friend requests and other notifications",
-};
+/* ----------  a. Page-level metadata ---------- */
+export async function generateMetadata(): Promise<Metadata> {
+  // Only what humans need to see in the tab title
+  return {
+    title: 'Notifications – FocusFix',
+    description: 'View your friend requests, alerts and other notifications.',
+    robots: {
+      index: false,
+      follow: false,          // nofollow is fine because no public links here
+      googleBot: { index: false, follow: false }
+    }
+  };
+}
 
 export default function NotificationsPage() {
   // Prepare sidebar content on the server
@@ -43,14 +52,12 @@ export default function NotificationsPage() {
   );
 
   return (
-    <>
-      <StandardSidebarLayout
-        rightSidebar={rightSidebar}
-        useCardStyle={true}
-        containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
-      >
-       <NotificationsClientWrapper />
-      </StandardSidebarLayout>
-    </>
+    <StandardSidebarLayout
+      rightSidebar={rightSidebar}
+      useCardStyle={true}
+      containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+    >
+     <NotificationsClientWrapper />
+    </StandardSidebarLayout>
   );
 }

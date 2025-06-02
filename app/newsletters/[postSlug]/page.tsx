@@ -135,7 +135,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     const post = await getPostData(postSlug);
     if (!post) return { title: "Post Not Found" };
 
-    const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+    const siteUrl = process.env.SITE_URL;
     const profileUrl = `${siteUrl}/newsletters/${post.postSlug}`;
     
     // Enhanced description
@@ -223,7 +223,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
 // Helper function to generate consolidated structured data
 function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
     : `Read ${post.title} newsletter articles. ${post.category} content with ${post.followerCount} followers.`;
@@ -256,7 +256,7 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
             "@type": "ListItem",
             "position": 1,
             "name": "Home",
-            "item": siteUrl
+            "item": `${siteUrl}/`
           },
           {
             "@type": "ListItem",
@@ -302,15 +302,6 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
             ]
           }
         }
-      },
-
-      // WebSite schema (FocusFix platform - separate from mainEntity)
-      {
-        "@type": "WebSite",
-        "@id": `${siteUrl}#website`,
-        "name": "FocusFix",
-        "url": siteUrl,
-        "description": "Discover and follow your favorite newsletters, podcasts, and content creators."
       },
 
       // COMPLIANT ItemList - semantic only, no rich result expectation
@@ -420,7 +411,7 @@ export default async function PostPage({ params }: PostPageProps) {
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/newsletters/${post.postSlug}`;
   
   // Generate consolidated structured data

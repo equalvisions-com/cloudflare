@@ -12,14 +12,16 @@ export const dynamic = 'force-dynamic';
 
 /* ----------  a. Page-level meta  ---------- */
 export async function generateMetadata(): Promise<Metadata> {
+  const siteUrl = process.env.SITE_URL;
+  
   return {
     title: 'Best Newsletters to Read – FocusFix',
     description: 'A curated list of the most useful newsletters in tech, design and business – updated daily.',
-    alternates: { canonical: '/newsletters' },
+    alternates: { canonical: `${siteUrl}/newsletters` },
     openGraph: {
       title: 'Best Newsletters to Read – FocusFix',
       description: 'A curated list of the most useful newsletters in tech, design and business – updated daily.',
-      url: 'https://focusfix.com/newsletters',
+      url: `${siteUrl}/newsletters`,
       type: 'website'
     },
     twitter: { card: 'summary_large_image', title: 'Best Newsletters to Read' }
@@ -31,7 +33,7 @@ export default async function NewslettersPage() {
   /** 1. server fetch – no client code involved */
   const items = await getFeaturedNewsletters();
   
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
 
   /** 2. build all JSON-LD blocks in one string */
   const jsonLd = JSON.stringify([
@@ -51,6 +53,7 @@ export default async function NewslettersPage() {
       "name": "Best Newsletters to Read",
       "description": "A curated list of the most useful newsletters in tech, design and business – updated daily.",
       "url": `${siteUrl}/newsletters`,
+      "inLanguage": "en",
       "mainEntity": {
         "@type": "ItemList",
         "name": "Newsletter Collection",

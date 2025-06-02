@@ -12,17 +12,19 @@ export const dynamic = 'force-dynamic';
 
 /* ----------  a. Page-level meta  ---------- */
 export async function generateMetadata(): Promise<Metadata> {
+  const siteUrl = process.env.SITE_URL;
+  
   return {
-    title: 'Best Podcasts to Listen To – FocusFix',
+    title: 'Best Podcasts to Listen – FocusFix',
     description: 'A curated list of the most useful podcasts in tech, design and business – updated daily.',
-    alternates: { canonical: '/podcasts' },
+    alternates: { canonical: `${siteUrl}/podcasts` },
     openGraph: {
-      title: 'Best Podcasts to Listen To – FocusFix',
+      title: 'Best Podcasts to Listen – FocusFix',
       description: 'A curated list of the most useful podcasts in tech, design and business – updated daily.',
-      url: 'https://focusfix.com/podcasts',
+      url: `${siteUrl}/podcasts`,
       type: 'website'
     },
-    twitter: { card: 'summary_large_image', title: 'Best Podcasts to Listen To' }
+    twitter: { card: 'summary_large_image', title: 'Best Podcasts to Listen' }
   };
 }
 
@@ -31,7 +33,7 @@ export default async function PodcastsPage() {
   /** 1. server fetch – no client code involved */
   const items = await getFeaturedPodcasts();
   
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
 
   /** 2. build all JSON-LD blocks in one string */
   const jsonLd = JSON.stringify([
@@ -51,6 +53,7 @@ export default async function PodcastsPage() {
       "name": "Best Podcasts to Listen To",
       "description": "A curated list of the most useful podcasts in tech, design and business – updated daily.",
       "url": `${siteUrl}/podcasts`,
+      "inLanguage": "en",
       "mainEntity": {
         "@type": "ItemList",
         "name": "Podcast Collection",

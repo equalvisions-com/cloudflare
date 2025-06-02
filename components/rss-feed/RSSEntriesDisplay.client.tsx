@@ -799,7 +799,7 @@ function EntriesContentComponent({
           }
         },
         { 
-          rootMargin: '300px',
+          rootMargin: '1000px',
           threshold: 0.1
         }
       );

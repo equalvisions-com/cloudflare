@@ -16,14 +16,14 @@ export async function getFeaturedNewsletters(): Promise<FeaturedNewsletter[]> {
     postsPerCategory: 10
   });
 
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
 
   /* normalise only the data we need for schema */
   return featured.posts.slice(0, 10).map((p: any, idx: number) => ({
     position: idx + 1,
     url: `${siteUrl}/newsletters/${p.postSlug}`,
     name: p.title,
-    description: p.body || undefined, // Use the truncated body as description
+    description: p.body || `${p.title} newsletter from ${p.category}`,
     image: p.featuredImg || undefined // Include the featured image
   }));
 } 

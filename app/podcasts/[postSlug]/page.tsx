@@ -135,7 +135,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     const post = await getPostData(postSlug);
     if (!post) return { title: "Post Not Found" };
 
-    const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+    const siteUrl = process.env.SITE_URL;
     const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
     
     // Enhanced description
@@ -223,7 +223,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
 // Helper function to generate consolidated structured data
 function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
     : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
@@ -256,7 +256,7 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
             "@type": "ListItem",
             "position": 1,
             "name": "Home",
-            "item": siteUrl
+            "item": `${siteUrl}/`
           },
           {
             "@type": "ListItem",
@@ -323,21 +323,12 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
         }
       },
 
-      // WebSite schema (FocusFix platform - separate from mainEntity)
-      {
-        "@type": "WebSite",
-        "@id": `${siteUrl}#website`,
-        "name": "FocusFix",
-        "url": siteUrl,
-        "description": "Discover and follow your favorite newsletters, podcasts, and content creators."
-      },
-
       // COMPLIANT ItemList - semantic only, no rich result expectation
       // External URLs are kept for semantic understanding but won't trigger rich results
       ...(rssData?.entries?.length ? [{
         "@type": "ItemList",
         "@id": `${profileUrl}#itemlist`,
-        "name": `${post.title} Episodes`,
+        "name": `${post.title} Podcast`,
         "description": `Latest episodes from ${post.title}`,
         "numberOfItems": Math.min(rssData.entries.length, 10),
         "itemListElement": rssData.entries.slice(0, 10).map((entryWithData: any, index: number) => {
@@ -439,7 +430,7 @@ export default async function PostPage({ params }: PostPageProps) {
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
-  const siteUrl = process.env.SITE_URL || 'https://localhost:3000';
+  const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
   
   // Generate consolidated structured data

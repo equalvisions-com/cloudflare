@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import { Suspense } from "react";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
@@ -17,6 +18,20 @@ export const runtime = 'edge';
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
+
+/* ----------  a. Page-level metadata ---------- */
+export async function generateMetadata(): Promise<Metadata> {
+  // Only what humans need to see in the tab title
+  return {
+    title: 'Settings – FocusFix',
+    description: 'Manage your account settings and preferences.',
+    robots: {
+      index: false,
+      follow: false,          // nofollow is fine because no public links here
+      googleBot: { index: false, follow: false }
+    }
+  };
+}
 
 // Header component for the settings page
 const SettingsHeader = () => {  
@@ -40,11 +55,6 @@ const SettingsHeader = () => {
       </div>
     </div>
   );
-};
-
-export const metadata = {
-  title: "Settings - Your Account",
-  description: "Manage your account settings and preferences"
 };
 
 export default function SettingsPage() {

@@ -12,6 +12,23 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
+import { Metadata } from "next";
+
+/* ---------- a. Page-level meta ---------- */
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'Reset Password – FocusFix',
+    description: 'Reset your FocusFix account password securely.',
+    robots: {
+      index: false,
+      follow: false,
+      googleBot: {
+        index: false,
+        follow: false,
+      },
+    },
+  };
+}
 
 export default function ResetPasswordPage() {
   return (
