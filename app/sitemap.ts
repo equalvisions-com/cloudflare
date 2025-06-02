@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Return sitemap index entries pointing to our dynamic sitemap pages
   return Array.from({ length: pages }, (_, i) => ({
-    url: `${siteUrl}/sitemap-pages/${i}/sitemap.xml`,
+    url: `${siteUrl}/sitemap-pages/${i}.xml`,
     lastModified: new Date(),
   }))
 } 
