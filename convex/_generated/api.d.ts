@@ -27,6 +27,7 @@ import type * as r2 from "../r2.js";
 import type * as r2Cleanup from "../r2Cleanup.js";
 import type * as retweets from "../retweets.js";
 import type * as rssKeys from "../rssKeys.js";
+import type * as sitemap from "../sitemap.js";
 import type * as userActivity from "../userActivity.js";
 import type * as users from "../users.js";
 import type * as widgets from "../widgets.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   r2Cleanup: typeof r2Cleanup;
   retweets: typeof retweets;
   rssKeys: typeof rssKeys;
+  sitemap: typeof sitemap;
   userActivity: typeof userActivity;
   users: typeof users;
   widgets: typeof widgets;
