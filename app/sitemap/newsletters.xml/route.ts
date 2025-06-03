@@ -5,29 +5,19 @@ import { api } from '@/convex/_generated/api'
 export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
 
-const PAGE_SIZE = 50_000
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest) {
   const siteUrl = process.env.SITE_URL ?? 'https://focusfix.app'
-  const pageId = parseInt(params.id)
-  
-  if (isNaN(pageId) || pageId < 0) {
-    return new Response('Invalid page ID', { status: 400 })
-  }
   
   try {
-    // Get podcast posts for this specific page
-    const podcasts = await fetchQuery(api.sitemap.getPostsByPage, {
-      page: pageId,
-      pageSize: PAGE_SIZE,
-      mediaType: 'podcast'
+    // Get all newsletter posts
+    const newsletters = await fetchQuery(api.sitemap.getPostsByPage, {
+      page: 0,
+      pageSize: 50000, // Google's limit
+      mediaType: 'newsletter'
     })
 
-    const urls = podcasts.map(post => 
-      `<url><loc>${siteUrl}/podcasts/${encodeURIComponent(post.postSlug)}</loc><lastmod>${new Date(post.lastModified).toISOString()}</lastmod><priority>0.7</priority></url>`
+    const urls = newsletters.map(post => 
+      `<url><loc>${siteUrl}/newsletters/${encodeURIComponent(post.postSlug)}</loc><lastmod>${new Date(post.lastModified).toISOString()}</lastmod><priority>0.7</priority></url>`
     ).join('\n')
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -42,7 +32,7 @@ ${urls}
       },
     })
   } catch (error) {
-    console.error('Error generating podcasts sitemap:', error)
+    console.error('Error generating newsletters sitemap:', error)
     
     // Return empty sitemap on error
     const xml = `<?xml version="1.0" encoding="UTF-8"?>

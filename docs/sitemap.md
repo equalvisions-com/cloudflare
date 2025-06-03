@@ -1,18 +1,18 @@
 # Sitemap Implementation
 
 ## Overview
-This app implements a comprehensive sitemap system optimized for SEO with content-type-specific organization.
+This app implements a comprehensive sitemap system optimized for SEO with content-type-specific organization and proper XML extensions.
 
 ## Structure
 ```
-/sitemap.xml                    # Main sitemap index
-├── /sitemap/pages/0           # Main navigation pages (/, /podcasts, /newsletters, /users, /chat)
-├── /sitemap/newsletters/0     # Newsletter posts
-├── /sitemap/newsletters/1     # More newsletters (if >50k)
-├── /sitemap/podcasts/0        # Podcast posts  
-├── /sitemap/podcasts/1        # More podcasts (if >50k)
-├── /sitemap/profiles/0        # User profiles
-└── /sitemap/profiles/1        # More profiles (if >50k)
+/sitemap.xml                      # Main sitemap index
+├── /sitemap/pages/0.xml         # Main navigation pages (/, /podcasts, /newsletters, /users, /chat)
+├── /sitemap/newsletters/0.xml   # Newsletter posts
+├── /sitemap/newsletters/1.xml   # More newsletters (if >50k)
+├── /sitemap/podcasts/0.xml      # Podcast posts  
+├── /sitemap/podcasts/1.xml      # More podcasts (if >50k)
+├── /sitemap/profiles/0.xml      # User profiles
+└── /sitemap/profiles/1.xml      # More profiles (if >50k)
 ```
 
 ## Benefits of Content-Type Organization
@@ -21,6 +21,7 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 - **Easier debugging**: Issues with specific content types are isolated
 - **Performance**: Smaller, focused sitemaps load faster
 - **Scalability**: Each content type can scale independently
+- **Industry standard**: Proper .xml extensions for maximum compatibility
 
 ## Files
 
@@ -31,10 +32,10 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 - **Runtime**: Edge compatible
 
 ### Content-Type Sitemaps
-- **Main Pages**: `app/sitemap/pages/[id]/route.ts` → `/sitemap/pages/0`
-- **Newsletters**: `app/sitemap/newsletters/[id]/route.ts` → `/sitemap/newsletters/{id}`
-- **Podcasts**: `app/sitemap/podcasts/[id]/route.ts` → `/sitemap/podcasts/{id}`
-- **Profiles**: `app/sitemap/profiles/[id]/route.ts` → `/sitemap/profiles/{id}`
+- **Main Pages**: `app/sitemap/pages/[id].xml/route.ts` → `/sitemap/pages/{id}.xml`
+- **Newsletters**: `app/sitemap/newsletters/[id].xml/route.ts` → `/sitemap/newsletters/{id}.xml`
+- **Podcasts**: `app/sitemap/podcasts/[id].xml/route.ts` → `/sitemap/podcasts/{id}.xml`
+- **Profiles**: `app/sitemap/profiles/[id].xml/route.ts` → `/sitemap/profiles/{id}.xml`
 
 ### Backend Queries
 - **File**: `convex/sitemap.ts`
@@ -52,6 +53,7 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 - **URL encoding**: Proper encoding for special characters in slugs
 - **Edge runtime**: Compatible with Cloudflare Pages
 - **Caching**: 1-hour cache headers for performance
+- **XML extensions**: Industry-standard .xml file extensions for maximum compatibility
 
 ## Content Included
 - **Main pages**: Home, podcasts index, newsletters index, users index, chat
@@ -68,6 +70,7 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 ## SEO Optimization
 - Content-type-specific organization for better crawling
 - Proper XML structure with lastModified dates
+- Industry-standard .xml file extensions
 - Efficient pagination to stay under search engine limits
 - Clean URLs with proper encoding
 - Fast edge runtime for quick responses
