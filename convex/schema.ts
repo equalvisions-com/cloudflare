@@ -124,4 +124,15 @@ export default defineSchema({
   .index("by_user_comment", ["userId", "commentId"])  // To check if a user liked a comment
   .index("by_comment", ["commentId"])                 // To count likes for a comment
   .index("by_user", ["userId"]),                      // To get all comments liked by a user
+
+  trendingTopics: defineTable({
+    title: v.string(),        // Human-readable title (e.g. "Sports", "Investing")
+    subtopic: v.string(),     // Short subtopic string (e.g. "NFL Free Agency", "Bitcoin")
+    imageUrl: v.string(),     // URL pointing to a small icon image (PNG/SVG)
+    isActive: v.boolean(),    // Whether this topic should be displayed
+    sortOrder: v.number(),    // For controlling display order
+  })
+  .index("by_active", ["isActive"])           // To get only active topics
+  .index("by_sort_order", ["sortOrder"])      // To get topics in display order
+  .index("by_active_sort", ["isActive", "sortOrder"]), // Combined index for active topics in order
 });

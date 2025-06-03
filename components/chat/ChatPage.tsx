@@ -34,6 +34,7 @@ import { BackButton } from '@/components/back-button';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/components/ui/use-toast";
+import { TrendingTopicsGrid } from './TrendingTopicsGrid';
 
 // Simple typing indicator component with animated dots.
 function TypingIndicator() {
@@ -101,7 +102,6 @@ export function ChatPage() {
     },
     onFinish: () => {
       // Called when the entire response is complete
-      setIsStreaming(false);
     },
     body: {
       // Include the active button type in the request
@@ -114,7 +114,6 @@ export function ChatPage() {
   
   // New state for enhanced UI features
   const [activeButton, setActiveButton] = useState<"none" | "newsletters" | "podcasts" | "articles">("newsletters");
-  const [isStreaming, setIsStreaming] = useState(false);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   
   // Refs for DOM elements
@@ -233,7 +232,7 @@ export function ChatPage() {
 
   // Toggle action buttons with selection preservation
   const toggleButton = (buttonType: ActiveButton) => {
-    if (!isStreaming) {
+    if (!isLoading) {
       // Add vibration feedback on mobile
       safeVibrate(50);
 
@@ -266,7 +265,7 @@ export function ChatPage() {
   // Handle key down events
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle Cmd+Enter on both mobile and desktop
-    if (!isStreaming && e.key === "Enter" && e.metaKey) {
+    if (!isLoading && e.key === "Enter" && e.metaKey) {
       e.preventDefault();
       if (input.trim()) {
         customHandleSubmit(new Event('submit'));
@@ -275,7 +274,7 @@ export function ChatPage() {
     }
 
     // Handle regular Enter key (without Shift)
-    if (!isStreaming && e.key === "Enter" && !e.shiftKey) {
+    if (!isLoading && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (input.trim()) {
         customHandleSubmit(new Event('submit'));
@@ -620,8 +619,8 @@ export function ChatPage() {
       return;
     }
 
-    // Only submit if there's input, we're not already streaming, and a button is selected
-    if (input.trim() && !isLoading && !isStreaming && activeButton !== "none") {
+    // Only submit if there's input, we're not already loading, and a button is selected
+    if (input.trim() && !isLoading && activeButton !== "none") {
       // Check if this is the first message being sent
       if (messages.length === 0) {
         // Set animation state before submitting to ensure smooth transition
@@ -636,9 +635,6 @@ export function ChatPage() {
           if (textareaRef.current) {
             textareaRef.current.focus();
           }
-          
-          // Set streaming state
-          setIsStreaming(true);
           
           // Scroll to bottom immediately when sending
           scrollToBottom();
@@ -656,9 +652,6 @@ export function ChatPage() {
           textareaRef.current.focus();
         }
         
-        // Set streaming state
-        setIsStreaming(true);
-        
         // Scroll to bottom immediately when sending
         scrollToBottom();
         
@@ -672,24 +665,22 @@ export function ChatPage() {
   const customHandleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
 
-    // Only allow input changes when not streaming
-    if (!isLoading) {
-      // Call the original handler
-      handleInputChange(e);
+    // Allow input changes even when loading (user should be able to type next message)
+    // Call the original handler
+    handleInputChange(e);
 
-      if (newValue.trim() !== "" && !hasTyped) {
-        setHasTyped(true);
-      } else if (newValue.trim() === "" && hasTyped) {
-        setHasTyped(false);
-      }
+    if (newValue.trim() !== "" && !hasTyped) {
+      setHasTyped(true);
+    } else if (newValue.trim() === "" && hasTyped) {
+      setHasTyped(false);
+    }
 
-      // Auto-resize textarea
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.style.height = "auto";
-        const newHeight = Math.max(24, Math.min(textarea.scrollHeight, 160));
-        textarea.style.height = `${newHeight}px`;
-      }
+    // Auto-resize textarea
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      const newHeight = Math.max(24, Math.min(textarea.scrollHeight, 160));
+      textarea.style.height = `${newHeight}px`;
     }
   };
 
@@ -740,7 +731,6 @@ export function ChatPage() {
         setMessages([]);
         
         // Reset any other state
-        setIsStreaming(false);
         setLastMessageId(null);
         
         // Focus the textarea after clearing
@@ -751,32 +741,12 @@ export function ChatPage() {
     }
   };
 
-  // New function to handle topic card clicks
-  const handleTopicClick = (topic: string, subtopic: string) => {
+  // New function to handle topic card clicks with dynamic data
+  const handleTopicClick = (title: string, subtopic: string) => {
     if (!isAuthenticated) return;
     if (textareaRef.current) {
-      // Set an appropriate starter question based on the topic
-      const starterQuestions = {
-        sports: `Tell me the latest news about ${subtopic}.`,
-        investing: `What's happening with ${subtopic} recently?`,
-        politics: `What's the latest news about ${subtopic}?`,
-        technology: `What are the latest developments in ${subtopic}?`
-      };
-      
-      // Map topics to appropriate content types
-      const topicToContentType: Record<string, ActiveButton> = {
-        sports: "articles",
-        investing: "newsletters",
-        politics: "podcasts",
-        technology: "articles"
-      };
-      
-      // Get the question text based on topic
-      const questionText = starterQuestions[topic.toLowerCase() as keyof typeof starterQuestions];
-      
-      // Set the appropriate content type button
-      const contentType = topicToContentType[topic.toLowerCase() as keyof typeof topicToContentType];
-      setActiveButton(contentType);
+      // Generate simple question about the subtopic
+      const questionText = `Tell me about ${subtopic}.`;
       
       // Set the input value programmatically
       const e = {
@@ -853,7 +823,6 @@ export function ChatPage() {
               ))}
             </div>
           )}
-          {isStreaming && lastMessageId !== null && <TypingIndicator />}
           {/* Show remaining messages */}
           {isAuthenticated && rateLimitStatus && (
             <div className="text-center text-xs text-muted-foreground pt-2">
@@ -999,70 +968,11 @@ export function ChatPage() {
                 </form>
               </div>
               
-              {/* Topic grid */}
-              <div className="w-full">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Sports card */}
-                  <div 
-                    className={cn(
-                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
-                      !isAuthenticated && "opacity-50 cursor-not-allowed"
-                    )}
-                    onClick={() => isAuthenticated && handleTopicClick('sports', 'NFL')}
-                  >
-                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                      <span className="mr-2">🏈</span>
-                      <span>Sports</span>
-                    </h3>
-                    <p className="text-primary text-sm leading-none">NFL Free Agency</p>
-                  </div>
-                  
-                  {/* Investing card */}
-                  <div 
-                    className={cn(
-                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
-                      !isAuthenticated && "opacity-50 cursor-not-allowed"
-                    )}
-                    onClick={() => isAuthenticated && handleTopicClick('investing', 'Bitcoin')}
-                  >
-                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                      <span className="mr-2">📈</span>
-                      <span>Investing</span>
-                    </h3>
-                    <p className="text-primary text-sm leading-none">Stock Market</p>
-                  </div>
-                  
-                  {/* Pop Culture card */}
-                  <div 
-                    className={cn(
-                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
-                      !isAuthenticated && "opacity-50 cursor-not-allowed"
-                    )}
-                    onClick={() => isAuthenticated && handleTopicClick('politics', 'Kendrick Lamar')}
-                  >
-                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                      <span className="mr-2">🍿</span>
-                      <span>Pop Culture</span>
-                    </h3>
-                    <p className="text-primary text-sm leading-none">Kendrick Lamar</p>
-                  </div>
-                  
-                  {/* Technology card */}
-                  <div 
-                    className={cn(
-                      "border rounded-xl p-3 bg-secondary/0 hover:bg-secondary/80 cursor-pointer transition-colors",
-                      !isAuthenticated && "opacity-50 cursor-not-allowed"
-                    )}
-                    onClick={() => isAuthenticated && handleTopicClick('technology', 'AI')}
-                  >
-                    <h3 className="text-muted-foreground text-sm font-medium mb-3 flex items-center leading-none">
-                      <span className="mr-2">🤖</span>
-                      <span>Technology</span>
-                    </h3>
-                    <p className="text-primary text-sm leading-none">Artificial Intelligence</p>
-                  </div>
-                </div>
-              </div>
+              {/* Dynamic Topic grid */}
+              <TrendingTopicsGrid 
+                isAuthenticated={isAuthenticated}
+                onTopicClick={handleTopicClick}
+              />
             </div>
           </div>
         </div>
