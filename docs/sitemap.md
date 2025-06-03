@@ -6,7 +6,7 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 ## Structure
 ```
 /sitemap.xml                    # Main sitemap index
-├── /sitemap/static/0          # Static pages (/, /podcasts, /newsletters, /users)
+├── /sitemap/pages/0           # Main navigation pages (/, /podcasts, /newsletters, /users, /chat)
 ├── /sitemap/newsletters/0     # Newsletter posts
 ├── /sitemap/newsletters/1     # More newsletters (if >50k)
 ├── /sitemap/podcasts/0        # Podcast posts  
@@ -31,7 +31,7 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 - **Runtime**: Edge compatible
 
 ### Content-Type Sitemaps
-- **Static Pages**: `app/sitemap/static/[id]/route.ts` → `/sitemap/static/0`
+- **Main Pages**: `app/sitemap/pages/[id]/route.ts` → `/sitemap/pages/0`
 - **Newsletters**: `app/sitemap/newsletters/[id]/route.ts` → `/sitemap/newsletters/{id}`
 - **Podcasts**: `app/sitemap/podcasts/[id]/route.ts` → `/sitemap/podcasts/{id}`
 - **Profiles**: `app/sitemap/profiles/[id]/route.ts` → `/sitemap/profiles/{id}`
@@ -54,13 +54,13 @@ This app implements a comprehensive sitemap system optimized for SEO with conten
 - **Caching**: 1-hour cache headers for performance
 
 ## Content Included
-- **Static pages**: Home, podcasts index, newsletters index, users index
+- **Main pages**: Home, podcasts index, newsletters index, users index, chat
 - **Newsletter posts**: `/newsletters/{slug}`
 - **Podcast posts**: `/podcasts/{slug}`
 - **User profiles**: `/@{username}` (only boarded, non-anonymous users)
 
 ## Content Excluded
-- User-specific pages (bookmarks, alerts, chat, settings)
+- User-specific pages (bookmarks, alerts, settings)
 - Authentication pages (signin, reset-password, onboarding)
 - Anonymous or unboarded user profiles
 - Draft or unverified posts

@@ -19,10 +19,10 @@ export default async function sitemapIndex(): Promise<MetadataRoute.Sitemap> {
   const podcastPages = Math.ceil(podcastsCount / PAGE_SIZE)
   const profilePages = Math.ceil(usersCount / PAGE_SIZE)
 
-  // Add static pages sitemap
+  // Add pages sitemap (renamed from static)
   if (staticPagesCount > 0) {
     sitemaps.push({
-      url: `${siteUrl}/sitemap/static/0`,
+      url: `${siteUrl}/sitemap/pages/0`,
       lastModified: new Date(),
     })
   }

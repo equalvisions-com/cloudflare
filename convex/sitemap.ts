@@ -103,8 +103,8 @@ export const getSitemapCounts = query({
     );
     const usersCount = validUsers.length;
     
-    // Count only public pages (removed user-specific and auth pages)
-    const staticPagesCount = 4; // /, /podcasts, /newsletters, /users
+    // Count main navigation pages: /, /podcasts, /newsletters, /users, /chat
+    const staticPagesCount = 5;
     
     return {
       postsCount,

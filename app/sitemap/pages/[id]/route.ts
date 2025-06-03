@@ -12,7 +12,7 @@ export async function GET(
   const page = Number(id)
   const site = process.env.SITE_URL ?? 'https://focusfix.app'
 
-  // Only serve page 0 for static pages
+  // Only serve page 0 for pages sitemap
   if (page !== 0) {
     return new Response('Not Found', { status: 404 })
   }
@@ -24,7 +24,8 @@ export async function GET(
     `<url><loc>${site}/</loc><lastmod>${lm}</lastmod></url>`,
     `<url><loc>${site}/podcasts</loc><lastmod>${lm}</lastmod></url>`,
     `<url><loc>${site}/newsletters</loc><lastmod>${lm}</lastmod></url>`,
-    `<url><loc>${site}/users</loc><lastmod>${lm}</lastmod></url>`
+    `<url><loc>${site}/users</loc><lastmod>${lm}</lastmod></url>`,
+    `<url><loc>${site}/chat</loc><lastmod>${lm}</lastmod></url>`
   ]
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
