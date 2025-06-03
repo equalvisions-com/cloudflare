@@ -2,6 +2,9 @@ import type { MetadataRoute } from 'next'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
+
 const PAGE_SIZE = 50_000
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
