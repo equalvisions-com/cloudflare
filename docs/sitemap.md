@@ -1,39 +1,76 @@
-# Sitemap System
+# Sitemap Implementation
 
-This app uses Next.js's built-in sitemap functionality with automatic pagination to handle hundreds of thousands of URLs efficiently.
+## Overview
+This app implements a comprehensive sitemap system optimized for SEO with content-type-specific organization.
 
-## How it works
-
-### Automatic Pagination
-- **Limit**: Each sitemap is limited to 50,000 URLs (Google's limit)
-- **Auto-generation**: The system automatically creates multiple sitemaps when needed
-- **URLs included**: 
-  - **Static pages**: home, podcasts, newsletters, signin, onboarding
-  - **User pages**: users list, bookmarks, alerts, chat
-  - **All podcast posts**: `/podcasts/{postSlug}`
-  - **All newsletter posts**: `/newsletters/{postSlug}`
-  - **Category filters**: `/podcasts?category={categorySlug}`, `/newsletters?category={categorySlug}`
-  - **All user profiles**: `/@{username}`
-
-### Smart lastModified Dates
-- **Posts/Users**: Use actual creation time from database
-- **Categories**: Use the most recent post in that category
-- **Dynamic pages**: Use most recent activity (latest post or user)
-- **Static pages**: Use fixed dates for auth/onboarding pages
-- **User-specific pages**: Use current date (bookmarks, alerts, chat)
-
-### Files Structure
+## Structure
 ```
-app/
-├── sitemap.ts                    # Main sitemap with auto-pagination
-├── sitemap-index.xml/route.ts    # Sitemap index (lists all sitemaps)
-└── convex/sitemap.ts            # Optimized queries for sitemap data
+/sitemap.xml                    # Main sitemap index
+├── /sitemap/static/0          # Static pages (/, /podcasts, /newsletters, /users)
+├── /sitemap/newsletters/0     # Newsletter posts
+├── /sitemap/newsletters/1     # More newsletters (if >50k)
+├── /sitemap/podcasts/0        # Podcast posts  
+├── /sitemap/podcasts/1        # More podcasts (if >50k)
+├── /sitemap/profiles/0        # User profiles
+└── /sitemap/profiles/1        # More profiles (if >50k)
 ```
 
-### Generated URLs
-- **Main sitemap**: `/sitemap.xml` → redirects to `/sitemap/0.xml`
-- **Individual sitemaps**: `/sitemap/0.xml`, `/sitemap/1.xml`, etc.
-- **Sitemap index**: `/sitemap-index.xml` (lists all sitemaps)
+## Benefits of Content-Type Organization
+- **Better SEO**: Search engines can understand content types and crawl accordingly
+- **Targeted crawling**: Different content types can have different crawl frequencies
+- **Easier debugging**: Issues with specific content types are isolated
+- **Performance**: Smaller, focused sitemaps load faster
+- **Scalability**: Each content type can scale independently
+
+## Files
+
+### Main Sitemap Index
+- **File**: `app/sitemap.ts` (metadata route)
+- **URL**: `/sitemap.xml`
+- **Purpose**: Points to all content-type-specific sitemaps
+- **Runtime**: Edge compatible
+
+### Content-Type Sitemaps
+- **Static Pages**: `app/sitemap/static/[id]/route.ts` → `/sitemap/static/0`
+- **Newsletters**: `app/sitemap/newsletters/[id]/route.ts` → `/sitemap/newsletters/{id}`
+- **Podcasts**: `app/sitemap/podcasts/[id]/route.ts` → `/sitemap/podcasts/{id}`
+- **Profiles**: `app/sitemap/profiles/[id]/route.ts` → `/sitemap/profiles/{id}`
+
+### Backend Queries
+- **File**: `convex/sitemap.ts`
+- **Functions**:
+  - `getPostsByPage()` - Paginated posts with media type filtering
+  - `getUsersByPage()` - Paginated user profiles
+  - `getSitemapCounts()` - Count totals for each content type
+  - `getLastActivityDate()` - Most recent activity for lastModified
+
+## Features
+- **Automatic pagination**: 50,000 URLs per sitemap
+- **Content filtering**: Only public, accessible content
+- **Media type separation**: Newsletters and podcasts in separate sitemaps
+- **Smart lastModified**: Uses actual modification dates when available
+- **URL encoding**: Proper encoding for special characters in slugs
+- **Edge runtime**: Compatible with Cloudflare Pages
+- **Caching**: 1-hour cache headers for performance
+
+## Content Included
+- **Static pages**: Home, podcasts index, newsletters index, users index
+- **Newsletter posts**: `/newsletters/{slug}`
+- **Podcast posts**: `/podcasts/{slug}`
+- **User profiles**: `/@{username}` (only boarded, non-anonymous users)
+
+## Content Excluded
+- User-specific pages (bookmarks, alerts, chat, settings)
+- Authentication pages (signin, reset-password, onboarding)
+- Anonymous or unboarded user profiles
+- Draft or unverified posts
+
+## SEO Optimization
+- Content-type-specific organization for better crawling
+- Proper XML structure with lastModified dates
+- Efficient pagination to stay under search engine limits
+- Clean URLs with proper encoding
+- Fast edge runtime for quick responses
 
 ## Edge Runtime Compatibility
 - All sitemap functions use `export const runtime = 'edge'`

@@ -1,19 +1,25 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get posts by page for sitemap generation (paginated)
+// Get posts by page for sitemap generation (paginated, with optional media type filter)
 export const getPostsByPage = query({
   args: { 
     page: v.number(),
-    pageSize: v.number()
+    pageSize: v.number(),
+    mediaType: v.optional(v.union(v.literal("newsletter"), v.literal("podcast")))
   },
-  handler: async (ctx, { page, pageSize }) => {
+  handler: async (ctx, { page, pageSize, mediaType }) => {
     const offset = page * pageSize;
     
     // Use the working take().slice() pattern for pagination
-    const posts = await ctx.db
-      .query("posts")
-      .order("desc")
+    let query = ctx.db.query("posts").order("desc");
+    
+    // Apply media type filter if specified
+    if (mediaType) {
+      query = query.filter(q => q.eq(q.field("mediaType"), mediaType));
+    }
+    
+    const posts = await query
       .take(pageSize + offset)
       .then(results => results.slice(offset));
     
@@ -81,8 +87,10 @@ export const getLastActivityDate = query({
 export const getSitemapCounts = query({
   args: {},
   handler: async (ctx) => {
-    // Count posts efficiently
+    // Get all posts and count by media type
     const posts = await ctx.db.query("posts").collect();
+    const newslettersCount = posts.filter(p => p.mediaType === "newsletter").length;
+    const podcastsCount = posts.filter(p => p.mediaType === "podcast").length;
     const postsCount = posts.length;
     
     // Count valid users efficiently
@@ -100,6 +108,8 @@ export const getSitemapCounts = query({
     
     return {
       postsCount,
+      newslettersCount,
+      podcastsCount,
       usersCount,
       staticPagesCount,
       totalCount: postsCount + usersCount + staticPagesCount
