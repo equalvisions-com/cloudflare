@@ -24,6 +24,12 @@ const PersistentPlayer = dynamic(
   { ssr: false }
 );
 
+// Dynamically import floating chat button with ssr disabled
+const FloatingChatButton = dynamic(
+  () => import("@/components/FloatingChatButton"),
+  { ssr: false }
+);
+
 // Define viewport export for Next.js App Router
 export const viewport: Viewport = {
   width: "device-width",
@@ -187,6 +193,7 @@ export default function RootLayout({
               </AudioProvider>
             </ThemeProvider>
           </ConvexClientProvider>
+          <FloatingChatButton />
         </body>
       </html>
     </ConvexAuthNextjsServerProvider>
