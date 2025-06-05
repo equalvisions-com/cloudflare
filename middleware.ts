@@ -4,7 +4,7 @@ import {
   nextjsMiddlewareRedirect,
   convexAuthNextjsToken,
 } from "@convex-dev/auth/nextjs/server";
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse, NextRequest, NextFetchEvent } from 'next/server';
 import { cookies } from 'next/headers';
 import { Logger } from 'next-axiom';
 
@@ -59,27 +59,17 @@ async function getBasicUserStatus(request: NextRequest) {
 }
 
 export default convexAuthNextjsMiddleware(
-  async (request, { convexAuth }) => {
-    // Initialize Axiom logger for edge runtime
-    const log = new Logger();
+  async (request: NextRequest, { convexAuth, event }: { convexAuth: any, event: NextFetchEvent }) => {
+    // Initialize Axiom logger for edge runtime with source identifier
+    const logger = new Logger({ source: 'middleware' });
     
-    // Log edge request with comprehensive data
-    log.info('Edge request', {
-      url: request.url,
-      method: request.method,
-      userAgent: request.headers.get('user-agent'),
-      geo: request.geo,
-      ip: request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for'),
-      referer: request.headers.get('referer'),
-      pathname: request.nextUrl.pathname,
-      searchParams: Object.fromEntries(request.nextUrl.searchParams),
-    });
-
-    // Use lightweight status check to avoid cold start 500 errors
+    // Use official Axiom middleware method for automatic request logging
+    logger.middleware(request);
+    
+    // Log additional authentication and routing context
     const { isAuthenticated, isBoarded, skipOnboardingCheck } = await getBasicUserStatus(request);
     
-    // Log authentication status
-    log.info('User status', {
+    logger.info('User status', {
       isAuthenticated,
       isBoarded,
       skipOnboardingCheck,
@@ -97,9 +87,11 @@ export default convexAuthNextjsMiddleware(
     response.headers.set('x-user-onboarded', isBoarded ? '1' : '0');
     response.headers.set('x-skip-onboarding-check', skipOnboardingCheck ? '1' : '0');
 
-    // Handle existing auth logic
+    // Handle existing auth logic with additional logging
     if (isSignInPage(request) && isAuthenticated) {
-      log.info('Redirecting authenticated user from signin', { to: '/' });
+      logger.info('Redirecting authenticated user from signin', { to: '/' });
+      // Ensure logs are flushed before redirect
+      event.waitUntil(logger.flush());
       return nextjsMiddlewareRedirect(request, "/");
     }
     
@@ -107,39 +99,46 @@ export default convexAuthNextjsMiddleware(
     if (isOnboardingPage(request)) {
       // Always redirect non-authenticated users
       if (!isAuthenticated) {
-        log.info('Redirecting unauthenticated user from onboarding', { to: '/signin' });
+        logger.info('Redirecting unauthenticated user from onboarding', { to: '/signin' });
+        event.waitUntil(logger.flush());
         return nextjsMiddlewareRedirect(request, "/signin");
       }
       
       // Only redirect if we have a confident "true" for onboarded
       if (isBoarded && !skipOnboardingCheck) {
-        log.info('Redirecting onboarded user from onboarding', { to: '/' });
+        logger.info('Redirecting onboarded user from onboarding', { to: '/' });
+        event.waitUntil(logger.flush());
         return nextjsMiddlewareRedirect(request, "/");
       }
       
       // For uncertain states (cold starts), we'll set a header for the page to perform a secondary check
       response.headers.set('x-check-onboarding', '1');
+      event.waitUntil(logger.flush());
       return response;
     }
     
     if (isProtectedRoute(request) && !isAuthenticated) {
-      log.info('Redirecting unauthenticated user from protected route', { 
+      logger.info('Redirecting unauthenticated user from protected route', { 
         from: request.nextUrl.pathname,
         to: '/signin' 
       });
+      event.waitUntil(logger.flush());
       return nextjsMiddlewareRedirect(request, "/signin");
     }
 
     // Handle onboarding redirect - check this before profile routes
     // Don't redirect if already on onboarding page
     if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
-      log.info('Redirecting unauthenticated user to onboarding', { 
+      logger.info('Redirecting unauthenticated user to onboarding', { 
         from: request.nextUrl.pathname,
         to: '/onboarding' 
       });
+      event.waitUntil(logger.flush());
       return nextjsMiddlewareRedirect(request, "/onboarding");
     }
     
+    // Ensure logs are flushed for successful requests
+    event.waitUntil(logger.flush());
     return response;
   },
   { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } }, // 30 days
