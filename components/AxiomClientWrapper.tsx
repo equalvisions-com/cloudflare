@@ -15,4 +15,4 @@ export default function AxiomClientWrapper({ children }: { children: React.React
   }, [])
 
   return <>{children}</>
-}
+} 
