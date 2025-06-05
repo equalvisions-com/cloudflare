@@ -60,26 +60,31 @@ async function getBasicUserStatus(request: NextRequest) {
 
 export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
-    // Add Axiom logging with error handling
-    try {
-      const log = new Logger();
-      log.info('Edge request', {
-        url: request.url,
-        method: request.method,
-        userAgent: request.headers.get('user-agent'),
-        referer: request.headers.get('referer'),
-        timestamp: new Date().toISOString(),
-        // Add Cloudflare specific headers if available
-        ...(request.headers.get('cf-ray') && { cfRay: request.headers.get('cf-ray') }),
-        ...(request.headers.get('cf-ipcountry') && { country: request.headers.get('cf-ipcountry') }),
-      });
-    } catch (axiomError) {
-      // Log to console if Axiom fails, but don't break middleware
-      console.warn('Failed to log request to Axiom:', axiomError);
-    }
+    // Initialize Axiom logger for edge runtime
+    const log = new Logger();
+    
+    // Log edge request with comprehensive data
+    log.info('Edge request', {
+      url: request.url,
+      method: request.method,
+      userAgent: request.headers.get('user-agent'),
+      geo: request.geo,
+      ip: request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for'),
+      referer: request.headers.get('referer'),
+      pathname: request.nextUrl.pathname,
+      searchParams: Object.fromEntries(request.nextUrl.searchParams),
+    });
 
     // Use lightweight status check to avoid cold start 500 errors
     const { isAuthenticated, isBoarded, skipOnboardingCheck } = await getBasicUserStatus(request);
+    
+    // Log authentication status
+    log.info('User status', {
+      isAuthenticated,
+      isBoarded,
+      skipOnboardingCheck,
+      pathname: request.nextUrl.pathname,
+    });
     
     // For all routes, ensure specific cache-control header for dynamic content
     const response = NextResponse.next();
@@ -94,6 +99,7 @@ export default convexAuthNextjsMiddleware(
 
     // Handle existing auth logic
     if (isSignInPage(request) && isAuthenticated) {
+      log.info('Redirecting authenticated user from signin', { to: '/' });
       return nextjsMiddlewareRedirect(request, "/");
     }
     
@@ -101,11 +107,13 @@ export default convexAuthNextjsMiddleware(
     if (isOnboardingPage(request)) {
       // Always redirect non-authenticated users
       if (!isAuthenticated) {
+        log.info('Redirecting unauthenticated user from onboarding', { to: '/signin' });
         return nextjsMiddlewareRedirect(request, "/signin");
       }
       
       // Only redirect if we have a confident "true" for onboarded
       if (isBoarded && !skipOnboardingCheck) {
+        log.info('Redirecting onboarded user from onboarding', { to: '/' });
         return nextjsMiddlewareRedirect(request, "/");
       }
       
@@ -115,12 +123,20 @@ export default convexAuthNextjsMiddleware(
     }
     
     if (isProtectedRoute(request) && !isAuthenticated) {
+      log.info('Redirecting unauthenticated user from protected route', { 
+        from: request.nextUrl.pathname,
+        to: '/signin' 
+      });
       return nextjsMiddlewareRedirect(request, "/signin");
     }
 
     // Handle onboarding redirect - check this before profile routes
     // Don't redirect if already on onboarding page
     if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
+      log.info('Redirecting unauthenticated user to onboarding', { 
+        from: request.nextUrl.pathname,
+        to: '/onboarding' 
+      });
       return nextjsMiddlewareRedirect(request, "/onboarding");
     }
     

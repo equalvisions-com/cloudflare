@@ -13,7 +13,7 @@ import dynamic from "next/dynamic";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
-import AxiomClientWrapper from "@/components/AxiomClientWrapper";
+import { LogClientErrors } from './log-client-errors';
 
 // Dynamically import audio components with ssr disabled
 const AudioProvider = dynamic(
@@ -175,29 +175,28 @@ export default function RootLayout({
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}
         >
           <ConvexClientProvider>
-            <AxiomClientWrapper>
-              <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
-                <AudioProvider>
-                  <UserData>
-                    <ScrollResetter>
-                      <div className="">
-                        <div className="hidden">
-                          <Suspense fallback={null}>
-                            <UserMenuServer />
-                          </Suspense>
-                        </div>
-                        {children}
+            <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
+              <AudioProvider>
+                <UserData>
+                  <ScrollResetter>
+                    <div className="">
+                      <div className="hidden">
+                        <Suspense fallback={null}>
+                          <UserMenuServer />
+                        </Suspense>
                       </div>
-                      <PersistentPlayer />
-                      <MobileDock />
-                    </ScrollResetter>
-                  </UserData>
-                  <Toaster />
-                </AudioProvider>
-              </ThemeProvider>
-            </AxiomClientWrapper>
+                      {children}
+                    </div>
+                    <PersistentPlayer />
+                    <MobileDock />
+                  </ScrollResetter>
+                </UserData>
+                <Toaster />
+              </AudioProvider>
+            </ThemeProvider>
           </ConvexClientProvider>
           <FloatingChatButton />
+          <LogClientErrors />
           <AxiomWebVitals />
         </body>
       </html>
