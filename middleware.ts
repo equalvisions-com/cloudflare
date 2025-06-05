@@ -6,6 +6,7 @@ import {
 } from "@convex-dev/auth/nextjs/server";
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { Logger } from 'next-axiom';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isOnboardingPage = createRouteMatcher(["/onboarding"]);
@@ -59,6 +60,24 @@ async function getBasicUserStatus(request: NextRequest) {
 
 export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
+    // Add Axiom logging with error handling
+    try {
+      const log = new Logger();
+      log.info('Edge request', {
+        url: request.url,
+        method: request.method,
+        userAgent: request.headers.get('user-agent'),
+        referer: request.headers.get('referer'),
+        timestamp: new Date().toISOString(),
+        // Add Cloudflare specific headers if available
+        ...(request.headers.get('cf-ray') && { cfRay: request.headers.get('cf-ray') }),
+        ...(request.headers.get('cf-ipcountry') && { country: request.headers.get('cf-ipcountry') }),
+      });
+    } catch (axiomError) {
+      // Log to console if Axiom fails, but don't break middleware
+      console.warn('Failed to log request to Axiom:', axiomError);
+    }
+
     // Use lightweight status check to avoid cold start 500 errors
     const { isAuthenticated, isBoarded, skipOnboardingCheck } = await getBasicUserStatus(request);
     

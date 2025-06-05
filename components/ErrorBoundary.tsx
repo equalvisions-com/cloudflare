@@ -22,8 +22,24 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // You can log the error to an error reporting service
+    // Log to console (existing functionality)
     console.error('Error caught by ErrorBoundary:', error, errorInfo);
+    
+    // Log to Axiom if available
+    try {
+      // Check if Axiom logger is available globally
+      if (typeof window !== 'undefined' && (window as any).__axiom_logger) {
+        (window as any).__axiom_logger.error('React crash', {
+          message: error.message,
+          stack: error.stack,
+          componentStack: errorInfo.componentStack,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (axiomError) {
+      // Fail silently to avoid breaking the error boundary
+      console.warn('Failed to log to Axiom:', axiomError);
+    }
   }
 
   render() {
