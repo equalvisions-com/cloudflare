@@ -168,7 +168,7 @@ export default function RootLayout({
           {/* Pirsch Analytics Script */}
           <Script
             defer
-            id="pirsch-script"
+            id="pianjs"
             src="https://api.pirsch.io/pa.js"
             data-code="eOrwqDd1amR7ncX9IsrIiZV2DRWCrAgg"
             strategy="afterInteractive"
