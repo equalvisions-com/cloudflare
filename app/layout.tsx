@@ -14,6 +14,8 @@ import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
 import { LogClientErrors } from './log-client-errors';
+import Script from 'next/script';
+import { PirschPageviewHandler } from '@/components/analytics/PirschPageviewHandler';
 
 // Dynamically import audio components with ssr disabled
 const AudioProvider = dynamic(
@@ -163,6 +165,14 @@ export default function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
+          {/* Pirsch Analytics Script */}
+          <Script
+            defer
+            id="pirsch-script"
+            src="https://api.pirsch.io/pa.js"
+            data-code="eOrwqDd1amR7ncX9IsrIiZV2DRWCrAgg"
+            strategy="afterInteractive"
+          />
           {/* Root-level WebSite structured data for sitelinks search-box eligibility */}
           <script
             type="application/ld+json"
@@ -179,6 +189,7 @@ export default function RootLayout({
               <AudioProvider>
                 <UserData>
                   <ScrollResetter>
+                    <PirschPageviewHandler />
                     <div className="">
                       <div className="hidden">
                         <Suspense fallback={null}>
