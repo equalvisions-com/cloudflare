@@ -16,20 +16,20 @@ export type BookmarkItem = {
   bookmarkedAt: number;
 };
 
-// Type for RSS entry details from PlanetScale
+// Type for RSS entries from PlanetScale
 export type RSSEntry = {
   id: number;
   feed_id: number;
   guid: string;
   title: string;
   link: string;
-  description?: string;
+  description: string;
   pub_date: string;
   image?: string;
   feed_title?: string;
   feed_url?: string;
   mediaType?: string;
-  // Additional fields from Convex posts
+  // Post metadata from Convex
   post_title?: string;
   post_featured_img?: string;
   post_media_type?: string;
@@ -38,30 +38,34 @@ export type RSSEntry = {
   verified?: boolean;
 };
 
-// Type for interaction states
-export interface InteractionStates {
-  likes: { isLiked: boolean; count: number };
+// Type for entry metrics from Convex
+export type EntryMetrics = {
+  likes: { count: number; isLiked: boolean };
   comments: { count: number };
-  retweets: { isRetweeted: boolean; count: number };
+  retweets: { count: number; isRetweeted: boolean };
   bookmarks: { isBookmarked: boolean };
-}
+};
+
+// Type for the complete bookmarks data response
+export type BookmarksData = {
+  bookmarks: BookmarkItem[];
+  totalCount: number;
+  hasMore: boolean;
+  entryDetails: Record<string, RSSEntry>;
+  entryMetrics: Record<string, EntryMetrics>;
+};
 
 /**
  * Fetch bookmarks with full entry details and post metadata
  */
 export async function getBookmarksData(userId: Id<"users">, skip: number = 0, limit: number = 30) {
   try {
-    console.log(`📡 Fetching bookmarks data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
-    const startTime = Date.now();
-    
     // Step 1: Fetch bookmarks from Convex
     const bookmarksResult = await fetchQuery(api.userActivity.getUserBookmarks, { 
       userId,
       skip,
       limit
     });
-    
-    console.log(`✅ Fetched ${bookmarksResult.bookmarks.length} bookmarks from Convex in ${Date.now() - startTime}ms`);
     
     if (!bookmarksResult.bookmarks.length) {
       return {
@@ -109,10 +113,8 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
             mediaType: row.mediaType
           }])
         );
-        
-        console.log(`✅ Fetched ${rows.length} entries from PlanetScale`);
       } catch (error) {
-        console.error("❌ Error fetching entry details from PlanetScale:", error);
+        console.error("Error fetching entry details:", error);
       }
     }
     
@@ -128,8 +130,6 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
         .filter(url => url.length > 0);
       
       if (feedUrls.length > 0) {
-        console.log(`📡 Fetching post data for ${feedUrls.length} feed URLs`);
-        
         const posts = await fetchQuery(api.posts.getByFeedUrls, { feedUrls });
         
         if (posts.length > 0) {
@@ -155,16 +155,14 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
               }
             }
           }
-          
-          console.log(`✅ Enriched entries with post data from ${posts.length} posts`);
         }
       }
     } catch (error) {
-      console.error("❌ Error fetching post data from Convex:", error);
+      console.error("Error fetching post data:", error);
     }
     
     // Step 4: Get interaction metrics for entries
-    let entryMetrics: Record<string, InteractionStates> = {};
+    let entryMetrics: Record<string, EntryMetrics> = {};
     try {
       if (guids.length > 0) {
         const metrics = await fetchQuery(api.entries.batchGetEntriesMetrics, { entryGuids: guids });
@@ -179,14 +177,10 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
             };
           }
         });
-        
-        console.log(`✅ Fetched interaction metrics for ${Object.keys(entryMetrics).length} entries`);
       }
     } catch (error) {
-      console.error("❌ Error fetching entry metrics:", error);
+      console.error("Error fetching entry metrics:", error);
     }
-    
-    console.log(`✅ Total processing time: ${Date.now() - startTime}ms`);
     
     return {
       bookmarks: bookmarksResult.bookmarks,
@@ -196,7 +190,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
       entryMetrics
     };
   } catch (error) {
-    console.error("❌ Error fetching bookmarks data:", error);
+    console.error("Error fetching bookmarks data:", error);
     return {
       bookmarks: [],
       totalCount: 0,

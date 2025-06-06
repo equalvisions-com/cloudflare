@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -15,31 +15,9 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { BookmarkItem, RSSEntry, InteractionStates } from "@/app/actions/bookmarkActions";
+import { BookmarkItem, BookmarkRSSEntry, BookmarkInteractionStates, BookmarksData } from "@/lib/types";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
-
-// Add a consistent logging utility
-const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
-  }
-};
 
 // Memoized timestamp formatter (copied from UserLikesFeed)
 const useFormattedTimestamp = (pubDate?: string) => {
@@ -107,7 +85,7 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
 MediaTypeBadge.displayName = 'MediaTypeBadge';
 
 // Memoized entry card content component
-const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
+const EntryCardContent = React.memo(({ entry }: { entry: BookmarkRSSEntry }) => (
   <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
     <h3 className="text-base font-bold capitalize leading-[1.5]">
       {entry.title}
@@ -122,15 +100,15 @@ const EntryCardContent = React.memo(({ entry }: { entry: RSSEntry }) => (
 EntryCardContent.displayName = 'EntryCardContent';
 
 // Bookmark card with entry details
-const BookmarkCard = React.memo(({ 
+const BookmarkCard = memo(({ 
   bookmark, 
   entryDetails,
   interactions,
   onOpenCommentDrawer
 }: { 
   bookmark: BookmarkItem; 
-  entryDetails?: RSSEntry;
-  interactions?: InteractionStates;
+  entryDetails?: BookmarkRSSEntry;
+  interactions?: BookmarkInteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
@@ -417,13 +395,7 @@ BookmarkCard.displayName = 'BookmarkCard';
 
 interface BookmarksFeedProps {
   userId: Id<"users">;
-  initialData: {
-    bookmarks: BookmarkItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-    entryMetrics: Record<string, InteractionStates>;
-  } | null;
+  initialData: BookmarksData | null;
   pageSize?: number;
   isSearchResults?: boolean;
   isActive?: boolean;
@@ -433,15 +405,15 @@ interface BookmarksFeedProps {
  * Client component that displays bookmarks feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResults = false, isActive = true }: BookmarksFeedProps) {
+const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchResults = false, isActive = true }: BookmarksFeedProps) => {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(
     initialData?.bookmarks || []
   );
-  const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(
+  const [entryDetails, setEntryDetails] = useState<Record<string, BookmarkRSSEntry>>(
     initialData?.entryDetails || {}
   );
-  const [entryMetrics, setEntryMetrics] = useState<Record<string, InteractionStates>>(
+  const [entryMetrics, setEntryMetrics] = useState<Record<string, BookmarkInteractionStates>>(
     initialData?.entryMetrics || {}
   );
   const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
@@ -477,13 +449,6 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   // Log when initial data is received
   useEffect(() => {
     if (initialData?.bookmarks) {
-      logger.debug('Initial bookmarks data received from server:', {
-        bookmarksCount: initialData.bookmarks.length,
-        totalCount: initialData.totalCount,
-        hasMore: initialData.hasMore,
-        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
-      });
       setBookmarks(initialData.bookmarks);
       setEntryDetails(initialData.entryDetails || {});
       setEntryMetrics(initialData.entryMetrics || {});
@@ -497,7 +462,6 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
   // Function to load more bookmarks - MOVED UP before it's used in dependencies
   const loadMoreBookmarks = useCallback(async () => {
     if (isLoading || !hasMore || isSearchResults) {
-      logger.debug(`⛔ Not loading more: isLoading=${isLoading}, hasMore=${hasMore}, isSearchResults=${isSearchResults}`);
       return;
     }
 
@@ -505,7 +469,6 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
     
     try {
       const skipValue = currentSkipRef.current;
-      logger.debug(`🔄 Fetching more bookmarks, skip=${skipValue}, limit=${pageSize}`);
       
       // Use the API route to fetch the next page
       const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${skipValue}&limit=${pageSize}`);
@@ -515,13 +478,8 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       }
       
       const data = await result.json();
-      logger.debug(`📦 Received bookmarks data:`, {
-        bookmarksCount: data.bookmarks?.length || 0,
-        hasMore: data.hasMore
-      });
       
       if (!data.bookmarks?.length) {
-        logger.debug('⚠️ No bookmarks returned from API');
         setHasMore(false);
         setIsLoading(false);
         return;
@@ -531,16 +489,13 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       const newSkip = skipValue + data.bookmarks.length;
       currentSkipRef.current = newSkip;
       setCurrentSkip(newSkip);
-      logger.debug(`⬆️ Updated skip from ${skipValue} to ${newSkip}`);
       
       setBookmarks(prev => [...prev, ...data.bookmarks]);
       setEntryDetails(prev => ({...prev, ...data.entryDetails}));
       setEntryMetrics(prev => ({...prev, ...data.entryMetrics}));
       setHasMore(data.hasMore);
-      
-      logger.debug(`✅ Total bookmarks now: ${bookmarks.length + data.bookmarks.length}`);
     } catch (error) {
-      logger.error('❌ Error loading more bookmarks:', error);
+      console.error('Error loading more bookmarks:', error);
     } finally {
       setIsLoading(false);
     }
@@ -571,7 +526,6 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       
       // If the document is shorter than the viewport, load more
       if (documentHeight <= viewportHeight && bookmarks.length > 0) {
-        logger.debug('📏 Content is shorter than viewport, loading more bookmarks automatically');
         loadMoreBookmarks();
       }
     };
@@ -657,4 +611,7 @@ export function BookmarksFeed({ userId, initialData, pageSize = 30, isSearchResu
       )}
     </div>
   );
-} 
+}
+
+export const BookmarksFeed = memo(BookmarksFeedComponent);
+BookmarksFeed.displayName = 'BookmarksFeed'; 

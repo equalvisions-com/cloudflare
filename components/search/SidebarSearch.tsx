@@ -137,8 +137,12 @@ const SidebarSearchComponent = ({
       case "ArrowDown":
         e.preventDefault();
         setActiveIndex((prev) => {
-          // If no item is currently active or we're at the last item, select first item
-          if (prev === -1 || prev >= searchCategories.length - 1) {
+          // Start from -1 (no selection) and move to first item
+          if (prev === -1) {
+            return 0;
+          }
+          // If we're at the last item, wrap to first item
+          if (prev >= searchCategories.length - 1) {
             return 0;
           }
           return prev + 1;
@@ -160,22 +164,27 @@ const SidebarSearchComponent = ({
         break;
       case "Enter":
         e.preventDefault();
+        // Only handle enter if an item is actually selected (activeIndex >= 0)
         if (activeIndex >= 0 && activeIndex < searchCategories.length) {
           handleSearch(searchCategories[activeIndex].id);
+        } else if (activeIndex === -1) {
+          // If no item is selected, treat as general search (default to newsletters)
+          handleFormSubmit(e);
         }
         break;
       case "Escape":
         e.preventDefault();
         setIsOpen(false);
+        setActiveIndex(-1);
         break;
     }
-  }, [isOpen, activeIndex, searchCategories, handleSearch]);
+  }, [isOpen, activeIndex, searchCategories, handleSearch, handleFormSubmit]);
 
-  // Reset active index when opening/closing dropdown
+  // Reset active index when closing dropdown
   useEffect(() => {
     if (!isMountedRef.current) return;
     
-    if (isOpen) {
+    if (!isOpen) {
       setActiveIndex(-1);
     }
   }, [isOpen]);
@@ -200,7 +209,13 @@ const SidebarSearchComponent = ({
     if (!isMountedRef.current) return;
     
     setQuery(e.target.value);
-    setIsOpen(e.target.value.length > 0);
+    const shouldOpen = e.target.value.length > 0;
+    setIsOpen(shouldOpen);
+    
+    // Ensure no item is selected when opening the dropdown
+    if (shouldOpen) {
+      setActiveIndex(-1);
+    }
   }, []);
   
   const handleInputFocus = useCallback(() => {
@@ -208,6 +223,8 @@ const SidebarSearchComponent = ({
     
     if (query.length > 0) {
       setIsOpen(true);
+      // Ensure no item is selected when opening the dropdown
+      setActiveIndex(-1);
     }
   }, [query]);
   
@@ -275,7 +292,7 @@ const SidebarSearchComponent = ({
                         onClick={() => handleCategoryClick(category.id)}
                         onMouseEnter={() => handleCategoryMouseEnter(index)}
                         onMouseLeave={handleCategoryMouseLeave}
-                        className={`relative flex cursor-pointer select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none gap-2 transition-colors ${
+                        className={`relative flex cursor-pointer select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none gap-2 transition-colors hover:bg-accent hover:text-accent-foreground ${
                           activeIndex === index ? "bg-accent text-accent-foreground" : ""
                         }`}
                       >

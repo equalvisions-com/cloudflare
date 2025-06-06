@@ -8,6 +8,7 @@ import { TrendingWidgetSkeleton } from '@/components/trending/TrendingWidgetSkel
 import { FeaturedPostsWidget } from '@/components/widgets/FeaturedPostsWidget';
 import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsWidgetSkeleton';
 import { LegalWidget } from '@/components/widgets/LegalWidget';
+import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 import NotificationsClientWrapper from './NotificationsClientWrapper';
 
 // Force dynamic rendering for this page
@@ -55,7 +56,7 @@ export default function NotificationsPage() {
     <StandardSidebarLayout
       rightSidebar={rightSidebar}
       useCardStyle={true}
-      containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+      containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
     >
      <NotificationsClientWrapper />
     </StandardSidebarLayout>

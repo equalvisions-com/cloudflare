@@ -9,6 +9,7 @@ import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsW
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
 import { BookmarksPageClientScope } from "./BookmarksPageClientScope";
+import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
@@ -58,7 +59,7 @@ export default async function BookmarksPage() {
     <StandardSidebarLayout
       rightSidebar={rightSidebar}
       useCardStyle={true}
-      containerClass="container gap-0 flex flex-col md:flex-row min-h-screen md:gap-6 p-0 md:px-0"
+      containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
     >
       <BookmarksPageClientScope rightSidebar={rightSidebar} />
     </StandardSidebarLayout>
