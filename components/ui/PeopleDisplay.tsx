@@ -12,22 +12,8 @@ import { SimpleFriendButton } from '@/components/ui/SimpleFriendButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { Virtuoso } from 'react-virtuoso';
-
-// Define the shape of a user profile from the database
-export interface UserProfile {
-  userId: Id<"users">;
-  username: string;
-  name?: string | null;
-  bio?: string | null;
-  profileImage?: string | null;
-  isAuthenticated?: boolean;
-  friendshipStatus?: {
-    exists: boolean;
-    status: string | null;
-    direction: string | null;
-    friendshipId: Id<"friends"> | null;
-  } | null;
-}
+import { UserProfile } from '@/lib/types';
+import { UsersListSkeleton } from '@/components/users/UsersSkeleton';
 
 interface PeopleDisplayProps {
   initialUsers?: UserProfile[];
@@ -35,14 +21,11 @@ interface PeopleDisplayProps {
   searchQuery?: string;
 }
 
-// Memoize no users state component
-const NoUsersState = memo(({ 
-  searchQuery, 
-  className 
-}: { 
+// Memoized no users state component
+const NoUsersState = memo<{ 
   searchQuery?: string;
   className?: string;
-}) => (
+}>(({ searchQuery, className }) => (
   <div className={cn("py-8 text-center", className)}>
     <p className="text-muted-foreground text-sm">
       {searchQuery 
@@ -54,12 +37,86 @@ const NoUsersState = memo(({
 
 NoUsersState.displayName = 'NoUsersState';
 
+// Memoized user card component with proper props comparison
+const UserCard = memo<{ user: UserProfile }>(({ user }) => {
+  // Default SVG profile image
+  const defaultProfileImage = "data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E";
+  
+  // Memoized profile data
+  const profileData = useMemo(() => ({
+    username: user.username,
+    name: user.name,
+    bio: user.bio,
+    profileImage: user.profileImage
+  }), [user.username, user.name, user.bio, user.profileImage]);
+
+  return (
+    <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          <Link href={`/@${user.username}`} prefetch={false}>
+            <div className="flex-shrink-0 w-16 h-16">
+              <AspectRatio ratio={1/1} className="overflow-hidden rounded-full">
+                <Image
+                  src={user.profileImage || defaultProfileImage}
+                  alt={user.name || user.username}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
+              </AspectRatio>
+            </div>
+          </Link>
+          <div className="flex-1 min-w-0 space-y-2 pt-0">
+            <div className="flex justify-between items-start gap-4">
+              <Link href={`/@${user.username}`} className="block flex-1" prefetch={false}>
+                <h3 className="text-base font-bold leading-tight line-clamp-1 overflow-anywhere">
+                  {user.name || user.username}
+                </h3>
+                <div className="text-muted-foreground text-xs font-normal mt-[1px]">
+                  @{user.username}
+                </div>
+              </Link>
+              <div className="flex-shrink-0">
+                {(!user.friendshipStatus || user.friendshipStatus.status !== "self") && (
+                  <SimpleFriendButton 
+                    username={user.username}
+                    userId={user.userId}
+                    profileData={profileData}
+                    initialFriendshipStatus={user.friendshipStatus}
+                    className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none"
+                    pendingClassName="text-muted-foreground"
+                    friendsClassName="text-muted-foreground"
+                  />
+                )}
+              </div>
+            </div>
+            <Link href={`/@${user.username}`} className="block !mt-[5px] text-muted-foreground overflow-anywhere" prefetch={false}>
+              <p className="text-sm text-muted-foreground line-clamp-1">
+                {user.bio || ''}
+              </p>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memoization
+  return (
+    prevProps.user.userId === nextProps.user.userId &&
+    prevProps.user.friendshipStatus?.status === nextProps.user.friendshipStatus?.status
+  );
+});
+
+UserCard.displayName = 'UserCard';
+
 // Convert to an arrow function component for consistency and prepare for memoization
-const PeopleDisplayComponent = ({
+const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
   initialUsers = [],
   className,
   searchQuery = '',
-}: PeopleDisplayProps) => {
+}) => {
   // Store users and pagination state
   const [users, setUsers] = useState<UserProfile[]>(initialUsers);
   const [nextCursor, setNextCursor] = useState<Id<"users"> | undefined>(undefined);
@@ -74,7 +131,7 @@ const PeopleDisplayComponent = ({
   // Reference for loading more users
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  // Set up the mounted ref
+  // Set up the mounted ref (only useEffect needed)
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
@@ -87,9 +144,8 @@ const PeopleDisplayComponent = ({
 
   // Memoize query parameters to prevent unnecessary re-renders
   const queryParams = useMemo(() => {
-    return searchQuery 
-      ? { query: searchQuery, cursor: nextCursor, limit: 10 } 
-      : "skip";
+    if (!searchQuery) return "skip";
+    return { query: searchQuery, cursor: nextCursor, limit: 10 };
   }, [searchQuery, nextCursor]);
 
   // Query for users - search results
@@ -154,7 +210,7 @@ const PeopleDisplayComponent = ({
     }
   }, [hasMore, isLoading, loadMore]);
   
-  // Memoize the Footer component for Virtuoso
+  // Memoized Footer component for Virtuoso
   const Footer = useCallback(() => (
     <div ref={loadMoreRef} className="py-4 text-center">
       {isLoading ? (
@@ -167,15 +223,16 @@ const PeopleDisplayComponent = ({
         <div className="h-8" />
       )}
     </div>
-  ), [isLoading, hasMore, loadMoreRef]);
+  ), [isLoading, hasMore]);
+
+  // Memoized item content renderer
+  const itemContent = useCallback((index: number, user: UserProfile) => (
+    <UserCard key={user.userId} user={user} />
+  ), []);
   
-  // Initial loading state for search queries
+  // Initial loading state for search queries - show skeleton instead of loader
   if (isInitialLoad && searchQuery && (!usersResult || !usersResult.users)) {
-    return (
-      <div className="flex justify-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
+    return <UsersListSkeleton count={6} />;
   }
 
   // No users state
@@ -195,87 +252,17 @@ const PeopleDisplayComponent = ({
         data={users}
         endReached={handleEndReached}
         overscan={100}
-        itemContent={(index, user) => (
-          <UserCard key={user.userId} user={user} />
-        )}
+        itemContent={itemContent}
         components={{
           Footer
         }}
       />
     </div>
   );
-};
-
-// Export the memoized version of the component
-export const PeopleDisplay = memo(PeopleDisplayComponent);
-
-// User card component - memoized with proper props comparison
-export const UserCard = memo(({ user }: { user: UserProfile }) => {
-  // Default SVG profile image
-  const defaultProfileImage = "data:image/svg+xml;utf8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%20100%27%3E%3Ccircle%20cx=%2750%27%20cy=%2750%27%20r=%2750%27%20fill=%27%23E1E8ED%27/%3E%3Ccircle%20cx=%2750%27%20cy=%2740%27%20r=%2712%27%20fill=%27%23FFF%27/%3E%3Cpath%20fill=%27%23FFF%27%20d=%27M35,70c0-8.3%208.4-15%2015-15s15,6.7%2015,15v5H35V70z%27/%3E%3C/svg%3E";
-  
-  return (
-    <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          <Link href={`/@${user.username}`} prefetch={false}>
-            <div className="flex-shrink-0 w-16 h-16">
-              <AspectRatio ratio={1/1} className="overflow-hidden rounded-full">
-                <Image
-                  src={user.profileImage || defaultProfileImage}
-                  alt={user.name || user.username}
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                />
-              </AspectRatio>
-            </div>
-          </Link>
-          <div className="flex-1 min-w-0 space-y-2 pt-0">
-            <div className="flex justify-between items-start gap-4">
-              <Link href={`/@${user.username}`} className="block flex-1" prefetch={false}>
-                <h3 className="text-base font-bold leading-tight line-clamp-1 overflow-anywhere">
-                  {user.name || user.username}
-                </h3>
-                <div className="text-muted-foreground text-xs font-normal mt-[1px]">
-                  @{user.username}
-                </div>
-              </Link>
-              <div className="flex-shrink-0">
-                {(!user.friendshipStatus || user.friendshipStatus.status !== "self") && (
-                  <SimpleFriendButton 
-                    username={user.username}
-                    userId={user.userId}
-                    profileData={{
-                      username: user.username,
-                      name: user.name,
-                      bio: user.bio,
-                      profileImage: user.profileImage
-                    }}
-                    initialFriendshipStatus={user.friendshipStatus}
-                    className="rounded-full h-[23px] text-xs px-2 flex-shrink-0 mt-0 font-semibold border-0 shadow-none"
-                    pendingClassName="text-muted-foreground"
-                    friendsClassName="text-muted-foreground"
-                  />
-                )}
-              </div>
-            </div>
-            <Link href={`/@${user.username}`} className="block !mt-[5px] text-muted-foreground overflow-anywhere" prefetch={false}>
-              <p className="text-sm text-muted-foreground line-clamp-1">
-                {user.bio || ''}
-              </p>
-            </Link>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison function for memoization
-  return (
-    prevProps.user.userId === nextProps.user.userId &&
-    prevProps.user.friendshipStatus?.status === nextProps.user.friendshipStatus?.status
-  );
 });
 
-UserCard.displayName = 'UserCard'; 
+PeopleDisplayComponent.displayName = 'PeopleDisplay';
+
+// Export the memoized version of the component
+export const PeopleDisplay = PeopleDisplayComponent;
+export type { UserProfile }; 

@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
+import { memo, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
-import { SearchInput } from "@/components/ui/search-input";
-import { PeopleSearchWrapper } from "@/components/users/PeopleSearchWrapper";
+import { UsersSearchSkeleton } from "@/components/users/UsersSkeleton";
+
+// Dynamic import of PeopleSearchWrapper with skeleton fallback
+const PeopleSearchWrapper = dynamic(
+  () => import("@/components/users/PeopleSearchWrapper").then(mod => ({ default: mod.PeopleSearchWrapper })),
+  {
+    loading: () => <UsersSearchSkeleton />,
+    ssr: false, // Disable SSR for better performance on client-side interactions
+  }
+);
 
 export const runtime = 'edge';
-
-export const dynamic = 'force-dynamic';
 
 /* ───── a. Static meta ───── */
 export async function generateMetadata(): Promise<Metadata> {
@@ -48,8 +56,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Memoized right sidebar component
+const MemoizedRightSidebar = memo(() => (
+  <RightSidebar showSearch={false} />
+));
+
+MemoizedRightSidebar.displayName = 'MemoizedRightSidebar';
+
 /* ───── b. Page component ───── */
-export default function PeoplePage() {
+const PeoplePage = memo(() => {
   const siteUrl = process.env.SITE_URL;
 
   /*  We keep schema *very light*:
@@ -108,9 +123,15 @@ export default function PeoplePage() {
       />
 
       {/* Existing UI – keeps the client-search behaviour unchanged */}
-      <StandardSidebarLayout rightSidebar={<RightSidebar showSearch={false} />}>
-        <PeopleSearchWrapper />
+      <StandardSidebarLayout rightSidebar={<MemoizedRightSidebar />}>
+        <Suspense fallback={<UsersSearchSkeleton />}>
+          <PeopleSearchWrapper />
+        </Suspense>
       </StandardSidebarLayout>
     </>
   );
-} 
+});
+
+PeoplePage.displayName = 'PeoplePage';
+
+export default PeoplePage; 

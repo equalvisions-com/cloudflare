@@ -188,4 +188,69 @@ export interface BookmarkLoadingState {
 export interface BookmarkSearchState {
   query: string;
   results: BookmarksData | null;
+}
+
+// Chat types
+export type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
+
+export interface ChatState {
+  activeButton: ActiveButton;
+  hasTyped: boolean;
+  shouldAnimate: boolean;
+  lastMessageId: string | null;
+  likedMessages: Record<string, boolean>;
+  dislikedMessages: Record<string, boolean>;
+}
+
+export interface ChatLoadingState {
+  isLoading: boolean;
+  isSubmitting: boolean;
+}
+
+export interface TouchState {
+  activeTouchButton: string | null;
+}
+
+export interface SelectionState {
+  start: number | null;
+  end: number | null;
+}
+
+export interface TrendingTopic {
+  _id: string;
+  title: string;
+  subtopic: string;
+  imageUrl?: string;
+}
+
+export interface ChatActions {
+  setActiveButton: (button: ActiveButton) => void;
+  setHasTyped: (hasTyped: boolean) => void;
+  setShouldAnimate: (shouldAnimate: boolean) => void;
+  setLastMessageId: (id: string | null) => void;
+  toggleLikeMessage: (messageId: string) => void;
+  toggleDislikeMessage: (messageId: string) => void;
+  resetChat: () => void;
+}
+
+// Users types
+export interface UserProfile {
+  userId: Id<"users">;
+  username: string;
+  name?: string | null;
+  bio?: string | null;
+  profileImage?: string | null;
+  isAuthenticated?: boolean;
+  friendshipStatus?: {
+    exists: boolean;
+    status: string | null;
+    direction: string | null;
+    friendshipId: Id<"friends"> | null;
+  } | null;
+}
+
+export interface UsersState {
+  searchQuery: string;
+  pendingSearchQuery: string;
+  isSearching: boolean;
 } 
