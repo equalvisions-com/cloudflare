@@ -135,7 +135,7 @@ const ChatMessage = memo(({
                 : { message: textPart.text, articles: [] };
             } catch {
           return { message: textPart.text, articles: [] };
-        }
+            }
       }
     }
     
@@ -269,7 +269,7 @@ const ChatMessage = memo(({
                 onDislike={onDislike}
               />
             )}
-          </div>
+            </div>
         ) : null}
         </div>
       </div>
@@ -281,7 +281,7 @@ const ChatPageComponent = () => {
   // Get user profile data from context
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount, isAuthenticated } = useSidebar();
   const { toast } = useToast();
-  
+    
   // Add rate limit status query
   const rateLimitStatus = useQuery(api.chat.getRateLimitStatus);
   
@@ -329,7 +329,7 @@ const ChatPageComponent = () => {
     },
     onError: (error) => {
       console.error('Chat error:', error);
-      
+        
       // Parse error message
       let errorMessage = 'Something went wrong';
       try {
@@ -441,7 +441,7 @@ const ChatPageComponent = () => {
     if (isLoading) return "Waiting for response...";
     return "Ask me about anything...";
   }, [isAuthenticated, isLoading]);
-
+      
   // Memoized filter buttons
   const filterButtons = useMemo(() => (
     <div className="flex items-center space-x-2 min-w-max">
@@ -477,7 +477,7 @@ const ChatPageComponent = () => {
       />
     </div>
   ), [activeButton, activeTouchButton, isAuthenticated, isLoading, toggleButton, handleTouchStart, handleTouchEnd]);
-
+      
   // Memoized messages
   const messagesList = useMemo(() => 
     messages.map((message, index) => (

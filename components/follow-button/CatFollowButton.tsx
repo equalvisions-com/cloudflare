@@ -24,6 +24,7 @@ interface FollowButtonProps {
   className?: string; // Add className prop
   disableAutoFetch?: boolean; // New prop to control when we should skip individual fetching
   showIcon?: boolean; // New prop to control icon visibility
+  onUpdatePost?: (postId: string, updates: { isFollowing: boolean }) => void; // Callback to update parent state
 }
 
 const fetcher = async (key: string) => {
@@ -58,7 +59,8 @@ const FollowButtonComponent = ({
   isAuthenticated: serverIsAuthenticated,
   className,
   disableAutoFetch = false,
-  showIcon = true
+  showIcon = true,
+  onUpdatePost
 }: FollowButtonProps) => {
   const router = useRouter();
   const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
@@ -189,6 +191,11 @@ const FollowButtonComponent = ({
           globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/profile'))
         ]);
         
+        // Update parent component state if callback provided
+        if (onUpdatePost && isMountedRef.current) {
+          onUpdatePost(postId.toString(), { isFollowing: !isFollowing });
+        }
+        
         // Clear visual state immediately on success to prevent flickering
         if (isMountedRef.current) {
           setVisualState(null);
@@ -264,7 +271,8 @@ const FollowButtonComponent = ({
     feedUrl,
     isBusy,
     isInitialLoading,
-    toast
+    toast,
+    onUpdatePost
   ]);
 
   // Determine the display state based on visual state or actual state

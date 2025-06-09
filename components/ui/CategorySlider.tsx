@@ -1,75 +1,61 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo, useState, memo } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './skeleton';
-
-export interface Category {
-  _id: string;
-  name: string;
-  slug: string;
-  mediaType: string;
-  order?: number;
-}
-
-interface CategorySliderProps {
-  categories: Category[] | undefined;
-  selectedCategoryId: string;
-  onSelectCategory: (categoryId: string) => void;
-  className?: string;
-  isLoading?: boolean;
-}
+import { CategorySliderProps } from '@/lib/types';
 
 // Skeleton loader component for the CategorySlider
-export const CategorySliderSkeleton = () => {
-  return (
-    <div className="grid w-full overflow-hidden">
-      <div className="overflow-hidden">
-        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton
-              key={index}
-              className="h-[15px] w-20 flex-none rounded-md"
-            />
-          ))}
-        </div>
+export const CategorySliderSkeleton = memo(() => (
+  <div className="grid w-full overflow-hidden">
+    <div className="overflow-hidden">
+      <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton
+            key={index}
+            className="h-[15px] w-20 flex-none rounded-md"
+          />
+        ))}
       </div>
     </div>
-  );
-};
+  </div>
+));
 
-// Main component with proper hook usage
-const CategorySliderComponent = ({
-  categories,
-  selectedCategoryId,
-  onSelectCategory,
-  className,
-  isLoading = false,
-}: CategorySliderProps) => {
-  // Find the index of the selected category.
+CategorySliderSkeleton.displayName = 'CategorySliderSkeleton';
+
+// Custom hook for carousel logic
+const useCarouselLogic = (
+  categories: CategorySliderProps['categories'],
+  selectedCategoryId: string,
+  onSelectCategory: (categoryId: string) => void
+) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Find the index of the selected category
   const selectedIndex = useMemo(() => 
     categories?.findIndex(cat => cat._id === selectedCategoryId) ?? -1,
     [categories, selectedCategoryId]
   );
   
-  // Initialize Embla carousel with options and the WheelGesturesPlugin.
+  // Memoize carousel options
   const carouselOptions = useMemo(() => ({
     align: 'start' as const,
     containScroll: 'keepSnaps' as const,
-    dragFree: true, // Allow free-form dragging
+    dragFree: true,
     skipSnaps: false,
-    duration: 0, // Faster duration for smoother animation
-    inViewThreshold: 0, // Helps with smoother snapping
+    duration: 0,
+    inViewThreshold: 0,
     slidesToScroll: 1
   }), []);
 
   const wheelPluginOptions = useMemo(() => ({
     wheelDraggingClass: '',
     forceWheelAxis: 'x' as const,
-    wheelDuration: 50, // Smooth out wheel scrolling
-    wheelSmoothness: 0.4 // Add some smoothness to wheel scrolling (0 to 1)
+    wheelDuration: 50,
+    wheelSmoothness: 0.4
   }), []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
@@ -77,13 +63,7 @@ const CategorySliderComponent = ({
     [WheelGesturesPlugin(wheelPluginOptions)]
   );
 
-  // Add indicator animation state
-  const [isDragging, setIsDragging] = useState(false);
-  
-  // Keep track of button refs for scrolling to the selected button.
-  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  // Scrolls to a specific category button only if it's not fully visible.
+  // Scroll to category function
   const scrollToCategory = useCallback((index: number) => {
     if (!emblaApi) return;
     
@@ -96,7 +76,6 @@ const CategorySliderComponent = ({
     const containerRect = emblaViewport.getBoundingClientRect();
     const selectedRect = selectedNode.getBoundingClientRect();
     
-    // If button is not fully visible, scroll to it
     if (
       selectedRect.right > containerRect.right ||
       selectedRect.left < containerRect.left
@@ -105,7 +84,7 @@ const CategorySliderComponent = ({
     }
   }, [emblaApi]);
 
-  // Define a stable overscroll prevention callback.
+  // Prevent overscroll function
   const preventOverscroll = useCallback(() => {
     if (!emblaApi) return;
     const {
@@ -138,19 +117,48 @@ const CategorySliderComponent = ({
     }
   }, [emblaApi]);
 
-  // Handle category selection.
+  // Handle category selection
   const handleCategoryClick = useCallback((categoryId: string) => {
     onSelectCategory(categoryId);
   }, [onSelectCategory]);
 
-  // Prevent browser back/forward navigation when interacting with the slider
+  return {
+    emblaRef,
+    emblaApi,
+    selectedIndex,
+    isDragging,
+    setIsDragging,
+    buttonRefs,
+    scrollToCategory,
+    preventOverscroll,
+    handleCategoryClick,
+  };
+};
+
+// Custom hook for carousel effects (reduced from multiple useEffects)
+const useCarouselEffects = (
+  emblaApi: ReturnType<typeof useEmblaCarousel>[1],
+  selectedIndex: number,
+  scrollToCategory: (index: number) => void,
+  preventOverscroll: () => void,
+  setIsDragging: (isDragging: boolean) => void
+) => {
+  // Combined effect for all carousel event listeners
   useEffect(() => {
     if (!emblaApi) return;
-    
+
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
+
+    // Scroll to selected category when it changes
+    if (selectedIndex >= 0) {
+      scrollToCategory(selectedIndex);
+    }
+
+    // Event handlers
+    const handlePointerDown = () => setIsDragging(true);
+    const handlePointerUp = () => setIsDragging(false);
     
-    // Prevent horizontal swipe navigation only when actually dragging
     const preventNavigation = (e: TouchEvent) => {
       if (!emblaApi.internalEngine().dragHandler.pointerDown()) return;
       
@@ -165,7 +173,6 @@ const CategorySliderComponent = ({
         const deltaX = Math.abs(touch.clientX - startX);
         const deltaY = Math.abs(touch.clientY - startY);
         
-        // Only prevent default if horizontal movement is greater than vertical
         if (deltaX > deltaY) {
           e.preventDefault();
         }
@@ -181,117 +188,96 @@ const CategorySliderComponent = ({
       document.addEventListener('touchcancel', cleanup, { once: true });
     };
     
-    // Prevent mousewheel horizontal navigation (for trackpads)
     const preventWheelNavigation = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && emblaApi.internalEngine().dragHandler.pointerDown()) {
         e.preventDefault();
       }
     };
-    
-    // Track dragging state
-    const handlePointerDown = () => {
-      setIsDragging(true);
-    };
-    
-    const handlePointerUp = () => {
-      setIsDragging(false);
-    };
-    
-    // Add event listeners with passive: false to allow preventDefault
-    viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
-    viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
+
+    // Add all event listeners
     emblaApi.on('pointerDown', handlePointerDown);
     emblaApi.on('pointerUp', handlePointerUp);
     emblaApi.on('settle', handlePointerUp);
+    emblaApi.on('scroll', preventOverscroll);
     
+    viewportElement.addEventListener('touchstart', preventNavigation, { passive: true });
+    viewportElement.addEventListener('wheel', preventWheelNavigation, { passive: false });
+
+    // Cleanup function
     return () => {
-      viewportElement.removeEventListener('touchstart', preventNavigation);
-      viewportElement.removeEventListener('wheel', preventWheelNavigation);
       emblaApi.off('pointerDown', handlePointerDown);
       emblaApi.off('pointerUp', handlePointerUp);
       emblaApi.off('settle', handlePointerUp);
+      emblaApi.off('scroll', preventOverscroll);
+      
+      viewportElement.removeEventListener('touchstart', preventNavigation);
+      viewportElement.removeEventListener('wheel', preventWheelNavigation);
     };
-  }, [emblaApi]);
+  }, [emblaApi, selectedIndex, scrollToCategory, preventOverscroll, setIsDragging]);
+};
 
-  // Bind overscroll prevention to scroll-related events.
-  useEffect(() => {
-    if (!emblaApi) return;
-    emblaApi.on("scroll", preventOverscroll);
-    emblaApi.on("settle", preventOverscroll);
-    emblaApi.on("pointerUp", preventOverscroll);
-    
-    return () => {
-      emblaApi.off("scroll", preventOverscroll);
-      emblaApi.off("settle", preventOverscroll);
-      emblaApi.off("pointerUp", preventOverscroll);
-    };
-  }, [emblaApi, preventOverscroll]);
+// Main component with modern React patterns
+const CategorySliderComponent = ({
+  categories,
+  selectedCategoryId,
+  onSelectCategory,
+  className,
+  isLoading = false,
+}: CategorySliderProps) => {
+  const {
+    emblaRef,
+    emblaApi,
+    selectedIndex,
+    isDragging,
+    setIsDragging,
+    buttonRefs,
+    scrollToCategory,
+    preventOverscroll,
+    handleCategoryClick,
+  } = useCarouselLogic(categories, selectedCategoryId, onSelectCategory);
 
-  // When the selected category changes, scroll to it.
-  useEffect(() => {
-    if (emblaApi && selectedIndex !== -1) {
-      scrollToCategory(selectedIndex);
-    }
-  }, [emblaApi, selectedIndex, scrollToCategory]);
+  // Use the combined effects hook
+  useCarouselEffects(emblaApi, selectedIndex, scrollToCategory, preventOverscroll, setIsDragging);
 
-  // If loading or categories are undefined, show skeleton
-  if (isLoading || !categories) {
+  // Show skeleton while loading
+  if (isLoading || !categories?.length) {
     return <CategorySliderSkeleton />;
   }
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
-      <div 
-        className="overflow-hidden prevent-overscroll-navigation" 
-        ref={emblaRef}
-        style={{
-          willChange: 'transform',
-          WebkitPerspective: '1000',
-          WebkitBackfaceVisibility: 'hidden',
-          touchAction: 'pan-y pinch-zoom'
-        }}
-      >
-        <div 
-          className="flex mx-4 gap-6 transform-gpu"
-          style={{
-            willChange: 'transform',
-            transition: isDragging ? 'none' : 'transform 0.2s ease-out'
-          }}
-        >
+      <div className="overflow-hidden" ref={emblaRef}>
+        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
           {categories.map((category, index) => {
             const isSelected = category._id === selectedCategoryId;
-            const isLastItem = index === categories.length - 1;
             
             return (
               <button
                 key={category._id}
                 ref={(el) => { buttonRefs.current[index] = el; }}
-                className={cn(
-                  "flex-none pb-[12px] transition-colors duration-50 whitespace-nowrap relative font-semibold text-sm capitalize transform-gpu",
-                  isSelected
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
                 onClick={() => handleCategoryClick(category._id)}
-                aria-selected={isSelected}
-                role="tab"
-                style={{
-                  transform: 'translate3d(0,0,0)',
-                  WebkitBackfaceVisibility: 'hidden',
-                  ...(isLastItem ? { marginRight: '1rem' } : {})
-                }}
+                className={cn(
+                  "flex-none text-sm font-medium transition-all duration-200 relative whitespace-nowrap",
+                  "focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
+                  "hover:text-foreground",
+                  isSelected 
+                    ? "text-primary" 
+                    : "text-muted-foreground"
+                )}
+                style={{ outline: 'none' }}
+                aria-pressed={isSelected}
+                aria-label={`Select ${category.name} category`}
               >
-                {category.name}
-                <div 
+                <span className="relative inline-flex">
+                  {category.name}
+                </span>
+                <span 
                   className={cn(
-                    "absolute bottom-[0px] left-0 w-full h-[1px] rounded-full transition-opacity bg-primary z-50",
-                    isSelected ? "opacity-100" : "opacity-0"
-                  )}
-                  style={{
-                    transform: isSelected ? 'scaleX(1)' : 'scaleX(0.5)',
-                    transformOrigin: 'center',
-                    transition: 'transform 0.2s ease, opacity 0.2s ease'
-                  }}
+                    "absolute -bottom-[13px] left-0 w-full h-[1px] rounded-full transition-all duration-200",
+                    isSelected && !isDragging 
+                      ? "bg-primary opacity-100" 
+                      : "opacity-0"
+                  )} 
                 />
               </button>
             );
@@ -302,36 +288,8 @@ const CategorySliderComponent = ({
   );
 };
 
-// Properly memoize component with displayName
-export const CategorySlider = React.memo(
-  CategorySliderComponent, 
-  (prevProps: CategorySliderProps, nextProps: CategorySliderProps): boolean => {
-    // Handle cases where one or both categories arrays might be undefined
-    const categoriesEqual = (): boolean => {
-      // If both are undefined, they're equal
-      if (!prevProps.categories && !nextProps.categories) return true;
-      
-      // If only one is undefined, they're not equal
-      if (!prevProps.categories || !nextProps.categories) return false;
-      
-      // If lengths don't match, they're not equal
-      if (prevProps.categories.length !== nextProps.categories.length) return false;
-      
-      // Compare each category by _id
-      return prevProps.categories.every(
-        (cat, i) => cat._id === nextProps.categories![i]._id
-      );
-    };
+// Export the memoized version
+export const CategorySlider = memo(CategorySliderComponent);
 
-    return (
-      prevProps.selectedCategoryId === nextProps.selectedCategoryId &&
-      prevProps.isLoading === nextProps.isLoading &&
-      categoriesEqual()
-    );
-  }
-);
-
-CategorySlider.displayName = 'CategorySlider';
-
-// Default export for dynamic import
+// Export as default for dynamic imports
 export default CategorySlider;

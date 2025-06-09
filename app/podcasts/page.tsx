@@ -1,8 +1,22 @@
 import { type Metadata } from 'next';
+import { memo, Suspense } from 'react';
+import dynamicImport from 'next/dynamic';
 import { getFeaturedPodcasts } from '@/lib/getFeaturedPodcasts';
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
-import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
+import { PodcastsPageSkeleton } from "@/components/podcasts/PodcastsSkeleton";
+import { PodcastsErrorFallback } from "@/components/podcasts/PodcastsErrorFallback";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PodcastItem } from '@/lib/types';
+
+// Dynamic import of PodcastsWrapper with skeleton fallback
+const PodcastsWrapper = dynamicImport(
+  () => import("@/components/podcasts/PodcastsWrapper").then(mod => ({ default: mod.PodcastsWrapper })),
+  {
+    loading: () => <PodcastsPageSkeleton />,
+    ssr: false, // Disable SSR for better client-side performance
+  }
+);
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
@@ -28,12 +42,31 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Memoized right sidebar component
+const MemoizedRightSidebar = memo(() => (
+  <RightSidebar showSearch={false} />
+));
+
+MemoizedRightSidebar.displayName = 'MemoizedRightSidebar';
+
 /* ----------  b. Page component  ---------- */
-export default async function PodcastsPage() {
+const PodcastsPage = memo(async () => {
   /** 1. server fetch – no client code involved */
   const items = await getFeaturedPodcasts();
   
   const siteUrl = process.env.SITE_URL;
+
+  // Transform items to match our PodcastItem type
+  const typedItems: PodcastItem[] = items.map((item: any, index: number) => ({
+    position: item.position || index + 1,
+    url: item.url,
+    name: item.name,
+    description: item.description,
+    image: item.image,
+    category: item.category,
+    feedUrl: item.feedUrl,
+    lastUpdated: item.lastUpdated,
+  }));
 
   /** 2. build all JSON-LD blocks in one string */
   const jsonLd = JSON.stringify([
@@ -57,7 +90,7 @@ export default async function PodcastsPage() {
       "mainEntity": {
         "@type": "ItemList",
         "name": "Podcast Collection",
-        "numberOfItems": items.length
+        "numberOfItems": typedItems.length
       }
     },
     /* Featured podcasts – ItemList */
@@ -66,7 +99,7 @@ export default async function PodcastsPage() {
       "@type": "ItemList",
       "name": "Featured podcasts",
       "itemListOrder": "https://schema.org/ItemListOrderAscending",
-      "itemListElement": items.map((i: any) => ({
+      "itemListElement": typedItems.map((i) => ({
         "@type": "ListItem",
         position: i.position,
         url: i.url,
@@ -87,11 +120,23 @@ export default async function PodcastsPage() {
         dangerouslySetInnerHTML={{ __html: jsonLd }}
       />
 
-      <StandardSidebarLayout rightSidebar={<RightSidebar showSearch={false} />}>
-        <div className="w-full">
-          <CategorySwipeableWrapper mediaType="podcast" showEntries={true} />
-        </div>
+      <StandardSidebarLayout rightSidebar={<MemoizedRightSidebar />}>
+        <main 
+          className="w-full"
+          role="main"
+          aria-label="Podcasts directory"
+        >
+          <ErrorBoundary fallback={<PodcastsErrorFallback />}>
+            <Suspense fallback={<PodcastsPageSkeleton />}>
+              <PodcastsWrapper initialItems={typedItems} />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
       </StandardSidebarLayout>
     </>
   );
-}
+});
+
+PodcastsPage.displayName = 'PodcastsPage';
+
+export default PodcastsPage;

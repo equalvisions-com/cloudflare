@@ -611,7 +611,7 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
       )}
     </div>
   );
-}
+} 
 
 export const BookmarksFeed = memo(BookmarksFeedComponent);
 BookmarksFeed.displayName = 'BookmarksFeed'; 

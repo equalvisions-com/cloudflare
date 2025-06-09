@@ -1,48 +1,18 @@
 'use client';
 
-import React, { useEffect, useState, memo, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, memo, useRef, useCallback, useMemo, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
-import { useQuery, useConvexAuth } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FollowButton } from '@/components/follow-button/CatFollowButton';
-import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Skeleton } from "@/components/ui/skeleton";
-
-// Define the shape of a post from the database
-export interface Post {
-  _id: Id<"posts">;
-  _creationTime: number;
-  title: string;
-  postSlug: string;
-  category: string;
-  categorySlug: string;
-  body: string;
-  featuredImg: string;
-  mediaType: string;
-  isFeatured?: boolean;
-  // Optional fields that might not be present in all posts
-  publishedAt?: number;
-  feedUrl?: string;
-  // Follow state fields
-  isFollowing?: boolean;
-  isAuthenticated?: boolean;
-  verified?: boolean;
-}
-
-interface PostsDisplayProps {
-  categoryId: string;
-  mediaType: string;
-  initialPosts?: Post[];
-  className?: string;
-  searchQuery?: string;
-}
+import { usePostsData } from '@/lib/hooks/usePostsData';
+import { Post, PostsDisplayProps } from '@/lib/types';
 
 // Skeleton loader for PostsDisplay
 export const PostsDisplaySkeleton = ({ count = 5, className }: { count?: number, className?: string }) => {
@@ -100,33 +70,31 @@ const NoPostsState = memo(({
 
 NoPostsState.displayName = 'NoPostsState';
 
-// Convert to arrow function component for consistency
+// Main component using modern React patterns
 const PostsDisplayComponent = ({
   categoryId,
   mediaType,
   initialPosts = [],
   className,
   searchQuery = '',
+  isVisible = true,
 }: PostsDisplayProps) => {
-  // Store posts and pagination state
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
-  const [isInitialLoad, setIsInitialLoad] = useState(initialPosts.length === 0);
-  const { isAuthenticated } = useConvexAuth();
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  // Use custom hook for all data management
+  const {
+    posts,
+    hasMore,
+    isLoading,
+    isInitialLoad,
+    nextCursor,
+    loadMorePosts,
+    updatePost,
+  } = usePostsData({
+    categoryId,
+    mediaType,
+    searchQuery,
+    initialPosts,
+    isVisible,
+  });
   
   // Set up intersection observer for infinite scrolling
   const { ref, inView } = useInView({
@@ -134,133 +102,12 @@ const PostsDisplayComponent = ({
     rootMargin: '200px',
   });
 
-  // Memoize query parameters to prevent unnecessary re-renders
-  const queryParams = useMemo(() => {
-    return searchQuery 
-      ? { query: searchQuery, mediaType, cursor: nextCursor || undefined, limit: 10 }
-      : { categoryId, mediaType, cursor: nextCursor || undefined, limit: 10 };
-  }, [searchQuery, mediaType, nextCursor, categoryId]);
-
-  // Query for posts - either search results or category posts
-  const postsResult = useQuery(
-    searchQuery ? api.posts.searchPosts : api.categories.getPostsByCategory,
-    queryParams
-  );
-
-  // Memoize the array of post IDs for the follow states query
-  const postIds = useMemo(() => posts.map(post => post._id), [posts]);
-
-  // Query for follow states if authenticated and we have posts
-  const followStates = useQuery(
-    api.following.getFollowStates,
-    isAuthenticated && posts.length > 0
-      ? { postIds } 
-      : "skip"
-  );
-
-  // Reset posts when category or search query changes - memoized
+  // Load more posts when intersection observer triggers
   useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (initialPosts.length > 0) {
-      setPosts(initialPosts.map(post => ({
-        ...post,
-        isAuthenticated
-      })));
-      setNextCursor(undefined);
+    if (inView && nextCursor && !isInitialLoad) {
+      loadMorePosts();
     }
-    setIsInitialLoad(initialPosts.length === 0);
-  }, [categoryId, searchQuery, initialPosts, isAuthenticated]);
-
-  // Process and update posts with authentication state
-  const processNewPosts = useCallback((newPosts: Post[]) => {
-    if (!isMountedRef.current) return [];
-    
-    // Initialize posts with authenticated state but without follow state yet
-    return newPosts.map(post => ({
-      ...post,
-      isAuthenticated,
-    }));
-  }, [isAuthenticated]);
-
-  // Load initial posts if not provided
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (isInitialLoad && postsResult) {
-      const newPosts = postsResult.posts as Post[];
-      const postsWithAuth = processNewPosts(newPosts);
-      
-      setPosts(postsWithAuth);
-      setNextCursor(postsResult.nextCursor);
-      setIsInitialLoad(false);
-    }
-  }, [isInitialLoad, postsResult, processNewPosts]);
-
-  // Update follow states when they load
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (followStates && Array.isArray(followStates) && posts.length > 0) {
-      // Map postIds to their respective follow states
-      const followStateMap = new Map();
-      
-      // For each post ID we queried, get its corresponding follow state
-      // We're only reading post IDs here which are stable during this effect
-      posts.forEach((post, index) => {
-        if (index < followStates.length) {
-          followStateMap.set(post._id.toString(), followStates[index]);
-        }
-      });
-      
-      // Update posts with their follow states using a functional update
-      // This pattern avoids needing the external posts variable in dependencies
-      setPosts(currentPosts => {
-        // If there are no changes needed, return same reference to avoid re-render
-        if (followStateMap.size === 0) return currentPosts;
-        
-        // Process each post to check if it needs updating
-        return currentPosts.map(post => {
-          const postIdStr = post._id.toString();
-          // If we have a follow state for this post, use it, otherwise keep current
-          const isFollowing = followStateMap.has(postIdStr)
-            ? followStateMap.get(postIdStr)
-            : post.isFollowing;
-          
-          // Only create new object if follow state changed
-          if (post.isFollowing === isFollowing) {
-            return post;
-          }
-          
-          // Return new post object with updated follow state
-          return {
-            ...post,
-            isAuthenticated,
-            isFollowing
-          };
-        });
-      });
-    }
-  // We intentionally exclude 'posts' from dependencies to prevent an infinite render loop
-  // The posts array is used to create followStateMap, and then we update posts,
-  // which would trigger this effect again if 'posts' was in the dependencies
-  // Instead, we use the functional update pattern with setPosts to safely access the latest posts state
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [followStates, isAuthenticated, posts.length]);
-
-  // Load more posts when bottom is reached
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (inView && nextCursor && !isInitialLoad && postsResult) {
-      const newPosts = postsResult.posts as Post[];
-      const processedNewPosts = processNewPosts(newPosts);
-      
-      // Add new posts with authentication but no follow state yet
-      setPosts(prev => [...prev, ...processedNewPosts]);
-      setNextCursor(postsResult.nextCursor);
-    }
-  }, [inView, nextCursor, isInitialLoad, postsResult, processNewPosts]);
+  }, [inView, nextCursor, isInitialLoad, loadMorePosts]);
 
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
@@ -270,13 +117,17 @@ const PostsDisplayComponent = ({
   return (
     <div className={cn("w-full space-y-0", className)}>
       {/* Post cards */}
-      {posts.map((post) => (
-        <PostCard key={post._id} post={post} />
+      {posts.map((post: Post) => (
+        <PostCard key={post._id} post={post} onUpdatePost={updatePost} />
       ))}
 
-      {/* Intersection observer target - without loading indicator */}
+      {/* Intersection observer target with loading indicator */}
       {nextCursor && (
-        <div ref={ref} />
+        <div ref={ref} className="flex justify-center items-center py-4">
+          {isLoading && (
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          )}
+        </div>
       )}
     </div>
   );
@@ -289,27 +140,13 @@ export const PostsDisplay = memo(PostsDisplayComponent);
 export default PostsDisplay;
 
 // Post card component - memoized with proper props comparison
-const PostCard = memo(({ post }: { post: Post }) => {
+const PostCard = memo(({ post, onUpdatePost }: { post: Post; onUpdatePost: (postId: string, updates: Partial<Post>) => void }) => {
   const [descriptionLines, setDescriptionLines] = useState(2);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
   // Memoize the checkTitleHeight function to prevent recreation on each render
   const checkTitleHeight = useCallback(() => {
-    if (!isMountedRef.current || !titleRef.current) return;
+    if (!titleRef.current) return;
     
     const styles = window.getComputedStyle(titleRef.current);
     const lineHeight = styles.lineHeight;
@@ -327,9 +164,11 @@ const PostCard = memo(({ post }: { post: Post }) => {
   useEffect(() => {
     checkTitleHeight();
     // Add resize listener to handle window size changes
-    window.addEventListener('resize', checkTitleHeight);
+    const handleResize = () => checkTitleHeight();
+    window.addEventListener('resize', handleResize);
+    
     return () => {
-      window.removeEventListener('resize', checkTitleHeight);
+      window.removeEventListener('resize', handleResize);
     };
   }, [checkTitleHeight]);
 
@@ -343,6 +182,11 @@ const PostCard = memo(({ post }: { post: Post }) => {
                   post.mediaType === 'podcast' ? 'podcasts' : '';
     return `/${prefix}/${post.postSlug}`;
   }, [post.mediaType, post.postSlug]);
+
+  // Handle follow state update
+  const handleUpdatePost = useCallback((postId: string, updates: { isFollowing: boolean }) => {
+    onUpdatePost(postId, updates);
+  }, [onUpdatePost]);
   
   return (
     <Card className="overflow-hidden transition-all hover:shadow-none shadow-none border-l-0 border-r-0 border-t-0 border-b-1 rounded-none">
@@ -382,6 +226,7 @@ const PostCard = memo(({ post }: { post: Post }) => {
                     className="px-2 h-[23px] text-xs font-semibold"
                     key={followButtonKey}
                     disableAutoFetch={true}
+                    onUpdatePost={handleUpdatePost}
                   />
                 </div>
               )}
@@ -404,7 +249,8 @@ const PostCard = memo(({ post }: { post: Post }) => {
   return (
     prevProps.post._id === nextProps.post._id &&
     prevProps.post.isFollowing === nextProps.post.isFollowing &&
-    prevProps.post.isAuthenticated === nextProps.post.isAuthenticated
+    prevProps.post.isAuthenticated === nextProps.post.isAuthenticated &&
+    prevProps.onUpdatePost === nextProps.onUpdatePost
   );
 });
 

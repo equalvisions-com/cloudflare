@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { memo, Suspense } from "react";
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { UsersSearchSkeleton } from "@/components/users/UsersSkeleton";
 
 // Dynamic import of PeopleSearchWrapper with skeleton fallback
-const PeopleSearchWrapper = dynamic(
+const PeopleSearchWrapper = dynamicImport(
   () => import("@/components/users/PeopleSearchWrapper").then(mod => ({ default: mod.PeopleSearchWrapper })),
   {
     loading: () => <UsersSearchSkeleton />,
@@ -15,6 +15,7 @@ const PeopleSearchWrapper = dynamic(
 );
 
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 /* ───── a. Static meta ───── */
 export async function generateMetadata(): Promise<Metadata> {
@@ -125,7 +126,7 @@ const PeoplePage = memo(() => {
       {/* Existing UI – keeps the client-search behaviour unchanged */}
       <StandardSidebarLayout rightSidebar={<MemoizedRightSidebar />}>
         <Suspense fallback={<UsersSearchSkeleton />}>
-          <PeopleSearchWrapper />
+        <PeopleSearchWrapper />
         </Suspense>
       </StandardSidebarLayout>
     </>

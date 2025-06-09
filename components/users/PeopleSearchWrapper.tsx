@@ -55,33 +55,33 @@ const SearchForm = memo<{
   isBoarded,
   pendingFriendRequestCount
 }) => (
-  <div className="sticky top-0 z-10 bg-background border-b px-4 py-2 md:py-4">
+      <div className="sticky top-0 z-10 bg-background border-b px-4 py-2 md:py-4">
     <form onSubmit={onSubmit} className="relative flex items-center gap-3.5">
-      {isAuthenticated && (
-        <div className="flex-shrink-0 md:hidden">
-          <UserMenuClientWithErrorBoundary
+          {isAuthenticated && (
+            <div className="flex-shrink-0 md:hidden">
+              <UserMenuClientWithErrorBoundary
             initialDisplayName={displayName || undefined}
             initialProfileImage={profileImage || undefined}
-            isBoarded={isBoarded}
-            pendingFriendRequestCount={pendingFriendRequestCount}
-          />
-        </div>
-      )}
-      <div className={cn(
-        "min-w-0", 
-        isAuthenticated ? "flex-1" : "w-full" // Full width if not authenticated
-      )}>
-        <SearchInput
-          value={pendingSearchQuery}
+                isBoarded={isBoarded}
+                pendingFriendRequestCount={pendingFriendRequestCount}
+              />
+            </div>
+          )}
+          <div className={cn(
+            "min-w-0", 
+            isAuthenticated ? "flex-1" : "w-full" // Full width if not authenticated
+          )}>
+            <SearchInput
+              value={pendingSearchQuery}
           onChange={onChange}
           onKeyDown={onKeyDown}
           onClear={onClear}
-          placeholder="Search Users..."
-          className="w-full"
-        />
+              placeholder="Search Users..."
+              className="w-full"
+            />
+          </div>
+        </form>
       </div>
-    </form>
-  </div>
 ));
 
 SearchForm.displayName = 'SearchForm';

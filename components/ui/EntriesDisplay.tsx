@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef, memo, MouseEvent, TouchEvent } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Loader2 } from 'lucide-react';
@@ -14,125 +14,16 @@ import { CommentSectionClient } from '@/components/comment-section/CommentSectio
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
 import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
 import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
-import { Button } from '@/components/ui/button';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Virtuoso } from 'react-virtuoso';
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { decode } from 'html-entities';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention } from "@/utils/FeedInteraction";
+import { useEntriesData } from '@/lib/hooks/useEntriesData';
+import { EntriesRSSEntry, EntriesDisplayProps, InteractionStates } from '@/lib/types';
+import { SkeletonFeed } from '@/components/ui/skeleton-feed';
+import { useInView } from 'react-intersection-observer';
 
-// Add a consistent logging utility
-const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
-  }
-};
-
-// Define the shape of an RSS entry
-interface RSSEntry {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean;
-}
-
-interface EntriesDisplayProps {
-  mediaType: string;
-  searchQuery: string;
-  className?: string;
-  isVisible?: boolean;
-  pageSize?: number;
-}
-
-// This interface is now used directly where needed
-interface InteractionStates {
-  likes: { isLiked: boolean; count: number };
-  comments: { count: number };
-  retweets: { isRetweeted: boolean; count: number };
-}
-
-// Custom hook for batch metrics
-function useEntriesMetrics(entryGuids: string[], isVisible: boolean) {
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  const batchMetricsQuery = useQuery(
-    api.entries.batchGetEntriesMetrics,
-    isVisible && entryGuids.length > 0 ? { entryGuids } : "skip"
-  );
-
-  // Create a memoized metrics map
-  const metricsMap = useMemo(() => {
-    if (!batchMetricsQuery) {
-      return new Map<string, InteractionStates>();
-    }
-
-    return new Map(
-      entryGuids.map((guid, index) => [guid, batchMetricsQuery[index]])
-    );
-  }, [batchMetricsQuery, entryGuids]);
-
-  // Memoize default values
-  const defaultInteractions = useMemo(() => ({
-    likes: { isLiked: false, count: 0 },
-    comments: { count: 0 },
-    retweets: { isRetweeted: false, count: 0 }
-  }), []);
-
-  // Return a function to get metrics for a specific entry
-  const getEntryMetrics = useCallback((entryGuid: string) => {
-    return metricsMap.get(entryGuid) || defaultInteractions;
-  }, [metricsMap, defaultInteractions]);
-
-  return {
-    getEntryMetrics,
-    isLoading: isVisible && entryGuids.length > 0 && !batchMetricsQuery,
-    metricsMap
-  };
-}
-
-// Convert to an arrow function component for consistency
+// Main component using modern React patterns
 const EntriesDisplayComponent = ({
   mediaType,
   searchQuery,
@@ -140,186 +31,47 @@ const EntriesDisplayComponent = ({
   isVisible = false,
   pageSize = 30,
 }: EntriesDisplayProps) => {
-  const [entries, setEntries] = useState<RSSEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
-  const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
-  // Add ref to prevent multiple endReached calls
-  const endReachedCalledRef = useRef(false);
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  // Use custom hook for all data management
+  const {
+    entries,
+    hasMore,
+    isLoading,
+    isInitialLoad,
+    isMetricsLoading,
+    commentDrawerOpen,
+    selectedCommentEntry,
+    getEntryMetrics,
+    loadMore,
+    handleOpenCommentDrawer,
+    handleCommentDrawerClose,
+  } = useEntriesData({
+    mediaType,
+    searchQuery,
+    isVisible,
+    pageSize,
+  });
 
   // Use the shared focus prevention hook
   useFeedFocusPrevention(isVisible && !commentDrawerOpen, '.entries-display-container');
 
-  // Reset the endReachedCalled flag when entries change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [entries.length]);
-
-  // Get entry guids for metrics
-  const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
-  
-  // Use our custom hook for metrics
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(entryGuids, isVisible);
-
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    if (!isMountedRef.current) return;
-    
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-
-  // Memoize the comment drawer close handler
-  const handleCommentDrawerClose = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
-    setCommentDrawerOpen(open);
-  }, []);
-
-  // Memoize loadMore function
-  const loadMore = useCallback(async () => {
-    if (!hasMore || isLoading || !isVisible || !isMountedRef.current || endReachedCalledRef.current) return;
-
-    endReachedCalledRef.current = true;
-    const nextPage = page + 1;
-    setIsLoading(true);
-    
-    try {
-      logger.debug(`Fetching more entries from API, page=${nextPage}, mediaType=${mediaType}, query=${searchQuery}, pageSize=${pageSize}`);
-      const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}&pageSize=${pageSize}`);
-      const data = await response.json();
-      
-      if (isMountedRef.current) {
-        logger.debug(`Received data from API:`, {
-          entriesCount: data.entries?.length || 0,
-          hasMore: data.hasMore
-        });
-        
-        setEntries(prev => [...prev, ...data.entries]);
-        setHasMore(data.hasMore);
-        setPage(nextPage);
-      }
-    } catch (error) {
-      logger.error('Error loading more entries:', error);
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType, pageSize]);
-
-  // Use the shared delayed intersection observer hook
-  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
-    enabled: hasMore && !isLoading && isVisible,
-    isLoading,
-    hasMore,
-    rootMargin: '800px',
+  // Set up intersection observer for infinite scrolling
+  const { ref, inView } = useInView({
     threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
+    rootMargin: '200px',
   });
 
-  // Reset state only when search query changes
+  // Load more entries when intersection observer triggers
   useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (searchQuery !== lastSearchQuery) {
-      setEntries([]);
-      setHasMore(true);
-      setPage(1);
-      setLastSearchQuery(searchQuery);
-      setIsInitialLoad(true);
+    if (inView && hasMore && !isLoading && isVisible && entries.length > 0) {
+      loadMore();
     }
-  }, [searchQuery, lastSearchQuery]);
+  }, [inView, hasMore, isLoading, isVisible, entries.length, loadMore]);
 
-  // Initial search effect
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    const searchEntries = async () => {
-      setIsLoading(true);
-      try {
-        logger.debug(`Initial search for query=${searchQuery}, mediaType=${mediaType}, pageSize=${pageSize}`);
-        const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=1&pageSize=${pageSize}`);
-        const data = await response.json();
-        
-        if (isMountedRef.current) {
-          logger.debug(`Received initial search results:`, {
-            entriesCount: data.entries?.length || 0,
-            hasMore: data.hasMore
-          });
-          
-          setEntries(data.entries);
-          setHasMore(data.hasMore);
-          setPage(1);
-        }
-      } catch (error) {
-        logger.error('Error searching entries:', error);
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-          setIsInitialLoad(false);
-        }
-      }
-    };
-
-    if (searchQuery && isVisible && (searchQuery !== lastSearchQuery || entries.length === 0)) {
-      searchEntries();
-      setLastSearchQuery(searchQuery);
-    }
-  }, [searchQuery, mediaType, isVisible, lastSearchQuery, entries.length, pageSize]);
-
-  // Check if we need to load more when the component is mounted
-  useEffect(() => {
-    if (!isMountedRef.current || !loadMoreRef.current || !hasMore || isLoading || !isVisible) return;
-    
-    const checkContentHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && entries.length > 0 && !endReachedCalledRef.current) {
-        logger.debug('Content is shorter than viewport, loading more entries');
-        loadMore();
-      }
-    };
-    
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
-    
-    return () => clearTimeout(timer);
-  }, [entries.length, hasMore, isLoading, loadMore, isVisible]);
-
-  // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
-  const itemContentCallback = useCallback((index: number, entry: RSSEntry) => {
+  // Use a ref to store the itemContent callback to ensure stability
+  const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {
     // Get the metrics for this entry
     const metrics = getEntryMetrics(entry.guid);
     
-    // Create a consistent interface for the EntryCard
     return (
       <EntryCard 
         entry={entry} 
@@ -334,17 +86,21 @@ const EntriesDisplayComponent = ({
     return null;
   }
 
-  // Loading state - only show for initial load and initial metrics fetch
-  if ((isLoading && isInitialLoad) || (isInitialLoad && entries.length > 0 && isMetricsLoading)) {
+  // Derived loading state - show skeleton only for initial load, not pagination
+  const shouldShowSkeleton = (isLoading && isInitialLoad) || (entries.length === 0 && isInitialLoad);
+  
+  // Derived empty state - only show after we've confirmed no results
+  const shouldShowEmpty = entries.length === 0 && !isLoading && !isInitialLoad;
+
+  if (shouldShowSkeleton) {
     return (
-      <div className={cn("flex justify-center items-center py-10", className)}>
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className={cn("", className)}>
+        <SkeletonFeed count={5} />
       </div>
     );
   }
 
-  // No entries state
-  if (entries.length === 0 && !isLoading) {
+  if (shouldShowEmpty) {
     return (
       <div className={cn("py-8 text-center", className)}>
         <p className="text-muted-foreground text-sm">No results found for &quot;{searchQuery}&quot;</p>
@@ -381,15 +137,16 @@ const EntriesDisplayComponent = ({
         computeItemKey={(_, item) => item.guid}
       />
       
-      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
-      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-        {hasMore && isLoading && (
-          <NoFocusWrapper className="flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </NoFocusWrapper>
-        )}
-        {!hasMore && entries.length > 0 && <div></div>}
-      </div>
+      {/* Intersection observer target with loading indicator */}
+      {hasMore && (
+        <div ref={ref} className="h-52 flex items-center justify-center mb-20">
+          {isLoading && (
+            <NoFocusWrapper className="flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </NoFocusWrapper>
+          )}
+        </div>
+      )}
       
       {selectedCommentEntry && (
         <CommentSectionClient
@@ -408,30 +165,16 @@ const EntriesDisplayComponent = ({
 export const EntriesDisplay = memo(EntriesDisplayComponent);
 
 // Modified EntryCard to accept interactions prop and onOpenCommentDrawer
-const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: { 
-  entry: RSSEntry; 
+const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: { 
+  entry: EntriesRSSEntry; 
   interactions: InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   // Helper function to prevent scroll jumping on link interaction
-  const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const handleLinkInteraction = useCallback((e: MouseEvent | TouchEvent) => {
     // Let the event continue for the click
     // but prevent the focus-triggered scrolling afterward
     const target = e.currentTarget as HTMLElement;
@@ -504,17 +247,23 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
   );
 
   // Handle card click for podcasts
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    playTrack(entry.link, entry.title, entry.image || undefined);
-  }, [entry.link, entry.title, entry.image, playTrack]);
+  const handleCardClick = useCallback((e: MouseEvent) => {
+    if (entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') {
+      e.preventDefault();
+      e.stopPropagation();
+      playTrack(entry.link, entry.title, entry.image || undefined);
+    } else {
+      e.stopPropagation();
+      handleLinkInteraction(e);
+    }
+  }, [entry.post_media_type, entry.mediaType, entry.link, entry.title, entry.image, playTrack, handleLinkInteraction]);
   
   // Memoize the comment handler
-  const handleCommentClick = useCallback((e: React.MouseEvent) => {
+  const handleCommentClick = useCallback((e: MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    onOpenCommentDrawer(entry.guid, entry.feed_url || '', interactions.comments);
-  }, [entry.guid, entry.feed_url, interactions.comments, onOpenCommentDrawer]);
+    onOpenCommentDrawer(entry.guid, entry.feed_url || '', { count: interactions.comments.count });
+  }, [entry.guid, entry.feed_url, interactions.comments.count, onOpenCommentDrawer]);
 
   const isPodcast = useMemo(() => {
     return entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast';
@@ -612,10 +361,7 @@ const EntryCard = React.memo(({ entry, interactions, onOpenCommentDrawer }: {
           <div>
             <NoFocusWrapper
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-              onClick={(e) => {
-                handleLinkInteraction(e);
-                handleCardClick(e);
-              }}
+              onClick={handleCardClick}
               onTouchStart={handleLinkInteraction}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>

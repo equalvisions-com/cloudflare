@@ -1,8 +1,22 @@
 import { type Metadata } from 'next';
+import { memo, Suspense } from 'react';
+import dynamicImport from 'next/dynamic';
 import { getFeaturedNewsletters } from '@/lib/getFeaturedNewsletters';
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
-import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
+import { NewslettersPageSkeleton } from "@/components/newsletters/NewslettersSkeleton";
+import { NewslettersErrorFallback } from "@/components/newsletters/NewslettersErrorFallback";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NewsletterItem } from '@/lib/types';
+
+// Dynamic import of NewslettersWrapper with skeleton fallback
+const NewslettersWrapper = dynamicImport(
+  () => import("@/components/newsletters/NewslettersWrapper").then(mod => ({ default: mod.NewslettersWrapper })),
+  {
+    loading: () => <NewslettersPageSkeleton />,
+    ssr: false, // Disable SSR for better client-side performance
+  }
+);
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
@@ -28,12 +42,31 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Memoized right sidebar component
+const MemoizedRightSidebar = memo(() => (
+  <RightSidebar showSearch={false} />
+));
+
+MemoizedRightSidebar.displayName = 'MemoizedRightSidebar';
+
 /* ----------  b. Page component  ---------- */
-export default async function NewslettersPage() {
+const NewslettersPage = memo(async () => {
   /** 1. server fetch – no client code involved */
   const items = await getFeaturedNewsletters();
   
   const siteUrl = process.env.SITE_URL;
+
+  // Transform items to match our NewsletterItem type
+  const typedItems: NewsletterItem[] = items.map((item: any, index: number) => ({
+    position: item.position || index + 1,
+    url: item.url,
+    name: item.name,
+    description: item.description,
+    image: item.image,
+    category: item.category,
+    feedUrl: item.feedUrl,
+    lastUpdated: item.lastUpdated,
+  }));
 
   /** 2. build all JSON-LD blocks in one string */
   const jsonLd = JSON.stringify([
@@ -57,7 +90,7 @@ export default async function NewslettersPage() {
       "mainEntity": {
         "@type": "ItemList",
         "name": "Newsletter Collection",
-        "numberOfItems": items.length
+        "numberOfItems": typedItems.length
       }
     },
     /* Featured newsletters – ItemList */
@@ -66,7 +99,7 @@ export default async function NewslettersPage() {
       "@type": "ItemList",
       "name": "Featured newsletters",
       "itemListOrder": "https://schema.org/ItemListOrderAscending",
-      "itemListElement": items.map((i: any) => ({
+      "itemListElement": typedItems.map((i) => ({
         "@type": "ListItem",
         position: i.position,
         url: i.url,
@@ -87,11 +120,23 @@ export default async function NewslettersPage() {
         dangerouslySetInnerHTML={{ __html: jsonLd }}
       />
 
-      <StandardSidebarLayout rightSidebar={<RightSidebar showSearch={false} />}>
-        <div className="w-full">
-          <CategorySwipeableWrapper mediaType="newsletter" showEntries={true} />
-        </div>
+      <StandardSidebarLayout rightSidebar={<MemoizedRightSidebar />}>
+        <main 
+          className="w-full"
+          role="main"
+          aria-label="Newsletters directory"
+        >
+          <ErrorBoundary fallback={<NewslettersErrorFallback />}>
+            <Suspense fallback={<NewslettersPageSkeleton />}>
+              <NewslettersWrapper initialItems={typedItems} />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
       </StandardSidebarLayout>
     </>
   );
-}
+});
+
+NewslettersPage.displayName = 'NewslettersPage';
+
+export default NewslettersPage;

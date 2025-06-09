@@ -1416,7 +1416,7 @@ export async function getRSSEntries(
   feedUrl: string, 
   mediaType?: string,
   page: number = 1,
-  pageSize: number = 10
+  pageSize: number = 30
 ): Promise<{ entries: RSSItem[], totalCount: number, hasMore: boolean }> {
   try {
     logger.info(`Checking for RSS feed: ${postTitle} (${feedUrl})`);

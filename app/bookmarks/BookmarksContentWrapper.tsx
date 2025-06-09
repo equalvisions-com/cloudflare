@@ -23,24 +23,24 @@ const BookmarksContentWrapperComponent = () => {
   const { loading, setLoading } = useBookmarkStore();
   
   const [initialData, setInitialData] = useState<BookmarksData | null>(null);
-
+  
   const fetchInitialData = useCallback(async () => {
-    if (!userId) {
+      if (!userId) {
       setLoading({ isLoading: false });
-      setInitialData(null);
-      return;
-    }
+        setInitialData(null);
+        return;
+      }
 
     setLoading({ isLoading: true });
-    try {
-      const data = await getBookmarksData(userId, 0, 30);
+      try {
+        const data = await getBookmarksData(userId, 0, 30); 
       setInitialData(data as BookmarksData);
-    } catch (error) {
+      } catch (error) {
       console.error("Error fetching initial bookmarks:", error);
-      setInitialData(null);
-    } finally {
+        setInitialData(null);
+      } finally {
       setLoading({ isLoading: false });
-    }
+      }
   }, [userId, setLoading]);
 
   useEffect(() => {
@@ -70,9 +70,9 @@ const BookmarksContentWrapperComponent = () => {
 
   return (
     <DynamicBookmarksContent 
-      userId={userId} 
-      initialData={initialData}
-    />
+        userId={userId}
+        initialData={initialData}
+      />
   );
 };
 

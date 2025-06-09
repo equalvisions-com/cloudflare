@@ -28,14 +28,14 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
   
   // Memoized components for better performance
   const LoginMessage = useMemo(() => (
-    <div className="flex-1 p-6 text-center">
-      <div className="p-8 border border-gray-200 rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">Login to view your bookmarks</h2>
-        <p className="text-gray-500">
-          Sign in to see all the posts you&apos;ve bookmarked.
-        </p>
+      <div className="flex-1 p-6 text-center">
+        <div className="p-8 border border-gray-200 rounded-lg">
+          <h2 className="text-xl font-semibold mb-2">Login to view your bookmarks</h2>
+          <p className="text-gray-500">
+            Sign in to see all the posts you&apos;ve bookmarked.
+          </p>
+        </div>
       </div>
-    </div>
   ), []);
 
   const NoResultsMessage = useMemo(() => (
@@ -74,21 +74,21 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
       );
     }
   }
-
+    
   // Regular bookmarks view
   if (!initialData) {
     return <SkeletonFeed count={5} />;
   }
-
+  
   return (
     <DynamicBookmarksFeed 
       userId={userId} 
       initialData={initialData}
       pageSize={30} 
       isSearchResults={false}
-    />
+      />
   );
-};
+}; 
 
 export const BookmarksContent = memo(BookmarksContentComponent);
 BookmarksContent.displayName = 'BookmarksContent'; 

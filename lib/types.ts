@@ -253,4 +253,220 @@ export interface UsersState {
   searchQuery: string;
   pendingSearchQuery: string;
   isSearching: boolean;
+}
+
+// Podcasts types
+export interface PodcastItem {
+  position: number;
+  url: string;
+  name: string;
+  description?: string;
+  image?: string;
+  category?: string;
+  feedUrl?: string;
+  lastUpdated?: string;
+}
+
+export interface PodcastsState {
+  items: PodcastItem[];
+  selectedCategory: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface PodcastsActions {
+  setItems: (items: PodcastItem[]) => void;
+  setSelectedCategory: (category: string | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  reset: () => void;
+}
+
+// Newsletters types
+export interface NewsletterItem {
+  position: number;
+  url: string;
+  name: string;
+  description?: string;
+  image?: string;
+  category?: string;
+  feedUrl?: string;
+  lastUpdated?: string;
+}
+
+export interface NewslettersState {
+  items: NewsletterItem[];
+  selectedCategory: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface NewslettersActions {
+  setItems: (items: NewsletterItem[]) => void;
+  setSelectedCategory: (category: string | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  reset: () => void;
+}
+
+// Posts Display types
+export interface Post {
+  _id: Id<"posts">;
+  _creationTime: number;
+  title: string;
+  postSlug: string;
+  category: string;
+  categorySlug: string;
+  body: string;
+  featuredImg: string;
+  mediaType: string;
+  isFeatured?: boolean;
+  publishedAt?: number;
+  feedUrl?: string;
+  isFollowing?: boolean;
+  isAuthenticated?: boolean;
+  verified?: boolean;
+}
+
+export interface PostsDisplayProps {
+  categoryId: string;
+  mediaType: string;
+  initialPosts?: Post[];
+  className?: string;
+  searchQuery?: string;
+  isVisible?: boolean;
+}
+
+// Entries Display types
+export interface EntriesRSSEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_title?: string;
+  feed_url?: string;
+  mediaType?: string;
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+export interface EntriesDisplayProps {
+  mediaType: string;
+  searchQuery: string;
+  className?: string;
+  isVisible?: boolean;
+  pageSize?: number;
+}
+
+export interface InteractionStates {
+  likes: { isLiked: boolean; count: number };
+  comments: { count: number };
+  retweets: { isRetweeted: boolean; count: number };
+}
+
+// Entries Store types
+export interface EntriesLoadingState {
+  isLoading: boolean;
+  isInitialLoad: boolean;
+  isMetricsLoading: boolean;
+}
+
+export interface EntriesState {
+  entries: EntriesRSSEntry[];
+  page: number;
+  hasMore: boolean;
+  lastSearchQuery: string;
+  loadingState: EntriesLoadingState;
+  commentDrawerOpen: boolean;
+  selectedCommentEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+}
+
+export interface EntriesActions {
+  setEntries: (entries: EntriesRSSEntry[]) => void;
+  addEntries: (entries: EntriesRSSEntry[]) => void;
+  setPage: (page: number) => void;
+  setHasMore: (hasMore: boolean) => void;
+  setLastSearchQuery: (query: string) => void;
+  setLoading: (isLoading: boolean) => void;
+  setInitialLoad: (isInitialLoad: boolean) => void;
+  setMetricsLoading: (isLoading: boolean) => void;
+  setCommentDrawerOpen: (open: boolean) => void;
+  setSelectedCommentEntry: (entry: EntriesState['selectedCommentEntry']) => void;
+  reset: () => void;
+}
+
+// Category types
+export interface Category {
+  _id: string;
+  name: string;
+  slug: string;
+  mediaType: string;
+  order?: number;
+}
+
+export interface CategoryData {
+  categories: Category[];
+  featured: {
+    posts: Post[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
+  initialPostsByCategory: Record<string, {
+    posts: Post[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }>;
+}
+
+export interface CategorySliderProps {
+  categories: Category[] | undefined;
+  selectedCategoryId: string;
+  onSelectCategory: (categoryId: string) => void;
+  className?: string;
+  isLoading?: boolean;
+}
+
+export interface CategorySwipeableWrapperProps {
+  mediaType: string;
+  className?: string;
+  showEntries?: boolean;
+}
+
+export interface SearchTabsProps {
+  searchTab: 'posts' | 'entries';
+  displayMediaType: string;
+  entriesTabLabel: string;
+  handleSearchTabChange: (tab: 'posts' | 'entries') => void;
+}
+
+export interface CategorySwipeableState {
+  selectedCategoryId: string;
+  searchQuery: string;
+  pendingSearchQuery: string;
+  searchTab: 'posts' | 'entries';
+  isSearchLoading: boolean;
+  isTransitioning: boolean;
+  isInteracting: boolean;
+  searchContentLoaded: boolean;
+  isMobile: boolean;
+}
+
+export interface ScrollPositions {
+  [key: string]: number;
+}
+
+export interface TabHeights {
+  [key: string]: number;
 } 
