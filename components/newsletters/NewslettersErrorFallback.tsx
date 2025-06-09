@@ -13,7 +13,7 @@ export const NewslettersErrorFallback = memo(() => (
         Unable to Load Newsletters
       </h2>
       <p className="text-gray-600 mb-4">
-        We're having trouble loading the newsletters right now. Please try refreshing the page.
+        We&apos;re having trouble loading the newsletters right now. Please try refreshing the page.
       </p>
       <button
         onClick={() => window.location.reload()}
