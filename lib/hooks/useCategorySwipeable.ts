@@ -85,9 +85,9 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
     postsPerCategory: 10
   }) as CategoryData | undefined;
 
-  // Search query for posts
+  // Search query for posts - always fetch when we have a search query
   const searchQueryParams = useMemo(() => {
-    if (state.searchQuery && state.searchTab === 'posts') {
+    if (state.searchQuery) {
       return { 
         query: state.searchQuery,
         mediaType,
@@ -95,7 +95,7 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
       };
     }
     return "skip";
-  }, [state.searchQuery, state.searchTab, mediaType]);
+  }, [state.searchQuery, mediaType]);
 
   const searchResults = useQuery(
     api.posts.searchPosts,
@@ -300,10 +300,10 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
   // Turn off loading state when search results arrive
   useEffect(() => {
     if (state.searchQuery && searchResults !== undefined) {
-      updateState({ isSearchLoading: false });
+      updateState({ isSearchLoading: false, searchContentLoaded: true });
     }
     if (!state.searchQuery) {
-      updateState({ isSearchLoading: false });
+      updateState({ isSearchLoading: false, searchContentLoaded: false });
     }
   }, [searchResults, state.searchQuery, updateState]);
 

@@ -116,9 +116,6 @@ export const useEntriesData = ({
     
     setLoading(true);
     
-    // Add a small delay to ensure loading state is visible
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     try {
       const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}&pageSize=${pageSize}`);
       const data = await response.json();
@@ -129,8 +126,6 @@ export const useEntriesData = ({
     } catch (error) {
       console.error('Error loading more entries:', error);
     } finally {
-      // Add another small delay before clearing loading state
-      await new Promise(resolve => setTimeout(resolve, 200));
       setLoading(false);
     }
   }, [hasMore, isLoading, isVisible, page, searchQuery, mediaType, pageSize, setLoading, addEntries, setHasMore, setPage]);

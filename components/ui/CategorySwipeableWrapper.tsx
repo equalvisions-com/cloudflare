@@ -58,7 +58,7 @@ const SearchTabs = memo(({
   <div className="flex gap-0">
     <button
       className={cn(
-        "flex-1 transition-all duration-200 relative font-medium text-sm pb-[12px]",
+        "flex-1 transition-all duration-200 relative font-bold text-[15px] pb-[12px]",
         searchTab === 'posts'
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
@@ -75,7 +75,7 @@ const SearchTabs = memo(({
     </button>
     <button
       className={cn(
-        "flex-1 transition-all duration-200 relative font-medium text-sm pb-[12px]",
+        "flex-1 transition-all duration-200 relative font-bold text-[15px] pb-[12px]",
         searchTab === 'entries'
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
@@ -269,7 +269,7 @@ const CategorySwipeableWrapperComponent = ({
                 minHeight: !state.searchContentLoaded ? '400px' : undefined
               }}
             >
-              {state.isSearchLoading || state.isTransitioning || (state.searchTab === 'posts' && searchResults === undefined) ? (
+              {state.isSearchLoading || (state.searchTab === 'posts' && searchResults === undefined) ? (
                 <PostsDisplaySkeleton count={5} />
               ) : searchResults && searchResults.posts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
