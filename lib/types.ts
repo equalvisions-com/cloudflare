@@ -96,7 +96,7 @@ export interface ProfileData {
   _id: Id<"users">;
   userId: Id<"users">;
   username: string;
-  name?: string | null;
+  name?: string;
   bio?: string | null;
   profileImage?: string | null;
 }
@@ -469,4 +469,383 @@ export interface ScrollPositions {
 
 export interface TabHeights {
   [key: string]: number;
+}
+
+// Profile Page types
+export interface ProfilePageData {
+  profile: ProfileData;
+  social: {
+    friendCount: number;
+    followingCount: number;
+    friends: ProfileData[];
+    following: FollowingWithPost[];
+  };
+  friendshipStatus: {
+    id: Id<"friends">;
+    status: string;
+    direction: string;
+  } | null;
+}
+
+export interface FriendshipStatus {
+  exists: boolean;
+  status: string | null;
+  direction: string | null;
+  friendshipId: Id<"friends"> | null;
+}
+
+export interface FollowingWithPost {
+  following: {
+    userId: Id<"users">;
+    postId: Id<"posts">;
+    feedUrl: string;
+    _id: Id<"following">;
+  };
+  post: {
+    _id: Id<"posts">;
+    title: string;
+    postSlug: string;
+    categorySlug: string;
+    featuredImg?: string;
+    mediaType: string;
+    verified?: boolean;
+  };
+}
+
+// Types that match what the components expect
+export interface FriendWithProfile {
+  friendship: {
+    _id: Id<"friends">;
+    requesterId: Id<"users">;
+    requesteeId: Id<"users">;
+    status: string;
+    createdAt: number;
+    updatedAt?: number;
+    direction: string;
+    friendId: Id<"users">;
+  };
+  profile: {
+    _id: Id<"users">;
+    userId: Id<"users">;
+    username: string;
+    name?: string;
+    profileImage?: string;
+    bio?: string;
+  };
+}
+
+export interface ProfileSocialData {
+  friends: (FriendWithProfile | null)[];
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+export interface ProfileFollowingData {
+  following: (FollowingWithPost | null)[];
+  hasMore: boolean;
+  cursor: Id<"following"> | null;
+}
+
+export interface ActivityItem {
+  type: "comment" | "retweet";
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string;
+}
+
+export interface ProfileActivityData {
+  activities: ActivityItem[];
+  entryDetails: Record<string, EntriesRSSEntry>;
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+export interface ProfilePageProps {
+  params: Promise<{ username: string }>;
+}
+
+export interface ProfileMetadata {
+  title: string;
+  description: string;
+  canonical: string;
+  openGraph: {
+    title: string;
+    description: string;
+    url: string;
+    type: string;
+    images: string[];
+  };
+  twitter: {
+    card: string;
+    title: string;
+    description: string;
+  };
+}
+
+// JSON-LD Schema types
+export interface PersonSchema {
+  "@type": "Person";
+  "@id": string;
+  name: string;
+  alternateName: string;
+  url: string;
+  identifier: Id<"users">;
+  interactionStatistic: InteractionCounter[];
+  image?: string;
+  description?: string;
+}
+
+export interface InteractionCounter {
+  "@type": "InteractionCounter";
+  interactionType: string;
+  userInteractionCount: number;
+}
+
+export interface BreadcrumbListItem {
+  "@type": "ListItem";
+  position: number;
+  name: string;
+  item: string;
+}
+
+export interface BreadcrumbList {
+  "@type": "BreadcrumbList";
+  "@id": string;
+  itemListElement: BreadcrumbListItem[];
+}
+
+export interface ProfilePageSchema {
+  "@type": "ProfilePage";
+  "@id": string;
+  name: string;
+  url: string;
+  mainEntity: { "@id": string };
+  isPartOf: { "@id": string };
+  breadcrumb: { "@id": string };
+  about: { "@id": string };
+}
+
+export interface JsonLdGraph {
+  "@context": "https://schema.org";
+  "@graph": (BreadcrumbList | PersonSchema | ProfilePageSchema)[];
+}
+
+// Profile transformation types
+export interface TransformedProfileData {
+  normalizedUsername: string;
+  displayName: string;
+  friendshipStatus: FriendshipStatus | null;
+  initialFriends: ProfileSocialData;
+  initialFollowing: ProfileFollowingData;
+  jsonLd: string;
+  socialCounts: {
+    friendCount: number;
+    followingCount: number;
+  };
+}
+
+// Social counts type
+export interface SocialCounts {
+  friendCount: number;
+  followingCount: number;
+}
+
+// Profile tabs types
+export interface ProfileTabsState {
+  selectedTabIndex: number;
+  likesData: ProfileFeedData | null;
+  likesStatus: 'idle' | 'loading' | 'loaded' | 'error';
+  likesError: Error | null;
+  isPending: boolean;
+}
+
+export interface ProfileFeedData {
+  activities: ActivityItem[];
+  totalCount: number;
+  hasMore: boolean;
+  entryDetails: Record<string, EntriesRSSEntry>;
+}
+
+export interface ProfileTabsActions {
+  setSelectedTabIndex: (index: number) => void;
+  setLikesData: (data: ProfileFeedData | null) => void;
+  setLikesStatus: (status: 'idle' | 'loading' | 'loaded' | 'error') => void;
+  setLikesError: (error: Error | null) => void;
+  setIsPending: (pending: boolean) => void;
+  resetLikes: () => void;
+  reset: () => void;
+}
+
+// UserProfileTabs component types
+export interface UserProfileTabsProps {
+  userId: Id<"users">;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  activityData: ProfileFeedData | null;
+  likesData?: ProfileFeedData | null;
+  pageSize?: number;
+}
+
+export interface UserActivityFeedProps {
+  userId: Id<"users">;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  initialData: ProfileFeedData;
+  pageSize: number;
+  apiEndpoint: string;
+}
+
+export interface UserLikesFeedProps {
+  userId: Id<"users">;
+  initialData: ProfileFeedData;
+  pageSize: number;
+}
+
+export interface ActivityTabContentProps {
+  userId: Id<"users">;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  activityData: ProfileFeedData | null;
+  pageSize: number;
+}
+
+export interface LikesTabContentProps {
+  userId: Id<"users">;
+  likesData: ProfileFeedData | null;
+  pageSize: number;
+  isLoading: boolean;
+  error: Error | null;
+}
+
+// Custom hook types
+export interface UseProfileTabsProps {
+  userId: Id<"users">;
+  pageSize: number;
+  initialLikesData?: ProfileFeedData | null;
+}
+
+// UserActivityFeed types
+export interface ActivityFeedItem {
+  type: "comment" | "retweet";
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string | Id<"comments">;
+}
+
+export interface ActivityFeedRSSEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_title?: string;
+  feed_url?: string;
+  mediaType?: string;
+  // Additional fields from Convex posts
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+export interface ActivityFeedComment {
+  _id: Id<"comments">;
+  _creationTime: number;
+  userId: Id<"users">;
+  username: string;
+  content: string;
+  parentId?: Id<"comments">;
+  entryGuid: string;
+  feedUrl: string;
+  createdAt: number;
+  user?: {
+    name?: string;
+    username?: string;
+    profileImage?: string;
+  } | null;
+}
+
+export interface ActivityFeedInteractionStates {
+  likes: { isLiked: boolean; count: number };
+  comments: { count: number };
+  retweets: { isRetweeted: boolean; count: number };
+}
+
+export interface UserActivityFeedComponentProps {
+  userId: Id<"users">;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  initialData: {
+    activities: ActivityFeedItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, ActivityFeedRSSEntry>;
+    entryMetrics?: Record<string, ActivityFeedInteractionStates>;
+  } | null;
+  pageSize?: number;
+  apiEndpoint?: string;
+  isActive?: boolean;
+}
+
+export interface ActivityFeedGroupedActivity {
+  entryGuid: string;
+  firstActivity: ActivityFeedItem;
+  comments: ActivityFeedItem[];
+  hasMultipleComments: boolean;
+  type: string;
+}
+
+export interface ActivityFeedGroupRendererProps {
+  group: ActivityFeedGroupedActivity;
+  entryDetails: Record<string, ActivityFeedRSSEntry>;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  getEntryMetrics: (entryGuid: string) => ActivityFeedInteractionStates;
+  handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  currentTrack: { src: string | null } | null;
+  playTrack: (src: string, title: string, image?: string) => void;
+}
+
+export interface ActivityFeedState {
+  activities: ActivityFeedItem[];
+  isLoading: boolean;
+  hasMore: boolean;
+  entryDetails: Record<string, ActivityFeedRSSEntry>;
+  currentSkip: number;
+  isInitialLoad: boolean;
+}
+
+export type ActivityFeedAction =
+  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean } }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean } }
+  | { type: 'LOAD_MORE_FAILURE' }
+  | { type: 'SET_INITIAL_LOAD_COMPLETE' };
+
+export interface ActivityDescriptionProps {
+  item: ActivityFeedItem;
+  username: string;
+  name: string;
+  profileImage?: string | null;
+  timestamp?: string;
 } 

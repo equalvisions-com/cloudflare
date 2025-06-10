@@ -1,94 +1,21 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
+import { useProfileTabs } from "@/hooks/useProfileTabs";
+import { 
+  ProfileFeedData, 
+  UserProfileTabsProps,
+  UserActivityFeedProps,
+  UserLikesFeedProps,
+  ActivityTabContentProps,
+  LikesTabContentProps
+} from "@/lib/types";
 
-// Types for activity items
-type ActivityItem = {
-  type: "comment" | "retweet";
-  timestamp: number;
-  entryGuid: string;
-  feedUrl: string;
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  content?: string;
-  _id: string;
-};
-
-// Type for RSS entry from PlanetScale
-type RSSEntry = {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  // Additional fields from Convex posts
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean;
-};
-
-// Define types for our props
-interface UserProfileTabsProps {
-  userId: Id<"users">;
-  username: string;
-  name: string;
-  profileImage?: string | null;
-  activityData: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-  } | null;
-  likesData?: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-  } | null;
-  pageSize?: number;
-}
-
-// Data interface for better reuse
-interface FeedData {
-  activities: ActivityItem[];
-  totalCount: number;
-  hasMore: boolean;
-  entryDetails: Record<string, RSSEntry>;
-}
-
-// Define the props interface for UserActivityFeed
-interface UserActivityFeedProps {
-  userId: Id<"users">;
-  username: string;
-  name: string;
-  profileImage?: string | null;
-  initialData: FeedData;
-  pageSize: number;
-  apiEndpoint: string;
-}
-
-// Define the props interface for UserLikesFeed
-interface UserLikesFeedProps {
-  userId: Id<"users">;
-  initialData: FeedData;
-  pageSize: number;
-}
-
-// Dynamically import UserActivityFeed with skeleton loader
+// Dynamically import components with proper loading states
 const DynamicUserActivityFeed = dynamic<UserActivityFeedProps>(
   () => import('@/components/profile/UserActivityFeed').then(mod => ({ default: mod.UserActivityFeed })),
   {
@@ -97,26 +24,6 @@ const DynamicUserActivityFeed = dynamic<UserActivityFeedProps>(
   }
 );
 
-// Create a wrapper component to ensure skeleton shows
-const UserActivityFeed = (props: UserActivityFeedProps) => {
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setIsLoading(false);
-    });
-    
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  
-  if (isLoading) {
-    return <SkeletonFeed count={5} />;
-  }
-  
-  return <DynamicUserActivityFeed {...props} />;
-};
-
-// Dynamically import UserLikesFeed with skeleton loader
 const DynamicUserLikesFeed = dynamic<UserLikesFeedProps>(
   () => import('@/components/profile/UserLikesFeed').then(mod => ({ default: mod.UserLikesFeed })),
   {
@@ -124,25 +31,6 @@ const DynamicUserLikesFeed = dynamic<UserLikesFeedProps>(
     ssr: false
   }
 );
-
-// Create a wrapper component to ensure skeleton shows
-const UserLikesFeed = (props: UserLikesFeedProps) => {
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setIsLoading(false);
-    });
-    
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  
-  if (isLoading) {
-    return <SkeletonFeed count={5} />;
-  }
-  
-  return <DynamicUserLikesFeed {...props} />;
-};
 
 // Memoized component for the "Activity" tab content
 const ActivityTabContent = React.memo(({ 
@@ -152,14 +40,7 @@ const ActivityTabContent = React.memo(({
   profileImage,
   activityData, 
   pageSize,
-}: { 
-  userId: Id<"users">, 
-  username: string,
-  name: string,
-  profileImage?: string | null,
-  activityData: FeedData | null, 
-  pageSize: number,
-}) => {
+}: ActivityTabContentProps) => {
   if (!activityData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -169,7 +50,7 @@ const ActivityTabContent = React.memo(({
   }
 
   return (
-    <UserActivityFeed
+    <DynamicUserActivityFeed
       userId={userId}
       username={username}
       name={name}
@@ -187,17 +68,17 @@ const LikesTabContent = React.memo(({
   userId, 
   likesData, 
   pageSize,
-  isLoading
-}: { 
-  userId: Id<"users">, 
-  likesData: FeedData | null, 
-  pageSize: number,
-  isLoading: boolean
-}) => {
+  isLoading,
+  error
+}: LikesTabContentProps) => {
   if (isLoading) {
+    return <SkeletonFeed count={5} />;
+  }
+
+  if (error) {
     return (
-      <div className="">
-        <SkeletonFeed count={5} />
+      <div className="text-center py-8 text-muted-foreground">
+        <p>Error loading likes: {error.message}</p>
       </div>
     );
   }
@@ -211,7 +92,7 @@ const LikesTabContent = React.memo(({
   }
 
   return (
-    <UserLikesFeed
+    <DynamicUserLikesFeed
       userId={userId}
       initialData={likesData}
       pageSize={pageSize}
@@ -225,60 +106,23 @@ export function UserProfileTabs({
   username,
   name,
   profileImage,
-  activityData: initialActivityData, 
+  activityData, 
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // Initialize state directly from props, not from cache
-  const [likesState, setLikesState] = useState<{
-    data: FeedData | null;
-    status: 'idle' | 'loading' | 'loaded' | 'error';
-    error: Error | null;
-  }>({
-    data: initialLikesData || null,
-    status: initialLikesData ? 'loaded' : 'idle',
-    error: null
+  // Use custom hook for business logic and state management
+  const {
+    selectedTabIndex,
+    likesData,
+    likesStatus,
+    likesError,
+    isPending,
+    handleTabChange,
+  } = useProfileTabs({
+    userId,
+    pageSize,
+    initialLikesData,
   });
-  
-  // Start with first tab always
-  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
-  
-  // Function to fetch likes data - stabilized with useCallback
-  const fetchLikesData = useCallback(async () => {
-    // Only fetch if in idle state
-    if (likesState.status !== 'idle') return;
-    
-    setLikesState(prev => ({ ...prev, status: 'loading' }));
-    
-    try {
-      // Fetch likes data from API
-      const response = await fetch(`/api/likes?userId=${userId}&skip=0&limit=${pageSize}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch likes: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setLikesState({ data, status: 'loaded', error: null });
-    } catch (error) {
-      console.error('Error fetching likes data:', error);
-      setLikesState({
-        data: null,
-        status: 'error',
-        error: error instanceof Error ? error : new Error('Unknown error occurred')
-      });
-    }
-  }, [userId, pageSize, likesState.status]);
-
-  // Handle tab change - now only updates local state
-  const handleTabChange = useCallback((index: number) => {
-    setSelectedTabIndex(index);
-    
-    // If switching to likes tab (index 1) and likes haven't been loaded
-    if (index === 1 && likesState.status === 'idle') {
-      fetchLikesData();
-    }
-  }, [fetchLikesData, likesState.status]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
@@ -292,7 +136,7 @@ export function UserProfileTabs({
           username={username} 
           name={name}
           profileImage={profileImage}
-          activityData={initialActivityData} 
+          activityData={activityData} 
           pageSize={pageSize}
         />
       )
@@ -304,9 +148,10 @@ export function UserProfileTabs({
       component: () => (
         <LikesTabContent 
           userId={userId}
-          likesData={likesState.data} 
+          likesData={likesData} 
           pageSize={pageSize}
-          isLoading={likesState.status === 'loading'}
+          isLoading={likesStatus === 'loading'}
+          error={likesError}
         />
       )
     }
@@ -315,9 +160,10 @@ export function UserProfileTabs({
     username, 
     name, 
     profileImage, 
-    initialActivityData, 
-    likesState.data, 
-    likesState.status, 
+    activityData, 
+    likesData, 
+    likesStatus,
+    likesError,
     pageSize
   ]);
 

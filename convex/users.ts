@@ -477,6 +477,7 @@ export const getProfilePageData = query({
 
     // Format as profile - only extract the specific fields we need
     const profile = {
+      _id: user._id,
       userId: user._id,
       username: user.username,
       name: user.name,
@@ -565,9 +566,12 @@ export const getProfilePageData = query({
       .map((follow, i) => {
         const post = posts[i];
         return post ? {
-          _id: follow._id,
-          feedUrl: follow.feedUrl,
-          postId: follow.postId,
+          following: {
+            _id: follow._id,
+            userId: user._id,
+            postId: follow.postId,
+            feedUrl: follow.feedUrl
+          },
           post: post // Already formatted with only the fields we need
         } : null;
       })

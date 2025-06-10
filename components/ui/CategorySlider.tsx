@@ -9,18 +9,18 @@ import { CategorySliderProps } from '@/lib/types';
 
 // Skeleton loader component for the CategorySlider
 export const CategorySliderSkeleton = memo(() => (
-  <div className="grid w-full overflow-hidden">
-    <div className="overflow-hidden">
-      <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton
-            key={index}
-            className="h-[15px] w-20 flex-none rounded-md"
-          />
-        ))}
+    <div className="grid w-full overflow-hidden">
+      <div className="overflow-hidden">
+        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-[15px] w-20 flex-none rounded-md"
+            />
+          ))}
+        </div>
       </div>
     </div>
-  </div>
 ));
 
 CategorySliderSkeleton.displayName = 'CategorySliderSkeleton';
@@ -146,10 +146,10 @@ const useCarouselEffects = (
   // Combined effect for all carousel event listeners
   useEffect(() => {
     if (!emblaApi) return;
-
+    
     const viewportElement = emblaApi.rootNode();
     if (!viewportElement) return;
-
+    
     // Scroll to selected category when it changes
     if (selectedIndex >= 0) {
       scrollToCategory(selectedIndex);
@@ -193,7 +193,7 @@ const useCarouselEffects = (
         e.preventDefault();
       }
     };
-
+    
     // Add all event listeners
     emblaApi.on('pointerDown', handlePointerDown);
     emblaApi.on('pointerUp', handlePointerUp);
@@ -214,7 +214,7 @@ const useCarouselEffects = (
       viewportElement.removeEventListener('wheel', preventWheelNavigation);
     };
   }, [emblaApi, selectedIndex, scrollToCategory, preventOverscroll, setIsDragging]);
-};
+    };
 
 // Main component with modern React patterns
 const CategorySliderComponent = ({
@@ -260,8 +260,8 @@ const CategorySliderComponent = ({
                   "flex-none text-sm font-medium transition-all duration-200 relative whitespace-nowrap",
                   "focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
                   "hover:text-foreground",
-                  isSelected 
-                    ? "text-primary" 
+                  isSelected
+                    ? "text-primary"
                     : "text-muted-foreground"
                 )}
                 style={{ outline: 'none' }}
@@ -269,7 +269,7 @@ const CategorySliderComponent = ({
                 aria-label={`Select ${category.name} category`}
               >
                 <span className="relative inline-flex">
-                  {category.name}
+                {category.name}
                 </span>
                 <span 
                   className={cn(
@@ -277,7 +277,7 @@ const CategorySliderComponent = ({
                     isSelected && !isDragging 
                       ? "bg-primary opacity-100" 
                       : "opacity-0"
-                  )} 
+                  )}
                 />
               </button>
             );
@@ -290,6 +290,6 @@ const CategorySliderComponent = ({
 
 // Export the memoized version
 export const CategorySlider = memo(CategorySliderComponent);
-
+      
 // Export as default for dynamic imports
 export default CategorySlider;

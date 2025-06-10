@@ -2,54 +2,58 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
-import { ProfileImage } from "@/components/profile/ProfileImage";
-import { FriendButton } from "@/components/profile/FriendButton";
-import { FriendsList } from "@/components/profile/FriendsList";
-import { FollowingList } from "@/components/profile/FollowingList";
-import { ShareButton } from "@/components/ui/share-button";
+import { ProfileContentClient } from "@/components/profile/ProfileContentClient";
 import { Id } from "@/convex/_generated/dataModel";
+import { 
+  ProfilePageProps, 
+  ProfilePageData,
+  TransformedProfileData,
+  PersonSchema,
+  BreadcrumbList,
+  ProfilePageSchema,
+  JsonLdGraph,
+  FriendshipStatus,
+  ProfileSocialData,
+  ProfileFollowingData,
+  SocialCounts
+} from "@/lib/types";
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
-
-// Define FriendshipStatus type to match what FriendButton expects
-type FriendshipStatus = {
-  exists: boolean;
-  status: string | null;
-  direction: string | null;
-  friendshipId: Id<"friends"> | null;
-};
-
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-interface ProfilePageProps {
-  params: Promise<{ username: string }>;
-}
-
 // Helper to normalize username consistently
-const normalizeUsername = (username: string) => {
-  // Remove @ and convert to lowercase for lookups
+const normalizeUsername = (username: string): string => {
   return decodeURIComponent(username).replace(/^@/, '').toLowerCase();
 };
 
 // Use the optimized batch query for profile data
-const getProfilePageData = cache(async (username?: string) => {
+const getProfilePageData = cache(async (username?: string): Promise<ProfilePageData | null> => {
   try {
     if (!username) {
       console.error("Username is undefined or empty");
       return null;
     }
+    
     const normalizedUsername = normalizeUsername(username);
     
     // Use the new optimized batch query
     const profileData = await fetchQuery(api.users.getProfilePageData, { 
       username: normalizedUsername,
       limit: 30
-    });
+    }) as unknown as ProfilePageData; // Proper type assertion through unknown
+    
+    // Ensure the profile has the required _id field
+    if (profileData && profileData.profile) {
+      // Add _id if it doesn't exist (use userId as fallback)
+      if (!profileData.profile._id && profileData.profile.userId) {
+        profileData.profile._id = profileData.profile.userId;
+      }
+    }
     
     return profileData;
   } catch (error) {
@@ -82,8 +86,133 @@ const getProfileByUsername = cache(async (username?: string) => {
   }
 });
 
-export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
-  const { username } = await params;
+// Server-side data transformation using proper types
+const getTransformedProfileData = (profileData: ProfilePageData, username: string): TransformedProfileData => {
+  const siteUrl = process.env.SITE_URL || 'https://focusfix.app';
+  
+  // Use the same logic as the custom hook but in server context
+  const normalizedUsername = normalizeUsername(username);
+  const displayName = profileData.profile.name || normalizedUsername;
+  
+  // Transform friendship status
+  const friendshipStatus: FriendshipStatus | null = profileData.friendshipStatus 
+    ? {
+        exists: true,
+        status: profileData.friendshipStatus.status,
+        direction: profileData.friendshipStatus.direction || null,
+        friendshipId: profileData.friendshipStatus.id || null
+      }
+    : null;
+
+  // Transform initial friends data with proper types
+  const initialFriends: ProfileSocialData = {
+    friends: (profileData.social.friends || []).map(friend => ({
+      friendship: {
+        _id: friend._id as unknown as Id<"friends">, // Proper type assertion through unknown
+        requesterId: friend.userId,
+        requesteeId: profileData.profile.userId,
+        status: 'accepted',
+        createdAt: Date.now(),
+        direction: 'mutual',
+        friendId: friend.userId
+      },
+      profile: {
+        _id: friend._id,
+        userId: friend.userId,
+        username: friend.username,
+        name: friend.name ?? undefined,
+        profileImage: friend.profileImage ?? undefined,
+        bio: friend.bio ?? undefined
+      }
+    })),
+    hasMore: (profileData.social.friends?.length || 0) >= 30,
+    cursor: null
+  };
+
+  // Transform initial following data
+  const initialFollowing: ProfileFollowingData = {
+    following: profileData.social.following || [],
+    hasMore: (profileData.social.following?.length || 0) >= 30,
+    cursor: null
+  };
+
+  // Generate JSON-LD structured data with proper types
+  const personSchema: PersonSchema = {
+    "@type": "Person",
+    "@id": `${siteUrl}/@${normalizedUsername}#person`,
+    "name": displayName,
+    "alternateName": `@${normalizedUsername}`,
+    "url": `${siteUrl}/@${normalizedUsername}`,
+    "identifier": profileData.profile.userId,
+    "interactionStatistic": [
+      {
+        "@type": "InteractionCounter",
+        "interactionType": "http://schema.org/FollowAction",
+        "userInteractionCount": profileData.social.followingCount
+      },
+      {
+        "@type": "InteractionCounter",
+        "interactionType": "http://schema.org/BefriendAction",
+        "userInteractionCount": profileData.social.friendCount
+      }
+    ],
+    ...(profileData.profile.profileImage && { image: profileData.profile.profileImage }),
+    ...(profileData.profile.bio && { description: profileData.profile.bio })
+  };
+
+  const breadcrumbList: BreadcrumbList = {
+    "@type": "BreadcrumbList",
+    "@id": `${siteUrl}/@${normalizedUsername}#breadcrumbs`,
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": `${siteUrl}/`
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Profile",
+        "item": `${siteUrl}/@${normalizedUsername}`
+      }
+    ]
+  };
+
+  const profilePageSchema: ProfilePageSchema = {
+    "@type": "ProfilePage",
+    "@id": `${siteUrl}/@${normalizedUsername}`,
+    "name": `${displayName} – Profile on FocusFix`,
+    "url": `${siteUrl}/@${normalizedUsername}`,
+    "mainEntity": { "@id": `${siteUrl}/@${normalizedUsername}#person` },
+    "isPartOf": { "@id": `${siteUrl}/#website` },
+    "breadcrumb": { "@id": `${siteUrl}/@${normalizedUsername}#breadcrumbs` },
+    "about": { "@id": `${siteUrl}/@${normalizedUsername}#person` }
+  };
+
+  const jsonLdData: JsonLdGraph = {
+    "@context": "https://schema.org",
+    "@graph": [breadcrumbList, personSchema, profilePageSchema]
+  };
+
+  const socialCounts: SocialCounts = {
+    friendCount: profileData.social.friendCount,
+    followingCount: profileData.social.followingCount
+  };
+
+  return {
+    normalizedUsername,
+    displayName,
+    friendshipStatus,
+    initialFriends,
+    initialFollowing,
+    jsonLd: JSON.stringify(jsonLdData),
+    socialCounts
+  };
+};
+
+// Memoized metadata generation function
+const generateProfileMetadata = cache(async (username: string): Promise<Metadata> => {
   if (!username) {
     console.error("No username provided in params for metadata generation");
     return {
@@ -104,7 +233,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
     };
   }
 
-  const siteUrl = process.env.SITE_URL;
+  const siteUrl = process.env.SITE_URL || 'https://focusfix.app';
   const displayName = profile.name || normalizedUsername;
   const description = profile.bio || `See what ${displayName} is following and sharing on FocusFix.`;
 
@@ -138,6 +267,11 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
       },
     }
   };
+});
+
+export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
+  const { username } = await params;
+  return generateProfileMetadata(username);
 }
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
@@ -148,7 +282,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     console.error("No username provided in params for ProfilePage");
     notFound();
   }
-  const normalizedUsername = normalizeUsername(username);
   
   // Fetch optimized profile data
   const profileData = await getProfilePageData(username);
@@ -157,120 +290,8 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
   
-  const profile = profileData.profile;
-  const { friendCount, followingCount } = profileData.social;
-  
-  // Convert server response to expected component props format
-  const initialFriends = {
-    friends: profileData.social.friends || [],
-    hasMore: profileData.social.friends?.length >= 30 || false,
-    cursor: null
-  };
-  
-  // Transform following data to match expected FollowingWithPost structure
-  const initialFollowing = {
-    following: (profileData.social.following || []).map(item => {
-      if (!item) return null;
-      return {
-        following: {
-          _id: item._id,
-          userId: profile.userId,
-          postId: item.postId,
-          feedUrl: item.feedUrl
-        },
-        post: {
-          _id: item.post._id,
-          title: item.post.title,
-          postSlug: item.post.postSlug,
-          categorySlug: item.post.categorySlug,
-          featuredImg: item.post.featuredImg,
-          mediaType: item.post.mediaType,
-          verified: item.post.verified
-        }
-      };
-    }),
-    hasMore: profileData.social.following?.length >= 30 || false,
-    cursor: null
-  };
-  
-  // Convert friendship status to expected format
-  const friendshipStatus: FriendshipStatus | null = profileData.friendshipStatus 
-    ? {
-        exists: true,
-        status: profileData.friendshipStatus.status,
-        direction: profileData.friendshipStatus.direction || null,
-        friendshipId: profileData.friendshipStatus.id || null
-      }
-    : null;
-  
-  // Generate JSON-LD structured data
-  const siteUrl = process.env.SITE_URL;
-  const displayName = profile.name || normalizedUsername;
-  
-  // Build Person object explicitly to avoid spread operator issues
-  const personSchema: any = {
-    "@type": "Person",
-    "@id": `${siteUrl}/@${normalizedUsername}#person`,
-    "name": displayName,
-    "alternateName": `@${normalizedUsername}`,
-    "url": `${siteUrl}/@${normalizedUsername}`,
-    "identifier": profile.userId,
-    "interactionStatistic": [
-      {
-        "@type": "InteractionCounter",
-        "interactionType": "http://schema.org/FollowAction",
-        "userInteractionCount": followingCount
-      },
-      {
-        "@type": "InteractionCounter",
-        "interactionType": "http://schema.org/BefriendAction",
-        "userInteractionCount": friendCount
-      }
-    ]
-  };
-
-  // Add optional fields
-  if (profile.profileImage) {
-    personSchema.image = profile.profileImage;
-  }
-  if (profile.bio) {
-    personSchema.description = profile.bio;
-  }
-  
-  const jsonLd = JSON.stringify({
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${siteUrl}/@${normalizedUsername}#breadcrumbs`,
-        "itemListElement": [
-          {
-            "@type": "ListItem",
-            "position": 1,
-            "name": "Home",
-            "item": `${siteUrl}/`
-          },
-          {
-            "@type": "ListItem",
-            "position": 2,
-            "name": "Profile",
-            "item": `${siteUrl}/@${normalizedUsername}`
-          }
-        ]
-      },
-      personSchema,
-      {
-        "@type": "ProfilePage",
-        "@id": `${siteUrl}/@${normalizedUsername}`,
-        "name": `${displayName} – Profile on FocusFix`,
-        "url": `${siteUrl}/@${normalizedUsername}`,
-        "mainEntity": { "@id": `${siteUrl}/@${normalizedUsername}#person` },
-        "isPartOf": { "@id": `${siteUrl}/#website` },
-        "breadcrumb": { "@id": `${siteUrl}/@${normalizedUsername}#breadcrumbs` },
-        "about": { "@id": `${siteUrl}/@${normalizedUsername}#person` }
-      }
-    ]
-  });
+  // Transform data on the server
+  const transformedData = getTransformedProfileData(profileData, username);
   
   return (
     <>
@@ -278,86 +299,34 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         id="profile-schema"
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: jsonLd }}
+        dangerouslySetInnerHTML={{ __html: transformedData.jsonLd }}
       />
       
       <ProfileLayoutManager>
         <div>
-          <div>
-            <div className="max-w-4xl mx-auto p-4">
-              <div className="flex flex-col w-full" style={{ gap: '16px' }}>
-                {/* Profile Header */}
-                <div className="flex justify-between items-start w-full">
-                  {/* Left Column: Groups with specific gaps */}
-                  <div className="flex flex-col items-start text-left max-w-[70%]">
-                    {/* Group 1: Title */}
-                    <div className="w-full">
-                      <h1 className="text-2xl font-extrabold break-words leading-none tracking-tight m-0 p-0">
-                        {profile.name || normalizedUsername}
-                      </h1>
-                      <p className="text-sm leading-none mt-1 text-muted-foreground font-medium">
-                        @{normalizedUsername}
-                      </p>
-                    </div>
-                    
-                    {/* Group 2: Bio (with 12px gap) */}
-                    {profile.bio && (
-                      <p className="w-full text-sm break-words text-primary" style={{ marginTop: '10px' }}>{profile.bio}</p>
-                    )}
-                    
-                    {/* Group 3: Follower/Friend Counts (with 12px gap) */}
-                    <div className="w-full text-muted-foreground font-medium" style={{ marginTop: '10px' }}>
-                      <div className="flex gap-4">
-                        <FollowingList 
-                          username={normalizedUsername} 
-                          initialCount={followingCount}
-                          initialFollowing={initialFollowing}
-                        />
-                        <FriendsList 
-                          username={normalizedUsername} 
-                          initialCount={friendCount}
-                          initialFriends={initialFriends}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Right Column: Profile Image */}
-                  <ProfileImage 
-                    profileImage={profile.profileImage} 
-                    username={normalizedUsername}
-                    size="lg"
-                  />
-                </div>
-                
-                {/* Group 4: Action Buttons (16px gap from container) */}
-                <div className="grid grid-cols-2 gap-4 w-full">
-                  <FriendButton
-                    username={normalizedUsername}
-                    userId={profile.userId}
-                    profileData={{
-                      name: profile.name,
-                      bio: profile.bio,
-                      profileImage: profile.profileImage,
-                      username: normalizedUsername
-                    }}
-                    initialFriendshipStatus={friendshipStatus}
-                    className="w-full"
-                  />
-                  
-                  <ShareButton className="w-full py-2 rounded-lg" />
-                </div>
-              </div>
+          <ProfileContentClient
+            profile={profileData.profile}
+            normalizedUsername={transformedData.normalizedUsername}
+            displayName={transformedData.displayName}
+            friendshipStatus={transformedData.friendshipStatus}
+            socialCounts={transformedData.socialCounts}
+            initialFriends={transformedData.initialFriends}
+            initialFollowing={transformedData.initialFollowing}
+          />
+          
+          {/* Profile Activity with Suspense boundary */}
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-            
-            {/* Profile Activity */}
+          }>
             <ProfileActivityData 
-              userId={profile.userId} 
-              username={normalizedUsername}
-              name={profile.name || normalizedUsername}
-              profileImage={profile.profileImage}
+              userId={profileData.profile.userId} 
+              username={transformedData.normalizedUsername}
+              name={profileData.profile.name || transformedData.normalizedUsername}
+              profileImage={profileData.profile.profileImage}
             />
-          </div>
+          </Suspense>
         </div>
       </ProfileLayoutManager>
     </>

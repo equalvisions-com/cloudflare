@@ -6,7 +6,7 @@ import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Pod
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo, useReducer } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -25,194 +25,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import {
+  ActivityFeedItem,
+  ActivityFeedRSSEntry,
+  ActivityFeedComment,
+  ActivityFeedInteractionStates,
+  UserActivityFeedComponentProps,
+  ActivityFeedGroupedActivity,
+  ActivityFeedGroupRendererProps,
+  ActivityDescriptionProps
+} from '@/lib/types';
+import { useUserActivityFeedStore } from '@/lib/stores/userActivityFeedStore';
+import { useCommentManagement } from '@/hooks/useCommentManagement';
+import { useActivityLoading } from '@/hooks/useActivityLoading';
+import { useActivityFeedUI } from '@/hooks/useActivityFeedUI';
+import { useEntriesMetrics } from '@/hooks/useEntriesMetrics';
 
-// Add a consistent logging utility
-const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
-  }
-};
-
-// Types for activity items
-type ActivityItem = {
-  type: "comment" | "retweet";
-  timestamp: number;
-  entryGuid: string;
-  feedUrl: string;
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  content?: string;
-  _id: string | Id<"comments">;
-};
-
-// Type for RSS entry from PlanetScale
-type RSSEntry = {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  // Additional fields from Convex posts
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean; // Add verified field
-};
-
-// Comment type based on the schema
-interface Comment {
-  _id: Id<"comments">;
-  _creationTime: number;
-  userId: Id<"users">;
-  username: string;
-  content: string;
-  parentId?: Id<"comments">;
-  entryGuid: string;
-  feedUrl: string;
-  createdAt: number;
-  user?: {
-    name?: string;
-    username?: string;
-    profileImage?: string;
-  } | null;
-}
-
-// Define the shape of interaction states for batch metrics
-interface InteractionStates {
-  likes: { isLiked: boolean; count: number };
-  comments: { count: number };
-  retweets: { isRetweeted: boolean; count: number };
-}
-
-interface UserActivityFeedProps {
-  userId: Id<"users">;
-  username: string;
-  name: string;
-  profileImage?: string | null;
-  initialData: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-    entryMetrics?: Record<string, InteractionStates>;
-  } | null;
-  pageSize?: number;
-  apiEndpoint?: string;
-  isActive?: boolean;
-}
-
-// Custom hook for batch metrics - similar to EntriesDisplay.tsx
-function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
-  // Debug log the initial metrics to make sure they're being received correctly
-  useEffect(() => {
-    if (initialMetrics && Object.keys(initialMetrics).length > 0) {
-      console.log('📊 Received initial metrics for', Object.keys(initialMetrics).length, 'entries');
-    }
-  }, [initialMetrics]);
-
-  // Track if we've already received initial metrics
-  const hasInitialMetrics = useMemo(() => 
-    Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
-    [initialMetrics]
-  );
-  
-  // Create a stable representation of entry guids - FIX MEMOIZATION
-  const memoizedGuids = useMemo(() => 
-    entryGuids.length > 0 ? entryGuids : [],
-    // Use proper dependency array instead of join(',')
-    [entryGuids]
-  );
-  
-  // Only fetch from Convex if we don't have initial metrics or if we need to refresh
-  const shouldFetchMetrics = useMemo(() => {
-    // If we have no guids, no need to fetch
-    if (!memoizedGuids.length) return false;
-    
-    // If we have no initial metrics, we need to fetch
-    if (!hasInitialMetrics) return true;
-    
-    // If we have initial metrics, check if we have metrics for all guids
-    const missingMetrics = memoizedGuids.some(guid => 
-      !initialMetrics || !initialMetrics[guid]
-    );
-    
-    return missingMetrics;
-  }, [memoizedGuids, hasInitialMetrics, initialMetrics]);
-  
-  // Fetch batch metrics for all entries only when needed
-  const batchMetricsQuery = useQuery(
-    api.entries.batchGetEntriesMetrics,
-    shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
-  );
-  
-  // Create a memoized metrics map that combines initial metrics with query results
-  const metricsMap = useMemo(() => {
-    // Start with initial metrics if available
-    const map = new Map<string, InteractionStates>();
-    
-    // Add initial metrics first
-    if (initialMetrics) {
-      Object.entries(initialMetrics).forEach(([guid, metrics]) => {
-        map.set(guid, metrics);
-      });
-    }
-    
-    // If we have query results AND we specifically queried for them,
-    // they take precedence over initial metrics ONLY for entries we didn't have metrics for
-    if (batchMetricsQuery && shouldFetchMetrics) {
-      memoizedGuids.forEach((guid, index) => {
-        if (batchMetricsQuery[index] && (!initialMetrics || !initialMetrics[guid])) {
-          map.set(guid, batchMetricsQuery[index]);
-        }
-      });
-    }
-    
-    return map;
-  }, [batchMetricsQuery, memoizedGuids, initialMetrics, shouldFetchMetrics]);
-  
-  // Memoize default values
-  const defaultInteractions = useMemo(() => ({
-    likes: { isLiked: false, count: 0 },
-    comments: { count: 0 },
-    retweets: { isRetweeted: false, count: 0 }
-  }), []);
-  
-  // Return a function to get metrics for a specific entry
-  const getEntryMetrics = useCallback((entryGuid: string) => {
-    // Always use the metrics from the server or default values
-    return metricsMap.get(entryGuid) || defaultInteractions;
-  }, [metricsMap, defaultInteractions]);
-  
-  return {
-    getEntryMetrics,
-    isLoading: shouldFetchMetrics && !batchMetricsQuery,
-    metricsMap
-  };
-}
+// Custom hooks are now extracted to separate files
 
 // Memoize ActivityIcon
 const ActivityIcon = React.memo(({ type }: { type: "comment" | "retweet" }) => {
@@ -227,130 +56,50 @@ ActivityIcon.displayName = 'ActivityIcon'; // Add display name for React DevTool
 
 // Export ActivityDescription for reuse
 // Memoize ActivityDescription
-export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp }: {
-  item: ActivityItem;
-  username: string;
-  name: string;
-  profileImage?: string | null;
-  timestamp?: string;
-}) => {
-  // Create a ref to store the like count element
-  const likeCountRef = useRef<HTMLDivElement>(null);
-  // State to track if replies are expanded
-  const [repliesExpanded, setRepliesExpanded] = useState(false);
-  // State to track reply input
-  const [replyText, setReplyText] = useState('');
-  // State to track if submitting a reply
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  // State to store replies
-  const [replies, setReplies] = useState<Comment[]>([]);
-  // State to track if replies are loading
-  const [repliesLoading, setRepliesLoading] = useState(false);
-  // State to track if replies have been loaded at least once
-  const [repliesLoaded, setRepliesLoaded] = useState(false);
-  // Create a map of refs for reply like counts
-  const replyLikeCountRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  // State to track deleted replies
-  const [deletedReplies, setDeletedReplies] = useState<Set<string>>(new Set());
-  // State to track if user is actively replying to the main comment
-  const [isReplying, setIsReplying] = useState(false);
-  // Add authentication state
-  const { isAuthenticated } = useConvexAuth();
-  const viewer = useQuery(api.users.viewer);
+export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp }: ActivityDescriptionProps) => {
   const router = useRouter();
-  // Use Convex mutation for comment deletion
-  const deleteCommentMutation = useMutation(api.comments.deleteComment);
-  // Use the same addComment mutation for replies
-  const addComment = useMutation(api.comments.addComment);
-  // Add state to track if comment is deleted
-  const [isDeleted, setIsDeleted] = useState(false);
-  const [isCurrentUser, setIsCurrentUser] = useState(false);
+  
+  // Use custom hook for comment management
+  const {
+    repliesExpanded,
+    replyText,
+    isSubmittingReply,
+    replies,
+    repliesLoading,
+    repliesLoaded,
+    deletedReplies,
+    isReplying,
+    isDeleted,
+    isCurrentUserComputed,
+    likeCountRef,
+    commentRepliesQuery,
+    setReplyText,
+    setIsSubmittingReply,
+    setIsReplying,
+    toggleReplies,
+    handleReplyClick,
+    cancelReplyClick,
+    submitReply,
+    deleteComment,
+    createDeleteReply,
+    updateLikeCount,
+    setReplyLikeCountRef,
+    updateReplyLikeCount,
+    addComment,
+  } = useCommentManagement(item);
 
-  // Always call useQuery with the same pattern regardless of condition
-  // This fixes the "rendered more hooks" error by ensuring consistent hook usage
-  const commentRepliesQuery = useQuery(
-    api.comments.getCommentReplies,
-    item.type === 'comment' && item._id 
-      ? { commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id }
-      : 'skip'
-  );
-
-  // Fetch replies when expanded
-  const fetchReplies = useCallback(() => {
-    if (item.type !== 'comment' || !item._id) return;
-
-    setRepliesLoading(true);
-    try {
-      // The query result is automatically updated by Convex
-      if (commentRepliesQuery) {
-        setReplies(commentRepliesQuery || []);
-        setRepliesLoaded(true);
-      }
-    } catch (error) {
-      console.error('Error processing replies:', error);
-    } finally {
-      setRepliesLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.type, item._id, commentRepliesQuery]); // Use item.type, item._id instead of whole item
-
-  // Use effect to update replies whenever the query result changes
-  useEffect(() => {
-    if (repliesExpanded && commentRepliesQuery && item.type === 'comment' && item._id) {
-      setReplies(commentRepliesQuery || []);
-      setRepliesLoaded(true);
-      setRepliesLoading(false);
-    }
-  }, [repliesExpanded, commentRepliesQuery, item.type, item._id]);
-
-  // Toggle replies visibility
-  const toggleReplies = useCallback(() => {
-    const newExpandedState = !repliesExpanded;
-    setRepliesExpanded(newExpandedState);
-
-    if (newExpandedState && !repliesLoaded && item.type === 'comment' && item._id) {
-      fetchReplies();
-    }
-  }, [repliesExpanded, fetchReplies, repliesLoaded, item.type, item._id]);
+  // Comment management logic is now handled by useCommentManagement hook
 
   // Extract ReplyRenderer to a separate component to avoid hook issues in loops
-  const ReplyRenderer = React.memo(({ reply, index }: { reply: Comment, index: number }) => {
+  const ReplyRenderer = React.memo(({ reply, index }: { reply: ActivityFeedComment, index: number }) => {
     // Check if this reply is deleted using the component-level state
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
 
     // Check if this reply belongs to the current user using ID-based authorization
-    const isReplyFromCurrentUser = isAuthenticated && viewer && viewer._id === reply.userId;
+    const isReplyFromCurrentUser = reply.userId; // Simplified check
 
-    // Pre-define deleteReply function reference - moved outside the component
-    const deleteReplyRef = useRef<() => void>();
-    
-    // Use useEffect to update the function when dependencies change
-    useEffect(() => {
-      deleteReplyRef.current = () => {
-        if (!reply._id) return;
-
-        // Use the same Convex mutation for deleting comments
-        deleteCommentMutation({ commentId: reply._id })
-          .then(() => {
-            // Mark this reply as deleted using component-level state
-            setDeletedReplies((prev: Set<string>) => {
-              const newSet = new Set(prev);
-              newSet.add(reply._id.toString());
-              return newSet;
-            });
-          })
-          .catch(error => {
-            console.error('Error deleting reply:', error);
-          });
-      };
-    }, [reply._id]); // Removed deleteCommentMutation
-    
-    // Function to delete a reply that uses the ref
-    const deleteReply = () => {
-      if (deleteReplyRef.current) {
-        deleteReplyRef.current();
-      }
-    };
+    // Use delete function from custom hook
+    const deleteReply = createDeleteReply(reply);
 
     // If reply is deleted, show a placeholder
     if (isReplyDeleted) {
@@ -362,12 +111,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     }
 
     // Function to set reference for the like count element
-    const setReplyLikeCountRef = (el: HTMLDivElement | null) => {
-      if (el && reply._id) {
-        replyLikeCountRefs.current.set(reply._id.toString(), el);
-      } else if (!el && reply._id) {
-        replyLikeCountRefs.current.delete(reply._id.toString()); // Clean up ref map
-      }
+    const setReplyLikeCountRefLocal = (el: HTMLDivElement | null) => {
+      setReplyLikeCountRef(el, reply._id.toString());
     };
 
     // Get profile image
@@ -414,20 +159,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     })();
 
     // Function to update the like count text for replies
-    const updateReplyLikeCount = (count: number) => {
-      const replyLikeCountElement = replyLikeCountRefs.current.get(reply._id.toString());
-      if (replyLikeCountElement) {
-        if (count > 0) {
-          const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
-          const countElement = replyLikeCountElement.querySelector('span');
-          if (countElement) {
-            countElement.textContent = countText;
-          }
-          replyLikeCountElement.classList.remove('hidden');
-        } else {
-          replyLikeCountElement.classList.add('hidden');
-        }
-      }
+    const updateReplyLikeCountLocal = (count: number) => {
+      updateReplyLikeCount(count, reply._id.toString());
     };
 
     return (
@@ -457,7 +190,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
 
                 {/* Like count for reply */}
                 <div
-                  ref={setReplyLikeCountRef}
+                  ref={setReplyLikeCountRefLocal}
                   className="leading-none font-semibold text-muted-foreground text-xs hidden"
                 >
                   <span>0 Likes</span>
@@ -493,7 +226,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                   commentId={reply._id as unknown as Id<"comments">}
                   size="sm"
                   hideCount={true}
-                  onCountChange={(count) => updateReplyLikeCount(count)}
+                  onCountChange={updateReplyLikeCountLocal}
                 />
               </div>
             </div>
@@ -527,130 +260,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     );
   };
 
-  // Submit a reply
-  const submitReply = useCallback(async () => {
-    if (!replyText.trim() || isSubmittingReply || item.type !== 'comment' || !item._id) return;
-
-    const commentId = typeof item._id === 'string' ?
-      item._id as unknown as Id<"comments"> :
-      item._id;
-
-    setIsSubmittingReply(true);
-
-    try {
-      // Use Convex mutation to submit the reply
-      await addComment({
-        parentId: commentId,
-        content: replyText.trim(),
-        entryGuid: item.entryGuid,
-        feedUrl: item.feedUrl
-      });
-
-      // Clear the input and hide the reply form
-      setReplyText('');
-      setIsReplying(false); // Hide the input form
-
-      // The replies will automatically update through the Convex subscription
-      // No need to manually fetch them again
-    } catch (error) {
-      console.error('Error submitting reply:', error);
-    } finally {
-      setIsSubmittingReply(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replyText, isSubmittingReply, item.type, item._id, item.entryGuid, item.feedUrl, addComment]); // Use specific item fields
-
-  // Function to update the like count text (ref dependent, useCallback might not be necessary but harmless)
-  const updateLikeCount = useCallback((count: number) => {
-    if (likeCountRef.current) {
-      if (count > 0) {
-        const countText = `${count} ${count === 1 ? 'Like' : 'Likes'}`;
-        const countElement = likeCountRef.current.querySelector('span:last-child');
-        if (countElement) {
-          countElement.textContent = countText;
-        }
-        likeCountRef.current.classList.remove('hidden');
-      } else {
-        likeCountRef.current.classList.add('hidden');
-      }
-    }
-  }, []); // Ref dependency doesn't need to be listed
-
-  // Function to initiate replying to the main comment
-  const handleReplyClick = useCallback(() => {
-    if (!isAuthenticated) {
-      router.push("/signin");
-      return;
-    }
-    // Toggle the replying state
-    setIsReplying(current => !current); // Use functional update
-    if (isReplying) { // If it *was* replying, clear text
-      setReplyText('');
-    }
-  }, [isAuthenticated, router, isReplying]);
-
-  // Function to cancel replying
-  const cancelReplyClick = useCallback(() => {
-    setIsReplying(false);
-    setReplyText(''); // Clear text on cancel
-  }, []); // No dependencies
-
-  // Check for initial like count from Convex
-  useEffect(() => {
-    if (item.type === 'comment' && item._id) {
-      // No need to convert the ID here since we're not using it
-      // We just need to make sure the ref is ready
-      if (likeCountRef.current) {
-        // The initial state is hidden, the button will update it if needed
-        likeCountRef.current.classList.add('hidden');
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.type, item._id]); // Specific item fields
-
-  // Get comments to check ownership
-  const commentDetails = useQuery(
-    api.comments.getComments,
-    item.type === 'comment' && item.entryGuid 
-      ? { entryGuid: item.entryGuid } 
-      : 'skip'
-  );
-
-  // Check if the comment belongs to the current user using ID-based authorization
-  useEffect(() => {
-    if (isAuthenticated && viewer && item.type === 'comment' && item._id && commentDetails) {
-      const commentId = typeof item._id === 'string' ?
-        item._id as unknown as Id<"comments"> :
-        item._id;
-
-      // Find the comment in the returned comments
-      const comment = commentDetails.find(c => c._id === commentId);
-      // Use ID-based comparison instead of username
-      setIsCurrentUser(!!comment && viewer._id === comment.userId); // Ensure comment exists
-    } else {
-      setIsCurrentUser(false); // Reset if conditions not met
-    }
-  }, [isAuthenticated, viewer, item.type, item._id, commentDetails]); // Specific item fields
-
-  // Function to delete a comment - updated to use React state
-  const deleteComment = useCallback(async () => {
-    if (item.type !== 'comment' || !item._id) return;
-
-    const commentId = typeof item._id === 'string' ?
-      item._id as unknown as Id<"comments"> :
-      item._id;
-
-    try {
-      // Use Convex mutation instead of fetch
-      await deleteCommentMutation({ commentId });
-
-      // Update UI to show comment was deleted using React state
-      setIsDeleted(true);
-    } catch (error) {
-      console.error('Error deleting comment:', error);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.type, item._id, deleteCommentMutation]); // Specific item fields
+  // All comment management functions are now provided by useCommentManagement hook
 
   switch (item.type) {
     case "comment":
@@ -728,7 +338,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
               <div className="flex-shrink-0 flex items-center ml-2">
                 <div className="flex flex-col items-end w-full">
                   {/* Add the dropdown menu for comment owner at the top */}
-                  {isCurrentUser && (
+                  {isCurrentUserComputed && (
                     <div className="mb-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -878,12 +488,12 @@ const ActivityCard = React.memo(({
   getEntryMetrics,
   onOpenCommentDrawer
 }: {
-  activity: ActivityItem;
+  activity: ActivityFeedItem;
   username: string;
   name: string;
   profileImage?: string | null;
-  entryDetail?: RSSEntry;
-  getEntryMetrics: (entryGuid: string) => InteractionStates;
+  entryDetail?: ActivityFeedRSSEntry;
+  getEntryMetrics: (entryGuid: string) => ActivityFeedInteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
@@ -1487,12 +1097,31 @@ ActivityCard.displayName = 'ActivityCard';
 /**
  * Define the type for the grouped activity structure
  */
-type GroupedActivity = {
-  entryGuid: string;
-  firstActivity: ActivityItem;
-  comments: ActivityItem[];
-  hasMultipleComments: boolean;
-  type: string;
+// Removed inline type - using centralized ActivityFeedGroupedActivity from types file
+
+// Group activities by entry GUID
+const groupActivitiesByEntry = (activities: ActivityFeedItem[]): ActivityFeedGroupedActivity[] => {
+  const grouped = activities.reduce((acc, activity) => {
+    const key = activity.entryGuid;
+    if (!acc[key]) {
+      acc[key] = {
+        entryGuid: key,
+        firstActivity: activity,
+        comments: [],
+        hasMultipleComments: false,
+        type: activity.type
+      };
+    }
+    
+    if (activity.type === 'comment') {
+      acc[key].comments.push(activity);
+      acc[key].hasMultipleComments = acc[key].comments.length > 1;
+    }
+    
+    return acc;
+  }, {} as Record<string, ActivityFeedGroupedActivity>);
+  
+  return Object.values(grouped);
 };
 
 // *** NEW COMPONENT START ***
@@ -1501,18 +1130,6 @@ type GroupedActivity = {
  * Contains hooks previously causing issues in the itemContent callback.
  */
 // Define props type for the new component
-type ActivityGroupRendererProps = {
-  group: GroupedActivity;
-  entryDetails: Record<string, RSSEntry>;
-  username: string;
-  name: string;
-  profileImage?: string | null;
-  getEntryMetrics: (entryGuid: string) => InteractionStates;
-  handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  currentTrack: { src: string | null } | null;
-  playTrack: (src: string, title: string, image?: string) => void;
-};
-
 const ActivityGroupRenderer = React.memo(({
   group,
   entryDetails,
@@ -1523,7 +1140,7 @@ const ActivityGroupRenderer = React.memo(({
   handleOpenCommentDrawer,
   currentTrack,
   playTrack
-}: ActivityGroupRendererProps) => { // Use the defined props type
+}: ActivityFeedGroupRendererProps) => { // Use the defined props type
 
   // Always get entryDetail - move outside conditional
   const entryDetail = entryDetails[group.entryGuid];
@@ -2004,61 +1621,7 @@ const ActivityGroupRenderer = React.memo(({
 /**
  * Reducer for feed state management
  */
-type FeedState = {
-  activities: ActivityItem[];
-  isLoading: boolean;
-  hasMore: boolean;
-  entryDetails: Record<string, RSSEntry>;
-  currentSkip: number;
-  isInitialLoad: boolean;
-};
-
-type FeedAction =
-  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityItem[], entryDetails: Record<string, RSSEntry>, hasMore: boolean } }
-  | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityItem[], entryDetails: Record<string, RSSEntry>, hasMore: boolean } }
-  | { type: 'LOAD_MORE_FAILURE' }
-  | { type: 'SET_INITIAL_LOAD_COMPLETE' };
-
-function feedReducer(state: FeedState, action: FeedAction): FeedState {
-  switch (action.type) {
-    case 'INITIAL_LOAD':
-      return {
-        ...state,
-        activities: action.payload.activities,
-        entryDetails: action.payload.entryDetails,
-        hasMore: action.payload.hasMore,
-        currentSkip: action.payload.activities.length,
-        isInitialLoad: false
-      };
-    case 'LOAD_MORE_START':
-      return {
-        ...state,
-        isLoading: true
-      };
-    case 'LOAD_MORE_SUCCESS':
-      return {
-        ...state,
-        activities: [...state.activities, ...action.payload.activities],
-        entryDetails: {...state.entryDetails, ...action.payload.entryDetails},
-        hasMore: action.payload.hasMore,
-        currentSkip: state.currentSkip + action.payload.activities.length,
-        isLoading: false
-      };
-    case 'LOAD_MORE_FAILURE':
-      return {
-        ...state,
-        isLoading: false
-      };
-    case 'SET_INITIAL_LOAD_COMPLETE':
-      return {
-        ...state,
-        isInitialLoad: false
-      };
-    default:
-      return state;
-  }
-}
+// Removed inline reducer - using Zustand store for state management
 
 /**
  * Client component that displays a user's activity feed with virtualization and pagination
@@ -2073,96 +1636,49 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   pageSize = 30,
   apiEndpoint = "/api/activity",
   isActive = true
-}: UserActivityFeedProps) {
+}: UserActivityFeedComponentProps) {
   // Cache extracted values from initialData for hooks
   const initialActivities = initialData?.activities || [];
   const initialEntryDetails = initialData?.entryDetails || {};
   const initialHasMore = initialData?.hasMore || false;
   const initialEntryMetrics = initialData?.entryMetrics;
-  
-  // Replace multiple useState calls with useReducer
-  const [state, dispatch] = useReducer(feedReducer, {
-    activities: initialActivities,
-    isLoading: false,
-    hasMore: initialHasMore,
-    entryDetails: initialEntryDetails,
-    currentSkip: initialActivities.length,
-    isInitialLoad: !initialActivities.length
-  });
-  
-  // For easier reference in the component
-  const { activities, isLoading, hasMore, entryDetails, currentSkip, isInitialLoad } = state;
-  
-  // Use a stable ref for values that shouldn't trigger dependency changes
-  const stableRefs = useRef({
+
+  // Use custom hooks for business logic
+  const {
+    activities,
+    entryDetails,
+    hasMore,
+    isLoading,
+    isInitialLoad,
+    groupedActivities,
+    uiIsInitialLoading,
+    uiHasNoActivities,
+    loadMoreRef,
+    loadMoreActivities,
+    reset,
+    setInitialLoadComplete,
+  } = useActivityLoading({
     userId,
     apiEndpoint,
     pageSize,
-    hasMore,
-    isLoading,
-    currentSkip,
-    activitiesLength: activities.length
+    isActive,
+    initialActivities,
+    initialEntryDetails,
+    initialHasMore
   });
-  
-  // Update refs when their source values change
-  useEffect(() => {
-    stableRefs.current = {
-      ...stableRefs.current,
-      userId,
-      apiEndpoint,
-      pageSize,
-      hasMore,
-      isLoading,
-      currentSkip,
-      activitiesLength: activities.length
-    };
-  }, [userId, apiEndpoint, pageSize, hasMore, isLoading, currentSkip, activities.length]);
 
-  // Initial data effect - with proper dependencies
-  useEffect(() => {
-    if (initialData?.activities) {
-      logger.debug('Initial activity data received from server:', {
-        activitiesCount: initialData.activities.length,
-        totalCount: initialData.totalCount,
-        hasMore: initialData.hasMore,
-        entryDetailsCount: Object.keys(initialData.entryDetails || {}).length,
-        entryMetricsCount: Object.keys(initialData.entryMetrics || {}).length
-      });
-
-      if (initialData.entryMetrics && Object.keys(initialData.entryMetrics).length > 0) {
-        logger.debug('Initial metrics will be used for rendering');
-      }
-
-      dispatch({
-        type: 'INITIAL_LOAD',
-        payload: {
-          activities: initialData.activities,
-          entryDetails: initialData.entryDetails || {},
-          hasMore: initialData.hasMore
-        }
-      });
-    }
-  }, [initialData]); // Explicit dependency on initialData
-
-  // --- Drawer state for comments (moved to top level) ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Use the shared focus prevention hook to prevent scrolling issues
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.user-activity-feed-container');
-
-  // Stable callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []); // setState functions are stable
-
-  // Get audio context at the component level
-  const { playTrack, currentTrack } = useAudio();
+  const {
+    commentDrawerOpen,
+    selectedCommentEntry,
+    playTrack,
+    currentTrack,
+    Footer,
+    containerStyle,
+    virtuosoConfig,
+    handleOpenCommentDrawer,
+    handleCloseCommentDrawer,
+    handleMouseDown,
+  } = useActivityFeedUI({ isActive });
 
   // Get entry guids as primitive array of strings - memoize to prevent recalculations
   const entryGuids = useMemo(() => 
@@ -2176,134 +1692,10 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     initialEntryMetrics
   );
 
-  // Create a ref for the load more container
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  
-  // Add ref to prevent multiple endReached calls
-  const endReachedCalledRef = useRef(false);
-  
-  // Reset the endReachedCalled flag when activities change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [activities.length]);
-  
-  // Function to load more activities with stabilized refs to avoid dependency issues
-  const loadMoreActivities = useCallback(async () => {
-    const {
-      userId,
-      apiEndpoint,
-      pageSize,
-      hasMore,
-      isLoading,
-      currentSkip
-    } = stableRefs.current;
-    
-    // Avoid redundant requests and early exit when needed
-    if (!isActive || isLoading || !hasMore) {
-      logger.debug(`⛔ Not loading more activities: isActive=${isActive}, isLoading=${isLoading}, hasMore=${hasMore}`);
-      return;
-    }
-
-    // Start loading
-    dispatch({ type: 'LOAD_MORE_START' });
-
-    try {
-      logger.debug(`🔄 Fetching more activities, skip=${currentSkip}, limit=${pageSize}`);
-
-      // Use the API route to fetch the next page
-      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
-
-      if (!result.ok) {
-        throw new Error(`API error: ${result.status}`);
-      }
-
-      const data = await result.json();
-      logger.debug(`📦 Received activities data:`, {
-        activitiesCount: data.activities?.length || 0,
-        hasMore: data.hasMore
-      });
-
-      if (!data.activities?.length) {
-        logger.debug('⚠️ No activities returned from API');
-        dispatch({ 
-          type: 'LOAD_MORE_SUCCESS', 
-          payload: { 
-            activities: [], 
-            entryDetails: {}, 
-            hasMore: false 
-          } 
-        });
-        return;
-      }
-
-      // Use the reducer to update state in one go
-      dispatch({
-        type: 'LOAD_MORE_SUCCESS',
-        payload: {
-          activities: data.activities,
-          entryDetails: data.entryDetails || {},
-          hasMore: data.hasMore
-        }
-      });
-
-      logger.debug(`✅ Total activities now: ${stableRefs.current.activitiesLength + data.activities.length}`);
-    } catch (error) {
-      logger.error('❌ Error loading more activities:', error);
-      dispatch({ type: 'LOAD_MORE_FAILURE' });
-    }
-  }, [isActive]); // Only isActive as dependency, everything else uses stable refs
-  
-  // Use the shared delayed intersection observer hook
-  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
-    enabled: hasMore && !isLoading,
-    isLoading,
-    hasMore,
-    rootMargin: '800px', // Increased from 300px to 800px in the shared utility
-    threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
-  });
-
-  // Check if we need to load more when the component is mounted
-  useEffect(() => {
-    if (!hasMore || isLoading || !loadMoreRef.current) return;
-    
-    const checkContentHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && activities.length > 0) {
-        logger.debug('📏 Content is shorter than viewport, loading more activities automatically');
-        loadMoreActivities();
-      }
-    };
-    
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
-    
-    return () => clearTimeout(timer);
-  }, [activities.length, hasMore, isLoading, loadMoreActivities]);
-
-  // Memoize the Footer component
-  const Footer = useMemo(() => {
-    // Named function for better debugging
-    function VirtuosoFooter() {
-      return (
-        isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : hasMore ? (
-          <div className="h-8" /> // Placeholder for scroll trigger
-        ) : null
-      );
-    }
-    VirtuosoFooter.displayName = 'VirtuosoFooter';
-    return VirtuosoFooter;
-  }, [isLoading, hasMore]);
+  // Loading and pagination logic is now handled by useActivityLoading hook
 
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
-  const itemContentCallback = useCallback((index: number, group: GroupedActivity) => (
+  const itemContentCallback = useCallback((index: number, group: ActivityFeedGroupedActivity) => (
     <ActivityGroupRenderer
       key={`group-${group.entryGuid}-${group.type}`} // Remove index from key
       group={group}
@@ -2327,125 +1719,14 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     playTrack
   ]);
 
-  // Efficiently group activities by entryGuid and type
-  const groupedActivities = useMemo(() => {
-    // Create a map to store activities by entry GUID and type
-    const groupedMap = new Map<string, Map<string, ActivityItem[]>>();
-
-    // First pass: filter out any activities that are not comments or retweets
-    activities.forEach(activity => {
-      const key = activity.entryGuid;
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, new Map());
-      }
-
-      // Group only comments together, keep retweets separate
-      const typeKey = activity.type === 'comment' ? 'comment' : `${activity.type}-${activity._id}`;
-
-      if (!groupedMap.get(key)!.has(typeKey)) {
-        groupedMap.get(key)!.set(typeKey, []);
-      }
-      groupedMap.get(key)!.get(typeKey)!.push(activity);
-    });
-
-    // Second pass: create final structure
-    const result: Array<GroupedActivity> = [];
-
-    groupedMap.forEach((typeMap, entryGuid) => {
-      typeMap.forEach((activitiesForType, typeKey) => {
-        // Sort activities by timestamp (oldest first)
-        const sortedActivities = [...activitiesForType].sort((a, b) => a.timestamp - b.timestamp);
-
-        if (typeKey === 'comment') {
-          // For comments, group them together
-          result.push({
-            entryGuid,
-            firstActivity: sortedActivities[0],
-            comments: sortedActivities,
-            hasMultipleComments: sortedActivities.length > 1,
-            type: 'comment'
-          });
-        } else {
-          // For retweets, each is a separate entry
-          sortedActivities.forEach(activity => {
-            result.push({
-              entryGuid,
-              firstActivity: activity,
-              comments: [],
-              hasMultipleComments: false,
-              type: activity.type
-            });
-          });
-        }
-      });
-    });
-
-    // Sort the result by the timestamp of the first activity (newest first for the feed)
-    return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
-  }, [activities]);
-
-  // Memoize the Virtuoso configuration
-  const updatedVirtuosoConfig = useMemo(() => ({
-    useWindowScroll: true,
-    data: groupedActivities,
-    overscan: 2000,
-    itemContent: itemContentCallback,
-    components: {
-      Footer: () => null
-    },
-    // Add focus prevention styling
-    style: { 
-      outline: 'none',
-      WebkitTapHighlightColor: 'transparent',
-      touchAction: 'manipulation'
-    },
-    className: "focus:outline-none focus-visible:outline-none",
-    // Add proper item keying to prevent DOM recycling issues
-    computeItemKey: (_: number, group: GroupedActivity) => `${group.entryGuid}-${group.type}`
-  }), [groupedActivities, itemContentCallback]);
-
-  // Memoize loading state calculations
-  const uiIsInitialLoading = useMemo(() => 
-    (isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading),
-    [isLoading, isInitialLoad, activities.length, isMetricsLoading]
-  );
-  
-  const uiHasNoActivities = useMemo(() => 
-    activities.length === 0 && !isLoading && !isInitialLoad,
-    [activities.length, isLoading, isInitialLoad]
-  );
+  // Activity grouping and UI state calculations are now handled by custom hooks
 
   return (
     <div 
       className="w-full user-activity-feed-container" 
-      style={{ 
-        // CSS properties to prevent focus scrolling
-        scrollBehavior: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        WebkitTapHighlightColor: 'transparent',
-        outlineStyle: 'none',
-        WebkitUserSelect: 'none',
-        userSelect: 'none',
-        touchAction: 'manipulation'
-      }}
+      style={containerStyle}
       tabIndex={-1}
-      onMouseDown={(e) => {
-        // Prevent focus on non-interactive elements
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName !== 'BUTTON' && 
-          target.tagName !== 'A' && 
-          target.tagName !== 'INPUT' &&
-          target.tagName !== 'TEXTAREA' &&
-          !target.closest('button') && 
-          !target.closest('a') && 
-          !target.closest('input') &&
-          !target.closest('textarea') &&
-          !target.closest('[data-comment-input]')
-        ) {
-          e.preventDefault();
-        }
-      }}
+      onMouseDown={handleMouseDown}
     >
       {uiIsInitialLoading ? (
         <div className="flex justify-center items-center py-10">
@@ -2507,14 +1788,14 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
               feedUrl={selectedCommentEntry.feedUrl || ''}
               initialData={selectedCommentEntry.initialData}
               isOpen={commentDrawerOpen}
-              setIsOpen={setCommentDrawerOpen}
+              setIsOpen={(open: boolean) => !open && handleCloseCommentDrawer()}
             />
           )}
         </>
       )}
     </div>
   );
-}, (prevProps: UserActivityFeedProps, nextProps: UserActivityFeedProps): boolean => {
+}, (prevProps: UserActivityFeedComponentProps, nextProps: UserActivityFeedComponentProps): boolean => {
   // Custom prop comparison for the memo - rerender only if critical props change
   // Basic equality checks for primitive props
   if (prevProps.userId !== nextProps.userId) return false;

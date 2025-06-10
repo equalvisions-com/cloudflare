@@ -280,15 +280,15 @@ const CategorySwipeableWrapperComponent = ({
                 </div>
               ) : (
                 <Suspense fallback={<PostsDisplaySkeleton count={5} />}>
-                  <PostsDisplay
-                    categoryId=""
-                    mediaType={mediaType}
-                    initialPosts={searchResults?.posts || []}
-                    className=""
+                <PostsDisplay
+                  categoryId=""
+                  mediaType={mediaType}
+                  initialPosts={searchResults?.posts || []}
+                  className=""
                     searchQuery={state.searchQuery}
                     isVisible={state.searchTab === 'posts'}
-                    key={`posts-search-${mediaType}`}
-                  />
+                  key={`posts-search-${mediaType}`}
+                />
                 </Suspense>
               )}
             </div>
@@ -315,13 +315,13 @@ const CategorySwipeableWrapperComponent = ({
               }}
             >
               <Suspense fallback={<SkeletonFeed count={5} />}>
-                <EntriesDisplay
-                  mediaType={mediaType}
+              <EntriesDisplay
+                mediaType={mediaType}
                   searchQuery={state.searchQuery}
-                  className=""
+                className=""
                   isVisible={state.searchTab === 'entries'}
-                  key={`entries-search-${mediaType}`}
-                />
+                key={`entries-search-${mediaType}`}
+              />
               </Suspense>
             </div>
           </div>
@@ -371,14 +371,14 @@ const CategorySwipeableWrapperComponent = ({
                   }}
                 >
                   <Suspense fallback={<PostsDisplaySkeleton count={5} />}>
-                    <PostsDisplay
-                      categoryId={category._id}
-                      mediaType={mediaType}
-                      initialPosts={getInitialPostsForCategory(category._id)}
-                      className=""
+                  <PostsDisplay
+                    categoryId={category._id}
+                    mediaType={mediaType}
+                    initialPosts={getInitialPostsForCategory(category._id)}
+                    className=""
                       isVisible={isActive || state.isTransitioning}
-                      key={`category-${category._id}-${mediaType}`}
-                    />
+                    key={`category-${category._id}-${mediaType}`}
+                  />
                   </Suspense>
                 </div>
               );

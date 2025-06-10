@@ -101,7 +101,9 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   
   // Extract all post IDs for batched follow status query
   const postIds = useMemo(() => 
-    followingItems.map(item => item.following.postId),
+    followingItems
+      .filter(item => item && item.following && item.following.postId) // Safety check
+      .map(item => item.following.postId),
     [followingItems]
   );
   
@@ -195,6 +197,11 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
           ) : (
             <div className="space-y-0">
               {followingItems.map((item: FollowingWithPost) => {
+                // Additional safety check to prevent runtime errors
+                if (!item || !item.following || !item.following.postId || !item.post) {
+                  return null;
+                }
+                
                 // Get the follow status for this post from the mapping
                 const postIdStr = item.following.postId.toString();
                 const isFollowing = followStatusMap[postIdStr];
