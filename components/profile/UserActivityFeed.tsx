@@ -56,7 +56,7 @@ ActivityIcon.displayName = 'ActivityIcon'; // Add display name for React DevTool
 
 // Export ActivityDescription for reuse
 // Memoize ActivityDescription
-export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp }: ActivityDescriptionProps) => {
+export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp, userId }: ActivityDescriptionProps) => {
   const router = useRouter();
   
   // Use custom hook for comment management
@@ -86,7 +86,7 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     setReplyLikeCountRef,
     updateReplyLikeCount,
     addComment,
-  } = useCommentManagement(item);
+  } = useCommentManagement(item, userId);
 
   // Comment management logic is now handled by useCommentManagement hook
 
@@ -96,7 +96,9 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
 
     // Check if this reply belongs to the current user using ID-based authorization
-    const isReplyFromCurrentUser = reply.userId; // Simplified check
+    const { isAuthenticated } = useConvexAuth();
+    const viewer = useQuery(api.users.viewer);
+    const isReplyFromCurrentUser = isAuthenticated && viewer && reply.userId === viewer._id;
 
     // Use delete function from custom hook
     const deleteReply = createDeleteReply(reply);
@@ -1136,6 +1138,7 @@ const ActivityGroupRenderer = React.memo(({
   username,
   name,
   profileImage,
+  userId,
   getEntryMetrics,
   handleOpenCommentDrawer,
   currentTrack,
@@ -1604,6 +1607,7 @@ const ActivityGroupRenderer = React.memo(({
                   username={username}
                   name={name}
                   profileImage={profileImage}
+                  userId={userId}
                   // Pass the memoized comment timestamp
                   timestamp={commentTimestamp}
                 />
@@ -1703,6 +1707,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       username={username}
       name={name}
       profileImage={profileImage}
+      userId={userId}
       getEntryMetrics={getEntryMetrics}
       handleOpenCommentDrawer={handleOpenCommentDrawer}
       currentTrack={currentTrack}
@@ -1713,6 +1718,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     username,
     name,
     profileImage,
+    userId,
     getEntryMetrics,
     handleOpenCommentDrawer,
     currentTrack,

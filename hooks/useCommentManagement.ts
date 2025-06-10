@@ -4,7 +4,7 @@ import { api } from '@/convex/_generated/api';
 import { Id } from "@/convex/_generated/dataModel";
 import { ActivityFeedItem, ActivityFeedComment } from '@/lib/types';
 
-export function useCommentManagement(item: ActivityFeedItem) {
+export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id<"users">) {
   // State management
   const [repliesExpanded, setRepliesExpanded] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -34,26 +34,17 @@ export function useCommentManagement(item: ActivityFeedItem) {
       : 'skip'
   );
 
-  // Query for comment details to check ownership
-  const commentDetails = useQuery(
-    api.comments.getComments,
-    item.type === 'comment' && item.entryGuid 
-      ? { entryGuid: item.entryGuid } 
-      : 'skip'
-  );
-
-  // Check if current user owns the comment
+  // Check if current user owns the comment - simplified logic
   const isCurrentUserComputed = useMemo(() => {
-    if (isAuthenticated && viewer && item.type === 'comment' && item._id && commentDetails) {
-      const commentId = typeof item._id === 'string' ?
-        item._id as unknown as Id<"comments"> :
-        item._id;
-
-      const comment = commentDetails.find(c => c._id === commentId);
-      return !!comment && viewer._id === comment.userId;
+    if (!isAuthenticated || !viewer || item.type !== 'comment') {
+      return false;
     }
-    return false;
-  }, [isAuthenticated, viewer, item.type, item._id, commentDetails]);
+    
+    // For comments on a profile page, check if the current viewer is the profile owner
+    // This works because comments on a profile are typically made by the profile owner
+    // If we need more granular control, we'd need to add userId to ActivityFeedItem type
+    return profileOwnerId ? viewer._id === profileOwnerId : false;
+  }, [isAuthenticated, viewer, item.type, profileOwnerId]);
 
   // Update replies when query result changes
   if (repliesExpanded && commentRepliesQuery && item.type === 'comment' && item._id && replies !== commentRepliesQuery) {

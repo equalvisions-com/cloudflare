@@ -820,6 +820,7 @@ export interface ActivityFeedGroupRendererProps {
   username: string;
   name: string;
   profileImage?: string | null;
+  userId: Id<"users">;
   getEntryMetrics: (entryGuid: string) => ActivityFeedInteractionStates;
   handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   currentTrack: { src: string | null } | null;
@@ -848,4 +849,5 @@ export interface ActivityDescriptionProps {
   name: string;
   profileImage?: string | null;
   timestamp?: string;
+  userId?: Id<"users">;
 } 
