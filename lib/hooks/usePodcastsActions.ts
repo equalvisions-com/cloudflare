@@ -46,10 +46,7 @@ export const usePodcastsActions = () => {
       
       setError(errorMessage);
       
-      // Log error for debugging (in development)
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Podcasts initialization error:', error);
-      }
+      // Error logging removed for production readiness
     } finally {
       setLoading(false);
     }

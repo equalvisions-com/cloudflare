@@ -6,7 +6,7 @@ import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Pod
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -1646,7 +1646,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   const initialEntryDetails = initialData?.entryDetails || {};
   const initialHasMore = initialData?.hasMore || false;
   const initialEntryMetrics = initialData?.entryMetrics;
-
+  
   // Use custom hooks for business logic
   const {
     activities,
@@ -1662,9 +1662,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     reset,
     setInitialLoadComplete,
   } = useActivityLoading({
-    userId,
-    apiEndpoint,
-    pageSize,
+      userId,
+      apiEndpoint,
+      pageSize,
     isActive,
     initialActivities,
     initialEntryDetails,

@@ -14,15 +14,17 @@ export const PodcastsWrapper = memo<PodcastsWrapperProps>(({ initialItems }) => 
   const { items, isLoading, error, announceMessage } = usePodcastsStore();
   const { initializePodcasts, resetPodcasts } = usePodcastsActions();
 
-  // Initialize podcasts data on mount - minimal useEffect usage
-  useEffect(() => {
+  // Initialize podcasts data directly during render - React best practice
+  if (items.length === 0 && !isLoading && !error) {
     initializePodcasts(initialItems);
-    
-    // Cleanup on unmount
+  }
+
+  // Cleanup on unmount - legitimate useEffect for cleanup
+  useEffect(() => {
     return () => {
       resetPodcasts();
     };
-  }, [initializePodcasts, resetPodcasts, initialItems]);
+  }, [resetPodcasts]);
 
   // Error state with accessibility
   if (error) {

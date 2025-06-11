@@ -1,14 +1,37 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
 import type { RSSItem } from "@/lib/rss";
+import type { 
+  RSSFeedEntry, 
+  RSSEntryProps, 
+  FeedContentProps, 
+  RSSFeedClientProps,
+  RSSFeedAPIResponse
+} from "@/lib/types";
+import { 
+  createRSSFeedStore,
+  RSSFeedStoreContext,
+  useRSSFeedEntries,
+  useRSSFeedLoading,
+  useRSSFeedPagination as useRSSFeedPaginationState,
+  useRSSFeedCommentDrawer,
+  useRSSFeedInitialize,
+  useRSSFeedSetActive,
+  useRSSFeedSetSearchMode,
+  useRSSFeedHasMore,
+  useRSSFeedIsLoading
+} from '@/lib/stores/rssFeedStore';
+import { useRSSFeedPaginationHook } from '@/hooks/useRSSFeedPagination';
+import { useRSSFeedMetrics } from '@/hooks/useRSSFeedMetrics';
+import { useRSSFeedUI } from '@/hooks/useRSSFeedUI';
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
-import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
@@ -19,61 +42,48 @@ import { Podcast, Mail, Loader2 } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { useFeedFocusPrevention, NoFocusWrapper, NoFocusLinkWrapper, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 
-// Production-ready error logging utility
+// PHASE 4: Dynamic import for CommentSectionClient to reduce initial bundle size
+const CommentSectionClient = lazy(() => import("@/components/comment-section/CommentSectionClient").then(module => ({ default: module.CommentSectionClient })));
+
+// PHASE 4: Loading fallback component for dynamic imports
+const CommentSectionFallback = () => (
+  <div className="flex items-center justify-center p-4">
+    <Loader2 className="h-4 w-4 animate-spin" />
+    <span className="ml-2 text-sm text-muted-foreground">Loading comments...</span>
+  </div>
+);
+
+// PHASE 4: Enhanced production-ready error logging utility
 const logger = {
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
+  error: (message: string, error?: unknown, context?: Record<string, any>) => {
+    // In production, errors are handled gracefully without console output
+    // Error tracking would be implemented here (e.g., Sentry, LogRocket)
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[RSS Feed Error] ${message}`, { error, context });
+    }
+    // TODO: Implement production error tracking
+    // Sentry.captureException(error, { extra: { message, context } });
+  },
+  warn: (message: string, context?: Record<string, any>) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`[RSS Feed Warning] ${message}`, context);
+    }
+  },
+  info: (message: string, context?: Record<string, any>) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.info(`[RSS Feed Info] ${message}`, context);
+    }
   }
 };
 
-interface RSSEntryWithData {
-  entry: RSSItem;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-    bookmarks?: {
-      isBookmarked: boolean;
-    };
-  };
-}
-
-interface RSSEntryProps {
-  entryWithData: RSSEntryWithData;
-  featuredImg?: string;
-  postTitle?: string;
-  mediaType?: string;
-  verified?: boolean;
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-}
+// Use centralized types from @/lib/types
+type RSSEntryWithData = RSSFeedEntry;
 
 interface APIRSSEntry {
   entry: RSSItem;
-  initialData?: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-  };
+  initialData?: RSSFeedEntry['initialData'];
 }
 
 // Custom equality function for RSSEntry to prevent unnecessary re-renders
@@ -122,7 +132,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     }, { once: true });
   }, []);
 
-  // Memoize the timestamp calculation as it's a complex operation
+  // PHASE 4: Advanced memoization with stable dependencies for timestamp calculation
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -137,7 +147,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
       pubDate = new Date(entry.pubDate);
     }
     
+    // PHASE 4: Use a stable time reference to prevent constant recalculation
+    // Update every minute instead of every render
     const now = new Date();
+    const currentMinute = Math.floor(now.getTime() / (1000 * 60));
     
     // Ensure we're working with valid dates
     if (isNaN(pubDate.getTime())) {
@@ -166,7 +179,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entry.pubDate]); // Only recalculate when pubDate changes
+  }, [entry.pubDate, Math.floor(Date.now() / (1000 * 60))]); // Update every minute
 
   // Memoize handlers to prevent recreating them on every render
   const handleCardClick = useCallback((e: React.MouseEvent) => {
@@ -253,7 +266,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
           <div>
             <NoFocusWrapper 
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent) => {
                 handleLinkInteraction(e);
                 handleCardClick(e);
               }}
@@ -290,7 +303,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
         ) : (
           <NoFocusLinkWrapper
             className="block hover:opacity-80 transition-opacity"
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               handleLinkInteraction(e);
             }}
@@ -332,7 +345,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
         )}
         
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
@@ -345,7 +358,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
           </NoFocusWrapper>
           <NoFocusWrapper 
             className="flex items-center" 
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               handleOpenCommentDrawer();
             }}
@@ -410,20 +423,7 @@ interface EntryMetrics {
   };
 }
 
-// Define the FeedContent component interface
-interface FeedContentProps {
-  entries: RSSEntryWithData[];
-  hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
-  isPending: boolean;
-  loadMore: () => Promise<void>;
-  featuredImg?: string;
-  postTitle?: string;
-  mediaType?: string;
-  verified?: boolean;
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  isInitialRender: boolean;
-}
+// Use centralized FeedContentProps from @/lib/types
 
 // Custom equality function for FeedContent
 const areFeedContentPropsEqual = (prevProps: FeedContentProps, nextProps: FeedContentProps) => {
@@ -474,19 +474,26 @@ const FeedContent = React.memo(function FeedContent({
   // Add ref to prevent multiple endReached calls
   const endReachedCalledRef = useRef(false);
   
+  // PHASE 3 OPTIMIZATION: Direct assignment during render instead of useEffect
+  // This eliminates 1 useEffect anti-pattern while maintaining the same functionality
   // Reset the endReachedCalled flag when entries change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [entries.length]);
+  const currentEntriesLength = entries.length;
+  const previousEntriesLengthRef = useRef(currentEntriesLength);
   
-  // Use the shared delayed intersection observer hook
+  if (previousEntriesLengthRef.current !== currentEntriesLength) {
+    endReachedCalledRef.current = false;
+    previousEntriesLengthRef.current = currentEntriesLength;
+  }
+  
+  // CRITICAL: Use intersection observer for throttled, event-driven loading
+  // This prevents the "Maximum update depth exceeded" error by avoiding synchronous re-render loops
   useDelayedIntersectionObserver(loadMoreRef, loadMore, {
     enabled: hasMore && !isPending,
     isLoading: isPending,
     hasMore,
     rootMargin: '800px',
     threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
+    delay: 1000 // Universal 1-second delay consistent with other feeds
   });
   
   return (
@@ -499,7 +506,8 @@ const FeedContent = React.memo(function FeedContent({
         WebkitTapHighlightColor: 'transparent'
       }}
     >
-      {entries.length === 0 ? <EmptyState /> : (
+      {/* Fix flash issue: Only show EmptyState when not loading AND no entries */}
+      {entries.length === 0 && !isPending && !isInitialRender ? <EmptyState /> : entries.length > 0 ? (
         <>
           <Virtuoso
             useWindowScroll
@@ -533,7 +541,7 @@ const FeedContent = React.memo(function FeedContent({
             {!hasMore && entries.length > 0 && <div></div>}
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }, areFeedContentPropsEqual);
@@ -541,286 +549,83 @@ const FeedContent = React.memo(function FeedContent({
 // Add displayName for easier debugging
 FeedContent.displayName = 'FeedContent';
 
-interface RSSFeedClientProps {
-  postTitle: string;
-  feedUrl: string;
-  initialData: {
-    entries: RSSEntryWithData[];
-    totalEntries: number;
-    hasMore: boolean;
-  };
-  pageSize?: number;
-  featuredImg?: string;
-  mediaType?: string;
-  isActive?: boolean;
-  verified?: boolean;
-  customLoadMore?: () => Promise<void>;
-  isSearchMode?: boolean;
-}
+// Use centralized RSSFeedClientProps from @/lib/types
 
-export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode }: RSSFeedClientProps) {
+// RSS Feed Store Provider Component
+// This creates a fresh store instance for each RSS feed, preventing state pollution
+const RSSFeedStoreProvider = ({ children }: { children: React.ReactNode }) => {
+  const store = useMemo(() => createRSSFeedStore(), []);
+  
+  return (
+    <RSSFeedStoreContext.Provider value={store}>
+      {children}
+    </RSSFeedStoreContext.Provider>
+  );
+};
+
+// Internal RSSFeedClient component that uses the store from context
+function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const [fetchError, setFetchError] = useState<Error | null>(null);
   
-  // Don't memoize simple values
-  const ITEMS_PER_REQUEST = pageSize;
+  // Create a unique key for this podcast page to force complete reset
+  const pageKey = useMemo(() => `${feedUrl}-${postTitle}`, [feedUrl, postTitle]);
   
-  // Track all entries manually
-  const [allEntriesState, setAllEntriesState] = useState<RSSEntryWithData[]>(initialData.entries || []);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMoreState, setHasMoreState] = useState(initialData.hasMore || false);
-  // Add a state variable to track initial render
-  const [isInitialRender, setIsInitialRender] = useState(true);
+  // PHASE 4: Use granular selectors to minimize re-renders
+  const entries = useRSSFeedEntries();
+  const loading = useRSSFeedLoading();
+  const pagination = useRSSFeedPaginationState();
+  const commentDrawer = useRSSFeedCommentDrawer();
   
-  // Use refs to track current values to avoid stale closures
-  const currentPageRef = useRef(currentPage);
-  const hasMoreRef = useRef(hasMoreState);
-  const isLoadingRef = useRef(isLoading);
+  // PHASE 4: Use specific selectors for frequently accessed values
+  const hasMore = useRSSFeedHasMore();
+  const isLoading = useRSSFeedIsLoading();
   
-  // Update refs whenever state changes
+  // Get individual actions from store (prevents object recreation)
+  const initialize = useRSSFeedInitialize();
+  const setActive = useRSSFeedSetActive();
+  const setSearchMode = useRSSFeedSetSearchMode();
+  
+  // PHASE 3 OPTIMIZATION: Use useEffect for state updates to prevent render-phase updates
+  // This prevents "Cannot update a component while rendering" errors
   useEffect(() => {
-    currentPageRef.current = currentPage;
-  }, [currentPage]);
-  
-  useEffect(() => {
-    hasMoreRef.current = hasMoreState;
-  }, [hasMoreState]);
+    setActive(isActive);
+  }, [isActive, setActive]);
   
   useEffect(() => {
-    isLoadingRef.current = isLoading;
-  }, [isLoading]);
-  
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
+    if (isSearchMode !== undefined) {
+      setSearchMode(isSearchMode);
+    }
+  }, [isSearchMode, setSearchMode]);
 
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.rss-feed-container');
-
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-  
-  // Reset state when initial data changes
+  // Initialize store on mount - React key handles component reset
   useEffect(() => {
     if (initialData) {
-      // Always reset state completely when initialData changes
-      // This ensures pagination works correctly after any data changes
-      setAllEntriesState(initialData.entries || []);
-      setCurrentPage(1);
-      setHasMoreState(initialData.hasMore || false);
-      setIsLoading(false);
-    }
-  }, [initialData]);
-  
-  // Create stable reference for URL parameters using useMemo
-  const urlParams = useMemo(() => ({
-    postTitle,
-    feedUrl,
-    pageSize: ITEMS_PER_REQUEST,
-    totalEntries: initialData.totalEntries,
-    mediaType
-  }), [postTitle, feedUrl, ITEMS_PER_REQUEST, initialData.totalEntries, mediaType]);
-  
-  // Memoize URL creation for API requests with stable params reference
-  const createApiUrl = useCallback((nextPage: number) => {
-    const { postTitle, feedUrl, pageSize, totalEntries, mediaType } = urlParams;
-    
-    const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
-    baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
-    baseUrl.searchParams.set('page', nextPage.toString());
-    baseUrl.searchParams.set('pageSize', pageSize.toString());
-    
-    // Pass the cached total entries to avoid unnecessary COUNT queries
-    if (totalEntries) {
-      baseUrl.searchParams.set('totalEntries', totalEntries.toString());
-    }
-    
-    if (mediaType) {
-      baseUrl.searchParams.set('mediaType', encodeURIComponent(mediaType));
-    }
-    
-    return baseUrl.toString();
-  }, [urlParams]);
-  
-  // Create stable reference for entry transformation parameters
-  const transformParams = useMemo(() => ({
-    postTitle,
-    featuredImg,
-    mediaType
-  }), [postTitle, featuredImg, mediaType]);
-  
-  // Memoize the transform function for API entries with stable params
-  const transformApiEntries = useCallback((apiEntries: APIRSSEntry[]) => {
-    const { postTitle, featuredImg, mediaType } = transformParams;
-    
-    return apiEntries
-      .filter(Boolean)
-      .map((entry: APIRSSEntry) => ({
-        entry: entry.entry,
-        initialData: entry.initialData || {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-          retweets: { isRetweeted: false, count: 0 }
-        },
-        postMetadata: {
-          title: postTitle,
-          featuredImg: featuredImg || entry.entry.image || '',
-          mediaType: mediaType || 'article'
-        }
-      }));
-  }, [transformParams]);
-  
-  const loadMoreEntries = useCallback(async () => {
-    // If a custom load more function is provided (for search mode), use it instead
-    if (customLoadMore) {
-      return customLoadMore();
-    }
-    
-    // Use refs to get current values and avoid stale closures
-    const currentPageValue = currentPageRef.current;
-    const hasMoreValue = hasMoreRef.current;
-    const isLoadingValue = isLoadingRef.current;
-    
-    if (!isActive || isLoadingValue || !hasMoreValue) {
-      return;
-    }
-    
-    setIsLoading(true);
-    const nextPage = currentPageValue + 1;
-    
-    try {
-      const apiUrl = createApiUrl(nextPage);
+      logger.info('Initializing RSS feed store', {
+        pageKey,
+        entriesCount: initialData.entries?.length || 0
+      });
       
-      const response = await fetch(apiUrl);
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
-      
-      const data = await response.json();
-      
-      if (!data.entries?.length) {
-        setIsLoading(false);
-        return;
-      }
-      
-      const transformedEntries = transformApiEntries(data.entries);
-      
-      setAllEntriesState(prev => [...prev, ...transformedEntries]);
-      setCurrentPage(nextPage);
-      setHasMoreState(data.hasMore);
-      
-    } catch (error) {
-      logger.error('Error loading more entries:', error);
-      setFetchError(error instanceof Error ? error : new Error(String(error)));
-    } finally {
-      setIsLoading(false);
+      initialize({
+        entries: initialData.entries || [],
+        totalEntries: initialData.totalEntries || 0,
+        hasMore: initialData.hasMore || false,
+        postTitle,
+        feedUrl,
+        featuredImg,
+        mediaType,
+        verified,
+        pageSize
+      });
     }
-  }, [customLoadMore, isActive, createApiUrl, transformApiEntries]);
+  }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, initialize, pageKey]);
   
-  // Extract all entry GUIDs for metrics query
-  const entryGuids = useMemo(() => 
-    allEntriesState.map(entry => entry.entry.guid),
-    [allEntriesState]
-  );
+  // Use custom hooks for business logic
+  const paginationHook = useRSSFeedPaginationHook(customLoadMore, isActive);
+  const metricsHook = useRSSFeedMetrics();
+  const uiHook = useRSSFeedUI();
   
-  // Create stable feedUrlArray for query
-  const feedUrlArray = useMemo(() => [feedUrl], [feedUrl]);
-  
-  // Use the combined query to fetch data, avoiding object literal in conditional
-  const queryEnabled = entryGuids.length > 0;
-  const queryArgs = useMemo(() => 
-    queryEnabled ? { entryGuids, feedUrls: feedUrlArray } : "skip",
-    [queryEnabled, entryGuids, feedUrlArray]
-  );
-  
-  // Query data with proper memoization and stable arguments
-  const combinedData = useQuery(api.entries.getFeedDataWithMetrics, queryArgs);
-  
-  // Extract metrics from combined data with memoization
-  const entryMetricsMap = useMemo(() => {
-    if (!combinedData?.entryMetrics) return null;
-    return Object.fromEntries(
-      combinedData.entryMetrics.map(item => [item.guid, item.metrics])
-    );
-  }, [combinedData]);
-  
-  // Extract post metadata from combined data with memoization
-  const postMetadata = useMemo(() => {
-    if (!combinedData?.postMetadata || combinedData.postMetadata.length === 0) return null;
-    
-    // The feedUrl is unique in this context, so we can safely use the first item
-    const metadataItem = combinedData.postMetadata.find(item => item.feedUrl === feedUrl);
-    return metadataItem?.metadata || null;
-  }, [combinedData, feedUrl]);
-  
-  // Apply metrics to entries with memoization
-  const enhancedEntries = useMemo(() => {
-    if (!allEntriesState.length) return allEntriesState;
-    
-    if (!entryMetricsMap) return allEntriesState;
-    
-    return allEntriesState.map(entryWithData => {
-      const enhanced = { ...entryWithData };
-      
-      // Apply metrics if available
-      if (entryMetricsMap && enhanced.entry.guid in entryMetricsMap) {
-        enhanced.initialData = {
-          ...enhanced.initialData,
-          ...entryMetricsMap[enhanced.entry.guid]
-        };
-      }
-      
-      return enhanced;
-    });
-  }, [allEntriesState, entryMetricsMap]);
-  
-  // Create stable reference for height check dependencies
-  const heightCheckDeps = useMemo(() => ({
-    hasMoreState,
-    isLoading,
-    allEntriesCount: allEntriesState.length,
-    loadMoreEntries,
-    isInitialRender
-  }), [hasMoreState, isLoading, allEntriesState.length, loadMoreEntries, isInitialRender]);
-  
-  // Memoize the content height check function with stable dependencies
-  const checkContentHeight = useCallback(() => {
-    const { hasMoreState, isLoading, allEntriesCount, loadMoreEntries, isInitialRender } = heightCheckDeps;
-    
-    if (!loadMoreRef.current || !hasMoreState || isLoading) return;
-    
-    // Skip auto-loading on initial render to prevent layout shift
-    if (isInitialRender) {
-      setIsInitialRender(false);
-      return;
-    }
-    
-    // Only proceed with auto-loading if we have at least page size of entries already viewed
-    if (allEntriesCount < ITEMS_PER_REQUEST) {
-      return;
-    }
-    
-    const viewportHeight = window.innerHeight;
-    const documentHeight = document.documentElement.scrollHeight;
-    
-    // If the document is shorter than the viewport, load more
-    if (documentHeight <= viewportHeight && allEntriesCount > 0) {
-      loadMoreEntries();
-    }
-  }, [heightCheckDeps, loadMoreRef]);
-  
-  // Add a useEffect to check if we need to load more when the component is mounted
-  useEffect(() => {
-    // Run the check after a short delay to ensure the DOM has updated
-    const timer = setTimeout(checkContentHeight, 200);
-    return () => clearTimeout(timer);
-  }, [checkContentHeight]);
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !commentDrawer.isOpen, '.rss-feed-container');
   
   // Create error UI as a separate component
   const ErrorUI = () => (
@@ -829,10 +634,20 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
       <Button 
         variant="outline" 
         onClick={() => {
-          setFetchError(null);
-          setAllEntriesState(initialData.entries || []);
-          setCurrentPage(1);
-          setHasMoreState(initialData.hasMore || false);
+          // Reset to initial data
+          if (initialData) {
+            initialize({
+              entries: initialData.entries || [],
+              totalEntries: initialData.totalEntries || 0,
+              hasMore: initialData.hasMore || false,
+              postTitle,
+              feedUrl,
+              featuredImg,
+              mediaType,
+              verified,
+              pageSize
+            });
+          }
         }}
       >
         Try Again
@@ -840,36 +655,47 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
     </div>
   );
   
-  if (fetchError) {
+  if (loading.fetchError) {
     return <ErrorUI />;
   }
   
   return (
     <div className="w-full rss-feed-container">
       <FeedContent
-        entries={enhancedEntries}
-        hasMore={hasMoreState}
+        entries={metricsHook.enhancedEntries}
+        hasMore={hasMore} // PHASE 4: Use granular selector
         loadMoreRef={loadMoreRef}
-        isPending={isLoading}
-        loadMore={loadMoreEntries}
+        isPending={isLoading} // PHASE 4: Use granular selector
+        loadMore={paginationHook.loadMoreEntries}
         featuredImg={featuredImg}
         postTitle={postTitle}
         mediaType={mediaType}
         verified={verified}
-        onOpenCommentDrawer={handleOpenCommentDrawer}
-        isInitialRender={isInitialRender}
+        onOpenCommentDrawer={uiHook.handleCommentDrawer.open}
+        isInitialRender={loading.isInitialRender}
       />
-      {/* Single global comment drawer */}
-      {selectedCommentEntry && (
+      {/* PHASE 4: Single global comment drawer with dynamic loading */}
+      {commentDrawer.selectedEntry && (
+        <Suspense fallback={<CommentSectionFallback />}>
         <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+            entryGuid={commentDrawer.selectedEntry.entryGuid}
+            feedUrl={commentDrawer.selectedEntry.feedUrl}
+            initialData={commentDrawer.selectedEntry.initialData}
+            isOpen={commentDrawer.isOpen}
+            setIsOpen={uiHook.handleCommentDrawer.close}
         />
+        </Suspense>
       )}
     </div>
+  );
+}
+
+// Main RSSFeedClient component with store provider
+export function RSSFeedClient(props: RSSFeedClientProps) {
+  return (
+    <RSSFeedStoreProvider>
+      <RSSFeedClientInternal {...props} />
+    </RSSFeedStoreProvider>
   );
 }
 
@@ -877,11 +703,11 @@ export function RSSFeedClient({ postTitle, feedUrl, initialData, pageSize = 30, 
 const MemoizedRSSFeedClient = React.memo(RSSFeedClient);
 MemoizedRSSFeedClient.displayName = "MemoizedRSSFeedClient";
 
-// Export the memoized component with error boundary
+// PHASE 4: Export the memoized component with enhanced error boundary
 export function RSSFeedClientWithErrorBoundary(props: RSSFeedClientProps) {
   return (
-    <ErrorBoundary>
+    <RSSFeedErrorBoundary>
       <MemoizedRSSFeedClient {...props} />
-    </ErrorBoundary>
+    </RSSFeedErrorBoundary>
   );
 }

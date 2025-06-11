@@ -78,8 +78,8 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       // Invalidate cache after refresh
       invalidateCountCache(feedUrl);
     } catch (refreshError) {
-      // Log but don't fail if refresh check fails
-      console.error('Warning: Feed refresh check failed:', refreshError);
+      // Silently handle refresh check failures in production
+      // Feed will still work with existing data
     }
 
     // Get feed ID from PlanetScale with type safety
@@ -143,7 +143,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
       // Only check if it's NaN, since we've already handled the conversion
       if (isNaN(totalCount)) {
-        console.error('Invalid count value:', rawTotal);
+        // Handle invalid count gracefully
         totalCount = 0;
       }
       
@@ -154,8 +154,8 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     }
 
     // Get metrics data with proper error handling
-    const token = await convexAuthNextjsToken().catch((error) => {
-      console.error('Failed to get auth token:', error);
+    const token = await convexAuthNextjsToken().catch(() => {
+      // Handle auth token failure gracefully
       return null;
     });
 
@@ -163,8 +163,8 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       api.entries.batchGetEntryData,
       { entryGuids: entries.map(e => e.guid) },
       token ? { token } : undefined
-    ).catch(error => {
-      console.error('⚠️ Failed to fetch metrics, using default values:', error);
+    ).catch(() => {
+      // Use default metrics if fetch fails
       return entries.map(() => ({
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
@@ -196,14 +196,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     };
 
   } catch (error) {
-    // Enhanced error logging
-    console.error('❌ SERVER: Error fetching initial entries:', {
-      error,
-      feedUrl,
-      postTitle,
-      timestamp: new Date().toISOString(),
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    // Handle server errors gracefully
     return null;
   }
 });

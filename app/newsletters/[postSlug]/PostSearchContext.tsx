@@ -1,32 +1,27 @@
 "use client";
 
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React from 'react';
+import { usePostSearchProvider } from '@/hooks/usePostSearchProvider';
 
-interface PostSearchContextType {
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
+// Re-export centralized hooks for backward compatibility
+export { usePostSearch } from '@/hooks/usePostSearch';
+export { useSearchResults } from '@/hooks/useSearchResults';
+
+interface PostSearchProviderProps {
+  children: React.ReactNode;
 }
 
-const PostSearchContext = createContext<PostSearchContextType | undefined>(undefined);
-
-export const PostSearchProvider = ({ children }: { children: ReactNode }) => {
-  const [searchQuery, setSearchQueryState] = useState('');
-
-  const setSearchQuery = (query: string) => {
-    setSearchQueryState(query);
-  };
-
-  return (
-    <PostSearchContext.Provider value={{ searchQuery, setSearchQuery }}>
-      {children}
-    </PostSearchContext.Provider>
-  );
-};
-
-export const usePostSearch = () => {
-  const context = useContext(PostSearchContext);
-  if (context === undefined) {
-    throw new Error('usePostSearch must be used within a PostSearchProvider');
-  }
-  return context;
-}; 
+/**
+ * PostSearchProvider - Manages search state cleanup
+ * Uses Zustand store for state management instead of React Context
+ * Provides cleanup logic when component unmounts
+ */
+export const PostSearchProvider = React.memo(function PostSearchProvider({ 
+  children 
+}: PostSearchProviderProps) {
+  // Use custom hook for provider logic
+  usePostSearchProvider();
+  
+  // Simply render children - state is managed by Zustand
+  return <>{children}</>;
+}); 

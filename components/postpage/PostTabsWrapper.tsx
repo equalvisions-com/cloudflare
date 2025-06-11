@@ -57,20 +57,16 @@ const FeedTabContent = React.memo(({
   mediaType,
   verified
 }: FeedTabContentProps) => {
-  if (!rssData) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <SkeletonFeed count={3} />
-      </div>
-    );
-  }
+  // Always render RSSFeedClient - let dynamic import skeleton handle loading
+  // Provide empty data structure when rssData is null to prevent type errors
+  const safeRssData = rssData || { entries: [], totalEntries: 0, hasMore: false };
 
   return (
     <RSSFeedClient
-      key={`feed-client-${postTitle}`}
+      key={`feed-client-${feedUrl}-${postTitle}`}
       postTitle={postTitle}
       feedUrl={feedUrl}
-      initialData={rssData}
+      initialData={safeRssData}
       featuredImg={featuredImg}
       mediaType={mediaType}
       verified={verified}

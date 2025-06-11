@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from "react";
+import React, { useCallback, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -21,174 +21,16 @@ import { api } from '@/convex/_generated/api';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { ErrorBoundary } from "react-error-boundary";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
-
-// Add a consistent logging utility
-const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
-  },
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
-  }
-};
-
-// Types for activity items
-type ActivityItem = {
-  timestamp: number;
-  entryGuid: string;
-  feedUrl: string;
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  _id: string;
-};
-
-// Type for RSS entry from PlanetScale
-type RSSEntry = {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  // Additional fields from Convex posts
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean; // Add verified field
-};
-
-// Define the shape of interaction states for batch metrics
-interface InteractionStates {
-  likes: { isLiked: boolean; count: number };
-  comments: { count: number };
-  retweets: { isRetweeted: boolean; count: number };
-}
-
-interface UserLikesFeedProps {
-  userId: Id<"users">;
-  initialData: {
-    activities: ActivityItem[];
-    totalCount: number;
-    hasMore: boolean;
-    entryDetails: Record<string, RSSEntry>;
-    entryMetrics?: Record<string, InteractionStates>;
-  } | null;
-  pageSize?: number;
-  isActive?: boolean;
-}
-
-// Custom hook for batch metrics - same as in UserActivityFeed
-function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
-  // Add mount tracking ref
-  const isMountedRef = useRef(true);
-  
-  // Set up mounted ref cleanup
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  // Track if we've already received initial metrics
-  const hasInitialMetrics = useMemo(() => 
-    Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
-    [initialMetrics]
-  );
-  
-  // Create a stable representation of entry guids
-  const memoizedGuids = useMemo(() => 
-    entryGuids.length > 0 ? entryGuids : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entryGuids.join(',')]
-  );
-  
-  // Only fetch from Convex if we don't have initial metrics or if we need to refresh
-  const shouldFetchMetrics = useMemo(() => {
-    // If we have no guids, no need to fetch
-    if (!memoizedGuids.length) return false;
-    
-    // If we have no initial metrics, we need to fetch
-    if (!hasInitialMetrics) return true;
-    
-    // If we have initial metrics, check if we have metrics for all guids
-    const missingMetrics = memoizedGuids.some(guid => 
-      !initialMetrics || !initialMetrics[guid]
-    );
-    
-    return missingMetrics;
-  }, [memoizedGuids, hasInitialMetrics, initialMetrics]);
-  
-  // Fetch batch metrics for all entries only when needed
-  const batchMetricsQuery = useQuery(
-    api.entries.batchGetEntriesMetrics,
-    shouldFetchMetrics ? { entryGuids: memoizedGuids } : "skip"
-  );
-  
-  // Create a memoized metrics map that combines initial metrics with query results
-  const metricsMap = useMemo(() => {
-    // Start with initial metrics if available
-    const map = new Map<string, InteractionStates>();
-    
-    // Add initial metrics first
-    if (initialMetrics) {
-      Object.entries(initialMetrics).forEach(([guid, metrics]) => {
-        map.set(guid, metrics);
-      });
-    }
-    
-    // If we have query results AND we specifically queried for them,
-    // they take precedence over initial metrics
-    if (batchMetricsQuery && shouldFetchMetrics) {
-      memoizedGuids.forEach((guid, index) => {
-        if (batchMetricsQuery[index]) {
-          map.set(guid, batchMetricsQuery[index]);
-        }
-      });
-    }
-    
-    return map;
-  }, [batchMetricsQuery, memoizedGuids, initialMetrics, shouldFetchMetrics]);
-  
-  // Memoize default values
-  const defaultInteractions = useMemo(() => ({
-    likes: { isLiked: false, count: 0 },
-    comments: { count: 0 },
-    retweets: { isRetweeted: false, count: 0 }
-  }), []);
-  
-  // Return a function to get metrics for a specific entry
-  const getEntryMetrics = useCallback((entryGuid: string) => {
-    // Always use the metrics from the server or default values
-    return metricsMap.get(entryGuid) || defaultInteractions;
-  }, [metricsMap, defaultInteractions]);
-  
-  return {
-    getEntryMetrics,
-    isLoading: shouldFetchMetrics && !batchMetricsQuery,
-    metricsMap
-  };
-}
+import { 
+  UserLikesFeedProps, 
+  UserLikesActivityItem, 
+  UserLikesRSSEntry, 
+  InteractionStates 
+} from "@/lib/types";
+import { useUserLikesFeedStore } from "@/lib/stores/userLikesFeedStore";
+import { useEntriesMetrics } from "@/hooks/useEntriesMetrics";
+import { useLikesLoading } from "@/hooks/useLikesLoading";
+import { useLikesFeedUI } from "@/hooks/useLikesFeedUI";
 
 // Memoized timestamp formatter
 const useFormattedTimestamp = (pubDate?: string) => {
@@ -223,19 +65,18 @@ const useFormattedTimestamp = (pubDate?: string) => {
     const diffInMonths = Math.floor(diffInDays / 30);
     
     // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const isFuture = diffInMs < -(60 * 1000);
     const prefix = isFuture ? 'in ' : '';
-    const suffix = isFuture ? '' : '';
     
     // Format based on the time difference
     if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+      return `${prefix}${diffInMinutes}m`;
     } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+      return `${prefix}${diffInHours}h`;
     } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+      return `${prefix}${diffInDays}d`;
     } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+      return `${prefix}${diffInMonths}mo`;
     }
   }, [pubDate]);
 };
@@ -256,7 +97,7 @@ const MediaTypeBadge = memo(({ mediaType }: { mediaType?: string }) => {
 MediaTypeBadge.displayName = 'MediaTypeBadge';
 
 // Memoized entry card content component
-const EntryCardContent = memo(({ entry }: { entry: RSSEntry }) => (
+const EntryCardContent = memo(({ entry }: { entry: UserLikesRSSEntry }) => (
   <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
     <h3 className="text-base font-bold capitalize leading-[1.5]">
       {entry.title}
@@ -278,7 +119,7 @@ const EntryLink = memo(({
   onClick,
   onTouchStart
 }: { 
-  entryDetails: RSSEntry; 
+  entryDetails: UserLikesRSSEntry; 
   children: React.ReactNode;
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
@@ -321,7 +162,7 @@ const InteractionButtons = memo(({
   interactions,
   onOpenCommentDrawer
 }: { 
-  entryDetails: RSSEntry;
+  entryDetails: UserLikesRSSEntry;
   interactions: InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
@@ -395,8 +236,8 @@ const EntryCardHeader = memo(({
   timestamp,
   handleLinkInteraction
 }: { 
-  activity: ActivityItem; 
-  entryDetails: RSSEntry;
+  activity: UserLikesActivityItem; 
+  entryDetails: UserLikesRSSEntry;
   timestamp: string;
   handleLinkInteraction: (e: React.MouseEvent | React.TouchEvent) => void;
 }) => {
@@ -475,8 +316,8 @@ const ActivityCard = memo(({
   getEntryMetrics,
   onOpenCommentDrawer
 }: { 
-  activity: ActivityItem; 
-  entryDetails?: RSSEntry;
+  activity: UserLikesActivityItem; 
+  entryDetails?: UserLikesRSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
@@ -658,51 +499,30 @@ LoadingSpinner.displayName = 'LoadingSpinner';
 // Empty state component
 const EmptyState = memo(() => (
   <div className="text-center py-8 text-muted-foreground">
-    <p>No likes </p>
+    <p>No likes found for this user.</p>
   </div>
 ));
 EmptyState.displayName = 'EmptyState';
 
 // Create a memoized version of the component with error boundary
 const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
-  const [activities, setActivities] = useState<ActivityItem[]>(
-    initialData?.activities || []
-  );
-  const [entryDetails, setEntryDetails] = useState<Record<string, RSSEntry>>(
-    initialData?.entryDetails || {}
-  );
-  const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Track skip with a ref to avoid closure problems
-  const currentSkipRef = useRef<number>(initialData?.activities.length || 0);
-  const [currentSkip, setCurrentSkip] = useState(initialData?.activities.length || 0);
-  
-  // Track if this is the initial load
-  const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.activities.length);
-  
-  // Add ref to prevent multiple endReached calls
-  const endReachedCalledRef = useRef(false);
-  
-  // Reset the endReachedCalled flag when activities change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [activities.length]);
-  
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  // Use custom hooks for business logic separation
+  const {
+    activities,
+    entryDetails,
+    hasMore,
+    isLoading,
+    isInitialLoad,
+    loadMoreRef,
+    loadMoreActivities,
+  } = useLikesLoading({ userId, initialData, pageSize });
+
+  const {
+    commentDrawerOpen,
+    selectedCommentEntry,
+    handleOpenCommentDrawer,
+    setCommentDrawerOpen,
+  } = useLikesFeedUI({ isActive });
 
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
@@ -710,139 +530,14 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     [activities]
   );
   
-  // Use our custom hook for metrics
+  // Use centralized hook for metrics
   const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
     entryGuids,
     initialData?.entryMetrics
   );
 
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.user-likes-feed-container');
-
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    if (!isMountedRef.current) return;
-    
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-
-  // Process initial data when received
-  useEffect(() => {
-    if (!isMountedRef.current || !initialData?.activities) return;
-    
-    setActivities(initialData.activities);
-    setEntryDetails(initialData.entryDetails || {});
-    setHasMore(initialData.hasMore);
-    setCurrentSkip(initialData.activities.length);
-    currentSkipRef.current = initialData.activities.length;
-    setIsInitialLoad(false);
-  }, [initialData]);
-
-  // Create the API URL for loading more items
-  const apiUrl = useMemo(() => 
-    `/api/likes?userId=${userId}&skip=${currentSkipRef.current}&limit=${pageSize}`,
-    [userId, pageSize]
-  );
-
-  // Function to load more activities
-  const loadMoreActivities = useCallback(async () => {
-    if (!isMountedRef.current || isLoading || !hasMore) {
-      logger.debug(`⛔ Not loading more likes: isLoading=${isLoading}, hasMore=${hasMore}`);
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      // Get current skip value from ref to ensure it's up-to-date
-      const skipValue = currentSkipRef.current;
-      logger.debug(`🔄 Fetching more likes, skip=${skipValue}, limit=${pageSize}`);
-      
-      // Use the API route to fetch the next page
-      const result = await fetch(`/api/likes?userId=${userId}&skip=${skipValue}&limit=${pageSize}`);
-      
-      if (!result.ok) {
-        throw new Error(`API error: ${result.status}`);
-      }
-      
-      const data = await result.json();
-      logger.debug(`📦 Received likes data:`, {
-        activitiesCount: data.activities?.length || 0,
-        hasMore: data.hasMore
-      });
-      
-      // Check if component is still mounted before updating state
-      if (!isMountedRef.current) return;
-      
-      if (!data.activities?.length) {
-        logger.debug('⚠️ No likes returned from API');
-        setHasMore(false);
-        setIsLoading(false);
-        return;
-      }
-      
-      // Update both the ref and the state for the new skip value
-      const newSkip = skipValue + data.activities.length;
-      currentSkipRef.current = newSkip;
-      setCurrentSkip(newSkip);
-      logger.debug(`⬆️ Updated skip from ${skipValue} to ${newSkip}`);
-      
-      setActivities(prev => [...prev, ...data.activities]);
-      setEntryDetails(prev => ({...prev, ...data.entryDetails}));
-      setHasMore(data.hasMore);
-      
-      logger.debug(`✅ Total likes now: ${activities.length + data.activities.length}`);
-    } catch (error) {
-      logger.error('❌ Error loading more likes:', error);
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [isLoading, hasMore, userId, pageSize, activities.length]);
-  
-  // Use the shared hook for delayed intersection observer
-  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
-    enabled: hasMore && !isLoading,
-    isLoading,
-    hasMore,
-    rootMargin: '800px', // Increased from 300px to 800px in the shared utility
-    threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
-  });
-
-  // Check if we need to load more when the component is mounted
-  useEffect(() => {
-    if (!isMountedRef.current || !loadMoreRef.current || !hasMore || isLoading) return;
-    
-    const checkContentHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && activities.length > 0) {
-        logger.debug('📏 Content is shorter than viewport, loading more likes automatically');
-        loadMoreActivities();
-      }
-    };
-    
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
-    
-    return () => clearTimeout(timer);
-  }, [activities.length, hasMore, isLoading, loadMoreActivities]);
-
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
-  const itemContentCallback = useCallback((index: number, activity: ActivityItem) => {
+  const itemContentCallback = useCallback((index: number, activity: UserLikesActivityItem) => {
     // Get the details for this activity
     return (
       <ActivityCard 

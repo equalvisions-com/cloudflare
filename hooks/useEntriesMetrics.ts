@@ -1,9 +1,9 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { ActivityFeedInteractionStates } from '@/lib/types';
+import { InteractionStates } from '@/lib/types';
 
-export function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, ActivityFeedInteractionStates>) {
+export function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<string, InteractionStates>) {
   // Track if we've already received initial metrics
   const hasInitialMetrics = useMemo(() => 
     Boolean(initialMetrics && Object.keys(initialMetrics).length > 0), 
@@ -41,7 +41,7 @@ export function useEntriesMetrics(entryGuids: string[], initialMetrics?: Record<
   // Create a memoized metrics map that combines initial metrics with query results
   const metricsMap = useMemo(() => {
     // Start with initial metrics if available
-    const map = new Map<string, ActivityFeedInteractionStates>();
+    const map = new Map<string, InteractionStates>();
     
     // Add initial metrics first
     if (initialMetrics) {

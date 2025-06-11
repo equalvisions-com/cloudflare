@@ -18,7 +18,7 @@ export function useProfileTabs({ userId, pageSize, initialLikesData }: UseProfil
     setIsPending,
   } = useProfileTabsStore();
 
-  // Initialize likes data if provided
+  // Initialize likes data if provided - direct initialization during render
   if (initialLikesData && likesStatus === 'idle' && !likesData) {
     setLikesData(initialLikesData);
     setLikesStatus('loaded');

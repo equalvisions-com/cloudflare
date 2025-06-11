@@ -24,7 +24,8 @@ export interface RSSFeedData {
 
 // Type definitions for database operations
 import { ExecutedQuery } from '@planetscale/database';
-import { Id } from '@/convex/_generated/dataModel';
+import { Id, Doc } from '@/convex/_generated/dataModel';
+import type { RSSItem } from '@/lib/rss';
 
 // PlanetScale database types
 export type PlanetScaleQueryResult<T = Record<string, unknown>> = ExecutedQuery & {
@@ -704,8 +705,15 @@ export interface UserActivityFeedProps {
 
 export interface UserLikesFeedProps {
   userId: Id<"users">;
-  initialData: ProfileFeedData;
-  pageSize: number;
+  initialData: {
+    activities: UserLikesActivityItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, UserLikesRSSEntry>;
+    entryMetrics?: Record<string, InteractionStates>;
+  } | null;
+  pageSize?: number;
+  isActive?: boolean;
 }
 
 export interface ActivityTabContentProps {
@@ -850,4 +858,468 @@ export interface ActivityDescriptionProps {
   profileImage?: string | null;
   timestamp?: string;
   userId?: Id<"users">;
+}
+
+// User Likes Feed Types
+export interface UserLikesActivityItem {
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  _id: string;
+}
+
+export interface UserLikesRSSEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_title?: string;
+  feed_url?: string;
+  mediaType?: string;
+  // Additional fields from Convex posts
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+// Post page types for podcast/newsletter post-slug pages
+export interface PostPageProps {
+  params: {
+    postSlug: string;
+  };
+}
+
+export interface PostWithFollowerCount {
+  _id: Id<"posts">;
+  _creationTime: number;
+  title: string;
+  postSlug: string;
+  category: string;
+  categorySlug: string;
+  body: string;
+  featuredImg?: string;
+  mediaType: string;
+  isFeatured?: boolean;
+  publishedAt?: number;
+  feedUrl: string;
+  isFollowing?: boolean;
+  isAuthenticated?: boolean;
+  verified?: boolean;
+  followerCount: number;
+  relatedPosts?: RelatedPost[];
+}
+
+export interface RelatedPost {
+  _id: Id<"posts">;
+  title: string;
+  featuredImg?: string;
+  postSlug: string;
+  categorySlug: string;
+  feedUrl: string;
+}
+
+export interface PostFollowState {
+  isAuthenticated: boolean;
+  isFollowing: boolean;
+}
+
+export interface PostPageData {
+  post: PostWithFollowerCount;
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+  followState: PostFollowState;
+  relatedFollowStates: Record<string, PostFollowState>;
+}
+
+// Post search types
+export interface PostSearchState {
+  searchQuery: string;
+}
+
+export interface PostSearchActions {
+  setSearchQuery: (query: string) => void;
+  reset: () => void;
+}
+
+// Post page client component props
+export interface PostPageClientScopeProps {
+  mediaType?: string;
+  postTitle: string;
+  feedUrl: string;
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+  featuredImg?: string;
+  verified?: boolean;
+}
+
+export interface PostTabsWrapperWithSearchProps {
+  postTitle: string;
+  feedUrl: string;
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+  featuredImg?: string;
+  mediaType?: string;
+  verified?: boolean;
+}
+
+export interface SearchRSSFeedClientProps {
+  postTitle: string;
+  feedUrl: string;
+  searchQuery: string;
+  featuredImg?: string;
+  mediaType?: string;
+  verified?: boolean;
+}
+
+export interface PostContentProps {
+  post: PostWithFollowerCount;
+  followState: PostFollowState;
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+}
+
+// Phase 5: Custom Hook Types for Production Optimization
+export interface UsePostSearchHeaderProps {
+  title: string;
+  mediaType?: string;
+}
+
+export interface UsePostSearchHeaderReturn {
+  isSearching: boolean;
+  localSearchValue: string;
+  displayText: string;
+  searchPlaceholder: string;
+  toggleSearch: () => void;
+  handleSearch: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+export interface UsePostHeaderUserMenuReturn {
+  shouldShowUserMenu: boolean;
+  userMenuProps: {
+    initialDisplayName: string;
+    initialProfileImage: string | undefined;
+    isBoarded: boolean;
+    pendingFriendRequestCount: number;
+  };
+  isAuthenticated: boolean;
+}
+
+export interface SearchEmptyStateProps {
+  message: string;
+  suggestion: string;
+}
+
+export type SearchRenderState = 'loading' | 'empty' | 'results';
+
+export interface UseSearchFeedUIReturn {
+  renderState: SearchRenderState;
+  emptyStateProps: SearchEmptyStateProps;
+}
+
+// Post search results type (for search API responses)
+export interface PostSearchRSSData {
+  entries: PostPageRSSEntryWithData[];
+  totalEntries: number;
+  hasMore: boolean;
+}
+
+export interface PostPageRSSEntryWithData {
+  entry: PostPageRSSItem;
+  initialData: {
+    likes: { isLiked: boolean; count: number };
+    comments: { count: number };
+    retweets?: { isRetweeted: boolean; count: number };
+  };
+  postMetadata?: {
+    postTitle: string;
+    feedUrl: string;
+    featuredImg?: string;
+    mediaType?: string;
+    verified?: boolean;
+  };
+}
+
+export interface PostPageRSSItem {
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+  guid: string;
+  image?: string;
+  feedUrl: string;
+  mediaType?: string;
+}
+
+// Newsletter page types (centralized from app/newsletters/[postSlug]/)
+export interface NewsletterPageProps {
+  params: {
+    postSlug: string;
+  };
+}
+
+export interface NewsletterPost extends Doc<"posts"> {
+  followerCount: number;
+  relatedPosts?: Array<{
+    _id: Id<"posts">;
+    title: string;
+    featuredImg?: string;
+    postSlug: string;
+    categorySlug: string;
+    feedUrl: string;
+  }>;
+}
+
+export interface NewsletterPageData {
+  post: NewsletterPost;
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+  followState: {
+    isAuthenticated: boolean;
+    isFollowing: boolean;
+  };
+  relatedFollowStates: {
+    [postId: string]: {
+      isAuthenticated: boolean;
+      isFollowing: boolean;
+    };
+  };
+}
+
+export interface NewsletterRSSEntryWithData {
+  entry: RSSItem;
+  initialData: {
+    likes: { isLiked: boolean; count: number };
+    comments: { count: number };
+    retweets?: { isRetweeted: boolean; count: number };
+  };
+}
+
+export interface NewsletterPostPageClientScopeProps {
+  mediaType?: string;
+  postTitle: string;
+  feedUrl: string;
+  rssData: {
+    entries: NewsletterRSSEntryWithData[];
+    totalEntries: number;
+    hasMore: boolean;
+  } | null;
+  featuredImg?: string;
+  verified?: boolean;
+}
+
+export interface NewsletterPostTabsWrapperWithSearchProps {
+  postTitle: string;
+  feedUrl: string;
+  rssData: {
+    entries: NewsletterRSSEntryWithData[];
+    totalEntries: number;
+    hasMore: boolean;
+  } | null;
+  featuredImg?: string;
+  mediaType?: string;
+  verified?: boolean;
+}
+
+export interface NewsletterPostContentProps {
+  post: NewsletterPost;
+  followState: { isAuthenticated: boolean; isFollowing: boolean };
+  rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
+}
+
+// RSS Feed Component Types (Phase 1: Centralized State Management)
+export interface RSSFeedEntry {
+  entry: RSSItem;
+  initialData: {
+    likes: { isLiked: boolean; count: number };
+    comments: { count: number };
+    retweets?: { isRetweeted: boolean; count: number };
+    bookmarks?: { isBookmarked: boolean };
+  };
+  postMetadata?: {
+    title: string;
+    featuredImg?: string;
+    mediaType?: string;
+  };
+}
+
+export interface RSSFeedLoadingState {
+  isLoading: boolean;
+  isInitialRender: boolean;
+  fetchError: Error | null;
+}
+
+export interface RSSFeedPaginationState {
+  currentPage: number;
+  hasMore: boolean;
+  totalEntries: number;
+}
+
+export interface RSSFeedCommentDrawerState {
+  isOpen: boolean;
+  selectedEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+}
+
+export interface RSSFeedUIState {
+  isActive: boolean;
+  isSearchMode: boolean;
+}
+
+// Main RSS Feed Store State
+export interface RSSFeedState {
+  // Core data
+  entries: RSSFeedEntry[];
+  
+  // Pagination state
+  pagination: RSSFeedPaginationState;
+  
+  // Loading state
+  loading: RSSFeedLoadingState;
+  
+  // Comment drawer state
+  commentDrawer: RSSFeedCommentDrawerState;
+  
+  // UI state
+  ui: RSSFeedUIState;
+  
+  // Feed metadata
+  feedMetadata: {
+    postTitle: string;
+    feedUrl: string;
+    featuredImg?: string;
+    mediaType?: string;
+    verified?: boolean;
+    pageSize: number;
+  };
+}
+
+// RSS Feed Store Actions
+export interface RSSFeedActions {
+  // Entry management
+  setEntries: (entries: RSSFeedEntry[]) => void;
+  addEntries: (entries: RSSFeedEntry[]) => void;
+  updateEntryMetrics: (entryGuid: string, metrics: RSSFeedEntry['initialData']) => void;
+  
+  // Pagination actions
+  setCurrentPage: (page: number) => void;
+  setHasMore: (hasMore: boolean) => void;
+  setTotalEntries: (total: number) => void;
+  
+  // Loading actions
+  setLoading: (isLoading: boolean) => void;
+  setInitialRender: (isInitialRender: boolean) => void;
+  setFetchError: (error: Error | null) => void;
+  
+  // Comment drawer actions
+  openCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  closeCommentDrawer: () => void;
+  
+  // UI actions
+  setActive: (isActive: boolean) => void;
+  setSearchMode: (isSearchMode: boolean) => void;
+  
+  // Feed metadata actions
+  setFeedMetadata: (metadata: Partial<RSSFeedState['feedMetadata']>) => void;
+  
+  // Utility actions
+  reset: () => void;
+  initialize: (initialData: {
+    entries: RSSFeedEntry[];
+    totalEntries: number;
+    hasMore: boolean;
+    postTitle: string;
+    feedUrl: string;
+    featuredImg?: string;
+    mediaType?: string;
+    verified?: boolean;
+    pageSize?: number;
+  }) => void;
+}
+
+// Combined RSS Feed Store Interface
+export interface RSSFeedStore extends RSSFeedState, RSSFeedActions {}
+
+// RSS Feed Component Props
+export interface RSSFeedClientProps {
+  postTitle: string;
+  feedUrl: string;
+  initialData: {
+    entries: RSSFeedEntry[];
+    totalEntries: number;
+    hasMore: boolean;
+  };
+  pageSize?: number;
+  featuredImg?: string;
+  mediaType?: string;
+  isActive?: boolean;
+  verified?: boolean;
+  customLoadMore?: () => Promise<void>;
+  isSearchMode?: boolean;
+}
+
+export interface RSSEntryProps {
+  entryWithData: RSSFeedEntry;
+  featuredImg?: string;
+  postTitle?: string;
+  mediaType?: string;
+  verified?: boolean;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+}
+
+export interface FeedContentProps {
+  entries: RSSFeedEntry[];
+  hasMore: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  isPending: boolean;
+  loadMore: () => Promise<void>;
+  featuredImg?: string;
+  postTitle?: string;
+  mediaType?: string;
+  verified?: boolean;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  isInitialRender: boolean;
+}
+
+// RSS Feed API Response Types
+export interface RSSFeedAPIResponse {
+  entries: Array<{
+    entry: RSSItem;
+    initialData?: RSSFeedEntry['initialData'];
+  }>;
+  hasMore: boolean;
+  totalEntries?: number;
+}
+
+// RSS Feed Hook Return Types
+export interface UseRSSFeedPaginationReturn {
+  loadMoreEntries: () => Promise<void>;
+  isLoading: boolean;
+  hasMore: boolean;
+  currentPage: number;
+  error: Error | null;
+}
+
+export interface UseRSSFeedMetricsReturn {
+  entryMetricsMap: Record<string, RSSFeedEntry['initialData']> | null;
+  isMetricsLoading: boolean;
+  enhancedEntries: RSSFeedEntry[];
+}
+
+export interface UseRSSFeedUIReturn {
+  checkContentHeight: () => void;
+  handleCommentDrawer: {
+    open: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+    close: () => void;
+    isOpen: boolean;
+    selectedEntry: RSSFeedCommentDrawerState['selectedEntry'];
+  };
 } 

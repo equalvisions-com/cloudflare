@@ -14,15 +14,17 @@ export const NewslettersWrapper = memo<NewslettersWrapperProps>(({ initialItems 
   const { items, isLoading, error, announceMessage } = useNewslettersStore();
   const { initializeNewsletters, resetNewsletters } = useNewslettersActions();
 
-  // Initialize newsletters data on mount - minimal useEffect usage
-  useEffect(() => {
+  // Initialize newsletters data directly during render - React best practice
+  if (items.length === 0 && !isLoading && !error) {
     initializeNewsletters(initialItems);
-    
-    // Cleanup on unmount
+  }
+
+  // Cleanup on unmount - legitimate useEffect for cleanup
+  useEffect(() => {
     return () => {
       resetNewsletters();
     };
-  }, [initializeNewsletters, resetNewsletters, initialItems]);
+  }, [resetNewsletters]);
 
   // Error state with accessibility
   if (error) {

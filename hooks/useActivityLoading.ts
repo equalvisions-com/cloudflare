@@ -37,46 +37,59 @@ export function useActivityLoading({
     reset
   } = useUserActivityFeedStore();
 
-  // Initialize store with initial data directly - no useEffect needed
-  if (initialActivities.length > 0 && activities.length === 0) {
-    setInitialData({
-      activities: initialActivities,
-      entryDetails: initialEntryDetails,
-      hasMore: initialHasMore
-    });
-  }
+  // Initialize store with initial data using useEffect to prevent re-initialization
+  useEffect(() => {
+    if (initialActivities.length > 0 && activities.length === 0 && isInitialLoad) {
+      setInitialData({
+        activities: initialActivities,
+        entryDetails: initialEntryDetails,
+        hasMore: initialHasMore
+      });
+    }
+  }, [initialActivities, initialEntryDetails, initialHasMore, activities.length, isInitialLoad, setInitialData]);
 
-  // Use direct values instead of stable refs - no useEffect needed
-  const currentValues = useMemo(() => ({
-    userId,
-    apiEndpoint,
-    pageSize,
-    hasMore,
-    isLoading,
-    currentSkip,
-    activitiesLength: activities.length
-  }), [userId, apiEndpoint, pageSize, hasMore, isLoading, currentSkip, activities.length]);
+  // Reset state when initial data changes (similar to RSSFeedClient pattern)
+  useEffect(() => {
+    // Only reset if we have new initial data and it's different from current
+    if (initialActivities.length > 0 && activities.length > 0) {
+      // Check if this is actually new initial data by comparing first item
+      const currentFirstActivity = activities[0];
+      const newFirstActivity = initialActivities[0];
+      
+      if (currentFirstActivity && newFirstActivity && 
+          currentFirstActivity._id !== newFirstActivity._id) {
+        // This is new initial data, reset completely
+        setInitialData({
+          activities: initialActivities,
+          entryDetails: initialEntryDetails,
+          hasMore: initialHasMore
+        });
+      }
+    }
+  }, [initialActivities, initialEntryDetails, initialHasMore, activities, setInitialData]);
+
+  // Use refs to track current values to avoid stale closures (similar to RSSFeedClient pattern)
+  const currentSkipRef = useRef(currentSkip);
+  const hasMoreRef = useRef(hasMore);
+  const isLoadingRef = useRef(isLoading);
+  
+  // Update refs synchronously during render (React best practice)
+  currentSkipRef.current = currentSkip;
+  hasMoreRef.current = hasMore;
+  isLoadingRef.current = isLoading;
 
   // Create a ref for the load more container
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Track endReached state with useMemo instead of useEffect
-  const endReachedCalled = useMemo(() => false, [activities.length]);
-
   // Function to load more activities with current values
   const loadMoreActivities = useCallback(async () => {
-    const {
-      userId,
-      apiEndpoint,
-      pageSize,
-      hasMore,
-      isLoading,
-      currentSkip
-    } = currentValues;
+    // Use refs to get current values and avoid stale closures
+    const currentSkipValue = currentSkipRef.current;
+    const hasMoreValue = hasMoreRef.current;
+    const isLoadingValue = isLoadingRef.current;
     
     // Avoid redundant requests and early exit when needed
-    if (!isActive || isLoading || !hasMore) {
-      // Removed logger call for production readiness
+    if (!isActive || isLoadingValue || !hasMoreValue) {
       return;
     }
 
@@ -84,20 +97,16 @@ export function useActivityLoading({
     startLoadingMore();
 
     try {
-      // Removed logger call for production readiness
-
       // Use the API route to fetch the next page
-      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkip}&limit=${pageSize}`);
+      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkipValue}&limit=${pageSize}`);
 
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
       }
 
       const data = await result.json();
-      // Removed logger call for production readiness
 
       if (!data.activities?.length) {
-        // Removed logger call for production readiness
         loadMoreSuccess({ 
           activities: [], 
           entryDetails: {}, 
@@ -112,13 +121,10 @@ export function useActivityLoading({
         entryDetails: data.entryDetails || {},
         hasMore: data.hasMore
       });
-
-      // Removed logger call for production readiness
     } catch (error) {
-      // Removed logger call for production readiness
       loadMoreFailure();
     }
-  }, [isActive, currentValues, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [isActive, userId, apiEndpoint, pageSize, currentSkipRef, hasMoreRef, isLoadingRef, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
 
   // Use the shared delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
@@ -127,7 +133,7 @@ export function useActivityLoading({
     hasMore,
     rootMargin: '800px',
     threshold: 0.1,
-    delay: 3000
+    delay: 1000
   });
 
   // Check if we need to load more when the component is mounted
@@ -140,12 +146,10 @@ export function useActivityLoading({
       
       // If the document is shorter than the viewport, load more
       if (documentHeight <= viewportHeight && activities.length > 0) {
-        // Removed logger call for production readiness
         loadMoreActivities();
       }
     };
     
-    // Reduced delay from 1000ms to 200ms for faster response
     const timer = setTimeout(checkContentHeight, 200);
     
     return () => clearTimeout(timer);

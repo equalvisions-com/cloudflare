@@ -9,59 +9,30 @@ import Image from "next/image";
 import { FollowButton } from "@/components/follow-button/FollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
-import { Doc, Id } from "@/convex/_generated/dataModel";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ShareButton } from "@/components/ui/share-button";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
+import type { 
+  NewsletterPageProps, 
+  NewsletterPageData, 
+  NewsletterPost,
+  NewsletterPostContentProps
+} from "@/lib/types";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-interface PostPageProps {
-  params: {
-    postSlug: string;
-  };
-}
-
-// Extend the Convex Post type with our additional fields
-type Post = Doc<"posts"> & {
-  followerCount: number;
-  relatedPosts?: Array<{
-    _id: Id<"posts">;
-    title: string;
-    featuredImg?: string;
-    postSlug: string;
-    categorySlug: string;
-    feedUrl: string;
-  }>;
-};
-
-interface PageData {
-  post: Post;
-  rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
-  followState: {
-    isAuthenticated: boolean;
-    isFollowing: boolean;
-  };
-  relatedFollowStates: {
-    [postId: string]: {
-      isAuthenticated: boolean;
-      isFollowing: boolean;
-    };
-  };
-}
-
 // Optimize data fetching with aggressive caching
-const getPageData = cache(async (postSlug: string): Promise<PageData | null> => {
+const getPageData = cache(async (postSlug: string): Promise<NewsletterPageData | null> => {
   try {
     // First get the post data - we need this for everything else
     const post = await fetchQuery(api.posts.getByMediaTypeAndSlug, { 
       mediaType: "newsletter", 
       postSlug 
-    }) as Post;
+    }) as NewsletterPost;
 
     if (!post) return null;
 
@@ -117,19 +88,18 @@ const getPageData = cache(async (postSlug: string): Promise<PageData | null> => 
       relatedFollowStates
     };
   } catch (error) {
-    console.error("Failed to fetch page data:", error);
     return null;
   }
 });
 
 // Get just the post data for metadata - reuse the same cache
-const getPostData = cache(async (postSlug: string): Promise<Post | null> => {
+const getPostData = cache(async (postSlug: string): Promise<NewsletterPost | null> => {
   const pageData = await getPageData(postSlug);
   return pageData?.post || null;
 });
 
 // Generate metadata using cached post data
-export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: NewsletterPageProps): Promise<Metadata> {
   try {
     const { postSlug } = params;
     const post = await getPostData(postSlug);
@@ -219,7 +189,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 }
 
 // Helper function to generate consolidated structured data
-function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
+function generateStructuredData(post: NewsletterPost, profileUrl: string, rssData: any) {
   const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
@@ -329,11 +299,7 @@ function generateStructuredData(post: Post, profileUrl: string, rssData: any) {
 }
 
 // Simplified PostContent component for detailed feed info
-function PostContent({ post, followState, rssData }: { 
-  post: Post; 
-  followState: { isAuthenticated: boolean; isFollowing: boolean };
-  rssData: NonNullable<Awaited<ReturnType<typeof getInitialEntries>>> | null;
-}) {
+function PostContent({ post, followState, rssData }: NewsletterPostContentProps) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
       <div className="flex flex-col w-full" style={{ gap: '16px' }}>
@@ -401,7 +367,7 @@ function PostContent({ post, followState, rssData }: {
 }
 
 // Main page component with optimized data fetching
-export default async function PostPage({ params }: PostPageProps) {
+export default async function PostPage({ params }: NewsletterPageProps) {
   const { postSlug } = params;
   const pageData = await getPageData(postSlug);
   

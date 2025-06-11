@@ -35,7 +35,6 @@ const normalizeUsername = (username: string): string => {
 const getProfilePageData = cache(async (username?: string): Promise<ProfilePageData | null> => {
   try {
     if (!username) {
-      console.error("Username is undefined or empty");
       return null;
     }
     
@@ -57,7 +56,6 @@ const getProfilePageData = cache(async (username?: string): Promise<ProfilePageD
     
     return profileData;
   } catch (error) {
-    console.error("Failed to fetch profile data:", error);
     return null;
   }
 });
@@ -66,7 +64,6 @@ const getProfilePageData = cache(async (username?: string): Promise<ProfilePageD
 const getProfileByUsername = cache(async (username?: string) => {
   try {
     if (!username) {
-      console.error("Username is undefined or empty");
       return null;
     }
     
@@ -81,7 +78,6 @@ const getProfileByUsername = cache(async (username?: string) => {
     const profile = await fetchQuery(api.users.getProfileByUsername, { username: normalizedUsername });
     return profile;
   } catch (error) {
-    console.error("Failed to fetch profile:", error);
     return null;
   }
 });
@@ -214,7 +210,6 @@ const getTransformedProfileData = (profileData: ProfilePageData, username: strin
 // Memoized metadata generation function
 const generateProfileMetadata = cache(async (username: string): Promise<Metadata> => {
   if (!username) {
-    console.error("No username provided in params for metadata generation");
     return {
       title: "Profile Not Found",
       description: "No username specified in the URL.",
@@ -279,7 +274,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const username = resolvedParams?.username;
   
   if (!username) {
-    console.error("No username provided in params for ProfilePage");
     notFound();
   }
   
