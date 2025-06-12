@@ -10,6 +10,10 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { MenuButton } from "@/components/ui/menu-button";
 import { usePostSearchHeader } from "@/hooks/usePostSearchHeader";
 import { usePostHeaderUserMenu } from "@/hooks/usePostHeaderUserMenu";
+import type { 
+  SearchInputProps, 
+  HeaderNavigationProps 
+} from "@/lib/types";
 
 // Optimized PostHeaderUserMenu with custom hook
 export const PostHeaderUserMenu = React.memo(function PostHeaderUserMenu() {
@@ -34,13 +38,7 @@ const SearchInput = React.memo(function SearchInput({
   onKeyDown,
   placeholder,
   onClose
-}: {
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  placeholder: string;
-  onClose: () => void;
-}) {
+}: SearchInputProps) {
   return (
     <div className="relative w-full">
       <Search 
@@ -73,12 +71,7 @@ const HeaderNavigation = React.memo(function HeaderNavigation({
   title,
   onSearchToggle,
   isAuthenticated
-}: {
-  displayText: string;
-  title: string;
-  onSearchToggle: () => void;
-  isAuthenticated: boolean;
-}) {
+}: HeaderNavigationProps) {
   return (
     <div className="flex items-center justify-between px-4">
       <div className="w-24 flex items-start justify-start">

@@ -8,6 +8,7 @@ import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
+import type { PostLayoutManagerProps } from "@/lib/types";
 
 type Post = {
   _id: Id<"posts">;
@@ -26,18 +27,6 @@ type Post = {
     feedUrl: string;
   }>;
 };
-
-interface PostLayoutManagerProps {
-  children: React.ReactNode;
-  post: Post;
-  className?: string;
-  relatedFollowStates: {
-    [postId: string]: {
-      isAuthenticated: boolean;
-      isFollowing: boolean;
-    };
-  };
-}
 
 /**
  * Server component that manages the layout for individual post pages

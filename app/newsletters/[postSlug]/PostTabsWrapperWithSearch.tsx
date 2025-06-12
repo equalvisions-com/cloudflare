@@ -8,27 +8,18 @@ import { useSearchResults } from "@/hooks/useSearchResults";
 import { useNewsletterPostTabsUI } from "@/hooks/useNewsletterPostTabsUI";
 import { useSearchFeedUI } from "@/hooks/useSearchFeedUI";
 import type { 
-  NewsletterPostTabsWrapperWithSearchProps
+  NewsletterPostTabsWrapperWithSearchProps,
+  NewsletterSearchRSSFeedClientProps,
+  DefaultPostTabsWrapperProps,
+  SearchEmptyStateComponentProps,
+  RSSFeedEntry
 } from "@/lib/types";
-
-// Newsletter-specific SearchRSSFeedClient props interface
-interface NewsletterSearchRSSFeedClientProps {
-  postTitle: string;
-  feedUrl: string;
-  searchQuery: string;
-  featuredImg?: string;
-  mediaType?: string;
-  verified?: boolean;
-}
 
 // Memoized empty state component for better performance
 const SearchEmptyState = React.memo(function SearchEmptyState({
   message,
   suggestion
-}: {
-  message: string;
-  suggestion: string;
-}) {
+}: SearchEmptyStateComponentProps) {
   return (
     <div className="text-center py-8 text-muted-foreground">
       <p>{message}</p>
@@ -77,17 +68,41 @@ const SearchRSSFeedClient = React.memo(function SearchRSSFeedClient({
   // Render search results (searchData is guaranteed to be non-null here)
   if (!searchData) return null; // Type guard
   
+  // Transform PostSearchRSSData to match RSSFeedEntry format
+  const transformedData: {
+    entries: RSSFeedEntry[];
+    totalEntries: number;
+    hasMore: boolean;
+  } = {
+    entries: searchData.entries.map(entry => ({
+      entry: entry.entry,
+      initialData: entry.initialData,
+      postMetadata: entry.postMetadata ? {
+        title: entry.postMetadata.postTitle,
+        featuredImg: entry.postMetadata.featuredImg,
+        mediaType: entry.postMetadata.mediaType
+      } : {
+        title: postTitle,
+        featuredImg: featuredImg,
+        mediaType: mediaType
+      }
+    })),
+    totalEntries: searchData.totalEntries,
+    hasMore: searchData.hasMore
+  };
+  
   return (
     <div className="w-full">
       <RSSFeedClientWithErrorBoundary
         postTitle={postTitle}
         feedUrl={feedUrl}
-        initialData={searchData}
+        initialData={transformedData}
         featuredImg={featuredImg}
         mediaType={mediaType}
         verified={verified}
         customLoadMore={loadMoreSearchResults}
         isSearchMode={true}
+        externalIsLoading={isLoading}
       />
     </div>
   );
@@ -101,14 +116,7 @@ const DefaultPostTabsWrapper = React.memo(function DefaultPostTabsWrapper({
   featuredImg,
   mediaType,
   verified
-}: {
-  postTitle: string;
-  feedUrl: string;
-  rssData: any;
-  featuredImg?: string;
-  mediaType?: string;
-  verified?: boolean;
-}) {
+}: DefaultPostTabsWrapperProps) {
   return (
     <PostTabsWrapper
       key="default"

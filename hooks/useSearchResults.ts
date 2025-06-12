@@ -59,7 +59,7 @@ export const useSearchResults = ({
       const transformedData: PostSearchRSSData = {
         entries: data.entries || [],
         totalEntries: data.totalEntries || 0,
-        hasMore: data.hasMore || false
+        hasMore: data.hasMore ?? false
       };
       
       setSearchData(transformedData);
@@ -76,7 +76,10 @@ export const useSearchResults = ({
     const currentPageValue = currentPageRef.current;
     const isLoadingValue = isLoadingRef.current;
     
-    if (isLoadingValue || !searchData?.hasMore) {
+    // Get current searchData to avoid stale closure
+    const currentSearchData = useSearchResultsStore.getState().searchData;
+    
+    if (isLoadingValue || !currentSearchData?.hasMore) {
       return;
     }
     
@@ -84,7 +87,7 @@ export const useSearchResults = ({
     const nextPage = currentPageValue + 1;
     
     try {
-      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=${nextPage}&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}&totalEntries=${searchData.totalEntries}`;
+      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=${nextPage}&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}&totalEntries=${currentSearchData.totalEntries}`;
       
       const result = await fetch(apiUrl);
       
@@ -97,8 +100,8 @@ export const useSearchResults = ({
       if (data.entries?.length) {
         const newData: PostSearchRSSData = {
           entries: data.entries,
-          totalEntries: data.totalEntries || searchData.totalEntries,
-          hasMore: data.hasMore || false
+          totalEntries: data.totalEntries || currentSearchData.totalEntries,
+          hasMore: data.hasMore ?? false
         };
         
         appendSearchData(newData);
@@ -109,7 +112,7 @@ export const useSearchResults = ({
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, postTitle, feedUrl, mediaType, searchData, appendSearchData, setCurrentPage, setIsLoading]);
+  }, [searchQuery, postTitle, feedUrl, mediaType, appendSearchData, setCurrentPage, setIsLoading]);
 
   // Reset search results when search query changes
   useEffect(() => {

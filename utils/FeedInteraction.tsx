@@ -192,34 +192,33 @@ export function useDelayedIntersectionObserver(
   // IMPROVED: Increased rootMargin from 300px to 800px to trigger loading much earlier
   // This prevents the user from seeing the bottom of the content before new items load
   const { enabled, isLoading, hasMore, delay = 3000, rootMargin = '800px', threshold = 0.1 } = options;
+  
+  // CRITICAL FIX: Move endReachedCalledRef outside the effect so it persists across observer recreations
   const endReachedCalledRef = React.useRef(false);
+  
+  // CRITICAL FIX: Use refs for hasMore and isLoading to avoid stale closures in intersection callback
+  const hasMoreRef = React.useRef(hasMore);
+  const isLoadingRef = React.useRef(isLoading);
+  
+  // Update refs synchronously during render (React best practice)
+  hasMoreRef.current = hasMore;
+  isLoadingRef.current = isLoading;
   
   // Reset the endReachedCalled flag when dependencies change
   React.useEffect(() => {
-    const wasEndReachedCalled = endReachedCalledRef.current;
     endReachedCalledRef.current = false;
-    
-    // Log when the flag is reset for better debugging
-    if (wasEndReachedCalled) {
-      logger.debug('🔄 Pagination flag reset - ready to load more content');
-    }
-  }, [hasMore, isLoading]);
+  }, [hasMore, isLoading, callback]);
   
   React.useEffect(() => {
     if (!ref.current || !enabled || !hasMore || isLoading) {
-      if (!ref.current) logger.debug('⚠️ Intersection observer ref not available');
-      if (!enabled) logger.debug('ℹ️ Intersection observer disabled');
-      if (!hasMore) logger.debug('ℹ️ No more content to load');
-      if (isLoading) logger.debug('ℹ️ Already loading content');
       return;
     }
     
-    logger.debug('🔍 Setting up intersection observer with:', {
-      rootMargin,
-      threshold,
-      delay,
-      elementExists: !!ref.current
-    });
+    // CRITICAL FIX: Reset the flag when setting up a new observer
+    // This ensures we don't carry over the flag state from previous observer instances
+    if (endReachedCalledRef.current) {
+      endReachedCalledRef.current = false;
+    }
     
     // Add a significant delay before setting up the intersection observer
     // This prevents the initial load from triggering pagination
@@ -229,38 +228,23 @@ export function useDelayedIntersectionObserver(
       
       // Skip if element no longer exists
       if (!element) {
-        logger.debug('⚠️ Element no longer exists when setting up observer');
         return;
       }
-      
-      logger.debug('👁️ Observer active and monitoring visibility');
       
       const observer = new IntersectionObserver(
         (entries) => {
           const [entry] = entries;
           
-          // Log intersection ratio for debugging
-          logger.debug(`📊 Element intersection ratio: ${entry.intersectionRatio.toFixed(2)}`);
-          
           if (entry.isIntersecting) {
-            logger.debug('👁️ Load more element is now visible');
+            // CRITICAL FIX: Use refs to avoid stale closure values
+            const currentHasMore = hasMoreRef.current;
+            const currentIsLoading = isLoadingRef.current;
+            const currentEndReached = endReachedCalledRef.current;
             
-            if (!hasMore) {
-              logger.debug('⚠️ No more content available to load');
+            if (!currentHasMore || currentIsLoading || currentEndReached) {
               return;
             }
             
-            if (isLoading) {
-              logger.debug('⚠️ Already loading content, won\'t trigger again');
-              return;
-            }
-            
-            if (endReachedCalledRef.current) {
-              logger.debug('⚠️ End reached already called, waiting for completion');
-              return;
-            }
-            
-            logger.debug('🚀 All conditions met! Triggering load more callback');
             endReachedCalledRef.current = true;
             callback();
           }
@@ -272,13 +256,11 @@ export function useDelayedIntersectionObserver(
       observer.observe(element);
       
       return () => {
-        logger.debug('🧹 Cleaning up intersection observer');
         observer.disconnect();
       };
     }, delay); // 3 second delay to prevent initial page load triggering
     
     return () => {
-      logger.debug('🧹 Clearing delayed observer timer');
       clearTimeout(timer);
     };
   }, [ref, enabled, hasMore, isLoading, callback, delay, rootMargin, threshold]);

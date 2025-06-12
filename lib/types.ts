@@ -1264,6 +1264,7 @@ export interface RSSFeedClientProps {
   verified?: boolean;
   customLoadMore?: () => Promise<void>;
   isSearchMode?: boolean;
+  externalIsLoading?: boolean;
 }
 
 export interface RSSEntryProps {
@@ -1322,4 +1323,83 @@ export interface UseRSSFeedUIReturn {
     isOpen: boolean;
     selectedEntry: RSSFeedCommentDrawerState['selectedEntry'];
   };
+}
+
+// Additional Component Props Interfaces for Production Readiness
+
+// PostLayoutManager Props Interface
+export interface PostLayoutManagerProps {
+  children: React.ReactNode;
+  post: {
+    _id: Id<"posts">;
+    title: string;
+    category: string;
+    body: string;
+    featuredImg?: string;
+    feedUrl: string;
+    categorySlug: string;
+    relatedPosts?: Array<{
+      _id: Id<"posts">;
+      title: string;
+      featuredImg?: string;
+      postSlug: string;
+      categorySlug: string;
+      feedUrl: string;
+    }>;
+  };
+  className?: string;
+  relatedFollowStates: {
+    [postId: string]: {
+      isAuthenticated: boolean;
+      isFollowing: boolean;
+    };
+  };
+}
+
+// Search Input Component Props Interface
+export interface SearchInputProps {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  onClose: () => void;
+}
+
+// Header Navigation Component Props Interface
+export interface HeaderNavigationProps {
+  displayText: string;
+  title: string;
+  onSearchToggle: () => void;
+  isAuthenticated: boolean;
+}
+
+// Newsletter-specific SearchRSSFeedClient Props Interface
+export interface NewsletterSearchRSSFeedClientProps {
+  postTitle: string;
+  feedUrl: string;
+  searchQuery: string;
+  featuredImg?: string;
+  mediaType?: string;
+  verified?: boolean;
+}
+
+// Default PostTabsWrapper Props Interface
+export interface DefaultPostTabsWrapperProps {
+  postTitle: string;
+  feedUrl: string;
+  rssData: any;
+  featuredImg?: string;
+  mediaType?: string;
+  verified?: boolean;
+}
+
+// Search Empty State Component Props Interface
+export interface SearchEmptyStateComponentProps {
+  message: string;
+  suggestion: string;
+}
+
+// PostSearchProvider Props Interface
+export interface PostSearchProviderProps {
+  children: React.ReactNode;
 } 

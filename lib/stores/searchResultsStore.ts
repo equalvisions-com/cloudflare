@@ -45,7 +45,7 @@ export const useSearchResultsStore = create<SearchResultsStore>((set, get) => ({
         searchData: {
           entries: [...searchData.entries, ...newData.entries],
           totalEntries: newData.totalEntries || searchData.totalEntries,
-          hasMore: newData.hasMore || false
+          hasMore: newData.hasMore ?? false
         }
       });
     }

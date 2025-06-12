@@ -2,14 +2,11 @@
 
 import React from 'react';
 import { usePostSearchProvider } from '@/hooks/usePostSearchProvider';
+import type { PostSearchProviderProps } from '@/lib/types';
 
 // Re-export centralized hooks for backward compatibility
 export { usePostSearch } from '@/hooks/usePostSearch';
 export { useSearchResults } from '@/hooks/useSearchResults';
-
-interface PostSearchProviderProps {
-  children: React.ReactNode;
-}
 
 /**
  * PostSearchProvider - Manages search state cleanup

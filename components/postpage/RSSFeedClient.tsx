@@ -564,7 +564,7 @@ const RSSFeedStoreProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 // Internal RSSFeedClient component that uses the store from context
-function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode }: RSSFeedClientProps) {
+function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode, externalIsLoading }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
   // Create a unique key for this podcast page to force complete reset
@@ -579,6 +579,9 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   // PHASE 4: Use specific selectors for frequently accessed values
   const hasMore = useRSSFeedHasMore();
   const isLoading = useRSSFeedIsLoading();
+  
+  // Use external loading state when provided (for search mode), otherwise use internal state
+  const effectiveIsLoading = externalIsLoading !== undefined ? externalIsLoading : isLoading;
   
   // Get individual actions from store (prevents object recreation)
   const initialize = useRSSFeedInitialize();
@@ -665,7 +668,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         entries={metricsHook.enhancedEntries}
         hasMore={hasMore} // PHASE 4: Use granular selector
         loadMoreRef={loadMoreRef}
-        isPending={isLoading} // PHASE 4: Use granular selector
+        isPending={effectiveIsLoading} // PHASE 4: Use granular selector
         loadMore={paginationHook.loadMoreEntries}
         featuredImg={featuredImg}
         postTitle={postTitle}
