@@ -2050,512 +2050,131 @@ export interface FeedTabsValidator {
 // END FEED TABS CONTAINER TYPES
 // ===================================================================
 
-// ============================================================================
-// FEATURED FEED TYPES - Production-Ready Type System
-// ============================================================================
-
-// Core Featured Feed Data Types
-export interface FeaturedFeedEntry {
-  guid: string;
-  title: string;
-  link: string;
-  description: string;
-  pub_date: string;
-  image?: string;
-  feed_url: string;
-  post_title?: string;
-  mediaType?: string;
-  isFeatured: boolean;
-  featuredAt: number;
+// Comment Section Types
+export interface CommentFromAPI {
+  _id: Id<"comments">;
+  _creationTime: number;
+  userId: Id<"users">;
+  username: string;
+  content: string;
+  parentId?: Id<"comments">;
+  user?: CommentUserProfile | null;
+  entryGuid: string;
+  feedUrl: string;
+  createdAt: number;
 }
 
-export interface FeaturedFeedPostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  postSlug: string;
-  categorySlug: string;
-  verified?: boolean;
+export interface CommentUserProfile {
+  _id: Id<"users">;
+  _creationTime: number;
+  userId?: Id<"users">;
+  username?: string;
+  name?: string;
+  profileImage?: string;
+  bio?: string;
+  rssKeys?: string[];
+  email?: string;
+  emailVerificationTime?: number;
+  isAnonymous?: boolean;
+  [key: string]: unknown;
 }
 
-export interface FeaturedFeedEntryWithData {
-  entry: FeaturedFeedEntry;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-    bookmarks?: {
-      isBookmarked: boolean;
-    };
-  };
-  postMetadata: FeaturedFeedPostMetadata;
+export interface CommentWithReplies extends CommentFromAPI {
+  replies: CommentFromAPI[];
 }
 
-// Featured Feed State Management Types
-export interface FeaturedFeedPaginationState {
-  currentPage: number;
-  hasMore: boolean;
-  totalEntries: number;
-  visibleEntries: number;
+export interface CommentSectionState {
+  // UI State
+  isOpen: boolean;
+  comment: string;
+  isSubmitting: boolean;
+  replyToComment: CommentFromAPI | null;
+  expandedReplies: Set<string>;
+  deletedComments: Set<string>;
+  
+  // Optimistic Updates
+  optimisticCount: number | null;
+  optimisticTimestamp: number | null;
+  
+  // Metrics
+  metricsLoaded: boolean;
 }
 
-export interface FeaturedFeedLoadingState {
-  isLoading: boolean;
-  isRefreshing: boolean;
-  hasRefreshed: boolean;
-  fetchError: Error | null;
-  refreshError: string | null;
-}
-
-export interface FeaturedFeedUIState {
-  commentDrawerOpen: boolean;
-  selectedCommentEntry: {
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null;
-  showNotification: boolean;
-  notificationCount: number;
-  notificationImages: string[];
-  isActive: boolean;
-}
-
-export interface FeaturedFeedMemoryState {
-  entryCache: Map<string, FeaturedFeedEntryWithData>;
-  metadataCache: Map<string, FeaturedFeedPostMetadata>;
-  requestCache: Map<string, Promise<any>>;
-  abortControllers: Set<AbortController>;
-}
-
-export interface FeaturedFeedAccessibilityState {
-  announcements: string[];
-  focusedEntryId: string | null;
-  keyboardNavigationEnabled: boolean;
-  screenReaderMode: boolean;
-}
-
-export interface FeaturedFeedPerformanceState {
-  renderCount: number;
-  lastRenderTime: number;
-  memoryUsage: number;
-  bundleSize: number;
-}
-
-// Combined Featured Feed State
-export interface FeaturedFeedState {
-  // Core data
-  entries: FeaturedFeedEntryWithData[];
+export interface CommentSectionActions {
+  // UI Actions
+  setIsOpen: (open: boolean) => void;
+  setComment: (comment: string) => void;
+  setIsSubmitting: (submitting: boolean) => void;
+  setReplyToComment: (comment: CommentFromAPI | null) => void;
+  toggleRepliesVisibility: (commentId: string) => void;
+  addDeletedComment: (commentId: string) => void;
   
-  // Pagination state
-  pagination: FeaturedFeedPaginationState;
+  // Comment Actions
+  submitComment: () => Promise<void>;
+  deleteComment: (commentId: Id<"comments">) => Promise<void>;
   
-  // Loading state
-  loading: FeaturedFeedLoadingState;
+  // Optimistic Updates
+  setOptimisticCount: (count: number | null) => void;
+  setOptimisticTimestamp: (timestamp: number | null) => void;
   
-  // UI state
-  ui: FeaturedFeedUIState;
+  // Metrics
+  setMetricsLoaded: (loaded: boolean) => void;
   
-  // Memory management
-  memory: FeaturedFeedMemoryState;
-  
-  // Accessibility state
-  accessibility: FeaturedFeedAccessibilityState;
-  
-  // Performance tracking
-  performance: FeaturedFeedPerformanceState;
-  
-  // Initialization flag
-  hasInitialized: boolean;
-}
-
-// Featured Feed Store Actions
-export interface FeaturedFeedActions {
-  // Entry management
-  setEntries: (entries: FeaturedFeedEntryWithData[]) => void;
-  addEntries: (entries: FeaturedFeedEntryWithData[]) => void;
-  prependEntries: (entries: FeaturedFeedEntryWithData[]) => void;
-  updateEntryMetrics: (entryGuid: string, metrics: FeaturedFeedEntryWithData['initialData']) => void;
-  
-  // Pagination actions
-  setCurrentPage: (page: number) => void;
-  setHasMore: (hasMore: boolean) => void;
-  setTotalEntries: (total: number) => void;
-  setVisibleEntries: (count: number) => void;
-  
-  // Loading actions
-  setLoading: (isLoading: boolean) => void;
-  setRefreshing: (isRefreshing: boolean) => void;
-  setHasRefreshed: (hasRefreshed: boolean) => void;
-  setFetchError: (error: Error | null) => void;
-  setRefreshError: (error: string | null) => void;
-  
-  // UI actions
-  setActive: (isActive: boolean) => void;
-  openCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  closeCommentDrawer: () => void;
-  setNotification: (show: boolean, count?: number, images?: string[]) => void;
-  
-  // Memory management actions
-  updateEntryCache: (entryGuid: string, entry: FeaturedFeedEntryWithData) => void;
-  updateMetadataCache: (feedUrl: string, metadata: FeaturedFeedPostMetadata) => void;
-  clearCache: () => void;
-  addAbortController: (controller: AbortController) => void;
-  removeAbortController: (controller: AbortController) => void;
-  
-  // Accessibility actions
-  addAnnouncement: (message: string) => void;
-  clearAnnouncements: () => void;
-  setFocusedEntry: (entryId: string | null) => void;
-  setKeyboardNavigation: (enabled: boolean) => void;
-  setScreenReaderMode: (enabled: boolean) => void;
-  
-  // Performance actions
-  incrementRenderCount: () => void;
-  updateRenderTime: (time: number) => void;
-  updateMemoryUsage: (usage: number) => void;
-  updateBundleSize: (size: number) => void;
-  
-  // Utility actions
+  // Utility
   reset: () => void;
-  initialize: (initialData: {
-    entries: FeaturedFeedEntryWithData[];
-    totalEntries: number;
-    hasMore?: boolean;
-  }) => void;
 }
 
-// Combined Featured Feed Store Interface
-export interface FeaturedFeedStore extends FeaturedFeedState, FeaturedFeedActions {}
+export interface CommentSectionStore extends CommentSectionState, CommentSectionActions {}
 
-// Featured Feed Component Props
-export interface FeaturedFeedClientProps {
-  initialData: {
-    entries: FeaturedFeedEntryWithData[];
-    totalEntries: number;
-  };
-  pageSize?: number;
-  isActive?: boolean;
-}
-
-export interface FeaturedFeedWrapperProps {
-  initialData: {
-    entries: FeaturedFeedEntryWithData[];
-    totalEntries: number;
-  } | null;
-  pageSize?: number;
-  isActive?: boolean;
-}
-
-export interface FeaturedFeedServerProps {
-  initialData?: Awaited<ReturnType<any>>;
-  kvBindingFromProps?: any; // KVNamespace type from Cloudflare Workers
-}
-
-export interface FeaturedFeedEntryProps {
-  entryWithData: FeaturedFeedEntryWithData;
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  isPriority?: boolean;
-}
-
-export interface FeaturedFeedContentProps {
-  entries: FeaturedFeedEntryWithData[];
-  visibleEntries: FeaturedFeedEntryWithData[];
-  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>;
-  hasMore: boolean;
-  loadMore: () => void;
-  isLoading: boolean;
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  onRefresh: () => void;
-}
-
-// Featured Feed API Response Types
-export interface FeaturedFeedAPIResponse {
-  entries: FeaturedFeedEntryWithData[];
-  totalEntries: number;
-  hasMore?: boolean;
-}
-
-export interface FeaturedFeedKVResponse {
-  entries: FeaturedFeedEntry[];
-  totalEntries: number;
-  lastUpdated: number;
-}
-
-export interface FeaturedFeedMetricsResponse {
-  entryMetrics: Array<{
-    guid: string;
-    metrics: FeaturedFeedEntryWithData['initialData'];
-  }>;
-  postMetadata: Array<{
-    feedUrl: string;
-    metadata: FeaturedFeedPostMetadata;
-  }>;
-}
-
-// Featured Feed Custom Hook Interfaces
-export interface UseFeaturedFeedDataManagementProps {
-  isActive: boolean;
-  pageSize: number;
-  initialData: FeaturedFeedClientProps['initialData'];
-}
-
-export interface UseFeaturedFeedDataManagementReturn {
-  loadMoreEntries: () => Promise<void>;
-  refreshEntries: () => Promise<void>;
-  isLoading: boolean;
-  hasMore: boolean;
-  error: Error | null;
-  cleanup: () => void;
-}
-
-export interface UseFeaturedFeedUIProps {
-  isActive: boolean;
-}
-
-export interface UseFeaturedFeedUIReturn {
-  handleCommentDrawer: {
-    open: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-    close: () => void;
-    isOpen: boolean;
-    selectedEntry: FeaturedFeedUIState['selectedCommentEntry'];
-  };
-  notification: {
-    show: boolean;
+export interface CommentSectionProps {
+  entryGuid: string;
+  feedUrl: string;
+  initialData?: {
     count: number;
-    images: string[];
   };
-  setNotification: (show: boolean, count?: number, images?: string[]) => void;
-  
-  // PHASE 4.3: Advanced accessibility features
-  announceToScreenReader: (message: string, priority?: 'low' | 'medium' | 'high') => void;
-  handleKeyboardNavigation: (event: KeyboardEvent) => void;
-  focusEntry: (entryId: string) => void;
-  getAccessibilityProps: () => Record<string, string | number>;
-  
-  // Container ref for keyboard navigation
-  containerRef: React.RefObject<HTMLElement>;
-  
-  // Accessibility state
-  isKeyboardNavigationEnabled: boolean;
-  isScreenReaderMode: boolean;
-  focusedEntryId: string | null;
-  
-  // Accessibility actions
-  enableKeyboardNavigation: () => void;
-  disableKeyboardNavigation: () => void;
-  clearAnnouncements: () => void;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+  buttonOnly?: boolean;
 }
 
-export interface UseFeaturedFeedMemoryManagementProps {
-  maxCacheSize?: number;
-  cleanupInterval?: number;
+export interface CommentProps {
+  comment: CommentWithReplies | CommentFromAPI;
+  isReply?: boolean;
+  isAuthenticated: boolean;
+  viewer: any;
+  deletedComments: Set<string>;
+  expandedReplies: Set<string>;
+  onReply: (comment: CommentFromAPI) => void;
+  onDeleteComment: (commentId: Id<"comments">) => Promise<void>;
+  onToggleReplies: (commentId: string) => void;
+  onSetCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
+  onUpdateCommentLikeCount: (commentId: string, count: number) => void;
 }
 
-export interface UseFeaturedFeedMemoryManagementReturn {
-  cleanup: () => void;
-  createManagedTimeout: (callback: () => void, delay: number) => NodeJS.Timeout;
-  clearManagedTimeout: (timeout: NodeJS.Timeout) => void;
-  optimizeMemory: () => void;
-  getMemoryUsage: () => {
-    current: number;
-    peak: number;
-    average: number;
-    cache: number;
-    pressure: number;
-    abortControllers: number;
-    timeouts: number;
-    intervals: number;
-    cleanupCount: number;
-    lastCleanup: number;
+export interface CommentButtonProps {
+  onClick: () => void;
+  commentCount: number;
+}
+
+export interface UseCommentSectionReturn {
+  // State
+  state: CommentSectionState & {
+    commentCount: number;
   };
   
-  // PHASE 4.2: Additional advanced features
-  cache: {
-    get: (key: string) => any;
-    set: (key: string, value: any) => void;
-    delete: (key: string) => boolean;
-    clear: () => void;
-    size: () => number;
-  };
+  // Actions
+  actions: CommentSectionActions;
   
-  abortControllers: {
-    add: (controller: AbortController) => void;
-    remove: (controller: AbortController) => boolean;
-    clear: () => void;
-    size: () => number;
-  };
+  // Computed
+  commentHierarchy: CommentWithReplies[];
   
-  // Memory monitoring
-  isMemoryPressureHigh: () => boolean;
-  getMemoryPressure: () => number;
-  triggerGC: () => void;
-}
-
-export interface UseFeaturedFeedAccessibilityProps {
-  isActive: boolean;
-  containerSelector?: string;
-}
-
-export interface UseFeaturedFeedAccessibilityReturn {
-  announceToScreenReader: (message: string) => void;
-  handleKeyboardNavigation: (event: KeyboardEvent) => void;
-  focusEntry: (entryId: string) => void;
-  getAccessibilityProps: () => Record<string, string | number>;
-}
-
-// Featured Feed Error Recovery Types
-export interface FeaturedFeedErrorRecoveryState {
-  retryCount: number;
-  lastErrorTime: number;
-  circuitBreakerOpen: boolean;
-  backoffDelay: number;
-}
-
-export interface FeaturedFeedErrorRecoveryActions {
-  incrementRetry: () => void;
-  resetRetry: () => void;
-  openCircuitBreaker: () => void;
-  closeCircuitBreaker: () => void;
-  updateBackoffDelay: (delay: number) => void;
-}
-
-export interface UseFeaturedFeedErrorRecoveryProps {
-  maxRetries?: number;
-  baseDelay?: number;
-  maxDelay?: number;
-  circuitBreakerThreshold?: number;
-}
-
-export interface UseFeaturedFeedErrorRecoveryReturn {
-  retryWithBackoff: <T>(operation: () => Promise<T>) => Promise<T>;
-  handleError: (error: Error) => void;
-  canRetry: () => boolean;
-  getErrorMessage: (error: Error) => string;
-  reset: () => void;
-}
-
-// Featured Feed Store Provider Types
-export interface FeaturedFeedStoreProviderProps {
-  children: React.ReactNode;
-}
-
-export interface FeaturedFeedStoreContext {
-  store: FeaturedFeedStore;
-}
-
-// Featured Feed Performance Types
-export interface FeaturedFeedPerformanceMetrics {
-  renderTime: number;
-  bundleSize: number;
-  memoryUsage: number;
-  cacheHitRate: number;
-  apiResponseTime: number;
-}
-
-export interface FeaturedFeedPerformanceConfig {
-  enableMetrics: boolean;
-  sampleRate: number;
-  reportingInterval: number;
-  memoryThreshold: number;
-}
-
-// Featured Feed Validation Types
-export interface FeaturedFeedValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
-export interface FeaturedFeedValidator {
-  validateEntry: (entry: unknown) => FeaturedFeedValidationResult;
-  validateEntryWithData: (entryWithData: unknown) => FeaturedFeedValidationResult;
-  validateInitialData: (data: unknown) => FeaturedFeedValidationResult;
-  validateProps: (props: unknown) => FeaturedFeedValidationResult;
-}
-
-// Featured Feed Event Types
-export interface FeaturedFeedEvent {
-  type: 'entry_load' | 'entry_click' | 'comment_open' | 'error' | 'performance';
-  timestamp: number;
-  entryId?: string;
-  data: Record<string, unknown>;
-}
-
-export interface FeaturedFeedEventHandler {
-  (event: FeaturedFeedEvent): void;
-}
-
-// Featured Feed Configuration Types
-export interface FeaturedFeedConfig {
-  DEFAULT_PAGE_SIZE: number;
-  MAX_RETRY_ATTEMPTS: number;
-  FETCH_TIMEOUT: number;
-  CACHE_TTL: number;
-  SKELETON_COUNT: number;
-  MEMORY_THRESHOLD: number;
-  PERFORMANCE_SAMPLE_RATE: number;
-}
-
-// Featured Feed Type Guards
-export interface FeaturedFeedTypeGuards {
-  isFeaturedEntry: (entry: unknown) => entry is FeaturedFeedEntry;
-  isFeaturedEntryWithData: (entryWithData: unknown) => entryWithData is FeaturedFeedEntryWithData;
-  isFeaturedFeedData: (data: unknown) => data is FeaturedFeedClientProps['initialData'];
-  isPostMetadata: (metadata: unknown) => metadata is FeaturedFeedPostMetadata;
-}
-
-// Featured Feed Edge Runtime Types
-export interface FeaturedFeedEdgeConfig {
-  maxMemoryUsage: number;
-  requestTimeout: number;
-  cacheStrategy: 'memory' | 'kv' | 'hybrid';
-  compressionEnabled: boolean;
-}
-
-export interface FeaturedFeedEdgeMetrics {
-  memoryUsage: number;
-  requestCount: number;
-  cacheHitRate: number;
-  averageResponseTime: number;
-}
-
-// Featured Feed Accessibility Types
-export interface FeaturedFeedAccessibilityConfig {
-  enableScreenReader: boolean;
-  enableKeyboardNavigation: boolean;
-  announceUpdates: boolean;
-  focusManagement: boolean;
-}
-
-export interface FeaturedFeedAccessibilityMetrics {
-  screenReaderUsage: number;
-  keyboardNavigationUsage: number;
-  focusEvents: number;
-  accessibilityErrors: number;
-}
-
-// Featured Feed Testing Types
-export interface FeaturedFeedTestProps {
-  mockData?: FeaturedFeedEntryWithData[];
-  mockError?: Error;
-  mockLoading?: boolean;
-  testId?: string;
-}
-
-export interface FeaturedFeedTestUtils {
-  createMockEntry: (overrides?: Partial<FeaturedFeedEntry>) => FeaturedFeedEntry;
-  createMockEntryWithData: (overrides?: Partial<FeaturedFeedEntryWithData>) => FeaturedFeedEntryWithData;
-  createMockInitialData: (overrides?: Partial<FeaturedFeedClientProps['initialData']>) => FeaturedFeedClientProps['initialData'];
-}
-
-// ============================================================================
-// END FEATURED FEED TYPES
-// ============================================================================ 
+  // Handlers
+  handleSubmit: () => Promise<void>;
+  handleReply: (comment: CommentFromAPI) => void;
+  handleDeleteComment: (commentId: Id<"comments">) => Promise<void>;
+  handleToggleReplies: (commentId: string) => void;
+  
+  // Refs and utilities
+  setCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
+  updateCommentLikeCount: (commentId: string, count: number) => void;
+} 

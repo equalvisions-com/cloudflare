@@ -213,6 +213,11 @@ export const useRSSEntriesRefresh = ({
       return;
     }
     
+    // Prevent API calls with empty data that would cause 400 errors
+    if (!currentPostTitles?.length || !currentFeedUrls?.length) {
+      return;
+    }
+    
     setRefreshing(true);
     setRefreshError(null);
     

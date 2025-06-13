@@ -1108,11 +1108,21 @@ const RSSEntriesClientComponent = ({
   }, [canInitialize, performInitialization]);
 
   // Trigger refresh when appropriate - use useEffect for side effects
+  // Use a ref to store the trigger function to avoid dependency issues and prevent multiple calls
+  const triggerRefreshRef = useRef(triggerOneTimeRefresh);
+  triggerRefreshRef.current = triggerOneTimeRefresh;
+  
+  // Memoize the condition to prevent unnecessary effect runs and ensure data is available
+  const shouldTriggerRefresh = useMemo(() => 
+    isActive && hasInitialized && !hasRefreshed && !isRefreshing && postTitles.length > 0 && feedUrls.length > 0,
+    [isActive, hasInitialized, hasRefreshed, isRefreshing, postTitles.length, feedUrls.length]
+  );
+  
   React.useEffect(() => {
-    if (isActive && hasInitialized && !hasRefreshed && !isRefreshing) {
-    triggerOneTimeRefresh();
+    if (shouldTriggerRefresh) {
+      triggerRefreshRef.current();
     }
-  }, [isActive, hasInitialized, hasRefreshed, isRefreshing, triggerOneTimeRefresh]);
+  }, [shouldTriggerRefresh]);
 
 
 

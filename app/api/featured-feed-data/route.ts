@@ -1,11 +1,38 @@
 import { NextResponse } from 'next/server';
-import { getInitialEntries } from '@/components/featured/FeaturedFeed';
-import type { 
-  FeaturedFeedEntryWithData,
-  FeaturedFeedAPIResponse
-} from '@/lib/types';
+import { getInitialEntries } from '@/components/featured/FeaturedFeed'; // Path alias should work
+import type { FeaturedEntry as OriginalFeaturedEntry } from '@/lib/featured_kv';
 
 export const runtime = 'edge';
+
+// Define the structure for the items within the 'entries' array
+interface PostMetadataForFeed {
+  title: string;
+  featuredImg?: string;
+  mediaType: string;
+  postSlug: string;
+  categorySlug: string;
+  verified?: boolean;
+}
+
+interface MetricsForFeed {
+  likes: { isLiked: boolean; count: number };
+  comments: { count: number };
+  retweets: { isRetweeted: boolean; count: number };
+  bookmarks?: { isBookmarked: boolean };
+}
+
+interface FeaturedEntryWithPublicData {
+  entry: OriginalFeaturedEntry;
+  initialData: MetricsForFeed;
+  postMetadata: PostMetadataForFeed;
+}
+
+// Interface for the expected structure of data from getInitialEntries
+interface FeaturedData {
+  entries: FeaturedEntryWithPublicData[];
+  totalEntries: number;
+  message?: string;
+}
 
 // Type definition for Cloudflare KVNamespace
 // Ideally, configure this globally via tsconfig.json and @cloudflare/workers-types
@@ -39,10 +66,10 @@ export async function GET(request: Request) {
     }
 
     // The getInitialEntries function expects the KVNamespace directly
-    const featuredDataResult: FeaturedFeedAPIResponse | null = await getInitialEntries(kvBinding);
+    const featuredDataResult: FeaturedData | null = await getInitialEntries(kvBinding);
 
     if (!featuredDataResult || featuredDataResult.entries.length === 0) {
-      return NextResponse.json({ entries: [], totalEntries: 0 } as FeaturedFeedAPIResponse, { status: 200 });
+      return NextResponse.json({ entries: [], totalEntries: 0, message: "No featured content available." } as FeaturedData, { status: 200 });
     }
     
     return NextResponse.json(featuredDataResult, { status: 200 });

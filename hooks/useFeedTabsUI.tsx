@@ -10,17 +10,24 @@ import {
 } from '@/lib/stores/feedTabsStore';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
 import dynamic from 'next/dynamic';
-import { FeaturedFeedWrapper } from '@/components/featured/FeaturedFeedWrapper';
 import type { 
   UseFeedTabsUIProps, 
   UseFeedTabsUIReturn,
   FeedTabsTabConfig
 } from '@/lib/types';
 
-// Single dynamic import for RSS entries only
+// Optimized dynamic imports for Edge Runtime
 const RSSEntriesClientWithErrorBoundary = dynamic(
   () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
   { 
+    ssr: false,
+    loading: () => <SkeletonFeed count={5} />
+  }
+);
+
+const FeaturedFeedWrapper = dynamic(
+  () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
+  {
     ssr: false,
     loading: () => <SkeletonFeed count={5} />
   }
@@ -85,10 +92,14 @@ export const useFeedTabsUI = (
         }
       };
 
-      // Preload the RSS entries component when on Featured tab (tab 0)
+      // Preload the non-active tab component when browser is idle
       if (activeTabIndex === 0) {
         schedulePreload('RSSEntriesDisplay', () => 
           import("@/components/rss-feed/RSSEntriesDisplay.client")
+        );
+      } else if (activeTabIndex === 1) {
+        schedulePreload('FeaturedFeedWrapper', () => 
+          import("@/components/featured/FeaturedFeedWrapper")
         );
       }
     };

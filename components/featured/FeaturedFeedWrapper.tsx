@@ -1,47 +1,60 @@
 'use client';
 
-import React, { memo, lazy, Suspense } from 'react';
-import { SkeletonFeed } from '@/components/ui/skeleton-feed';
-import type { FeaturedFeedWrapperProps } from '@/lib/types';
+import React from 'react';
+import { FeaturedFeedClient } from './FeaturedFeedClient';
 
-// PHASE 4.1: Dynamic import for FeaturedFeedClient to reduce initial bundle size
-const FeaturedFeedClient = lazy(() => 
-  import('./FeaturedFeedClient').then(mod => ({ default: mod.FeaturedFeedClient }))
-);
+// Define the interface for post metadata
+interface PostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  postSlug: string;
+  categorySlug: string;
+}
 
-// PHASE 4.1: Loading fallback component for dynamic import
-const FeaturedFeedLoadingFallback = memo(() => (
-  <div className="w-full">
-    <SkeletonFeed count={5} />
-  </div>
-));
-FeaturedFeedLoadingFallback.displayName = 'FeaturedFeedLoadingFallback';
+// Import the FeaturedEntry type
+import type { FeaturedEntry } from "@/lib/featured_kv";
 
-// Production-ready Featured Feed Wrapper Component
-const FeaturedFeedWrapperComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedWrapperProps) => {
-  // Handle empty state with better UX
-  if (!initialData || !initialData.entries || initialData.entries.length === 0) {
+// Define the interface for featured entry with data
+interface FeaturedEntryWithData {
+  entry: FeaturedEntry;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+  };
+  postMetadata: PostMetadata;
+}
+
+interface FeaturedFeedWrapperProps {
+  initialData: {
+    entries: FeaturedEntryWithData[];
+    totalEntries: number;
+  } | null;
+}
+
+export function FeaturedFeedWrapper({ initialData }: FeaturedFeedWrapperProps) {
+  if (!initialData) {
     return (
-      <div className="text-center py-12 text-muted-foreground space-y-3">
-        <div className="text-lg font-medium">No featured content available</div>
-        <p className="text-sm max-w-md mx-auto leading-relaxed">
-          Featured content will appear here when available. Check back later for curated posts and highlights.
-        </p>
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No featured content available at the moment.</p>
+        <p className="text-sm mt-2">Check back later for featured content.</p>
       </div>
     );
   }
 
   return (
-    <Suspense fallback={<FeaturedFeedLoadingFallback />}>
-      <FeaturedFeedClient
-        initialData={initialData}
-        pageSize={pageSize}
-        isActive={isActive}
-      />
-    </Suspense>
+    <FeaturedFeedClient
+      initialData={initialData}
+      pageSize={30}
+    />
   );
-};
-
-// Export memoized version for performance optimization
-export const FeaturedFeedWrapper = memo(FeaturedFeedWrapperComponent);
-FeaturedFeedWrapper.displayName = 'FeaturedFeedWrapper'; 
+} 

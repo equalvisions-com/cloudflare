@@ -14,14 +14,13 @@ export const revalidate = 0;
 
 // Helper function to log only in development
 const devLog = (message: string, data?: unknown) => {
-  // TEMPORARILY ENABLE LOGS IN PRODUCTION FOR DEBUGGING
-  // if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production') {
     if (data) {
       console.log(message, data);
     } else {
       console.log(message);
     }
-  // }
+  }
 };
 
 // Helper function to log errors
@@ -48,11 +47,11 @@ export async function POST(request: Request) {
 
     // Validate input
     if (!postTitles || !Array.isArray(postTitles) || postTitles.length === 0) {
-      return Response.json({ success: false, error: 'Invalid postTitles' }, { status: 400 });
+      return Response.json({ success: false, error: 'Invalid postTitles - must be non-empty array' }, { status: 400 });
     }
 
     if (!feedUrls || !Array.isArray(feedUrls) || feedUrls.length === 0) {
-      return Response.json({ success: false, error: 'Invalid feedUrls' }, { status: 400 });
+      return Response.json({ success: false, error: 'Invalid feedUrls - must be non-empty array' }, { status: 400 });
     }
 
     if (postTitles.length !== feedUrls.length) {
