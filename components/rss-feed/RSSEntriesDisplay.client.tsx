@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, memo, useDeferredValue, useReducer } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, startTransition } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -26,51 +26,130 @@ import { NoFocusWrapper } from "@/utils/NoFocusButton";
 import { NoFocusLinkWrapper } from "@/utils/NoFocusLink";
 import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
+import { RSSEntriesDisplayStoreProvider } from "./RSSEntriesDisplayStoreProvider";
+import {
+  useRSSEntriesDisplayEntries,
+  useRSSEntriesDisplayIsLoading,
+  useRSSEntriesDisplayHasMore,
+  useRSSEntriesDisplayIsRefreshing,
+  useRSSEntriesDisplayHasRefreshed,
+  useRSSEntriesDisplayFetchError,
+  useRSSEntriesDisplayRefreshError,
+  useRSSEntriesDisplayCommentDrawerOpen,
+  useRSSEntriesDisplaySelectedCommentEntry,
+  useRSSEntriesDisplayShowNotification,
+  useRSSEntriesDisplayNotificationCount,
+  useRSSEntriesDisplayNotificationImages,
+  useRSSEntriesDisplayPostTitles,
+  useRSSEntriesDisplayFeedUrls,
+  useRSSEntriesDisplayMediaTypes,
+  useRSSEntriesDisplayCurrentPage,
+  useRSSEntriesDisplayTotalEntries,
+  useRSSEntriesDisplayHasInitialized,
+  useRSSEntriesDisplayNewEntries,
+  useRSSEntriesDisplayInitialize,
+  useRSSEntriesDisplaySetLoading,
+  useRSSEntriesDisplaySetRefreshing,
+  useRSSEntriesDisplaySetHasRefreshed,
+  useRSSEntriesDisplaySetFetchError,
+  useRSSEntriesDisplaySetRefreshError,
+  useRSSEntriesDisplayAddEntries,
+  useRSSEntriesDisplaySetCurrentPage,
+  useRSSEntriesDisplaySetHasMore,
+  useRSSEntriesDisplaySetTotalEntries,
+  useRSSEntriesDisplaySetPostTitles,
+  useRSSEntriesDisplaySetFeedUrls,
+  useRSSEntriesDisplaySetMediaTypes,
+  useRSSEntriesDisplayOpenCommentDrawer,
+  useRSSEntriesDisplayCloseCommentDrawer,
+  useRSSEntriesDisplaySetNotification,
+  useRSSEntriesDisplaySetNewEntries,
+  useRSSEntriesDisplayClearNewEntries,
+  useRSSEntriesDisplaySetEntries,
+  useRSSEntriesDisplayPrependEntries,
+  useRSSEntriesDisplayUpdateEntryMetrics
+} from "@/lib/stores/rssEntriesDisplayStore";
+import type { 
+  RSSEntriesDisplayClientProps,
+  RSSEntriesDisplayEntry,
+  RSSEntriesDisplayRefreshResponse
+} from "@/lib/types";
 
-// Production-ready error logging utility
-const logger = {
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
-  }
-};
+// Import custom hooks for business logic
+import { useRSSEntriesMemoryManagement } from './hooks/useRSSEntriesMemoryManagement';
+import { useRSSEntriesDataLoading } from './hooks/useRSSEntriesDataLoading';
+import { useRSSEntriesRefresh } from './hooks/useRSSEntriesRefresh';
+import { useRSSEntriesCommentDrawer } from './hooks/useRSSEntriesCommentDrawer';
+import { useRSSEntriesInitialization } from './hooks/useRSSEntriesInitialization';
+import { useRSSEntriesNewEntries } from './hooks/useRSSEntriesNewEntries';
+
+// Constants for performance optimization
+const ITEMS_PER_REQUEST = 30;
+
+// Memoize expensive date parsing operations
+const memoizedDateParsers = {
+  // Cache for parsed dates to avoid repeated parsing
+  parseCache: new Map<string, Date>(),
+  displayCache: new Map<string, Date>(),
 
 // Helper function to consistently parse dates from the database
-const parseEntryDate = (dateString: string | Date): Date => {
+  parseEntryDate: (dateString: string | Date): Date => {
   if (dateString instanceof Date) {
     return dateString;
+  }
+    
+    const cacheKey = String(dateString);
+    if (memoizedDateParsers.parseCache.has(cacheKey)) {
+      return memoizedDateParsers.parseCache.get(cacheKey)!;
   }
   
   // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
   const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
   
+    let result: Date;
   if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
     // Convert MySQL datetime string - do NOT add 'Z' as the database times are in local timezone (EST)
     // Adding 'Z' incorrectly treats EST times as UTC, causing a 4-hour offset
     const [datePart, timePart] = dateString.split(' ');
-    return new Date(`${datePart}T${timePart}`); // No 'Z' - let JS interpret as local time
-  }
-  
-  // Handle other formats
-  return new Date(dateString);
-};
+      result = new Date(`${datePart}T${timePart}`); // No 'Z' - let JS interpret as local time
+    } else {
+      // Handle other formats
+      result = new Date(dateString);
+    }
+    
+    // Cache the result
+    memoizedDateParsers.parseCache.set(cacheKey, result);
+    return result;
+  },
 
 // Helper function specifically for timestamp display - treats database dates as UTC
-const parseEntryDateForDisplay = (dateString: string | Date): Date => {
+  parseEntryDateForDisplay: (dateString: string | Date): Date => {
   if (dateString instanceof Date) {
     return dateString;
+  }
+    
+    const cacheKey = `display_${String(dateString)}`;
+    if (memoizedDateParsers.displayCache.has(cacheKey)) {
+      return memoizedDateParsers.displayCache.get(cacheKey)!;
   }
   
   // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
   const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
   
+    let result: Date;
   if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
     // Convert MySQL datetime string to UTC time for consistent display
     const [datePart, timePart] = dateString.split(' ');
-    return new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+      result = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
+    } else {
+      // Handle other formats
+      result = new Date(dateString);
+    }
+    
+    // Cache the result
+    memoizedDateParsers.displayCache.set(cacheKey, result);
+    return result;
   }
-  
-  // Handle other formats
-  return new Date(dateString);
 };
 
 // Helper function to format dates back to MySQL format without timezone conversion
@@ -88,204 +167,13 @@ const formatDateForAPI = (date: Date): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
 };
 
-interface RSSEntryWithData {
-  entry: RSSItem;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-    bookmarks?: {
-      isBookmarked: boolean;
-    };
-  };
-  postMetadata: {
-    title: string;
-    featuredImg?: string;
-    mediaType?: string;
-    categorySlug?: string;
-    postSlug?: string;
-    verified?: boolean;
-  };
-}
-
-// Interface for post metadata used within the component
-interface InternalPostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  categorySlug?: string;
-  postSlug?: string;
-  verified?: boolean;
-}
-
-// Interface for refresh API response
-interface RefreshApiResponse {
-  success: boolean;
-  error?: string;
-  refreshedAny?: boolean;
-  entries?: RSSEntryWithData[];
-  postTitles?: string[];
-  totalEntries?: number;
-}
-
-// Consolidated state interface for better state management
-interface FeedState {
-  // Core data
-  entries: RSSEntryWithData[];
-  currentPage: number;
-  hasMore: boolean;
-  totalEntries: number;
-  postTitles: string[];
-  
-  // Loading states
-  isLoading: boolean;
-  isRefreshing: boolean;
-  hasRefreshed: boolean;
-  
-  // Error states
-  fetchError: Error | null;
-  refreshError: string | null;
-  
-  // UI states
-  commentDrawerOpen: boolean;
-  selectedCommentEntry: {
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null;
-  
-  // Notification states
-  showNotification: boolean;
-  notificationCount: number;
-  notificationImages: string[];
-  
-  // New entries buffer
-  newEntries: RSSEntryWithData[];
-  
-  // Initialization flag
-  hasInitialized: boolean;
-}
-
-// Action types for state management
-type FeedAction =
-  | { type: 'INITIALIZE'; payload: { entries: RSSEntryWithData[]; hasMore: boolean; totalEntries: number; postTitles: string[] } }
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_REFRESHING'; payload: boolean }
-  | { type: 'SET_HAS_REFRESHED'; payload: boolean }
-  | { type: 'SET_FETCH_ERROR'; payload: Error | null }
-  | { type: 'SET_REFRESH_ERROR'; payload: string | null }
-  | { type: 'UPDATE_ENTRIES'; payload: RSSEntryWithData[] }
-  | { type: 'APPEND_ENTRIES'; payload: RSSEntryWithData[] }
-  | { type: 'SET_PAGE'; payload: number }
-  | { type: 'SET_HAS_MORE'; payload: boolean }
-  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
-  | { type: 'SET_POST_TITLES'; payload: string[] }
-  | { type: 'SET_COMMENT_DRAWER'; payload: { open: boolean; entry?: { entryGuid: string; feedUrl: string; initialData?: { count: number } } | null } }
-  | { type: 'SET_NOTIFICATION'; payload: { show: boolean; count?: number; images?: string[] } }
-  | { type: 'SET_NEW_ENTRIES'; payload: RSSEntryWithData[] }
-  | { type: 'CLEAR_NEW_ENTRIES' }
-  | { type: 'RESET_TO_INITIAL'; payload: { entries: RSSEntryWithData[]; hasMore: boolean; totalEntries: number } };
-
-// Reducer for consolidated state management
-function feedReducer(state: FeedState, action: FeedAction): FeedState {
-  switch (action.type) {
-    case 'INITIALIZE':
-      return {
-        ...state,
-        entries: action.payload.entries,
-        hasMore: action.payload.hasMore,
-        totalEntries: action.payload.totalEntries,
-        postTitles: action.payload.postTitles,
-        currentPage: 1,
-        hasInitialized: true,
-        hasRefreshed: false,
-        fetchError: null,
-        refreshError: null
-      };
-    
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.payload };
-    
-    case 'SET_REFRESHING':
-      return { ...state, isRefreshing: action.payload };
-    
-    case 'SET_HAS_REFRESHED':
-      return { ...state, hasRefreshed: action.payload };
-    
-    case 'SET_FETCH_ERROR':
-      return { ...state, fetchError: action.payload };
-    
-    case 'SET_REFRESH_ERROR':
-      return { ...state, refreshError: action.payload };
-    
-    case 'UPDATE_ENTRIES':
-      return { ...state, entries: action.payload };
-    
-    case 'APPEND_ENTRIES':
-      return { ...state, entries: [...state.entries, ...action.payload] };
-    
-    case 'SET_PAGE':
-      return { ...state, currentPage: action.payload };
-    
-    case 'SET_HAS_MORE':
-      return { ...state, hasMore: action.payload };
-    
-    case 'SET_TOTAL_ENTRIES':
-      return { ...state, totalEntries: action.payload };
-    
-    case 'SET_POST_TITLES':
-      return { ...state, postTitles: action.payload };
-    
-    case 'SET_COMMENT_DRAWER':
-      return {
-        ...state,
-        commentDrawerOpen: action.payload.open,
-        selectedCommentEntry: action.payload.entry || null
-      };
-    
-    case 'SET_NOTIFICATION':
-      return {
-        ...state,
-        showNotification: action.payload.show,
-        notificationCount: action.payload.count || 0,
-        notificationImages: action.payload.images || []
-      };
-    
-    case 'SET_NEW_ENTRIES':
-      return { ...state, newEntries: action.payload };
-    
-    case 'CLEAR_NEW_ENTRIES':
-      return { ...state, newEntries: [] };
-    
-    case 'RESET_TO_INITIAL':
-      return {
-        ...state,
-        entries: action.payload.entries,
-        hasMore: action.payload.hasMore,
-        totalEntries: action.payload.totalEntries,
-        currentPage: 1,
-        fetchError: null,
-        refreshError: null
-      };
-    
-    default:
-      return state;
-  }
-}
+// Use centralized types - no local interfaces needed
 
 interface RSSEntryProps {
-  entryWithData: RSSEntryWithData;
+  entryWithData: RSSEntriesDisplayEntry;
 }
 
-// Memoize the RSSEntry component to prevent unnecessary re-renders
+// Memoize the RSSEntry component with optimized comparison for maximum performance
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
@@ -311,19 +199,24 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     }, { once: true });
   }, []);
 
-  // Format the timestamp based on age
+  // Memoize expensive timestamp computation with caching
   const timestamp = useMemo(() => {
     // Use the display-specific date parsing helper for consistent timestamp display
-    const pubDate = parseEntryDateForDisplay(entry.pubDate);
-    const now = new Date();
+    const pubDate = memoizedDateParsers.parseEntryDateForDisplay(entry.pubDate);
     
     // Ensure we're working with valid dates
     if (isNaN(pubDate.getTime())) {
       return '';
     }
 
+    // Use a fixed reference time to prevent constant re-calculations
+    // This improves performance by making timestamps stable for short periods
+    const now = new Date();
+    const referenceTime = Math.floor(now.getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000); // Round to 5-minute intervals
+    const refDate = new Date(referenceTime);
+
     // Calculate time difference
-    const diffInMs = now.getTime() - pubDate.getTime();
+    const diffInMs = refDate.getTime() - pubDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
@@ -334,22 +227,71 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     const prefix = isFuture ? 'in ' : '';
     const suffix = isFuture ? '' : '';
     
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    // Format based on time difference
+    if (diffInMinutes < 1) {
+      return 'now';
+    } else if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}m${suffix}`;
     } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+      return `${prefix}${diffInHours}h${suffix}`;
     } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+      return `${prefix}${diffInDays}d${suffix}`;
+    } else if (diffInMonths < 12) {
+      return `${prefix}${diffInMonths}mo${suffix}`;
     } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+      // For very old posts, show the actual date
+      return format(pubDate, 'MMM d, yyyy');
     }
-  }, [entry.pubDate]);
+  }, [entry.pubDate]); // Only depend on pubDate for stable performance
+
+  // Memoize decoded title and description
+  const decodedContent = useMemo(() => ({
+    title: decode(entry.title || ''),
+    description: decode(entry.description || '')
+  }), [entry.title, entry.description]);
+
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entry.image;
+    const fallbackImage = postMetadata?.featuredImg;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entry.image, postMetadata?.featuredImg]);
+
+  // Memoize audio track data
+  const audioTrackData = useMemo(() => {
+    // Note: enclosure property may not exist on RSSItem type, skip audio functionality for now
+    return null;
+  }, []);
+
+  // Memoize play handler
+  const handlePlayAudio = useCallback(() => {
+    // Since audioTrackData is always null, use entry data directly
+    playTrack(entry.link, decodedContent.title, imageSrc);
+  }, [entry.link, decodedContent.title, imageSrc, playTrack]);
+
+  // Memoize comment handler
+  const handleOpenComments = useCallback(() => {
+    onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData?.comments);
+  }, [entry.guid, entry.feedUrl, initialData?.comments, onOpenCommentDrawer]);
+
+  // Memoize author display
+  const authorDisplay = useMemo(() => {
+    return postMetadata?.title || 'Unknown Author';
+  }, [postMetadata?.title]);
+
+  // Memoize verification status
+  const isVerified = useMemo(() => {
+    return postMetadata?.verified || false;
+  }, [postMetadata?.verified]);
 
   // Ensure we have valid postMetadata
   const safePostMetadata = useMemo(() => {
-    // Use type assertion to access feedTitle
-    const feedTitle = entry.feedTitle || '';
+    // Use type assertion to access feedTitle safely
+    const feedTitle = (entry as any).feedTitle || '';
     
     return {
       title: postMetadata?.title || feedTitle,
@@ -377,9 +319,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     if (safePostMetadata.mediaType === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, decode(entry.title), entry.image || undefined);
+      playTrack(entry.link, decodedContent.title, imageSrc);
     }
-  }, [safePostMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
+  }, [safePostMetadata.mediaType, entry.link, decodedContent.title, imageSrc, playTrack]);
 
   return (
     <article 
@@ -470,27 +412,31 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                {entry.image && (
+                {imageSrc && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
-                        alt=""
+                        key={`${entry.guid}-podcast-image`}
+                        src={imageSrc}
+                        alt={`${decodedContent.title} podcast cover`}
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+Kcp/9k="
+                        unoptimized={false}
                       />
                     </AspectRatio>
                   </CardHeader>
                 )}
                 <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
@@ -512,27 +458,31 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
-                {entry.image && (
+                {imageSrc && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
-                        alt=""
+                        key={`${entry.guid}-article-image`}
+                        src={imageSrc}
+                        alt={`${decodedContent.title} article image`}
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+Kcp/9k="
+                        unoptimized={false}
                       />
                     </AspectRatio>
                   </CardHeader>
                 )}
                 <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
@@ -555,10 +505,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
           </NoFocusWrapper>
           <NoFocusWrapper 
             className="flex items-center" 
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
-            }}
+            onClick={handleOpenComments}
           >
             <CommentSectionClient
               entryGuid={entry.guid}
@@ -610,62 +557,53 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   
   // Only re-render if these key properties have changed
   if (prevEntry.entry.guid !== nextEntry.entry.guid) return false;
-  if (prevEntry.initialData.likes.count !== nextEntry.initialData.likes.count) return false;
-  if (prevEntry.initialData.likes.isLiked !== nextEntry.initialData.likes.isLiked) return false;
-  if (prevEntry.initialData.comments.count !== nextEntry.initialData.comments.count) return false;
-  if (prevEntry.initialData.retweets?.count !== nextEntry.initialData.retweets?.count) return false;
-  if (prevEntry.initialData.retweets?.isRetweeted !== nextEntry.initialData.retweets?.isRetweeted) return false;
-  if (prevEntry.initialData.bookmarks?.isBookmarked !== nextEntry.initialData.bookmarks?.isBookmarked) return false;
   
-  // Return true to prevent re-render if nothing important changed
+  // Check entry properties that affect image rendering (CRITICAL for preventing image re-renders)
+  if (prevEntry.entry.image !== nextEntry.entry.image) return false;
+  if (prevEntry.entry.title !== nextEntry.entry.title) return false;
+  if (prevEntry.entry.description !== nextEntry.entry.description) return false;
+  if (prevEntry.entry.link !== nextEntry.entry.link) return false;
+  if (prevEntry.entry.pubDate !== nextEntry.entry.pubDate) return false;
+  
+  // Check initialData metrics that affect UI (optimized order - most likely to change first)
+  if (prevEntry.initialData?.likes?.count !== nextEntry.initialData?.likes?.count) return false;
+  if (prevEntry.initialData?.likes?.isLiked !== nextEntry.initialData?.likes?.isLiked) return false;
+  if (prevEntry.initialData?.comments?.count !== nextEntry.initialData?.comments?.count) return false;
+  if (prevEntry.initialData?.retweets?.count !== nextEntry.initialData?.retweets?.count) return false;
+  if (prevEntry.initialData?.retweets?.isRetweeted !== nextEntry.initialData?.retweets?.isRetweeted) return false;
+  if (prevEntry.initialData?.bookmarks?.isBookmarked !== nextEntry.initialData?.bookmarks?.isBookmarked) return false;
+  
+  // Check postMetadata that affects display (CRITICAL for image src stability)
+  if (prevEntry.postMetadata?.title !== nextEntry.postMetadata?.title) return false;
+  if (prevEntry.postMetadata?.featuredImg !== nextEntry.postMetadata?.featuredImg) return false;
+  if (prevEntry.postMetadata?.verified !== nextEntry.postMetadata?.verified) return false;
+  if (prevEntry.postMetadata?.mediaType !== nextEntry.postMetadata?.mediaType) return false;
+  
+  // Check function reference (should be stable with useCallback)
+  if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // All checks passed - prevent re-render for optimal performance
   return true;
 });
 RSSEntry.displayName = 'RSSEntry';
 
-interface RSSEntriesClientProps {
-  initialData: {
-    entries: RSSEntryWithData[];
-    totalEntries?: number;
-    hasMore?: boolean;
-    postTitles?: string[];
-    feedUrls?: string[];
-    mediaTypes?: string[];
-  };
-  pageSize?: number;
-  isActive?: boolean;
-}
-
 // Define a proper type for entry metrics
-interface EntryMetrics {
-  likes: {
-    isLiked: boolean;
-    count: number;
-  };
-  comments: {
-    count: number;
-  };
-  retweets?: {
-    isRetweeted: boolean;
-    count: number;
-  };
-}
-
 interface EntriesContentProps {
-  paginatedEntries: RSSEntryWithData[];
+  paginatedEntries: RSSEntriesDisplayEntry[];
   hasMore: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
   isPending: boolean;
   loadMore: () => void;
-  entryMetrics: Record<string, EntryMetrics> | null;
-  postMetadata?: Map<string, InternalPostMetadata>;
+  entryMetrics: Record<string, RSSEntriesDisplayEntry['initialData']> | null;
+  postMetadata?: Map<string, RSSEntriesDisplayEntry['postMetadata']>;
   initialData: {
-    entries: RSSEntryWithData[];
+    entries: RSSEntriesDisplayEntry[];
     totalEntries?: number;
     hasMore?: boolean;
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
-    feedMetadataCache: Record<string, InternalPostMetadata>;
+    feedMetadataCache: Record<string, RSSEntriesDisplayEntry['postMetadata']>;
   };
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
@@ -686,11 +624,6 @@ function EntriesContentComponent({
   isInitializing = false,
   pageSize
 }: EntriesContentProps) {
-  // Remove debug logging for production
-  useEffect(() => {
-    // Component rendered - tracking for internal state management only
-  }, [paginatedEntries.length, hasMore, isPending, isInitializing]);
-  
   // Add ref for tracking if endReached was already called
   const endReachedCalledRef = useRef(false);
   
@@ -700,58 +633,66 @@ function EntriesContentComponent({
   // Add a ref for the Virtuoso component to control scrolling
   const virtuosoRef = useRef<any>(null);
   
-  // Only update the ref when entries actually change (not on every render)
-  useEffect(() => {
+  // Update refs during render phase (React best practice)
     entriesDataRef.current = paginatedEntries;
-  }, [paginatedEntries]);
   
-  // Reset the endReachedCalled flag when entries change
-  useEffect(() => {
+  // Reset endReachedCalled flag when entries length changes (render-phase computation)
+  const currentEntriesLength = paginatedEntries.length;
+  const prevEntriesLengthRef = useRef(currentEntriesLength);
+  if (prevEntriesLengthRef.current !== currentEntriesLength) {
     endReachedCalledRef.current = false;
-  }, [paginatedEntries.length]);
+    prevEntriesLengthRef.current = currentEntriesLength;
+  }
   
-  // Use a ref to store the itemContent callback to ensure stability
-  const itemContentCallback = useCallback((index: number, item: RSSEntryWithData) => {
-    // Make a shallow copy to avoid mutating the original
-    const entryWithData = {...item};
-    
-    // Create a new initialData object instead of mutating directly
-    let updatedInitialData = {...entryWithData.initialData};
-    let updatedPostMetadata = {...entryWithData.postMetadata};
-    
-    // Use metrics from Convex query if available
-    if (entryMetrics && entryWithData.entry.guid in entryMetrics) {
-      updatedInitialData = {...entryMetrics[entryWithData.entry.guid]};
+  // Optimized itemContent callback with performance enhancements
+  const itemContentCallback = useCallback((index: number, item: RSSEntriesDisplayEntry) => {
+    // Fast path: if no external data sources, return item as-is
+    if (!entryMetrics && !postMetadata && !initialData.feedMetadataCache) {
+      return (
+        <RSSEntry 
+          entryWithData={item} 
+          onOpenCommentDrawer={onOpenCommentDrawer} 
+        />
+      );
     }
     
-    // Use metadata from Convex query if available
-    if (postMetadata && postMetadata.has(entryWithData.entry.feedUrl)) {
-      const metadata = postMetadata.get(entryWithData.entry.feedUrl);
-      if (metadata) {
-        updatedPostMetadata = {
-          ...updatedPostMetadata,
-          ...metadata
-        };
-      }
-    }
-    // Check the cached metadata as fallback
-    else if (initialData.feedMetadataCache && 
-             entryWithData.entry.feedUrl in initialData.feedMetadataCache) {
-      const cachedMetadata = initialData.feedMetadataCache[entryWithData.entry.feedUrl];
-      if (cachedMetadata) {
-        updatedPostMetadata = {
-          ...updatedPostMetadata,
-          ...cachedMetadata
-        };
+    // Only create new objects if we actually have updates to apply
+    let needsUpdate = false;
+    let updatedInitialData = item.initialData;
+    let updatedPostMetadata = item.postMetadata;
+    
+    // Check for metrics updates (most common case)
+    if (entryMetrics && item.entry.guid in entryMetrics) {
+      const newMetrics = entryMetrics[item.entry.guid];
+      if (newMetrics !== item.initialData) {
+        updatedInitialData = newMetrics;
+        needsUpdate = true;
       }
     }
     
-    // Create a new entry object with updated data instead of mutating
-    const finalEntryWithData = {
-      ...entryWithData,
+    // Check for metadata updates
+    if (postMetadata && postMetadata.has(item.entry.feedUrl)) {
+      const metadata = postMetadata.get(item.entry.feedUrl);
+      if (metadata && metadata !== item.postMetadata) {
+        updatedPostMetadata = { ...item.postMetadata, ...metadata };
+        needsUpdate = true;
+      }
+    }
+    // Check cached metadata as fallback
+    else if (initialData.feedMetadataCache && item.entry.feedUrl in initialData.feedMetadataCache) {
+      const cachedMetadata = initialData.feedMetadataCache[item.entry.feedUrl];
+      if (cachedMetadata && cachedMetadata !== item.postMetadata) {
+        updatedPostMetadata = { ...item.postMetadata, ...cachedMetadata };
+        needsUpdate = true;
+      }
+    }
+    
+    // Only create new object if we have actual updates
+    const finalEntryWithData = needsUpdate ? {
+      ...item,
       initialData: updatedInitialData,
       postMetadata: updatedPostMetadata
-    };
+    } : item;
     
     return (
       <RSSEntry 
@@ -820,6 +761,17 @@ function EntriesContentComponent({
   // Store a reference to the first instance - will only log on initial creation
   const hasLoggedInitialCreateRef = useRef(false);
   
+  // Memoize Virtuoso components and styles for better performance
+  const virtuosoStyle = useMemo(() => ({ 
+    outline: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation'
+  }), []);
+
+  const virtuosoComponents = useMemo(() => ({
+    Footer: () => null
+  }), []);
+  
   // Memoize the Virtuoso component with minimal dependencies
   const virtuosoComponent = useMemo(() => {
     // Skip rendering Virtuoso if we have no entries yet
@@ -841,36 +793,38 @@ function EntriesContentComponent({
         computeItemKey={(_, item) => item.entry.guid}
         itemContent={itemContentCallback}
         overscan={2000}
-        components={{
-          Footer: () => null
-        }}
-        // Add focus prevention styling
-        style={{ 
-          outline: 'none',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
-        }}
+        components={virtuosoComponents}
+        style={virtuosoStyle}
         className="focus:outline-none focus-visible:outline-none"
+        increaseViewportBy={{ top: 600, bottom: 600 }}
+        restoreStateFrom={undefined}
       />
     );
-  // ⚠️ IMPORTANT: Use minimal dependencies to prevent recreation
-  // DO NOT include paginatedEntries in the dependency array - Virtuoso handles data updates internally
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentCallback, isInitializing, virtuosoRef]);
+  // FIXED: Include paginatedEntries.length so Virtuoso re-renders when entries are added
+  }, [paginatedEntries.length, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
 
   // Check if this is truly empty (not just initial loading)
   if (paginatedEntries.length === 0 && !isInitializing) {
     return (
-      <div className="flex justify-center items-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
+      <section 
+        className="flex justify-center items-center py-10"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading RSS entries"
+      >
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+        <span className="sr-only">Loading RSS entries...</span>
+      </section>
     );
   }
 
   // Render the memoized Virtuoso component and load more indicator
   return (
-    <div 
+    <section 
       className="space-y-0 rss-feed-container" 
+      role="feed"
+      aria-label="RSS feed entries"
+      aria-busy={isPending ? 'true' : 'false'}
       style={{ 
         // CSS properties to prevent focus scrolling
         scrollBehavior: 'auto',
@@ -880,32 +834,87 @@ function EntriesContentComponent({
     >
       {virtuosoComponent}
       
-      {/* Fixed position load more container at bottom */}
-      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-        {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
-        {!hasMore && paginatedEntries.length > 0 && <div></div>}
+      {/* Fixed position load more container at bottom with accessibility */}
+      <div 
+        ref={loadMoreRef} 
+        className="h-52 flex items-center justify-center mb-20"
+        role="status"
+        aria-live="polite"
+        aria-label={hasMore ? (isPending ? "Loading more entries..." : "Scroll to load more entries") : "All entries loaded"}
+      >
+        {hasMore && isPending && (
+          <>
+            <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+            <span className="sr-only">Loading more entries...</span>
+          </>
+        )}
+        {!hasMore && paginatedEntries.length > 0 && (
+          <span className="sr-only">All entries have been loaded</span>
+        )}
       </div>
-    </div>
+    </section>
   );
 }
 
-// Then apply React.memo with correct typing and custom comparison
+// Then apply React.memo with highly optimized comparison for maximum performance
 const EntriesContent = React.memo<EntriesContentProps>(
   EntriesContentComponent, 
   (prevProps, nextProps) => {
-    // Only re-render if these critical properties change
-    if (prevProps.paginatedEntries.length !== nextProps.paginatedEntries.length) return false;
+    // Fast path: check primitive values first (most common changes)
     if (prevProps.hasMore !== nextProps.hasMore) return false;
     if (prevProps.isPending !== nextProps.isPending) return false;
+    if (prevProps.isInitializing !== nextProps.isInitializing) return false;
+    if (prevProps.pageSize !== nextProps.pageSize) return false;
     
-    // If entryMetrics changed in a meaningful way, re-render
-    if (
-      (!prevProps.entryMetrics && nextProps.entryMetrics) || 
-      (prevProps.entryMetrics && !nextProps.entryMetrics)
-    ) return false;
+    // Check array length (very fast, catches pagination changes)
+    const prevLength = prevProps.paginatedEntries.length;
+    const nextLength = nextProps.paginatedEntries.length;
+    if (prevLength !== nextLength) return false;
     
-    // Skip deep comparison of entries if possible - assume they're immutable
-    // If all the above checks pass, prevent re-render
+    // Multi-tier identity checking for arrays (optimized for performance)
+    if (prevLength > 0 && nextLength > 0) {
+      // Tier 1: Check first and last entries (catches most real changes)
+      const prevFirst = prevProps.paginatedEntries[0];
+      const nextFirst = nextProps.paginatedEntries[0];
+      const prevLast = prevProps.paginatedEntries[prevLength - 1];
+      const nextLast = nextProps.paginatedEntries[nextLength - 1];
+      
+      if (prevFirst?.entry.guid !== nextFirst?.entry.guid) return false;
+      if (prevLast?.entry.guid !== nextLast?.entry.guid) return false;
+      
+      // Tier 2: For medium arrays, check middle entry
+      if (prevLength > 10) {
+        const midIndex = Math.floor(prevLength / 2);
+        const prevMid = prevProps.paginatedEntries[midIndex];
+        const nextMid = nextProps.paginatedEntries[midIndex];
+        if (prevMid?.entry.guid !== nextMid?.entry.guid) return false;
+      }
+      
+      // Tier 3: For large arrays, sample additional entries
+      if (prevLength > 50) {
+        const quarterIndex = Math.floor(prevLength / 4);
+        const threeQuarterIndex = Math.floor(prevLength * 3 / 4);
+        
+        const prevQuarter = prevProps.paginatedEntries[quarterIndex];
+        const nextQuarter = nextProps.paginatedEntries[quarterIndex];
+        const prevThreeQuarter = prevProps.paginatedEntries[threeQuarterIndex];
+        const nextThreeQuarter = nextProps.paginatedEntries[threeQuarterIndex];
+        
+        if (prevQuarter?.entry.guid !== nextQuarter?.entry.guid) return false;
+        if (prevThreeQuarter?.entry.guid !== nextThreeQuarter?.entry.guid) return false;
+      }
+    }
+    
+    // Check reference equality for objects (fast)
+    if (prevProps.entryMetrics !== nextProps.entryMetrics) return false;
+    if (prevProps.postMetadata !== nextProps.postMetadata) return false;
+    if (prevProps.initialData !== nextProps.initialData) return false;
+    
+    // Check function references (should be stable with useCallback)
+    if (prevProps.loadMore !== nextProps.loadMore) return false;
+    if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+    
+    // All checks passed - prevent re-render for maximum performance
     return true;
   }
 );
@@ -918,876 +927,281 @@ const RSSEntriesClientComponent = ({
   initialData, 
   pageSize = 30, 
   isActive = true
-}: RSSEntriesClientProps) => {
-  // Consolidated state management using useReducer
-  const [state, dispatch] = useReducer(feedReducer, {
-    // Core data
-    entries: [],
-    currentPage: 1,
-    hasMore: false,
-    totalEntries: 0,
-    postTitles: [],
-    
-    // Loading states
-    isLoading: false,
-    isRefreshing: false,
-    hasRefreshed: false,
-    
-    // Error states
-    fetchError: null,
-    refreshError: null,
-    
-    // UI states
-    commentDrawerOpen: false,
-    selectedCommentEntry: null,
-    
-    // Notification states
-    showNotification: false,
-    notificationCount: 0,
-    notificationImages: [],
-    
-    // New entries buffer
-    newEntries: [],
-    
-    // Initialization flag
-    hasInitialized: false
-  });
-
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+}: RSSEntriesDisplayClientProps) => {
+  // Critical store hooks (needed for immediate rendering decisions)
+  const entries = useRSSEntriesDisplayEntries();
+  const isLoading = useRSSEntriesDisplayIsLoading();
+  const hasMore = useRSSEntriesDisplayHasMore();
+  const fetchError = useRSSEntriesDisplayFetchError();
+  const commentDrawerOpen = useRSSEntriesDisplayCommentDrawerOpen();
+  const selectedCommentEntry = useRSSEntriesDisplaySelectedCommentEntry();
+  const hasInitialized = useRSSEntriesDisplayHasInitialized();
   
-  // Add a ref to track if component is mounted to prevent state updates after unmount
+  // Non-critical store hooks (use deferred values for better performance)
+  const isRefreshing = useDeferredValue(useRSSEntriesDisplayIsRefreshing());
+  const hasRefreshed = useDeferredValue(useRSSEntriesDisplayHasRefreshed());
+  const refreshError = useDeferredValue(useRSSEntriesDisplayRefreshError());
+  const showNotification = useDeferredValue(useRSSEntriesDisplayShowNotification());
+  const notificationCount = useDeferredValue(useRSSEntriesDisplayNotificationCount());
+  const notificationImages = useDeferredValue(useRSSEntriesDisplayNotificationImages());
+  const postTitles = useDeferredValue(useRSSEntriesDisplayPostTitles());
+  const feedUrls = useDeferredValue(useRSSEntriesDisplayFeedUrls());
+  const mediaTypes = useDeferredValue(useRSSEntriesDisplayMediaTypes());
+  const currentPage = useDeferredValue(useRSSEntriesDisplayCurrentPage());
+  const totalEntries = useDeferredValue(useRSSEntriesDisplayTotalEntries());
+  const newEntries = useDeferredValue(useRSSEntriesDisplayNewEntries());
+
+  // Store actions (hooks must be called at top level)
+  const initialize = useRSSEntriesDisplayInitialize();
+  const setLoading = useRSSEntriesDisplaySetLoading();
+  const setRefreshing = useRSSEntriesDisplaySetRefreshing();
+  const setHasRefreshed = useRSSEntriesDisplaySetHasRefreshed();
+  const setFetchError = useRSSEntriesDisplaySetFetchError();
+  const setRefreshError = useRSSEntriesDisplaySetRefreshError();
+  const addEntries = useRSSEntriesDisplayAddEntries();
+  const setCurrentPage = useRSSEntriesDisplaySetCurrentPage();
+  const setHasMore = useRSSEntriesDisplaySetHasMore();
+  const setTotalEntries = useRSSEntriesDisplaySetTotalEntries();
+  const setPostTitles = useRSSEntriesDisplaySetPostTitles();
+  const setFeedUrls = useRSSEntriesDisplaySetFeedUrls();
+  const setMediaTypes = useRSSEntriesDisplaySetMediaTypes();
+  const openCommentDrawer = useRSSEntriesDisplayOpenCommentDrawer();
+  const closeCommentDrawer = useRSSEntriesDisplayCloseCommentDrawer();
+  const setNotification = useRSSEntriesDisplaySetNotification();
+  const setNewEntries = useRSSEntriesDisplaySetNewEntries();
+  const clearNewEntries = useRSSEntriesDisplayClearNewEntries();
+  const setEntries = useRSSEntriesDisplaySetEntries();
+  const prependEntries = useRSSEntriesDisplayPrependEntries();
+
+  // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
-  
-  // Use a fixed number of items per request for consistency
-  const ITEMS_PER_REQUEST = pageSize;
-  
-  // Persistent refs for state that needs to survive tab switches
-  const entriesStateRef = useRef<RSSEntryWithData[]>([]);
+  const entriesStateRef = useRef<RSSEntriesDisplayEntry[]>([]);
   const currentPageRef = useRef(1);
-  const hasMoreRef = useRef(false);
-  const postTitlesRef = useRef<string[]>(initialData?.postTitles || []);
-  const totalEntriesRef = useRef(initialData?.totalEntries || 0);
-  
-  // Add a persistent cache for feed metadata to ensure consistency during pagination
-  const feedMetadataCache = useRef<Record<string, InternalPostMetadata>>({});
-  
-  // Add state for mediaTypes
-  const mediaTypesRef = useRef<string[] | undefined>(initialData?.mediaTypes);
+  const hasMoreRef = useRef(true);
+  const totalEntriesRef = useRef(0);
+  const postTitlesRef = useRef<string[]>([]);
+  const preRefreshNewestEntryDateRef = useRef<string | undefined>();
+  const feedMetadataCache = useRef<Record<string, RSSEntriesDisplayEntry['postMetadata']>>({});
 
-  // Add a ref to store the newest entry date from BEFORE any refresh
-  const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
-  
-  // Memory leak prevention - store active timeouts for cleanup
-  const activeTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
-  
-  // Helper function to create managed timeouts
-  const createManagedTimeout = useCallback((callback: () => void, delay: number) => {
-    const timeoutId = setTimeout(() => {
-      activeTimeoutsRef.current.delete(timeoutId);
-      if (isMountedRef.current) {
-        callback();
-      }
-    }, delay);
-    
-    activeTimeoutsRef.current.add(timeoutId);
-    return timeoutId;
-  }, []);
-  
-  // Helper function to clear managed timeout
-  const clearManagedTimeout = useCallback((timeoutId: NodeJS.Timeout) => {
-    clearTimeout(timeoutId);
-    activeTimeoutsRef.current.delete(timeoutId);
-  }, []);
+  // Custom hooks for business logic
+  const { createManagedTimeout, clearManagedTimeout, cleanup } = useRSSEntriesMemoryManagement();
 
-  // Sync refs with state for tab switching persistence
-  useEffect(() => {
-    entriesStateRef.current = state.entries;
-    currentPageRef.current = state.currentPage;
-    hasMoreRef.current = state.hasMore;
-    postTitlesRef.current = state.postTitles;
-    totalEntriesRef.current = state.totalEntries;
-  }, [state.entries, state.currentPage, state.hasMore, state.postTitles, state.totalEntries]);
-
-  // Set up the mounted ref with comprehensive cleanup
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Capture the current timeouts set for cleanup
-    const currentTimeouts = activeTimeoutsRef.current;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-      
-      // Clear all active timeouts to prevent memory leaks
-      currentTimeouts.forEach(timeoutId => {
-        clearTimeout(timeoutId);
-      });
-      currentTimeouts.clear();
-      
-      // Clear any pending state updates
-      // Note: React handles this automatically, but being explicit helps with debugging
-    };
-  }, []);
-
-  // Add a global mousedown handler to prevent focus on non-interactive elements
-  useEffect(() => {
-    if (!isActive) return;
-    
-    // Define handler for mousedown events - capture in the capture phase before focus can happen
-    const handleDocumentMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Check if the target is in a drawer content or is a text input/textarea
-      const isInDrawer = target.closest('[data-drawer-content]') || 
-                         target.closest('[role="dialog"]');
-      const isInputField = target.tagName === 'INPUT' || 
-                         target.tagName === 'TEXTAREA' || 
-                         target.isContentEditable;
-                         
-      // Skip focus prevention for drawer content or input fields
-      if (isInDrawer || isInputField) {
-        return;
-      }
-      
-      // If the target is inside our feed container, prevent focus behavior
-      const isInFeed = target.closest('.rss-feed-container');
-      if (isInFeed) {
-        // Prevent default focus behavior
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Actively remove focus from any element that might have received it
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Define a handler for all click events in the feed to prevent focus
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Skip focus prevention for drawer content or input fields
-      const isInDrawer = target.closest('[data-drawer-content]') || 
-                         target.closest('[role="dialog"]');
-      const isInputField = target.tagName === 'INPUT' || 
-                         target.tagName === 'TEXTAREA' || 
-                         target.isContentEditable;
-                         
-      if (isInDrawer || isInputField) {
-        return;
-      }
-      
-      // Only apply to elements inside our list
-      const isInFeed = target.closest('.rss-feed-container');
-      if (!isInFeed) return;
-      
-      // For any element in the feed, clear focus after click completes
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-    };
-    
-    // Add passive scroll handler to improve performance
-    const handleScroll = () => {
-      // Clear any focus that might have been set during scroll
-      if (document.activeElement instanceof HTMLElement && 
-          document.activeElement.tagName !== 'BODY') {
-        
-        // Don't blur input elements or elements in drawers
-        const isInDrawer = document.activeElement.closest('[data-drawer-content]') || 
-                           document.activeElement.closest('[role="dialog"]');
-        const isInputField = document.activeElement.tagName === 'INPUT' || 
-                           document.activeElement.tagName === 'TEXTAREA' || 
-                           document.activeElement.isContentEditable;
-                           
-        if (!isInDrawer && !isInputField) {
-          document.activeElement.blur();
-        }
-      }
-    };
-    
-    // Use capture phase to intercept before default browser behavior
-    document.addEventListener('mousedown', handleDocumentMouseDown, true);
-    document.addEventListener('click', handleDocumentClick, true);
-    // Passive event listener improves scroll performance
-    document.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
-      document.removeEventListener('click', handleDocumentClick, true);
-      document.removeEventListener('scroll', handleScroll);
-    };
-  }, [isActive]);
-
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !state.commentDrawerOpen, '.rss-feed-container');
-
-  // Initialize with initial data only once
-  useEffect(() => {
-    if (!initialData?.entries?.length || state.hasInitialized) return;
-    
-    // Initialize feed with initial data
-    
-    // Log actual mediaTypes for server validation
-    if (!initialData.mediaTypes || initialData.mediaTypes.length === 0) {
-      // No mediaTypes provided by server - this may affect functionality
-    }
-    
-    // CRITICAL: Capture the newest entry date from initial data BEFORE any refresh
-    // This ensures we have a baseline that doesn't include refresh results
-    if (initialData.entries.length > 0) {
-      const sortedInitialEntries = [...initialData.entries].sort((a, b) => {
-        const dateA = parseEntryDate(a.entry.pubDate).getTime();
-        const dateB = parseEntryDate(b.entry.pubDate).getTime();
-        return dateB - dateA; // Newest first
-      });
-      
-      if (sortedInitialEntries[0]?.entry.pubDate) {
-        const newestInitialDate = parseEntryDate(sortedInitialEntries[0].entry.pubDate);
-        
-        if (!isNaN(newestInitialDate.getTime()) && newestInitialDate.getTime() <= Date.now()) {
-          preRefreshNewestEntryDateRef.current = formatDateForAPI(newestInitialDate);
-        }
-      }
-    }
-    
-    // Cache all feed metadata from initial entries for consistent rendering
-    initialData.entries.forEach(entry => {
-      if (entry.entry.feedUrl && entry.postMetadata) {
-        feedMetadataCache.current[entry.entry.feedUrl] = entry.postMetadata;
-      }
-    });
-    
-    // Initialize all our state
-    dispatch({ type: 'INITIALIZE', payload: { entries: initialData.entries, hasMore: !!initialData.hasMore, totalEntries: initialData.totalEntries || 0, postTitles: initialData.postTitles || [] } });
-    
-    // Update post titles
-    if (initialData.postTitles) {
-      dispatch({ type: 'SET_POST_TITLES', payload: initialData.postTitles });
-    }
-    
-    // Create a ref for mediaTypes to ensure persistence
-    if (initialData.mediaTypes) {
-      mediaTypesRef.current = initialData.mediaTypes;
-    }
-    
-    // Mark as initialized so we don't reset when tabs switch
-    // DO NOT set hasRefreshed to true here - that prevents the automatic refresh!
-  }, [initialData, dispatch]);
-
-  // When returning to active tab, use the stored refs to restore state if needed
-  useEffect(() => {
-    if (isActive && state.hasInitialized) {
-      // Only restore if the states don't match the refs (might happen due to React rendering)
-      if (state.entries.length === 0 && entriesStateRef.current.length > 0) {
-        dispatch({ type: 'UPDATE_ENTRIES', payload: entriesStateRef.current });
-      }
-      
-      if (state.currentPage !== currentPageRef.current) {
-        dispatch({ type: 'SET_PAGE', payload: currentPageRef.current });
-      }
-      
-      if (state.hasMore !== hasMoreRef.current) {
-        dispatch({ type: 'SET_HAS_MORE', payload: hasMoreRef.current });
-      }
-      
-      if (state.totalEntries !== totalEntriesRef.current) {
-        dispatch({ type: 'SET_TOTAL_ENTRIES', payload: totalEntriesRef.current });
-      }
-    }
-  }, [isActive, state, currentPageRef, hasMoreRef, totalEntriesRef]);
-
-  // Function to load more entries - update to use refs
-  const loadMoreEntries = useCallback(async () => {
-    // Only load more if the tab is active and not already loading/no more data
-    if (!isActive || state.isLoading || !hasMoreRef.current) { 
-      return;
-    }
-    
-    if (!isMountedRef.current) {
-      return;
-    }
-    
-    // Set loading state immediately to prevent multiple calls
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    try {
-      // Use ONLY the server-provided complete list of post titles
-      // This is the most reliable source of truth for ALL followed feeds
-      const postTitlesParam = JSON.stringify(postTitlesRef.current);
-      
-      // Also include feed URLs for proper pagination of newly created feeds
-      const feedUrlsParam = JSON.stringify(initialData?.feedUrls || []);
-      
-      // Make a direct fetch to the API
-      const baseUrl = new URL('/api/rss/paginate', window.location.origin);
-      const nextPage = currentPageRef.current + 1;
-      baseUrl.searchParams.set('page', nextPage.toString());
-      baseUrl.searchParams.set('pageSize', ITEMS_PER_REQUEST.toString());
-      baseUrl.searchParams.set('postTitles', postTitlesParam);
-      
-      // Add feedUrls to the query parameters
-      if (initialData?.feedUrls && initialData.feedUrls.length > 0) {
-        baseUrl.searchParams.set('feedUrls', feedUrlsParam);
-      }
-      
-      // CRITICAL FIX: Pass the current number of entries the client has
-      // This allows the server to calculate the correct offset that accounts for new entries
-      // added to the top of the feed by the refresh process
-      const currentEntriesCount = entriesStateRef.current.length;
-      baseUrl.searchParams.set('currentEntriesCount', currentEntriesCount.toString());
-      
-      // Pass the total entries to avoid unnecessary COUNT queries on the server
-      // Use our dynamically updated totalEntriesRef instead of the static initialData
-      if (totalEntriesRef.current > 0) {
-        baseUrl.searchParams.set('totalEntries', totalEntriesRef.current.toString());
-      }
-      
-      // Add cache busting parameter to ensure we get fresh data
-      baseUrl.searchParams.set('t', Date.now().toString());
-      
-      const response = await fetch(baseUrl.toString());
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Update total entries if provided in response
-      if (data.totalEntries && data.totalEntries !== totalEntriesRef.current) {
-        dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
-      }
-      
-      // Update post titles from the response if available
-      if (data.postTitles && data.postTitles.length > 0) {
-        dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
-      }
-      
-      // Transform the entries to match the expected format
-      const transformedEntries = data.entries
-        .filter(Boolean)
-        .map((entry: RSSItem) => {
-          // If it's a direct RSS item, wrap it with proper metadata
-          if (entry && 'guid' in entry && entry.guid) {
-            // Try to find post metadata from initialData based on feedUrl
-            const feedUrl = 'feedUrl' in entry ? entry.feedUrl : '';
-            
-            // First check our cached metadata
-            let existingMetadata = null;
-            if (feedUrl && feedMetadataCache.current[feedUrl]) {
-              existingMetadata = feedMetadataCache.current[feedUrl];
-            } else {
-              // Fallback to finding in initialData
-              if (initialData && initialData.entries && initialData.entries.length > 0) {
-                const matchingEntry = initialData.entries.find(
-                  e => e && e.entry && e.entry.feedUrl === feedUrl
-                );
-                
-                if (matchingEntry && matchingEntry.postMetadata) {
-                  existingMetadata = matchingEntry.postMetadata;
-                  // Cache this for future use
-                  feedMetadataCache.current[feedUrl] = existingMetadata;
-                }
-              }
-            }
-            
-            // Get title directly
-            const entryTitle = entry.title || '';
-            // Get feed title if available
-            const feedTitle = entry.feedTitle || '';
-            
-            // Create final metadata
-            const finalMetadata = existingMetadata || {
-              title: feedTitle || entryTitle || '',
-              featuredImg: entry.image || '',
-              mediaType: entry.mediaType || '',
-              categorySlug: '',
-              postSlug: '',
-              verified: false // Default verified to false
-            };
-            
-            // Cache this metadata for future entries from this feed
-            if (feedUrl) {
-              feedMetadataCache.current[feedUrl] = finalMetadata;
-            }
-            
-            return {
-              entry: entry,
-              initialData: {
-                likes: { isLiked: false, count: 0 },
-                comments: { count: 0 },
-                retweets: { isRetweeted: false, count: 0 },
-                bookmarks: { isBookmarked: false }
-              },
-              postMetadata: finalMetadata
-            } as RSSEntryWithData;
-          }
-          
-          return null;
-        })
-        .filter(Boolean) as RSSEntryWithData[];
-      
-      // Update state with new entries, only if component is still mounted
-      if (isMountedRef.current) {
-        // Use our updateX functions to keep refs and state in sync
-        const updatedEntries = [...entriesStateRef.current, ...transformedEntries];
-        
-        // Batch state updates to reduce re-renders
-        dispatch({ type: 'UPDATE_ENTRIES', payload: updatedEntries });
-        dispatch({ type: 'SET_PAGE', payload: nextPage });
-        dispatch({ type: 'SET_HAS_MORE', payload: data.hasMore });
-      }
-      
-    } catch (error) {
-      logger.error('❌ Error loading more entries:', error);
-      if (isMountedRef.current) {
-        dispatch({ type: 'SET_FETCH_ERROR', payload: error instanceof Error ? error : new Error(String(error)) });
-      }
-    } finally {
-      if (isMountedRef.current) {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    }
-  }, [
-    initialData, 
-    state.isLoading, 
-    ITEMS_PER_REQUEST, 
-    isActive, 
-    dispatch, 
+  const { performInitialization, canInitialize } = useRSSEntriesInitialization({
+    hasInitialized,
+    isMountedRef,
+    preRefreshNewestEntryDateRef,
+    entriesStateRef,
     currentPageRef, 
     hasMoreRef, 
     totalEntriesRef,
-    postTitlesRef
-  ]);
-  
-  // Extract all entry GUIDs for metrics query - optimized
-  const entryGuids = useMemo(() => {
-    return state.entries
-      .filter((entry: RSSEntryWithData) => entry?.entry?.guid)
-      .map((entry: RSSEntryWithData) => entry.entry.guid);
-  }, [state.entries]);
-  
-  // Extract unique feed URLs for metadata query - optimized
-  const feedUrls = useMemo(() => {
-    const urls = state.entries
-      .filter((entry: RSSEntryWithData) => entry?.entry?.feedUrl)
-      .map((entry: RSSEntryWithData) => entry.entry.feedUrl);
-    return [...new Set(urls)];
-  }, [state.entries]);
-  
-  // Use the combined query to fetch entry metrics - ONLY IF ACTIVE
-  const combinedData = useQuery(
-    api.entries.getFeedDataWithMetrics,
-    isActive && entryGuids.length > 0 ? { entryGuids, feedUrls } : "skip"
-  );
-  
-  // Defer data updates to prevent synchronous re-renders that may cause scroll jumps
-  const deferredCombinedData = useDeferredValue(combinedData);
-  
-  // Update metadata cache with any new data from the Convex query - optimized
-  useEffect(() => {
-    if (!deferredCombinedData?.postMetadata) return;
-    
-    // Batch cache updates to reduce re-renders
-    const updates: Record<string, InternalPostMetadata> = {};
-    let hasUpdates = false;
-    
-    deferredCombinedData.postMetadata.forEach(item => {
-      if (item.feedUrl && item.metadata) {
-        // Only update if the data has actually changed
-        const existing = feedMetadataCache.current[item.feedUrl];
-        if (!existing || JSON.stringify(existing) !== JSON.stringify(item.metadata)) {
-          updates[item.feedUrl] = item.metadata;
-          hasUpdates = true;
-        }
-      }
-    });
-    
-    // Only update cache if there are actual changes
-    if (hasUpdates) {
-      Object.assign(feedMetadataCache.current, updates);
-    }
-  }, [deferredCombinedData?.postMetadata]);
-  
-  // Create a map for metrics lookups with better memoization
-  const metricsMap = useMemo(() => {
-    if (!deferredCombinedData?.entryMetrics?.length) return new Map();
-    
-    return new Map(
-      deferredCombinedData.entryMetrics.map(item => [item.guid, item.metrics])
-    );
-  }, [deferredCombinedData?.entryMetrics]);
-  
-  // Create a map for post metadata lookups with better memoization
-  const postMetadataMap = useMemo(() => {
-    if (!deferredCombinedData?.postMetadata?.length) return new Map<string, InternalPostMetadata>();
-
-    return new Map<string, InternalPostMetadata>(
-      deferredCombinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
-    );
-  }, [deferredCombinedData?.postMetadata]);
-  
-  // Get entry metrics map for use in rendering with better memoization
-  const entryMetricsMap = useMemo(() => {
-    if (!metricsMap || metricsMap.size === 0) return null;
-    
-    // Convert the map to a simple object for easier use in components
-    const metricsObject: Record<string, EntryMetrics> = {};
-    metricsMap.forEach((metrics, guid) => {
-      metricsObject[guid] = metrics;
-    });
-    
-    return metricsObject;
-  }, [metricsMap]);
-  
-  // Memoize the try again handler
-  const handleTryAgain = useCallback(() => {
-    if (!isMountedRef.current) return;
-    
-    dispatch({ type: 'SET_FETCH_ERROR', payload: null });
-    dispatch({ type: 'UPDATE_ENTRIES', payload: initialData?.entries || [] });
-    dispatch({ type: 'SET_PAGE', payload: 1 });
-    dispatch({ type: 'SET_HAS_MORE', payload: !!initialData?.hasMore });
-  }, [initialData, dispatch]);
-  
-  // Memoize the comment drawer state change handler
-  const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
-    dispatch({ type: 'SET_COMMENT_DRAWER', payload: { open, entry: null } });
-  }, []);
-  
-  // Add function to handle new entries - optimized with memory leak prevention
-  const handleNewEntries = useCallback((entries: RSSEntryWithData[]) => {
-    if (!entries.length) {
-      return;
-    }
-    
-    try {
-      // Get current entries from ref for consistency
-      const currentEntries = entriesStateRef.current;
-      
-      // Create a set of existing entry GUIDs for fast lookup
-      const existingGuids = new Set(currentEntries.map(entry => entry.entry.guid));
-      
-      // Filter out any duplicate entries
-      const uniqueNewEntries = entries.filter(entry => !existingGuids.has(entry.entry.guid));
-      
-      if (uniqueNewEntries.length === 0) {
-        return;
-      }
-      
-      // Sort new entries by publication date in descending order (newest first)
-      // This ensures proper chronological ordering across all RSS feeds
-      const sortedNewEntries = [...uniqueNewEntries].sort((a, b) => {
-        const dateA = new Date(a.entry.pubDate).getTime();
-        const dateB = new Date(b.entry.pubDate).getTime();
-        return dateB - dateA; // Descending order (newest first)
-      });
-      
-      // Save the count for notification and extract featured images
-      const featuredImages = sortedNewEntries
-        .slice(0, 3) // Take only first 3 entries
-        .map(entry => {
-          // Try to get featured image from postMetadata first, then from entry
-          return entry.postMetadata?.featuredImg || entry.entry.image || '';
-        })
-        .filter(img => img !== ''); // Remove empty strings
-      
-      dispatch({ type: 'SET_NOTIFICATION', payload: { show: true, count: sortedNewEntries.length, images: featuredImages } });
-      
-      // Prepend sorted new entries to the existing ones using our update function to keep refs in sync
-      const newEntriesArray = [...sortedNewEntries, ...currentEntries];
-      
-      dispatch({ type: 'UPDATE_ENTRIES', payload: newEntriesArray });
-      
-      // Set a timer to hide the notification after a few seconds - with managed cleanup
-      createManagedTimeout(() => {
-        dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
-      }, 5000);
-      
-    } catch (error) {
-      logger.error('🔄 Error handling new entries:', error);
-    }
-  }, [dispatch, createManagedTimeout]);
-
-  // Update the effect that processes new entries
-  useEffect(() => {
-    // When new entries are received, handle them automatically
-    if (state.newEntries.length > 0) {
-      handleNewEntries(state.newEntries);
-      dispatch({ type: 'CLEAR_NEW_ENTRIES' });
-    }
-  }, [state.newEntries, handleNewEntries]);
-  
-  // Add function to trigger one-time background refresh - optimized dependencies
-  const triggerOneTimeRefresh = useCallback(async () => {
-    // Don't refresh if we've already refreshed or are currently refreshing
-    if (state.isRefreshing || state.hasRefreshed) {
-      return;
-    }
-    
-    // Use ONLY the server-provided complete list from our state
-    // This is the most reliable source of truth for ALL followed feeds
-    const currentPostTitles = postTitlesRef.current;
-    
-    // Also use server-provided feed URLs
-    const currentFeedUrls = initialData?.feedUrls || [];
-    
-    // Ensure we pass the server-provided mediaTypes - use the ref to ensure persistence
-    const currentMediaTypes = mediaTypesRef.current || [];
-    
-    // Find the newest entry from our existing entries to maintain chronological order
-    // This prevents older entries from newly created feeds from appearing at the top
-    let newestEntryDate: string | undefined = undefined;
-    
-    // CRITICAL FIX: Use the pre-refresh newest entry date that was captured from initial data
-    // This prevents using entries that were just inserted during previous refresh cycles
-    if (preRefreshNewestEntryDateRef.current) {
-      newestEntryDate = preRefreshNewestEntryDateRef.current;
-    } else {
-      // Fallback: Only use current state entries, not initial data, to avoid stale data
-      try {
-        // Only use entries from current state, not initial data
-        const currentEntries = entriesStateRef.current;
-        
-        if (currentEntries.length > 0) {
-          // Sort by publication date in descending order to find the newest
-          const sortedEntries = [...currentEntries].sort((a, b) => {
-            const dateA = parseEntryDate(a.entry.pubDate).getTime();
-            const dateB = parseEntryDate(b.entry.pubDate).getTime();
-            return dateB - dateA; // Newest first
-          });
-          
-          // Get the date of the newest entry
-          if (sortedEntries[0] && sortedEntries[0].entry.pubDate) {
-            const candidateDate = parseEntryDate(sortedEntries[0].entry.pubDate);
-            const currentTime = Date.now();
-            
-            // Validate that the date is not in the future (no buffer - exact comparison)
-            if (candidateDate.getTime() <= currentTime) {
-              newestEntryDate = formatDateForAPI(candidateDate);
-            } else {
-              // If the newest entry is in the future, use current time instead
-              newestEntryDate = formatDateForAPI(new Date());
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Error determining newest entry date:', error);
-        // Continue without the newest date - better than not refreshing
-      }
-    }
-    
-    dispatch({ type: 'SET_REFRESHING', payload: true });
-    dispatch({ type: 'SET_REFRESH_ERROR', payload: null });
-    
-    try {
-      // Collect all existing entry GUIDs from the ref to avoid duplicates
-      const existingGuids = entriesStateRef.current.map(entry => entry.entry.guid);
-      
-      const response = await fetch('/api/refresh-feeds', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          postTitles: currentPostTitles,
-          feedUrls: currentFeedUrls,
-          mediaTypes: currentMediaTypes,
-          existingGuids, // Send existing GUIDs to filter out duplicates
-          newestEntryDate // Send the newest entry date for chronological filtering
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data: RefreshApiResponse = await response.json();
-      
-      if (data.success) {
-        // Mark that we've completed a refresh regardless of whether anything was refreshed
-        dispatch({ type: 'SET_HAS_REFRESHED', payload: true });
-        
-        // Update post titles with the COMPLETE list of all followed titles
-        // This is crucial for pagination to work with newly followed posts
-        if (data.postTitles && data.postTitles.length > 0) {
-          dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
-        }
-        
-        // Update total entries count if provided in the response
-        if (data.totalEntries && data.totalEntries !== totalEntriesRef.current) {
-          dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
-        }
-        
-        if (data.refreshedAny) {
-          if (data.entries && data.entries.length > 0) {
-            // Validate that entries have the expected structure
-            const validEntries = data.entries.filter((entry: RSSEntryWithData) => {
-              const isValid = entry && 
-                             entry.entry && 
-                             entry.entry.guid && 
-                             entry.entry.title && 
-                             entry.postMetadata;
-              
-              return isValid;
-            });
-            
-            if (validEntries.length > 0) {
-              // Force a state update by using a functional update
-              dispatch({ type: 'SET_NEW_ENTRIES', payload: validEntries });
-              
-              // Also trigger the handler directly as a fallback for serverless environments
-              // This ensures the entries get processed even if the useEffect doesn't fire properly
-              createManagedTimeout(() => {
-                if (isMountedRef.current) {
-                  handleNewEntries(validEntries);
-                }
-              }, 100); // Small delay to allow state to settle
-            }
-          }
-        }
-      } else {
-        throw new Error(data.error || 'Unknown error during refresh');
-      }
-    } catch (error) {
-      logger.error('❌ Error during background refresh:', error);
-      dispatch({ type: 'SET_REFRESH_ERROR', payload: typeof error === 'string' ? error : error instanceof Error ? error.message : 'Unknown error' });
-    } finally {
-      dispatch({ type: 'SET_REFRESHING', payload: false });
-    }
-  }, [
-    // Optimized dependencies - only include what actually changes the behavior
-    state.isRefreshing, 
-    state.hasRefreshed,
-    initialData?.feedUrls,
-    dispatch,
-    createManagedTimeout,
-    handleNewEntries
-  ]);
-
-  // Trigger one-time refresh after initial render - always refresh immediately
-  useEffect(() => {
-    // Only check if the component is active and hasn't already refreshed
-    // IMPORTANT: We still refresh even when there are no entries, which is essential for
-    // creating feeds that don't exist yet
-    if (!isActive || state.hasRefreshed || !state.hasInitialized) return;
-    
-    // Make sure we have initialData with either postTitles or feedUrls
-    if (!initialData || (!initialData.postTitles?.length && !initialData.feedUrls?.length)) {
-      return;
-    }
-    
-    // Run immediately without delay
-    triggerOneTimeRefresh();
-    
-  }, [isActive, initialData, state.hasRefreshed, state.hasInitialized, triggerOneTimeRefresh]);
-
-  // Add back handleOpenCommentDrawer
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    if (!isMountedRef.current) return;
-    
-    dispatch({ type: 'SET_COMMENT_DRAWER', payload: { open: true, entry: { entryGuid, feedUrl, initialData } } });
-  }, []);
-
-  // Extract the onSuccess callback to include updatePostTitlesState in dependencies
-  const handleFollowedPostsUpdate = useCallback(async () => {
-    if (isMountedRef.current) {
-      // Fetch latest entries from server - but keep the old ones until we get new ones
-      try {
-        // Add cache busting parameter to ensure we get fresh data
-        const cacheKey = `${FOLLOWED_POSTS_KEY}${FOLLOWED_POSTS_KEY.includes('?') ? '&' : '?'}t=${Date.now()}`;
-        const response = await fetch(cacheKey);
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-        
-        const data = await response.json();
-        if (isMountedRef.current && data) {
-          // CRITICAL: Update our post titles list FIRST to ensure we have the complete list
-          // This is especially important after following new posts
-          if (data.postTitles) {
-            dispatch({ type: 'SET_POST_TITLES', payload: data.postTitles });
-          }
-          
-          // Update total entries count if available
-          if (data.totalEntries) {
-            dispatch({ type: 'SET_TOTAL_ENTRIES', payload: data.totalEntries });
-          }
-          
-          // Only update entries if we got some
-          if (data.entries && data.entries.length > 0) {
-            // Use our update functions to keep refs and state in sync
-            dispatch({ type: 'UPDATE_ENTRIES', payload: data.entries });
-            dispatch({ type: 'SET_PAGE', payload: 1 });
-            dispatch({ type: 'SET_HAS_MORE', payload: !!data.hasMore });
-            
-            // Reset hasRefreshed so we can refresh again if needed
-            dispatch({ type: 'SET_HAS_REFRESHED', payload: false });
-          }
-        }
-      } catch (error) {
-        logger.error('Error refreshing feed after follow status change:', error);
-      }
-    }
-  }, [dispatch]);
-
-  // Listen for global followed posts changes with improved handling
-  useSWR(FOLLOWED_POSTS_KEY, null, {
-    refreshInterval: 0,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 0,
-    onSuccess: handleFollowedPostsUpdate
+    postTitlesRef,
+    feedMetadataCache,
+    initialData,
+    initialize,
   });
 
-  // Add a combined function to handle all refresh attempts
-  const handleRefreshAttempt = useCallback(() => {
-    // Clear all error states
-    dispatch({ type: 'SET_FETCH_ERROR', payload: null });
-    dispatch({ type: 'SET_REFRESH_ERROR', payload: null });
-    dispatch({ type: 'SET_REFRESHING', payload: false });
-    
-    // Reset hasRefreshed to allow triggering a new refresh
-    dispatch({ type: 'SET_HAS_REFRESHED', payload: false });
-    
-    // Attempt to refresh immediately
-    triggerOneTimeRefresh();
-  }, [triggerOneTimeRefresh]);
+  const { loadMoreEntries } = useRSSEntriesDataLoading({
+    isActive, 
+    isLoading,
+    isMountedRef,
+    hasMoreRef, 
+    currentPageRef,
+    totalEntriesRef,
+    entriesStateRef,
+    postTitlesRef,
+    feedMetadataCache,
+    initialData,
+    pageSize,
+    setLoading,
+    setFetchError,
+    addEntries,
+    setCurrentPage,
+    setHasMore,
+    setTotalEntries,
+    setPostTitles,
+  });
 
-  // Display error message if there's an error
-  if (state.fetchError) {
-    logger.error('Feed loading error', { message: state.fetchError.message || 'Error loading entries' });
-    
+  const { triggerOneTimeRefresh, handleRefreshAttempt } = useRSSEntriesRefresh({
+    isActive,
+    isRefreshing,
+    hasRefreshed,
+    hasInitialized,
+    isMountedRef,
+    preRefreshNewestEntryDateRef,
+    entriesStateRef,
+    initialData,
+    currentPostTitles: postTitles,
+    currentFeedUrls: feedUrls,
+    currentMediaTypes: mediaTypes,
+    setRefreshing,
+    setHasRefreshed,
+    setRefreshError,
+    setFetchError,
+    setEntries,
+    setCurrentPage,
+    setHasMore,
+    setTotalEntries,
+    setPostTitles,
+    setFeedUrls,
+    setMediaTypes,
+    setNewEntries,
+    setNotification,
+    createManagedTimeout,
+  });
+
+  const { open: openCommentDrawerHandler, close: closeCommentDrawerHandler } = useRSSEntriesCommentDrawer({
+    commentDrawerOpen,
+    selectedCommentEntry,
+    openCommentDrawer,
+    closeCommentDrawer,
+  });
+
+  const { show: showNewEntriesNotification, handleClick: handleNotificationClick } = useRSSEntriesNewEntries({
+    newEntries,
+    showNotification,
+    notificationCount,
+    notificationImages,
+    isMountedRef,
+    createManagedTimeout,
+    clearManagedTimeout,
+    prependEntries,
+    setNotification,
+    clearNewEntries,
+  });
+
+  // Sync refs with store state - this IS needed for tab switching (render-phase is OK)
+  entriesStateRef.current = entries;
+  currentPageRef.current = currentPage;
+  hasMoreRef.current = hasMore;
+  totalEntriesRef.current = totalEntries;
+  postTitlesRef.current = postTitles;
+
+  // Perform initialization when possible - use useEffect for side effects
+  React.useEffect(() => {
+    if (canInitialize) {
+      performInitialization();
+    }
+  }, [canInitialize, performInitialization]);
+
+  // Trigger refresh when appropriate - use useEffect for side effects
+  React.useEffect(() => {
+    if (isActive && hasInitialized && !hasRefreshed && !isRefreshing) {
+    triggerOneTimeRefresh();
+    }
+  }, [isActive, hasInitialized, hasRefreshed, isRefreshing, triggerOneTimeRefresh]);
+
+
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
+  // Memoize expensive computations
+  const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Memoize focus prevention condition to prevent unnecessary hook re-runs
+  const shouldPreventFocus = useMemo(() => 
+    isActive && !commentDrawerOpen, 
+    [isActive, commentDrawerOpen]
+  );
+
+  // Focus prevention logic - the hook handles event listeners internally
+  useFeedFocusPrevention(shouldPreventFocus, '.rss-feed-container');
+
+  // Memoize initial data object to prevent unnecessary re-renders
+  const memoizedInitialData = useMemo(() => ({
+    entries: initialData.entries,
+    totalEntries: initialData.totalEntries,
+    hasMore: initialData.hasMore,
+    postTitles: initialData.postTitles,
+    feedUrls: initialData.feedUrls,
+    mediaTypes: initialData.mediaTypes,
+    feedMetadataCache: feedMetadataCache.current,
+  }), [
+    initialData.entries,
+    initialData.totalEntries,
+    initialData.hasMore,
+    initialData.postTitles,
+    initialData.feedUrls,
+    initialData.mediaTypes,
+    feedMetadataCache.current
+  ]);
+
+  // Memoize comment drawer handlers
+  const memoizedCommentHandlers = useMemo(() => ({
+    open: openCommentDrawerHandler,
+    close: closeCommentDrawerHandler
+  }), [openCommentDrawerHandler, closeCommentDrawerHandler]);
+
+  // Memoize notification click handler for performance - just dismiss since entries are already prepended
+  const memoizedNotificationClick = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
+    if ('key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    if ('key' in e) e.preventDefault();
+    // Just dismiss the notification since entries are already prepended automatically
+    setNotification(false);
+  }, [setNotification]);
+
+  // Error display with accessibility improvements
+  if (fetchError) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 px-4">
-        <p className="text-muted-foreground text-sm mb-4">Unable to load content</p>
+      <section 
+        className="flex flex-col items-center justify-center py-8 px-4"
+        role="alert"
+        aria-live="polite"
+        aria-labelledby="error-heading"
+      >
+        <h2 id="error-heading" className="sr-only">Error Loading Content</h2>
+        <p className="text-muted-foreground text-sm mb-4" id="error-message">
+          Unable to load content
+        </p>
         <Button 
           variant="outline"
           className="flex items-center gap-2" 
           onClick={handleRefreshAttempt}
+          aria-describedby="error-message"
+          aria-label="Retry loading RSS feed content"
         >
-          <ArrowDown className="h-4 w-4" />
+          <ArrowDown className="h-4 w-4" aria-hidden="true" />
           Refresh Feed
         </Button>
-      </div>
+      </section>
     );
   }
   
-  // Return the EntriesContent directly
   return (
-    <div className="w-full rss-feed-container">
-      {/* Floating notification for new posts */}
-      {state.showNotification && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out">
-          <div className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2">
-            {state.notificationImages.length > 0 ? (
+    <main className="w-full rss-feed-container" role="main" aria-label="RSS Entries Feed">
+      {/* Skip link for screen readers */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none focus:ring-2 focus:ring-primary-foreground"
+      >
+        Skip to main content
+      </a>
+      
+      {/* Notification for new entries with accessibility */}
+      {showNotification && (
+        <div 
+          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <button 
+            className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2 cursor-pointer hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            onClick={memoizedNotificationClick}
+            onKeyDown={memoizedNotificationClick}
+            aria-label={`${notificationCount} new ${notificationCount === 1 ? 'post' : 'posts'} available. Click to view.`}
+            tabIndex={0}
+          >
+            {notificationImages.length > 0 ? (
               <div className="flex items-center gap-1">
-                <MoveUp className="h-3 w-3" />
+                <MoveUp className="h-3 w-3" aria-hidden="true" />
                 <div className="flex items-center -space-x-1">
-                  {state.notificationImages.map((imageUrl, index) => (
+                  {notificationImages.map((imageUrl, index) => (
                     <div key={index} className="relative w-4 h-4 rounded-full overflow-hidden">
                       <Image
                         src={imageUrl}
@@ -1801,95 +1215,151 @@ const RSSEntriesClientComponent = ({
                 </div>
               </div>
             ) : (
-              <span className="text-sm font-medium">
-            {state.notificationCount} new {state.notificationCount === 1 ? 'post' : 'posts'}
-              </span>
+              <>
+                <MoveUp className="h-3 w-3" aria-hidden="true" />
+                <span className="text-sm font-medium">
+                  {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
+                </span>
+              </>
             )}
-          </div>
+          </button>
         </div>
       )}
       
-      {/* Show refresh button for any errors - no detailed error messages */}
-      {state.refreshError && (
-        <div className="p-4 flex justify-center">
-          <Button 
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={handleRefreshAttempt}
-          >
-            <ArrowDown className="h-4 w-4" />
+      {/* Error state for refresh with accessibility */}
+      {refreshError && (
+        <section 
+          className="p-4 flex justify-center"
+          role="alert"
+          aria-live="polite"
+          aria-labelledby="refresh-error-heading"
+        >
+          <div>
+            <h3 id="refresh-error-heading" className="sr-only">Refresh Error</h3>
+            <Button 
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={handleRefreshAttempt}
+                aria-label="Retry refreshing RSS feed"
+            >
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
             Refresh Feed
           </Button>
         </div>
+          </section>
       )}
       
-      {/* Main content */}
+      {/* Main content with accessibility context */}
+      <section id="main-content" aria-labelledby="feed-heading">
+        <h1 id="feed-heading" className="sr-only">
+          RSS Feed Entries
+          {totalEntries > 0 && ` (${totalEntries} total entries)`}
+          {isLoading && ' - Loading...'}
+        </h1>
       <EntriesContent
-        paginatedEntries={state.entries}
-        hasMore={state.hasMore}
+        paginatedEntries={entries}
+        hasMore={hasMore}
         loadMoreRef={loadMoreRef}
-        isPending={state.isLoading}
+        isPending={isLoading}
         loadMore={loadMoreEntries}
-        entryMetrics={entryMetricsMap}
-        postMetadata={postMetadataMap}
-        initialData={{
-          ...initialData,
-          feedMetadataCache: feedMetadataCache.current
-        }}
-        onOpenCommentDrawer={handleOpenCommentDrawer}
-        isInitializing={!state.hasInitialized || state.entries.length === 0}
+        entryMetrics={null}
+        postMetadata={undefined}
+        initialData={memoizedInitialData}
+        onOpenCommentDrawer={memoizedCommentHandlers.open}
+        isInitializing={!hasInitialized}
         pageSize={ITEMS_PER_REQUEST}
       />
+      </section>
       
-      {/* Comment drawer */}
-      {state.selectedCommentEntry && (
+      {/* Comment drawer - memoized to prevent unnecessary re-renders */}
+      {commentDrawerOpen && selectedCommentEntry && (
         <CommentSectionClient
-          entryGuid={state.selectedCommentEntry.entryGuid}
-          feedUrl={state.selectedCommentEntry.feedUrl}
-          initialData={state.selectedCommentEntry.initialData}
-          isOpen={state.commentDrawerOpen}
-          setIsOpen={handleCommentDrawerOpenChange}
+          entryGuid={selectedCommentEntry.entryGuid}
+          feedUrl={selectedCommentEntry.feedUrl}
+          initialData={selectedCommentEntry.initialData}
+          isOpen={commentDrawerOpen}
+          setIsOpen={memoizedCommentHandlers.close}
         />
       )}
-    </div>
+    </main>
   );
 };
 
-// Export the memoized version of the component with optimized comparison
+// Export the memoized version with highly optimized comparison for maximum performance
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
-  // Custom comparison function for better performance
-  // Only re-render if these critical properties change
+  // Fast path: check critical properties that affect rendering immediately
   if (prevProps.isActive !== nextProps.isActive) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
   
-  // Deep comparison for initialData only if necessary
+  // Null/undefined checks (fast)
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
   
   if (prevProps.initialData && nextProps.initialData) {
-    // Compare critical initialData properties
+    // Compare critical initialData properties that affect rendering
     if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
     if (prevProps.initialData.totalEntries !== nextProps.initialData.totalEntries) return false;
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
-    // Compare arrays by length and first/last elements for performance
+    // Optimized array comparison for postTitles (affects feed metadata)
     const prevTitles = prevProps.initialData.postTitles;
     const nextTitles = nextProps.initialData.postTitles;
     if (prevTitles?.length !== nextTitles?.length) return false;
-    if (prevTitles?.length && nextTitles?.length) {
-      if (prevTitles[0] !== nextTitles[0] || prevTitles[prevTitles.length - 1] !== nextTitles[nextTitles.length - 1]) return false;
+    if (prevTitles?.length && nextTitles?.length && prevTitles.length > 0) {
+      // Sample-based comparison for performance
+      if (prevTitles[0] !== nextTitles[0]) return false;
+      if (prevTitles[prevTitles.length - 1] !== nextTitles[nextTitles.length - 1]) return false;
+      
+      // For larger arrays, check middle element
+      if (prevTitles.length > 5) {
+        const midIndex = Math.floor(prevTitles.length / 2);
+        if (prevTitles[midIndex] !== nextTitles[midIndex]) return false;
+      }
+    }
+    
+    // Compare feedUrls and mediaTypes arrays efficiently
+    const prevUrls = prevProps.initialData.feedUrls;
+    const nextUrls = nextProps.initialData.feedUrls;
+    if (prevUrls?.length !== nextUrls?.length) return false;
+    if (prevUrls?.length && nextUrls?.length && prevUrls.length > 0) {
+      if (prevUrls[0] !== nextUrls[0] || prevUrls[prevUrls.length - 1] !== nextUrls[nextUrls.length - 1]) return false;
+    }
+    
+    const prevMedia = prevProps.initialData.mediaTypes;
+    const nextMedia = nextProps.initialData.mediaTypes;
+    if (prevMedia?.length !== nextMedia?.length) return false;
+    if (prevMedia?.length && nextMedia?.length && prevMedia.length > 0) {
+      if (prevMedia[0] !== nextMedia[0] || prevMedia[prevMedia.length - 1] !== nextMedia[nextMedia.length - 1]) return false;
+    }
+    
+    // Check entries array with sampling for large datasets
+    const prevEntries = prevProps.initialData.entries;
+    const nextEntries = nextProps.initialData.entries;
+    if (prevEntries?.length !== nextEntries?.length) return false;
+    if (prevEntries?.length && nextEntries?.length && prevEntries.length > 0) {
+      // Identity-based comparison for first and last entries
+      if (prevEntries[0] !== nextEntries[0]) return false;
+      if (prevEntries[prevEntries.length - 1] !== nextEntries[nextEntries.length - 1]) return false;
+      
+      // For large arrays, sample middle entry
+      if (prevEntries.length > 10) {
+        const midIndex = Math.floor(prevEntries.length / 2);
+        if (prevEntries[midIndex] !== nextEntries[midIndex]) return false;
+      }
     }
   }
   
-  // If all checks pass, prevent re-render
+  // All checks passed - prevent re-render for optimal performance
   return true;
 });
 RSSEntriesClient.displayName = 'RSSEntriesClient';
 
-export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesClientProps) {
+export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesDisplayClientProps) {
   return (
     <ErrorBoundary>
+      <RSSEntriesDisplayStoreProvider>
       <RSSEntriesClient {...props} />
+      </RSSEntriesDisplayStoreProvider>
     </ErrorBoundary>
   );
 }); 

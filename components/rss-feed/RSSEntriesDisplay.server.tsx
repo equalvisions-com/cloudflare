@@ -3,9 +3,13 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
-import { RSSEntriesClient } from "./RSSEntriesDisplay.client";
+import { RSSEntriesClientWithErrorBoundary } from "./RSSEntriesDisplay.client";
 import { executeRead } from "@/lib/database";
 import { checkAndRefreshFeeds } from "@/lib/rss.server";
+import type { 
+  RSSEntriesDisplayEntry, 
+  RSSEntriesDisplayServerProps
+} from "@/lib/types";
 
 // Add caching configuration with 5-minute revalidation
 // This ensures the server component is cached for 5 minutes before revalidating
@@ -318,3 +322,41 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
 export const getInitialEntriesWithoutRefresh = cache(async () => {
   return getInitialEntries(true); // Skip refresh
 });
+
+// Main server component with production-ready types
+export default async function RSSEntriesDisplayServer({ 
+  skipRefresh = false 
+}: RSSEntriesDisplayServerProps = {}) {
+  const initialData = await getInitialEntries(skipRefresh);
+  
+  if (!initialData) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-gray-500">No RSS entries available</p>
+      </div>
+    );
+  }
+
+  // Transform the data to match the client component's expected interface
+  const transformedData = {
+    entries: initialData.entries.map((entry) => ({
+      entry: entry.entry,
+      initialData: entry.initialData,
+      postMetadata: {
+        title: entry.postMetadata.title,
+        featuredImg: typeof entry.postMetadata.featuredImg === 'string' ? entry.postMetadata.featuredImg : undefined,
+        mediaType: typeof entry.postMetadata.mediaType === 'string' ? entry.postMetadata.mediaType : undefined,
+        categorySlug: typeof entry.postMetadata.categorySlug === 'string' ? entry.postMetadata.categorySlug : undefined,
+        postSlug: typeof entry.postMetadata.postSlug === 'string' ? entry.postMetadata.postSlug : undefined,
+        verified: typeof entry.postMetadata.verified === 'boolean' ? entry.postMetadata.verified : undefined,
+      }
+    })),
+    totalEntries: initialData.totalEntries,
+    hasMore: initialData.hasMore,
+    postTitles: initialData.postTitles,
+    feedUrls: initialData.feedUrls,
+    mediaTypes: initialData.mediaTypes,
+  };
+
+  return <RSSEntriesClientWithErrorBoundary initialData={transformedData} />;
+}
