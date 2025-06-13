@@ -1,17 +1,12 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback, useEffect, memo } from 'react';
+import React, { useRef, useMemo, useCallback, useEffect, memo, lazy, Suspense } from 'react';
 import { ErrorBoundary as ErrorBoundaryUI } from "@/components/ui/error-boundary";
 import { ErrorBoundary } from 'react-error-boundary';
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
 import type { FeaturedEntry } from "@/lib/featured_kv";
-import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
-import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
-import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
-import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
-import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Podcast, Mail, Loader2, RefreshCw } from "lucide-react";
@@ -22,6 +17,59 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
+
+// Production-ready hooks and store integration
+import { FeaturedFeedStoreProvider } from '@/components/featured/FeaturedFeedStoreProvider';
+import { useFeaturedFeedDataManagement } from '@/hooks/useFeaturedFeedDataManagement';
+import { useFeaturedFeedUIManagement } from '@/hooks/useFeaturedFeedUI';
+import { useFeaturedFeedMemoryManagement } from '@/hooks/useFeaturedFeedMemoryManagement';
+import {
+  useFeaturedFeedEntries,
+  useFeaturedFeedLoading,
+  useFeaturedFeedPagination,
+  useFeaturedFeedActions
+} from '@/components/featured/FeaturedFeedStoreProvider';
+
+import type { 
+  FeaturedFeedClientProps,
+  FeaturedFeedEntryWithData,
+  FeaturedFeedPostMetadata
+} from '@/lib/types';
+
+// PHASE 4.1: Dynamic imports for heavy components to reduce initial bundle size
+const LikeButtonClient = lazy(() => 
+  import("@/components/like-button/LikeButtonClient").then(mod => ({ default: mod.LikeButtonClient }))
+);
+
+const CommentSectionClient = lazy(() => 
+  import("@/components/comment-section/CommentSectionClient").then(mod => ({ default: mod.CommentSectionClient }))
+);
+
+const ShareButtonClient = lazy(() => 
+  import("@/components/share-button/ShareButtonClient").then(mod => ({ default: mod.ShareButtonClient }))
+);
+
+const RetweetButtonClientWithErrorBoundary = lazy(() => 
+  import("@/components/retweet-button/RetweetButtonClient").then(mod => ({ default: mod.RetweetButtonClientWithErrorBoundary }))
+);
+
+const BookmarkButtonClient = lazy(() => 
+  import("@/components/bookmark-button/BookmarkButtonClient").then(mod => ({ default: mod.BookmarkButtonClient }))
+);
+
+// PHASE 4.1: Loading fallback components for dynamic imports
+const ButtonLoadingFallback = memo(() => (
+  <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+));
+ButtonLoadingFallback.displayName = 'ButtonLoadingFallback';
+
+const CommentSectionLoadingFallback = memo(() => (
+  <div className="flex items-center justify-center p-4 bg-background/50 backdrop-blur-sm">
+    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+    <span className="ml-2 text-sm text-muted-foreground">Loading comments...</span>
+  </div>
+));
+CommentSectionLoadingFallback.displayName = 'CommentSectionLoadingFallback';
 
 // Add a consistent logging utility
 const logger = {
@@ -45,44 +93,15 @@ const logger = {
   }
 };
 
-// Interface for post metadata
-interface PostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  postSlug: string;
-  categorySlug: string;
-  verified?: boolean;
-}
-
-// Interface for entry with data
-interface FeaturedEntryWithData {
-  entry: FeaturedEntry;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-    bookmarks?: {
-      isBookmarked: boolean;
-    };
-  };
-  postMetadata: PostMetadata;
-}
-
+// Interface for entry props
 interface FeaturedEntryProps {
-  entryWithData: FeaturedEntryWithData;
+  entryWithData: FeaturedFeedEntryWithData;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  isPriority?: boolean;
 }
 
 // Memoize the FeaturedEntry component
-const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
+const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
@@ -186,6 +205,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
       className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
       style={{ WebkitTapHighlightColor: 'transparent' }}
+      data-entry-id={entry.guid}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
@@ -198,302 +218,185 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
               onTouchStart={handleLinkInteraction}
             >
               <PrefetchAnchor href={postUrl}>
-                <AspectRatio ratio={1}>
-                  <Image
-                    src={postMetadata.featuredImg}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="48px"
-                    priority={isPriority}
-                  />
-                </AspectRatio>
+                <Image
+                  src={postMetadata.featuredImg}
+                  alt={postMetadata.title}
+                  fill
+                  className="object-cover"
+                  sizes="48px"
+                  priority={isPriority}
+                />
               </PrefetchAnchor>
             </NoFocusLinkWrapper>
           )}
           
-          {/* Title and Timestamp */}
-          <div className="flex-grow">
-            <div className="w-full">
-              {postMetadata.title && (
-                <div className="flex items-start justify-between gap-2">
-                  {postUrl ? (
-                    <NoFocusLinkWrapper 
-                      className="hover:opacity-80 transition-opacity"
-                      onClick={handleLinkInteraction}
-                      onTouchStart={handleLinkInteraction}
-                    >
-                      <PrefetchAnchor href={postUrl}>
-                        <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                          {postMetadata.title}
-                          {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                        </h3>
-                      </PrefetchAnchor>
-                    </NoFocusLinkWrapper>
-                  ) : (
-                    <h3 className="text-sm font-bold text-primary leading-tight">
-                      {postMetadata.title}
-                      {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                    </h3>
-                  )}
-                  <span 
-                    className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
-                    title={format(new Date(entry.pub_date), 'PPP p')}
-                  >
-                    {timestamp}
-                  </span>
-                </div>
+          {/* Title and Source */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-medium text-sm text-foreground truncate">
+                {postMetadata.title}
+              </h3>
+              {postMetadata.verified && <VerifiedBadge />}
+              {postMetadata.mediaType === 'podcast' && (
+                <Podcast className="h-3 w-3 text-muted-foreground flex-shrink-0" />
               )}
-              {postMetadata.mediaType && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
-                  {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
-                  {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
-                  {postMetadata.mediaType.charAt(0).toUpperCase() + postMetadata.mediaType.slice(1)}
-                </span>
+              {postMetadata.mediaType === 'newsletter' && (
+                <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />
               )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {timestamp}
+            </p>
+          </div>
+        </div>
+
+        {/* Entry Content */}
+        <div className="space-y-3">
+          {/* Entry Image */}
+          {entry.image && (
+            <div className="relative w-full">
+              <AspectRatio ratio={16 / 9} className="bg-muted rounded-lg overflow-hidden">
+                <Image
+                  src={entry.image}
+                  alt={decode(entry.title)}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority={isPriority}
+                />
+              </AspectRatio>
+            </div>
+          )}
+
+          {/* Entry Title and Description */}
+          <div className="space-y-2">
+            <h2 className="font-semibold text-base leading-tight">
+              <NoFocusLinkWrapper 
+                className="hover:underline"
+                onClick={handleLinkInteraction}
+                onTouchStart={handleLinkInteraction}
+              >
+                <PrefetchAnchor href={entry.link} target="_blank" rel="noopener noreferrer">
+                  {decode(entry.title)}
+                </PrefetchAnchor>
+              </NoFocusLinkWrapper>
+            </h2>
+            
+            {entry.description && (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {decode(entry.description)}
+              </p>
+            )}
+          </div>
+
+          {/* Action Buttons with Suspense for dynamic imports */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-4">
+              <Suspense fallback={<ButtonLoadingFallback />}>
+                <LikeButtonClient
+                  entryGuid={entry.guid}
+                  feedUrl={entry.feed_url}
+                  title={entry.title}
+                  pubDate={entry.pub_date}
+                  link={entry.link}
+                  initialData={initialData.likes}
+                />
+              </Suspense>
+              
+              <NoFocusWrapper onClick={handleOpenComment}>
+                <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground">
+                  <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  {initialData.comments.count}
+                </Button>
+              </NoFocusWrapper>
+
+              <Suspense fallback={<ButtonLoadingFallback />}>
+                <RetweetButtonClientWithErrorBoundary
+                  entryGuid={entry.guid}
+                  feedUrl={entry.feed_url}
+                  title={entry.title}
+                  pubDate={entry.pub_date}
+                  link={entry.link}
+                  initialData={initialData.retweets}
+                />
+              </Suspense>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Suspense fallback={<ButtonLoadingFallback />}>
+                <BookmarkButtonClient
+                  entryGuid={entry.guid}
+                  feedUrl={entry.feed_url}
+                  title={entry.title}
+                  pubDate={entry.pub_date}
+                  link={entry.link}
+                  initialData={initialData.bookmarks}
+                />
+              </Suspense>
+              
+              <Suspense fallback={<ButtonLoadingFallback />}>
+                <ShareButtonClient
+                  url={entry.link}
+                  title={decode(entry.title)}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
-        
-        {/* Content */}
-        {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
-          <div>
-            <NoFocusWrapper 
-              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
-              onClick={(e) => {
-                handleLinkInteraction(e);
-                handleCardClick(e);
-              }}
-              onTouchStart={handleLinkInteraction}
-            >
-              <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                {entry.image && (
-                  <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        src={entry.image}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
-                      />
-                    </AspectRatio>
-                  </CardHeader>
-                )}
-                <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
-                  <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
-                  </h3>
-                  {entry.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </NoFocusWrapper>
-          </div>
-        ) : (
-          <NoFocusLinkWrapper
-            className="block hover:opacity-80 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLinkInteraction(e);
-            }}
-            onTouchStart={handleLinkInteraction}
-          >
-            <a
-              href={entry.link}
-              target="_blank"
-              // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
-            >
-              <Card className="rounded-xl border overflow-hidden shadow-none">
-                {entry.image && (
-                  <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        src={entry.image}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
-                      />
-                    </AspectRatio>
-                  </CardHeader>
-                )}
-                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                  <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
-                  </h3>
-                  {entry.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </a>
-          </NoFocusLinkWrapper>
-        )}
-        
-        {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
-          <NoFocusWrapper className="flex items-center">
-            <LikeButtonClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feed_url}
-              title={entry.title}
-              pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.likes}
-            />
-          </NoFocusWrapper>
-          <NoFocusWrapper 
-            className="flex items-center"
-            onClick={handleOpenComment}
-          >
-            <CommentSectionClient
-              entryGuid={entry.guid}
-              feedUrl={entry.feed_url}
-              initialData={initialData.comments}
-              buttonOnly={true}
-              data-comment-input
-            />
-          </NoFocusWrapper>
-          <NoFocusWrapper className="flex items-center">
-            <RetweetButtonClientWithErrorBoundary
-              entryGuid={entry.guid}
-              feedUrl={entry.feed_url}
-              title={entry.title}
-              pubDate={entry.pub_date}
-              link={entry.link}
-              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
-            />
-          </NoFocusWrapper>
-          <div className="flex items-center gap-4">
-            <NoFocusWrapper className="flex items-center">
-              <BookmarkButtonClient
-                entryGuid={entry.guid}
-                feedUrl={entry.feed_url}
-                title={entry.title}
-                pubDate={entry.pub_date}
-                link={entry.link}
-                initialData={initialData.bookmarks || { isBookmarked: false }}
-              />
-            </NoFocusWrapper>
-            <NoFocusWrapper className="flex items-center">
-              <ShareButtonClient
-                url={entry.link}
-                title={entry.title}
-              />
-            </NoFocusWrapper>
-          </div>
-        </div>
       </div>
-      
-      {/* Comments Section */}
-      <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
 });
 FeaturedEntry.displayName = 'FeaturedEntry';
 
-// Feed content component is already memoized
-const FeedContent = React.memo(({ 
-  entries,
-  visibleEntries,
-  loadMoreRef,
-  hasMore,
-  loadMore,
-  isLoading,
-  onOpenCommentDrawer,
-  onRefresh
-}: { 
-  entries: FeaturedEntryWithData[],
-  visibleEntries: FeaturedEntryWithData[],
-  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
-  hasMore: boolean,
-  loadMore: () => void,
-  isLoading: boolean,
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void,
-  onRefresh: () => void
+// Feed Content Component with Virtualization
+const FeedContent = memo(({ 
+  entries, 
+  visibleEntries, 
+  loadMoreRef, 
+  hasMore, 
+  loadMore, 
+  isLoading, 
+  onOpenCommentDrawer, 
+  onRefresh 
+}: {
+  entries: FeaturedFeedEntryWithData[];
+  visibleEntries: FeaturedFeedEntryWithData[];
+  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>;
+  hasMore: boolean;
+  loadMore: () => void;
+  isLoading: boolean;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  onRefresh: () => void;
 }) => {
-  // Add ref to prevent multiple endReached calls - MOVED BEFORE CONDITIONAL
-  const endReachedCalledRef = useRef(false);
-  
-  // Reset the endReachedCalled flag when entries change - MOVED BEFORE CONDITIONAL
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [visibleEntries.length]);
-  
-  // Use the shared hook for intersection observer with 3-second delay
-  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+  // Use intersection observer for load more
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, { 
     enabled: hasMore && !isLoading,
     isLoading,
     hasMore,
-    rootMargin: '300px',
-    threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
+    threshold: 0.1 
   });
 
-  // Implement the itemContentCallback using the standard pattern
-  const itemContentCallback = useCallback((index: number, entryWithData: FeaturedEntryWithData) => {
-    // Create a consistent interface for the FeaturedEntry component
-    return (
-      <FeaturedEntry
-        entryWithData={entryWithData}
-        onOpenCommentDrawer={onOpenCommentDrawer}
-        isPriority={index < 2} // Set priority for the first 2 entries
-      />
-    );
-  }, [onOpenCommentDrawer]);
-
-  if (!entries.length) {
-    return (
-      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-4">
-        <p>No featured entries found.</p>
-        <Button 
-          variant="outline" 
-          onClick={onRefresh}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div 
-      className="space-y-0 feed-container" 
-      style={{ 
-        // CSS properties to prevent focus scrolling
-        scrollBehavior: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        WebkitTapHighlightColor: 'transparent'
-      }}
-    >
+    <div className="w-full">
       <Virtuoso
-        useWindowScroll
         data={visibleEntries}
-        overscan={2000}
-        itemContent={itemContentCallback}
-        components={{
-          Footer: () => null
-        }}
-        style={{ 
-          outline: 'none',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
-        }}
+        itemContent={(index, item) => (
+          <div key={item.entry.guid} className="border-b border-border last:border-b-0">
+            <FeaturedEntry
+              entryWithData={item}
+              onOpenCommentDrawer={onOpenCommentDrawer}
+              isPriority={index < 3}
+            />
+          </div>
+        )}
         className="focus:outline-none focus-visible:outline-none"
         computeItemKey={(_, item) => item.entry.guid}
       />
       
-      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      {/* Fixed position load more container at bottom */}
       <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
         {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
         {!hasMore && visibleEntries.length > 0 && <div></div>}
@@ -502,15 +405,6 @@ const FeedContent = React.memo(({
   );
 });
 FeedContent.displayName = 'FeedContent';
-
-interface FeaturedFeedClientProps {
-  initialData: {
-    entries: FeaturedEntryWithData[];
-    totalEntries: number;
-  };
-  pageSize?: number;
-  isActive?: boolean;
-}
 
 // Refreshable Error UI Component
 const RefreshableErrorFallback = ({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) => {
@@ -529,12 +423,117 @@ const RefreshableErrorFallback = ({ error, resetErrorBoundary }: { error: Error,
   );
 };
 
+// Main Featured Feed Client Component (Production-Ready)
+const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedClientProps) => {
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  // Production-ready custom hooks
+  const dataManagement = useFeaturedFeedDataManagement({
+    isActive,
+    pageSize,
+    initialData
+  });
+
+  const uiManagement = useFeaturedFeedUIManagement({
+    isActive
+  });
+
+  const memoryManagement = useFeaturedFeedMemoryManagement({
+    maxCacheSize: 100,
+    cleanupInterval: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Store state selectors
+  const entries = useFeaturedFeedEntries();
+  const loading = useFeaturedFeedLoading();
+  const pagination = useFeaturedFeedPagination();
+  const actions = useFeaturedFeedActions();
+
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !uiManagement.handleCommentDrawer.isOpen, '.feed-container');
+
+  // Calculate visible entries based on current page
+  const visibleEntries = useMemo(() => {
+    return entries.slice(0, pagination.visibleEntries || pageSize);
+  }, [entries, pagination.visibleEntries, pageSize]);
+
+  // Check if there are more entries to load
+  const hasMore = pagination.hasMore;
+
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    dataManagement.refreshEntries();
+  }, [dataManagement]);
+
+  // Auto-load more content if viewport is not filled
+  useEffect(() => {
+    const checkContentHeight = () => {
+      const viewportHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If content is shorter than viewport and we have more entries to load, load them
+      if (documentHeight <= viewportHeight && visibleEntries.length > 0 && hasMore && !loading.isLoading) {
+        logger.debug('📏 Content is shorter than viewport, loading more entries automatically');
+        dataManagement.loadMoreEntries();
+      }
+    };
+    
+    const timer = setTimeout(checkContentHeight, 200);
+    return () => clearTimeout(timer);
+  }, [visibleEntries.length, hasMore, loading.isLoading, dataManagement]);
+
+  // Log initialization
+  useEffect(() => {
+    logger.debug('FeaturedFeedClient: Initialized with production-ready hooks', {
+      entriesCount: entries.length,
+      isActive,
+      pageSize
+    });
+  }, [entries.length, isActive, pageSize]);
+
+  return (
+    <div className="w-full feed-container">
+      <FeedContent
+        entries={entries}
+        visibleEntries={visibleEntries}
+        loadMoreRef={loadMoreRef}
+        hasMore={hasMore}
+        loadMore={dataManagement.loadMoreEntries}
+        isLoading={loading.isLoading}
+        onOpenCommentDrawer={uiManagement.handleCommentDrawer.open}
+        onRefresh={handleRefresh}
+      />
+      {uiManagement.handleCommentDrawer.selectedEntry && (
+        <Suspense fallback={<CommentSectionLoadingFallback />}>
+          <CommentSectionClient
+            entryGuid={uiManagement.handleCommentDrawer.selectedEntry.entryGuid}
+            feedUrl={uiManagement.handleCommentDrawer.selectedEntry.feedUrl}
+            initialData={uiManagement.handleCommentDrawer.selectedEntry.initialData}
+            isOpen={uiManagement.handleCommentDrawer.isOpen}
+            setIsOpen={(open: boolean) => {
+              if (!open) {
+                uiManagement.handleCommentDrawer.close();
+              }
+            }}
+          />
+        </Suspense>
+      )}
+    </div>
+  );
+};
+
+// Export the memoized version with store provider
+export const FeaturedFeedClient = memo(function FeaturedFeedClient(props: FeaturedFeedClientProps) {
+  return (
+    <FeaturedFeedStoreProvider>
+      <FeaturedFeedClientComponent {...props} />
+    </FeaturedFeedStoreProvider>
+  );
+});
+
+// Export with Error Boundary
 export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
-  const [key, setKey] = useState(0);
-  
-  // Reset key to force component remount
   const handleReset = useCallback(() => {
-    setKey(prevKey => prevKey + 1);
     // Force refresh the window if no other refresh method is available
     window.location.reload();
   }, []);
@@ -542,150 +541,9 @@ export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedCli
   return (
     <ErrorBoundary 
       FallbackComponent={RefreshableErrorFallback}
-      onReset={() => {
-        handleReset();
-      }}
+      onReset={handleReset}
     >
-      <FeaturedFeedClient 
-        key={key} 
-        {...props} 
-      />
+      <FeaturedFeedClient {...props} />
     </ErrorBoundary>
   );
-});
-
-// Create the client component that will be memoized
-const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedClientProps) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.feed-container');
-
-  // Log to confirm we're using prefetched data from LayoutManager
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    logger.debug('FeaturedFeedClient: Using prefetched data from LayoutManager', {
-      entriesCount: initialData?.entries?.length || 0
-    });
-  }, [initialData]);
-  
-  // Calculate visible entries based on current page
-  const visibleEntries = useMemo(() => {
-    return initialData.entries.slice(0, currentPage * pageSize);
-  }, [initialData.entries, currentPage, pageSize]);
-  
-  // Check if there are more entries to load
-  const hasMore = visibleEntries.length < initialData.entries.length;
-  
-  // Function to load more entries - just update the page number
-  const loadMore = useCallback(() => {
-    if (hasMore && !isLoading) {
-      if (!isMountedRef.current) return;
-      
-      logger.debug('🔄 Loading more featured entries, current page:', currentPage);
-      setIsLoading(true);
-      // Simulate loading delay for better UX
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setCurrentPage(prev => prev + 1);
-          setIsLoading(false);
-          logger.debug('✅ Finished loading more featured entries');
-        }
-      }, 300);
-    }
-  }, [hasMore, isLoading, currentPage]);
-  
-  // Check if we need to load more when component mounts or content is short
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    const checkContentHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If content is shorter than viewport and we have more entries to load, load them
-      if (documentHeight <= viewportHeight && visibleEntries.length > 0 && hasMore && !isLoading) {
-        logger.debug('📏 Content is shorter than viewport, loading more entries automatically');
-        loadMore();
-      }
-    };
-    
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
-    
-    return () => clearTimeout(timer);
-  }, [visibleEntries.length, hasMore, isLoading, loadMore]);
-  
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    if (!isMountedRef.current) return;
-    
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-
-  // Memoize the comment drawer state change handler
-  const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
-    setCommentDrawerOpen(open);
-  }, []);
-
-  // Handle refresh by resetting page
-  const handleRefresh = useCallback(() => {
-    if (!isMountedRef.current) return;
-    setCurrentPage(1);
-    // Could trigger a data refetch here if needed
-  }, []);
-
-  return (
-    <div className="w-full feed-container">
-      <FeedContent
-        entries={initialData.entries}
-        visibleEntries={visibleEntries}
-        loadMoreRef={loadMoreRef}
-        hasMore={hasMore}
-        loadMore={loadMore}
-        isLoading={isLoading}
-        onOpenCommentDrawer={handleOpenCommentDrawer}
-        onRefresh={handleRefresh}
-      />
-      {selectedCommentEntry && (
-        <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
-          setIsOpen={handleCommentDrawerOpenChange}
-        />
-      )}
-    </div>
-  );
-};
-
-// Export the memoized version of the component
-export const FeaturedFeedClient = memo(FeaturedFeedClientComponent); 
+}); 
