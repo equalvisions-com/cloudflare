@@ -39,6 +39,36 @@ interface UseRSSEntriesDataLoadingProps {
   setPostTitles: (titles: string[]) => void;
 }
 
+// Enhanced error recovery with exponential backoff
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>, 
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<T> => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      // Don't retry on the last attempt
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Calculate exponential backoff delay: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt);
+      
+      // Add jitter to prevent thundering herd
+      const jitter = Math.random() * 0.1 * delay;
+      const totalDelay = delay + jitter;
+      
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
+    }
+  }
+  
+  // TypeScript requires this, but it should never be reached
+  throw new Error('Retry logic failed unexpectedly');
+};
+
 /**
  * Custom hook for handling data loading and pagination in RSS Entries Display
  * Follows React best practices - returns computed values and functions
@@ -164,31 +194,32 @@ export const useRSSEntriesDataLoading = ({
         baseUrl.searchParams.set('totalEntries', apiParams.totalEntries.toString());
       }
       
-      const response = await fetch(baseUrl.toString());
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      const response = await retryWithBackoff(async () => {
+        const response = await fetch(baseUrl.toString());
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        return await response.json();
+      });
       
       // Only update if component is still mounted
       if (!isMountedRef.current) return;
       
       // Transform and append entries - FIXED: Use addEntries instead of setEntries
-      const transformedEntries = transformEntries(data.entries);
+      const transformedEntries = transformEntries(response.entries);
       
       // CRITICAL FIX: Use addEntries to append, not setEntries to replace
       // This matches the working pattern in RSSFeedClient
       addEntries(transformedEntries);
       setCurrentPage(nextPage);
-      setHasMore(data.hasMore);
+      setHasMore(response.hasMore);
       
-      if (data.totalEntries && data.totalEntries !== totalEntriesRef.current) {
-        setTotalEntries(data.totalEntries);
+      if (response.totalEntries && response.totalEntries !== totalEntriesRef.current) {
+        setTotalEntries(response.totalEntries);
       }
       
-      if (data.postTitles?.length) {
-        setPostTitles(data.postTitles);
+      if (response.postTitles?.length) {
+        setPostTitles(response.postTitles);
       }
       
     } catch (error) {

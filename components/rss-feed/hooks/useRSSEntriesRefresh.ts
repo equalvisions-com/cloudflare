@@ -6,6 +6,36 @@ import type {
 } from '@/lib/types';
 import React from 'react';
 
+// Enhanced error recovery with exponential backoff
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>, 
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<T> => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      // Don't retry on the last attempt
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Calculate exponential backoff delay: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt);
+      
+      // Add jitter to prevent thundering herd
+      const jitter = Math.random() * 0.1 * delay;
+      const totalDelay = delay + jitter;
+      
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
+    }
+  }
+  
+  // TypeScript requires this, but it should never be reached
+  throw new Error('Retry logic failed unexpectedly');
+};
+
 // Helper function to format dates back to MySQL format without timezone conversion
 const formatDateForAPI = (date: Date): string => {
   // Format as YYYY-MM-DDTHH:MM:SS.sssZ but preserve the original timezone intent
@@ -190,19 +220,21 @@ export const useRSSEntriesRefresh = ({
       // Get fresh request body with current state
       const refreshRequestBody = getRefreshRequestBody();
       
-      const response = await fetch('/api/refresh-feeds', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(refreshRequestBody),
+      const data: RSSEntriesDisplayRefreshResponse = await retryWithBackoff(async () => {
+        const response = await fetch('/api/refresh-feeds', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(refreshRequestBody),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Refresh API error: ${response.status}`);
+        }
+        
+        return await response.json();
       });
-      
-      if (!response.ok) {
-        throw new Error(`Refresh API error: ${response.status}`);
-      }
-      
-      const data: RSSEntriesDisplayRefreshResponse = await response.json();
       
       if (!isMountedRef.current) return;
       
@@ -269,11 +301,14 @@ export const useRSSEntriesRefresh = ({
     try {
       const FOLLOWED_POSTS_KEY = '/api/rss/followed-posts';
       const cacheKey = `${FOLLOWED_POSTS_KEY}?t=${Date.now()}`;
-      const response = await fetch(cacheKey);
       
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
-      
-      const data = await response.json();
+      const data = await retryWithBackoff(async () => {
+        const response = await fetch(cacheKey);
+        
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        
+        return await response.json();
+      });
       if (!isMountedRef.current || !data) return;
       
       // Update metadata first

@@ -1666,4 +1666,386 @@ export interface UseRSSEntriesDisplayRefreshProps {
 
 export interface UseRSSEntriesDisplayUIProps {
   // No props needed - uses store state
-} 
+}
+
+// ===================================================================
+// FEED TABS CONTAINER TYPES - Phase 1.1 Type System Overhaul
+// ===================================================================
+
+// Core RSS Item interface for feed tabs (centralized from scattered definitions)
+export interface FeedTabsRSSItem {
+  guid: string;
+  title: string;
+  link: string;
+  pubDate: string;
+  content: string;
+  contentSnippet?: string;
+  description?: string;
+  image?: string;
+  mediaType?: string;
+  feedUrl: string;
+  feedTitle?: string;
+}
+
+// Post metadata interface for feed tabs
+export interface FeedTabsPostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  postSlug: string;
+  categorySlug: string;
+  verified?: boolean;
+}
+
+// RSS Entry with interaction data for feed tabs
+export interface FeedTabsRSSEntryWithData {
+  entry: FeedTabsRSSItem;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+    bookmarks?: {
+      isBookmarked: boolean;
+    };
+  };
+  postMetadata: {
+    title: string;
+    featuredImg?: string;
+    mediaType?: string;
+    categorySlug?: string;
+    postSlug?: string;
+    verified?: boolean;
+  };
+}
+
+// Featured entry interface (imported from featured_kv)
+export interface FeedTabsFeaturedEntry {
+  _id: string;
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+  guid: string;
+  image?: string;
+  feedUrl: string;
+  mediaType?: string;
+  isFeatured: boolean;
+  featuredAt: number;
+}
+
+// Featured entry with interaction data
+export interface FeedTabsFeaturedEntryWithData {
+  entry: FeedTabsFeaturedEntry;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+    bookmarks?: {
+      isBookmarked: boolean;
+    };
+  };
+  postMetadata: FeedTabsPostMetadata;
+}
+
+// RSS data structure for feed tabs
+export interface FeedTabsRSSData {
+  entries: FeedTabsRSSEntryWithData[];
+  totalEntries: number;
+  hasMore: boolean;
+  postTitles?: string[];
+  feedUrls?: string[];
+  mediaTypes?: string[];
+}
+
+// Featured data structure for feed tabs
+export interface FeedTabsFeaturedData {
+  entries: FeedTabsFeaturedEntryWithData[];
+  totalEntries: number;
+}
+
+// Loading state management for feed tabs
+export interface FeedTabsLoadingState {
+  isRSSLoading: boolean;
+  isFeaturedLoading: boolean;
+}
+
+// Error state management for feed tabs
+export interface FeedTabsErrorState {
+  rssError: string | null;
+  featuredError: string | null;
+}
+
+// Fetch progress tracking for feed tabs
+export interface FeedTabsFetchProgress {
+  rssFetchInProgress: boolean;
+  featuredFetchInProgress: boolean;
+}
+
+// Authentication state for feed tabs
+export interface FeedTabsAuthState {
+  isAuthenticated: boolean;
+  displayName: string;
+  isBoarded: boolean;
+  profileImage?: string | null;
+  pendingFriendRequestCount: number;
+}
+
+// Tab configuration interface
+export interface FeedTabsTabConfig {
+  id: string;
+  label: string;
+  component: React.ComponentType;
+}
+
+// Main feed tabs state interface
+export interface FeedTabsState {
+  // Active tab management
+  activeTabIndex: number;
+  
+  // Data state
+  rssData: FeedTabsRSSData | null;
+  featuredData: FeedTabsFeaturedData | null;
+  
+  // Loading state
+  loading: FeedTabsLoadingState;
+  
+  // Error state
+  errors: FeedTabsErrorState;
+  
+  // Fetch progress
+  fetchProgress: FeedTabsFetchProgress;
+  
+  // Authentication state
+  auth: FeedTabsAuthState;
+  
+  // Configuration
+  pageSize: number;
+  
+  // Initialization flag
+  hasInitialized: boolean;
+}
+
+// Feed tabs actions interface
+export interface FeedTabsActions {
+  // Tab management actions
+  setActiveTabIndex: (index: number) => void;
+  
+  // Data management actions
+  setRSSData: (data: FeedTabsRSSData | null) => void;
+  setFeaturedData: (data: FeedTabsFeaturedData | null) => void;
+  
+  // Loading state actions
+  setRSSLoading: (loading: boolean) => void;
+  setFeaturedLoading: (loading: boolean) => void;
+  
+  // Error management actions
+  setRSSError: (error: string | null) => void;
+  setFeaturedError: (error: string | null) => void;
+  
+  // Fetch progress actions
+  setRSSFetchInProgress: (inProgress: boolean) => void;
+  setFeaturedFetchInProgress: (inProgress: boolean) => void;
+  
+  // Authentication actions
+  setAuthState: (auth: Partial<FeedTabsAuthState>) => void;
+  
+  // Configuration actions
+  setPageSize: (size: number) => void;
+  
+  // Initialization actions
+  setInitialized: (initialized: boolean) => void;
+  
+  // Utility actions
+  reset: () => void;
+  initialize: (initialData: {
+    rssData?: FeedTabsRSSData | null;
+    featuredData?: FeedTabsFeaturedData | null;
+    pageSize?: number;
+    auth?: Partial<FeedTabsAuthState>;
+  }) => void;
+}
+
+// Combined store interface
+export interface FeedTabsStore extends FeedTabsState, FeedTabsActions {}
+
+// Component props interfaces
+export interface FeedTabsContainerProps {
+  initialData: FeedTabsRSSData | null;
+  featuredData?: FeedTabsFeaturedData | null;
+  pageSize?: number;
+}
+
+export interface FeedTabsContainerClientWrapperProps {
+  initialData: FeedTabsRSSData | null;
+  featuredData?: FeedTabsFeaturedData | null;
+  pageSize: number;
+}
+
+// Custom hooks props interfaces
+export interface UseFeedTabsDataFetchingProps {
+  isAuthenticated: boolean;
+  router: any; // Next.js router type
+}
+
+export interface UseFeedTabsManagementProps {
+  isAuthenticated: boolean;
+  router: any; // Next.js router type
+}
+
+export interface UseFeedTabsAuthProps {
+  isAuthenticated: boolean;
+}
+
+export interface UseFeedTabsUIProps {
+  // No props needed - uses store state
+}
+
+// Custom hooks return interfaces
+export interface UseFeedTabsDataFetchingReturn {
+  fetchRSSData: () => Promise<void>;
+  fetchFeaturedData: () => Promise<void>;
+  cleanup: () => void;
+}
+
+export interface UseFeedTabsManagementReturn {
+  handleTabChange: (index: number) => void;
+  shouldFetchFeaturedData: () => boolean;
+  shouldFetchRSSData: () => boolean;
+  shouldRedirectToSignIn: () => boolean;
+}
+
+export interface UseFeedTabsAuthReturn {
+  handleAuthChange: () => void;
+  getUserMenuProps: () => {
+    initialDisplayName: string;
+    initialProfileImage: string | null;
+    isBoarded: boolean;
+    pendingFriendRequestCount: number;
+  } | null;
+  shouldShowSignInButton: () => boolean;
+  shouldShowUserMenu: () => boolean;
+  authState: FeedTabsAuthState;
+}
+
+export interface UseFeedTabsUIReturn {
+  tabs: FeedTabsTabConfig[];
+  renderErrorState: (error: string, onRetry: () => void) => React.ReactNode;
+  renderLoadingState: () => React.ReactNode;
+  getCurrentTab: () => FeedTabsTabConfig;
+  hasCurrentTabError: () => boolean;
+  isCurrentTabLoading: () => boolean;
+}
+
+// API response interfaces
+export interface FeedTabsRSSAPIResponse {
+  entries: FeedTabsRSSEntryWithData[];
+  totalEntries: number;
+  hasMore: boolean;
+  postTitles?: string[];
+  feedUrls?: string[];
+  mediaTypes?: string[];
+}
+
+export interface FeedTabsFeaturedAPIResponse {
+  entries: FeedTabsFeaturedEntryWithData[];
+  totalEntries: number;
+}
+
+// Error boundary interfaces
+export interface FeedTabsErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+export interface FeedTabsErrorFallbackProps {
+  error: Error;
+  resetErrorBoundary: () => void;
+}
+
+// Store provider interfaces
+export interface FeedTabsStoreProviderProps {
+  children: React.ReactNode;
+}
+
+// Memory management interfaces
+export interface FeedTabsMemoryManagementReturn {
+  cleanup: () => void;
+  createManagedTimeout: (callback: () => void, delay: number) => NodeJS.Timeout;
+  clearManagedTimeout: (timeout: NodeJS.Timeout) => void;
+}
+
+// Performance monitoring interfaces
+export interface FeedTabsPerformanceMetrics {
+  tabSwitchTime: number;
+  dataFetchTime: number;
+  renderTime: number;
+  memoryUsage: number;
+}
+
+// Accessibility interfaces
+export interface FeedTabsAccessibilityProps {
+  'aria-label'?: string;
+  'aria-describedby'?: string;
+  role?: string;
+}
+
+// Type guards for runtime type checking
+export type FeedTabsDataType = 'rss' | 'featured';
+
+export interface FeedTabsTypeGuards {
+  isRSSData: (data: unknown) => data is FeedTabsRSSData;
+  isFeaturedData: (data: unknown) => data is FeedTabsFeaturedData;
+  isRSSEntry: (entry: unknown) => entry is FeedTabsRSSEntryWithData;
+  isFeaturedEntry: (entry: unknown) => entry is FeedTabsFeaturedEntryWithData;
+}
+
+// Configuration constants interface
+export interface FeedTabsConfig {
+  DEFAULT_PAGE_SIZE: number;
+  MAX_RETRY_ATTEMPTS: number;
+  FETCH_TIMEOUT: number;
+  CACHE_TTL: number;
+  SKELETON_COUNT: number;
+}
+
+// Event interfaces for analytics and monitoring
+export interface FeedTabsEvent {
+  type: 'tab_change' | 'data_fetch' | 'error' | 'performance';
+  timestamp: number;
+  data: Record<string, unknown>;
+}
+
+export interface FeedTabsEventHandler {
+  (event: FeedTabsEvent): void;
+}
+
+// Validation interfaces
+export interface FeedTabsValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+export interface FeedTabsValidator {
+  validateRSSData: (data: unknown) => FeedTabsValidationResult;
+  validateFeaturedData: (data: unknown) => FeedTabsValidationResult;
+  validateProps: (props: unknown) => FeedTabsValidationResult;
+}
+
+// ===================================================================
+// END FEED TABS CONTAINER TYPES
+// =================================================================== 

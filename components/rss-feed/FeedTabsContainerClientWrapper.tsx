@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense } from "react";
+import React, { Suspense } from "react";
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { FeedTabsContainerWithErrorBoundary } from "./FeedTabsContainer";
-import type { FeaturedEntry } from "@/lib/featured_kv";
+import { FeedTabsStoreProvider } from "./FeedTabsStoreProvider";
+import type { FeedTabsContainerClientWrapperProps } from '@/lib/types';
 
 // Error fallback component
 function FeedErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
@@ -19,102 +20,40 @@ Refresh      </button>
   );
 }
 
-// Define the RSSItem interface to match what's returned from the API
-interface RSSItem {
-  guid: string;
-  title: string;
-  link: string;
-  pubDate: string;
-  content: string;
-  contentSnippet?: string;
-  feedUrl: string;
-  feedTitle?: string;
-  [key: string]: unknown; // For any additional properties
-}
-
-// Interface for post metadata
-interface PostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  postSlug: string;
-  categorySlug: string;
-}
-
-// Interface for entry with data
-interface RSSEntryWithData {
-  entry: RSSItem;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-  };
-  postMetadata?: PostMetadata;
-}
-
-// Interface for featured entry with data
-interface FeaturedEntryWithData {
-  entry: FeaturedEntry;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-  };
-  postMetadata: PostMetadata;
-}
-
-interface InitialData {
-  entries: RSSEntryWithData[];
-  totalEntries: number;
-  hasMore: boolean;
-  postTitles?: string[];
-}
-
-interface FeaturedData {
-  entries: FeaturedEntryWithData[];
-  totalEntries: number;
-}
-
-interface FeedTabsContainerClientWrapperProps {
-  initialData: InitialData | null;
-  featuredData?: FeaturedData | null;
-  pageSize: number;
-}
+/**
+ * FeedTabsContainerClientWrapper Component
+ * 
+ * Production-ready wrapper component following established patterns:
+ * - Zustand store provider for state isolation
+ * - Error boundaries for graceful error handling
+ * - Suspense for loading states
+ * - Type safety with centralized types
+ */
 
 /**
  * Client component wrapper for FeedTabsContainer to handle client-side functionality
- * like error boundaries and Suspense
+ * like error boundaries, Suspense, and store provider
  */
-export function FeedTabsContainerClientWrapper({ 
+function FeedTabsContainerClientWrapperComponent({ 
   initialData, 
   featuredData, 
   pageSize
 }: FeedTabsContainerClientWrapperProps) {
   return (
-    <Suspense fallback={null}>
-      <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
+    <FeedTabsStoreProvider>
+      <Suspense fallback={null}>
+        <ReactErrorBoundary FallbackComponent={FeedErrorFallback}>
           <FeedTabsContainerWithErrorBoundary
             initialData={initialData}
             featuredData={featuredData}
             pageSize={pageSize}
           />
-      </ReactErrorBoundary>
-    </Suspense>
+        </ReactErrorBoundary>
+      </Suspense>
+    </FeedTabsStoreProvider>
   );
-} 
+}
+
+// Export memoized version for performance optimization
+export const FeedTabsContainerClientWrapper = React.memo(FeedTabsContainerClientWrapperComponent);
+FeedTabsContainerClientWrapper.displayName = 'FeedTabsContainerClientWrapper'; 

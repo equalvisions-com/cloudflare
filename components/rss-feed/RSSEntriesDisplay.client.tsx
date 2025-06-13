@@ -6,7 +6,6 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import type { RSSItem } from "@/components/rss-feed/FeedTabsContainer";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
@@ -85,6 +84,26 @@ import { useRSSEntriesNewEntries } from './hooks/useRSSEntriesNewEntries';
 
 // Constants for performance optimization
 const ITEMS_PER_REQUEST = 30;
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large entry lists
+const optimizeEntriesForMemory = (entries: RSSEntriesDisplayEntry[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): RSSEntriesDisplayEntry[] => {
+  // If we're under the threshold, return as-is
+  if (entries.length <= maxSize) {
+    return entries;
+  }
+  
+  // Keep the most recent entries up to maxSize
+  // This ensures we don't run out of memory with very large feeds
+  return entries.slice(0, maxSize);
+};
 
 // Memoize expensive date parsing operations
 const memoizedDateParsers = {
@@ -423,8 +442,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
-                        placeholder="blur"
-                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+Kcp/9k="
                         unoptimized={false}
                       />
                     </AspectRatio>
@@ -469,8 +486,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
-                        placeholder="blur"
-                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+Kcp/9k="
                         unoptimized={false}
                       />
                     </AspectRatio>
@@ -772,31 +787,34 @@ function EntriesContentComponent({
     Footer: () => null
   }), []);
   
-  // Memoize the Virtuoso component with minimal dependencies
+  // Memoize the Virtuoso component with minimal dependencies and memory optimization
   const virtuosoComponent = useMemo(() => {
     // Skip rendering Virtuoso if we have no entries yet
     if (paginatedEntries.length === 0 && !isInitializing) {
       return null;
     }
     
+    // Apply memory optimization for large datasets
+    const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
+    
     // Only log the first time to avoid duplicate messages
     if (!hasLoggedInitialCreateRef.current) {
       hasLoggedInitialCreateRef.current = true;
     }
     
-    // When entries are available, render Virtuoso
+    // When entries are available, render Virtuoso with memory optimization
     return (
       <Virtuoso
         ref={virtuosoRef}
         useWindowScroll
-        data={paginatedEntries}
+        data={optimizedEntries}
         computeItemKey={(_, item) => item.entry.guid}
         itemContent={itemContentCallback}
-        overscan={2000}
+        overscan={VIRTUAL_SCROLL_CONFIG.overscan}
         components={virtuosoComponents}
         style={virtuosoStyle}
         className="focus:outline-none focus-visible:outline-none"
-        increaseViewportBy={{ top: 600, bottom: 600 }}
+        increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
         restoreStateFrom={undefined}
       />
     );
@@ -1070,7 +1088,13 @@ const RSSEntriesClientComponent = ({
   });
 
   // Sync refs with store state - this IS needed for tab switching (render-phase is OK)
-  entriesStateRef.current = entries;
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedEntries = useMemo(() => 
+    optimizeEntriesForMemory(entries), 
+    [entries]
+  );
+  
+  entriesStateRef.current = optimizedEntries;
   currentPageRef.current = currentPage;
   hasMoreRef.current = hasMore;
   totalEntriesRef.current = totalEntries;
@@ -1217,9 +1241,9 @@ const RSSEntriesClientComponent = ({
             ) : (
               <>
                 <MoveUp className="h-3 w-3" aria-hidden="true" />
-                <span className="text-sm font-medium">
+              <span className="text-sm font-medium">
                   {notificationCount} new {notificationCount === 1 ? 'post' : 'posts'}
-                </span>
+              </span>
               </>
             )}
           </button>
@@ -1241,7 +1265,7 @@ const RSSEntriesClientComponent = ({
               className="flex items-center gap-2"
               onClick={handleRefreshAttempt}
                 aria-label="Retry refreshing RSS feed"
-            >
+          >
                 <ArrowDown className="h-4 w-4" aria-hidden="true" />
             Refresh Feed
           </Button>
@@ -1257,7 +1281,7 @@ const RSSEntriesClientComponent = ({
           {isLoading && ' - Loading...'}
         </h1>
       <EntriesContent
-        paginatedEntries={entries}
+        paginatedEntries={optimizedEntries}
         hasMore={hasMore}
         loadMoreRef={loadMoreRef}
         isPending={isLoading}
