@@ -304,6 +304,21 @@
   opacity: 1 !important;
 }
 
+/* Drawer scroll lock optimization - prevent background flash */
+body[style*="position: fixed"] {
+  /* Ensure smooth transition when scroll lock is applied */
+  transition: none !important;
+  /* Prevent any potential layout shifts */
+  will-change: auto;
+}
+
+/* Prevent flash during drawer open/close transitions */
+[data-vaul-drawer] {
+  /* Ensure drawer animations are smooth */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;

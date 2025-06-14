@@ -8,6 +8,27 @@ import { cn } from "@/lib/utils"
 // Global scroll lock manager for drawers
 let openDrawerCount = 0;
 let lockedScrollY = 0;
+let scrollbarWidth = 0;
+
+// Calculate scrollbar width once and cache it
+const getScrollbarWidth = () => {
+  if (scrollbarWidth > 0) return scrollbarWidth;
+  
+  const outer = document.createElement('div');
+  outer.style.visibility = 'hidden';
+  outer.style.overflow = 'scroll';
+  // TypeScript fix for IE-specific property
+  (outer.style as any).msOverflowStyle = 'scrollbar';
+  document.body.appendChild(outer);
+  
+  const inner = document.createElement('div');
+  outer.appendChild(inner);
+  
+  scrollbarWidth = outer.offsetWidth - inner.offsetWidth;
+  document.body.removeChild(outer);
+  
+  return scrollbarWidth;
+};
 
 const Drawer = React.memo(({
   shouldScaleBackground = true,
@@ -19,26 +40,46 @@ const Drawer = React.memo(({
       openDrawerCount = Math.max(0, openDrawerCount - 1);
       if (openDrawerCount === 0) {
         const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
+        
+        // Smooth restoration to prevent flash
+        document.body.style.transition = 'none';
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.left = '';
         document.body.style.right = '';
         document.body.style.overflow = '';
         document.body.style.touchAction = '';
-        if (y) window.scrollTo(0, y);
+        document.body.style.paddingRight = '';
+        
+        // Restore scroll position smoothly
+        if (y) {
+          requestAnimationFrame(() => {
+            window.scrollTo(0, y);
+          });
+        }
       }
     };
 
     if (props.open) {
       if (openDrawerCount === 0) {
-        // Save scroll position and lock
+        // Calculate scrollbar width to prevent layout shift
+        const scrollWidth = getScrollbarWidth();
+        
+        // Save scroll position and lock smoothly
         lockedScrollY = window.scrollY;
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${lockedScrollY}px`;
-        document.body.style.left = '0';
-        document.body.style.right = '0';
-        document.body.style.overflow = 'hidden';
-        document.body.style.touchAction = 'none';
+        
+        // Apply styles in a way that prevents flash
+        requestAnimationFrame(() => {
+          document.body.style.transition = 'none';
+          document.body.style.position = 'fixed';
+          document.body.style.top = `-${lockedScrollY}px`;
+          document.body.style.left = '0';
+          document.body.style.right = '0';
+          document.body.style.overflow = 'hidden';
+          document.body.style.touchAction = 'none';
+          // Compensate for scrollbar width to prevent layout shift
+          document.body.style.paddingRight = `${scrollWidth}px`;
+        });
       }
       openDrawerCount++;
     } else {
