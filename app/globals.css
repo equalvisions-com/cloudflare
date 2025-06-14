@@ -319,54 +319,6 @@ body[style*="position: fixed"] {
   transform: translateZ(0);
 }
 
-/* Ensure drawer always appears above mobile navigation */
-[data-vaul-drawer-wrapper] {
-  /* Higher z-index than mobile dock (z-50) */
-  z-index: 60 !important;
-}
-
-/* Drawer content specific optimizations */
-[data-drawer-content] {
-  /* Ensure proper stacking above all mobile UI elements */
-  z-index: 60 !important;
-  /* Prevent any potential rendering issues */
-  isolation: isolate;
-}
-
-/* Mobile keyboard handling optimizations */
-@supports (-webkit-touch-callout: none) {
-  /* iOS Safari specific fixes */
-  [data-drawer-content] {
-    /* Prevent viewport jumping when keyboard appears */
-    position: relative;
-    /* Ensure proper rendering during keyboard transitions */
-    transform: translateZ(0);
-  }
-  
-  /* Prevent scroll restoration issues on iOS */
-  [data-drawer-content] input,
-  [data-drawer-content] textarea {
-    /* Prevent iOS from scrolling to input when focused */
-    transform: translateZ(0);
-  }
-}
-
-/* Android Chrome specific fixes */
-@media screen and (max-width: 768px) {
-  [data-drawer-content] {
-    /* Prevent layout shifts during keyboard appearance */
-    contain: layout style;
-  }
-  
-  /* Ensure smooth keyboard transitions */
-  [data-drawer-content] input:focus,
-  [data-drawer-content] textarea:focus {
-    /* Prevent unwanted scroll behavior */
-    scroll-margin: 0;
-    scroll-padding: 0;
-  }
-}
-
 /* Sidebar styles */
 .sidebar-card {
   border-radius: 0.5rem;

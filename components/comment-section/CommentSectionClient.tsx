@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo, useRef, useEffect } from 'react';
+import { memo, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { MessageCircle, X, ChevronDown } from "lucide-react";
@@ -276,38 +276,6 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
   const { isAuthenticated } = useConvexAuth();
   const viewer = useQuery(api.users.viewer);
   
-  // Mobile keyboard handling for comment input
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const savedScrollRef = useRef<number>(0);
-  
-  // Handle mobile keyboard events
-  useEffect(() => {
-    if (!state.isOpen || typeof window === 'undefined') return;
-    
-    const handleFocus = () => {
-      // Save scroll position when input is focused (keyboard about to appear)
-      savedScrollRef.current = window.scrollY;
-    };
-    
-    const handleBlur = () => {
-      // Restore scroll position when input loses focus (keyboard disappearing)
-      setTimeout(() => {
-        window.scrollTo(0, savedScrollRef.current);
-      }, 100); // Small delay to ensure keyboard has closed
-    };
-    
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.addEventListener('focus', handleFocus);
-      textarea.addEventListener('blur', handleBlur);
-      
-      return () => {
-        textarea.removeEventListener('focus', handleFocus);
-        textarea.removeEventListener('blur', handleBlur);
-      };
-    }
-  }, [state.isOpen]);
-  
   // Memoize the drawer open handler to prevent re-renders
   const handleOpenDrawer = useMemo(() => () => {
     actions.setIsOpen(true);
@@ -362,7 +330,6 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Textarea
-                  ref={textareaRef}
                 placeholder={state.replyToComment 
                   ? `Reply to ${state.replyToComment.username}...`
                     : "Add a comment..."}
