@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 // Global scroll lock manager for drawers
 let openDrawerCount = 0;
 let scrollbarWidth = 0;
+let savedScrollPosition = 0;
+let isKeyboardOpen = false;
 
 // Calculate scrollbar width once and cache it
 const getScrollbarWidth = () => {
@@ -29,6 +31,46 @@ const getScrollbarWidth = () => {
   return scrollbarWidth;
 };
 
+// Mobile keyboard detection and scroll position management
+const handleMobileKeyboard = () => {
+  if (typeof window === 'undefined') return;
+  
+  const initialViewportHeight = window.innerHeight;
+  let currentViewportHeight = initialViewportHeight;
+  
+  const handleViewportChange = () => {
+    const newHeight = window.innerHeight;
+    const heightDifference = Math.abs(newHeight - initialViewportHeight);
+    
+    // Keyboard is considered open if viewport shrinks by more than 150px
+    const keyboardWasOpen = isKeyboardOpen;
+    isKeyboardOpen = heightDifference > 150 && newHeight < initialViewportHeight;
+    
+    // If keyboard just opened, save current scroll position
+    if (isKeyboardOpen && !keyboardWasOpen) {
+      savedScrollPosition = window.scrollY;
+    }
+    
+    // If keyboard just closed, restore scroll position
+    if (!isKeyboardOpen && keyboardWasOpen) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        window.scrollTo(0, savedScrollPosition);
+      });
+    }
+    
+    currentViewportHeight = newHeight;
+  };
+  
+  // Listen for viewport changes
+  window.addEventListener('resize', handleViewportChange);
+  
+  // Cleanup function
+  return () => {
+    window.removeEventListener('resize', handleViewportChange);
+  };
+};
+
 const Drawer = React.memo(({
   shouldScaleBackground = true,
   ...props
@@ -46,6 +88,9 @@ const Drawer = React.memo(({
 
     if (props.open) {
       if (openDrawerCount === 0) {
+        // Save initial scroll position when drawer opens
+        savedScrollPosition = window.scrollY;
+        
         // Calculate scrollbar width to prevent layout shift
         const scrollWidth = getScrollbarWidth();
         
@@ -54,12 +99,26 @@ const Drawer = React.memo(({
         requestAnimationFrame(() => {
           document.body.style.paddingRight = `${scrollWidth}px`;
         });
+        
+        // Set up mobile keyboard handling
+        const keyboardCleanup = handleMobileKeyboard();
+        
+        // Store cleanup function for later
+        (cleanup as any).keyboardCleanup = keyboardCleanup;
       }
       openDrawerCount++;
     } else {
+      // Clean up keyboard handling
+      if ((cleanup as any).keyboardCleanup) {
+        (cleanup as any).keyboardCleanup();
+      }
       cleanup();
     }
     return () => {
+      // Clean up keyboard handling
+      if ((cleanup as any).keyboardCleanup) {
+        (cleanup as any).keyboardCleanup();
+      }
       cleanup();
     };
   }, [props.open]);
