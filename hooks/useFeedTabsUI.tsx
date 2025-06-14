@@ -25,13 +25,15 @@ const RSSEntriesClientWithErrorBoundary = dynamic(
   }
 );
 
-const FeaturedFeedWrapper = dynamic(
-  () => import("@/components/featured/FeaturedFeedWrapper").then(mod => mod.FeaturedFeedWrapper),
+const FeaturedFeedClientWithErrorBoundary = dynamic(
+  () => import("@/components/featured/FeaturedFeedClient").then(mod => mod.FeaturedFeedClientWithErrorBoundary),
   {
     ssr: false,
     loading: () => <SkeletonFeed count={5} />
   }
 );
+
+// FeaturedFeedErrorBoundary removed - using built-in error boundary from FeaturedFeedClientWithErrorBoundary
 
 /**
  * Custom hook for managing UI rendering logic in FeedTabsContainer
@@ -98,8 +100,8 @@ export const useFeedTabsUI = (
           import("@/components/rss-feed/RSSEntriesDisplay.client")
         );
       } else if (activeTabIndex === 1) {
-        schedulePreload('FeaturedFeedWrapper', () => 
-          import("@/components/featured/FeaturedFeedWrapper")
+        schedulePreload('FeaturedFeedClientWithErrorBoundary', () => 
+          import("@/components/featured/FeaturedFeedClient")
         );
       }
     };
@@ -151,8 +153,10 @@ export const useFeedTabsUI = (
         }
         
         return (
-          <FeaturedFeedWrapper
+          <FeaturedFeedClientWithErrorBoundary
             initialData={featuredData as any /* Type adjustment for compatibility */}
+            pageSize={30}
+            isActive={activeTabIndex === 0}
           />
         );
       }

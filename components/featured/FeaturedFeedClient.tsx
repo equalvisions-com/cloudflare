@@ -1,159 +1,212 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback, useEffect, memo } from 'react';
-import { ErrorBoundary as ErrorBoundaryUI } from "@/components/ui/error-boundary";
-import { ErrorBoundary } from 'react-error-boundary';
+import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, startTransition } from 'react';
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
-import type { FeaturedEntry } from "@/lib/featured_kv";
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Podcast, Mail, Loader2, RefreshCw } from "lucide-react";
-import { Virtuoso } from 'react-virtuoso';
-import Link from "next/link";
 import { useAudio } from '@/components/audio-player/AudioContext';
-import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { Podcast, Mail, Loader2, ArrowDown, MoveUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { Virtuoso } from 'react-virtuoso';
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { NoFocusWrapper } from "@/utils/NoFocusButton";
+import { NoFocusLinkWrapper } from "@/utils/NoFocusLink";
+import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
+import { FeaturedFeedStoreProvider } from "./FeaturedFeedStoreProvider";
+import {
+  useFeaturedFeedEntries,
+  useFeaturedFeedIsLoading,
+  useFeaturedFeedHasMore,
+  useFeaturedFeedCommentDrawerOpen,
+  useFeaturedFeedSelectedCommentEntry,
+  useFeaturedFeedCurrentPage,
+  useFeaturedFeedTotalEntries,
+  useFeaturedFeedHasInitialized,
+  useFeaturedFeedSetEntries,
+  useFeaturedFeedSetLoading,
+  useFeaturedFeedSetCurrentPage,
+  useFeaturedFeedSetHasMore,
+  useFeaturedFeedSetTotalEntries,
+  useFeaturedFeedOpenCommentDrawer,
+  useFeaturedFeedCloseCommentDrawer,
+  useFeaturedFeedInitialize
+} from "@/lib/stores/featuredFeedStore";
+import type { 
+  FeaturedFeedClientProps,
+  FeaturedFeedEntryWithData
+} from "@/lib/types";
 
-// Add a consistent logging utility
-const logger = {
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
+// Constants for performance optimization
+const ITEMS_PER_REQUEST = 30;
+
+// Virtual scrolling configuration for memory optimization
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000,
+  maxBufferSize: 10000,
+  recycleThreshold: 5000,
+  increaseViewportBy: { top: 600, bottom: 600 },
+};
+
+// Memory optimization for large datasets
+const optimizeEntriesForMemory = (entries: FeaturedFeedEntryWithData[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): FeaturedFeedEntryWithData[] => {
+  if (entries.length <= maxSize) {
+    return entries;
+  }
+  return entries.slice(0, maxSize);
+};
+
+// Memoized date parsing operations
+const memoizedDateParsers = {
+  parseCache: new Map<string, Date>(),
+  displayCache: new Map<string, Date>(),
+
+  parseEntryDate: (dateString: string | Date): Date => {
+    if (dateString instanceof Date) {
+      return dateString;
     }
-  },
-  info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
+    
+    const cacheKey = String(dateString);
+    if (memoizedDateParsers.parseCache.has(cacheKey)) {
+      return memoizedDateParsers.parseCache.get(cacheKey)!;
     }
-  },
-  warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
+    
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    
+    let result: Date;
+    if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
+      const [datePart, timePart] = dateString.split(' ');
+      result = new Date(`${datePart}T${timePart}`);
+    } else {
+      result = new Date(dateString);
     }
+    
+    memoizedDateParsers.parseCache.set(cacheKey, result);
+    return result;
   },
-  error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
+
+  parseEntryDateForDisplay: (dateString: string | Date): Date => {
+    if (dateString instanceof Date) {
+      return dateString;
+    }
+    
+    const cacheKey = `display_${String(dateString)}`;
+    if (memoizedDateParsers.displayCache.has(cacheKey)) {
+      return memoizedDateParsers.displayCache.get(cacheKey)!;
+    }
+    
+    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    
+    let result: Date;
+    if (typeof dateString === 'string' && mysqlDateRegex.test(dateString)) {
+      const [datePart, timePart] = dateString.split(' ');
+      result = new Date(`${datePart}T${timePart}Z`);
+    } else {
+      result = new Date(dateString);
+    }
+    
+    memoizedDateParsers.displayCache.set(cacheKey, result);
+    return result;
   }
 };
 
-// Interface for post metadata
-interface PostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  postSlug: string;
-  categorySlug: string;
-  verified?: boolean;
-}
-
-// Interface for entry with data
-interface FeaturedEntryWithData {
-  entry: FeaturedEntry;
-  initialData: {
-    likes: {
-      isLiked: boolean;
-      count: number;
-    };
-    comments: {
-      count: number;
-    };
-    retweets?: {
-      isRetweeted: boolean;
-      count: number;
-    };
-    bookmarks?: {
-      isBookmarked: boolean;
-    };
-  };
-  postMetadata: PostMetadata;
-}
-
 interface FeaturedEntryProps {
-  entryWithData: FeaturedEntryWithData;
+  entryWithData: FeaturedFeedEntryWithData;
 }
 
-// Memoize the FeaturedEntry component
-const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
+// Memoized FeaturedEntry component with optimized comparison
+const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
   const { playTrack, currentTrack } = useAudio();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
   // Helper function to prevent scroll jumping on link interaction
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    // Let the event continue for the click
-    // but prevent the focus-triggered scrolling afterward
     const target = e.currentTarget as HTMLElement;
     
-    // Use a one-time event listener that removes itself after execution
     target.addEventListener('focusin', (focusEvent) => {
       focusEvent.preventDefault();
-      // Immediately blur to prevent scroll adjustments
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement) {
         setTimeout(() => {
-          // Use setTimeout to allow the click to complete first
           activeElement.blur();
         }, 0);
       }
     }, { once: true });
   }, []);
 
-  // Format the timestamp based on age
+  // Memoized timestamp computation with caching
   const timestamp = useMemo(() => {
-    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    let pubDate: Date;
+    const pubDate = memoizedDateParsers.parseEntryDateForDisplay(entry.pub_date);
     
-    if (typeof entry.pub_date === 'string' && mysqlDateRegex.test(entry.pub_date)) {
-      // Convert MySQL datetime string to UTC time
-      const [datePart, timePart] = entry.pub_date.split(' ');
-      pubDate = new Date(`${datePart}T${timePart}Z`); // Add 'Z' to indicate UTC
-    } else {
-      // Handle other formats
-      pubDate = new Date(entry.pub_date);
-    }
-    
-    const now = new Date();
-    
-    // Ensure we're working with valid dates
     if (isNaN(pubDate.getTime())) {
       return '';
     }
 
-    // Calculate time difference
-    const diffInMs = now.getTime() - pubDate.getTime();
+    const now = new Date();
+    const referenceTime = Math.floor(now.getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+    const refDate = new Date(referenceTime);
+
+    const diffInMs = refDate.getTime() - pubDate.getTime();
     const diffInMinutes = Math.floor(Math.abs(diffInMs) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInMonths = Math.floor(diffInDays / 30);
     
-    // For future dates (more than 1 minute ahead), show 'in X'
-    const isFuture = diffInMs < -(60 * 1000); // 1 minute buffer for slight time differences
+    const isFuture = diffInMs < -(60 * 1000);
     const prefix = isFuture ? 'in ' : '';
     const suffix = isFuture ? '' : '';
     
-    // Format based on the time difference
-    if (diffInMinutes < 60) {
-      return `${prefix}${diffInMinutes}${diffInMinutes === 1 ? 'm' : 'm'}${suffix}`;
+    if (diffInMinutes < 1) {
+      return 'now';
+    } else if (diffInMinutes < 60) {
+      return `${prefix}${diffInMinutes}m${suffix}`;
     } else if (diffInHours < 24) {
-      return `${prefix}${diffInHours}${diffInHours === 1 ? 'h' : 'h'}${suffix}`;
+      return `${prefix}${diffInHours}h${suffix}`;
     } else if (diffInDays < 30) {
-      return `${prefix}${diffInDays}${diffInDays === 1 ? 'd' : 'd'}${suffix}`;
+      return `${prefix}${diffInDays}d${suffix}`;
+    } else if (diffInMonths < 12) {
+      return `${prefix}${diffInMonths}mo${suffix}`;
     } else {
-      return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
+      return format(pubDate, 'MMM d, yyyy');
     }
   }, [entry.pub_date]);
 
-  // Generate post URL if we have category and post slugs
-  const postUrl = postMetadata.postSlug
+  // Memoized decoded content
+  const decodedContent = useMemo(() => ({
+    title: decode(entry.title || ''),
+    description: decode(entry.description || '')
+  }), [entry.title, entry.description]);
+
+  // Memoized image source with stable fallback
+  const imageSrc = useMemo(() => {
+    const primaryImage = entry.image;
+    const fallbackImage = postMetadata?.featuredImg;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entry.image, postMetadata?.featuredImg]);
+
+  // Memoized comment handler
+  const handleOpenComments = useCallback(() => {
+    onOpenCommentDrawer(entry.guid, entry.feed_url, initialData?.comments);
+  }, [entry.guid, entry.feed_url, initialData?.comments, onOpenCommentDrawer]);
+
+  // Memoized verification status
+  const isVerified = useMemo(() => {
+    return postMetadata?.verified || false;
+  }, [postMetadata?.verified]);
+
+  // Generate post URL
+  const postUrl = postMetadata?.postSlug
     ? postMetadata.mediaType === 'newsletter'
       ? `/newsletters/${postMetadata.postSlug}`
       : postMetadata.mediaType === 'podcast'
@@ -163,24 +216,18 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
           : null
     : null;
 
-  // Handle podcast playback
+  // Direct click handler for podcasts
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if (postMetadata.mediaType?.toLowerCase() === 'podcast') {
+    if (postMetadata?.mediaType === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, decode(entry.title), entry.image || undefined);
+      playTrack(entry.link, decodedContent.title, imageSrc);
     }
-  }, [postMetadata.mediaType, entry.link, entry.title, entry.image, playTrack]);
-
-  const handleOpenComment = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onOpenCommentDrawer(entry.guid, entry.feed_url, initialData.comments);
-  }, [onOpenCommentDrawer, entry.guid, entry.feed_url, initialData.comments]);
+  }, [postMetadata?.mediaType, entry.link, decodedContent.title, imageSrc, playTrack]);
 
   return (
     <article 
       onClick={(e) => {
-        // Stop all click events from bubbling up to parent components
         e.stopPropagation();
       }} 
       className="outline-none focus:outline-none focus-visible:outline-none"
@@ -191,9 +238,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
         {/* Top Row: Featured Image and Title */}
         <div className="flex items-center gap-4 mb-4">
           {/* Featured Image */}
-          {postMetadata.featuredImg && postUrl && (
-            <NoFocusLinkWrapper 
-              className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
+          {postMetadata?.featuredImg && postUrl && (
+            <NoFocusLinkWrapper className="flex-shrink-0 w-12 h-12 relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
@@ -215,7 +261,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
           {/* Title and Timestamp */}
           <div className="flex-grow">
             <div className="w-full">
-              {postMetadata.title && (
+              {postMetadata?.title && (
                 <div className="flex items-start justify-between gap-2">
                   {postUrl ? (
                     <NoFocusLinkWrapper 
@@ -226,14 +272,14 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                       <PrefetchAnchor href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {postMetadata.title}
-                          {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                          {isVerified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
                       </PrefetchAnchor>
                     </NoFocusLinkWrapper>
                   ) : (
-                    <h3 className="text-sm font-bold text-primary leading-tight">
+                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {postMetadata.title}
-                      {postMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                      {isVerified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   )}
                   <span 
@@ -244,7 +290,7 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
                   </span>
                 </div>
               )}
-              {postMetadata.mediaType && (
+              {postMetadata?.mediaType && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium rounded-lg">
                   {postMetadata.mediaType.toLowerCase() === 'podcast' && <Podcast className="h-3 w-3" />}
                   {postMetadata.mediaType.toLowerCase() === 'newsletter' && <Mail className="h-3 w-3" strokeWidth={2.5} />}
@@ -256,43 +302,45 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
         </div>
         
         {/* Content */}
-        {postMetadata.mediaType?.toLowerCase() === 'podcast' ? (
+        {postMetadata?.mediaType === 'podcast' ? (
           <div>
-            <NoFocusWrapper 
-              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
+            <div 
               onClick={(e) => {
                 handleLinkInteraction(e);
                 handleCardClick(e);
               }}
               onTouchStart={handleLinkInteraction}
+              className={`cursor-pointer ${!isCurrentlyPlaying ? 'hover:opacity-80 transition-opacity' : ''}`}
             >
               <Card className={`rounded-xl overflow-hidden shadow-none ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}>
-                {entry.image && (
+                {imageSrc && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
-                        alt=""
+                        key={`${entry.guid}-podcast-image`}
+                        src={imageSrc}
+                        alt={`${decodedContent.title} podcast cover`}
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={isPriority}
+                        unoptimized={false}
                       />
                     </AspectRatio>
                   </CardHeader>
                 )}
                 <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
               </Card>
-            </NoFocusWrapper>
+            </div>
           </div>
         ) : (
           <NoFocusLinkWrapper
@@ -306,30 +354,31 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
             <a
               href={entry.link}
               target="_blank"
-              // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
             >
               <Card className="rounded-xl border overflow-hidden shadow-none">
-                {entry.image && (
+                {imageSrc && (
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
-                        alt=""
+                        key={`${entry.guid}-article-image`}
+                        src={imageSrc}
+                        alt={`${decodedContent.title} article image`}
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={isPriority}
+                        unoptimized={false}
                       />
                     </AspectRatio>
                   </CardHeader>
                 )}
                 <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decode(entry.title)}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decode(entry.description)}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
@@ -351,8 +400,8 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
-            className="flex items-center"
-            onClick={handleOpenComment}
+            className="flex items-center" 
+            onClick={handleOpenComments}
           >
             <CommentSectionClient
               entryGuid={entry.guid}
@@ -397,295 +446,422 @@ const FeaturedEntry = memo(({ entryWithData: { entry, initialData, postMetadata 
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prevEntry = prevProps.entryWithData;
+  const nextEntry = nextProps.entryWithData;
+  
+  // Only re-render if these key properties have changed
+  if (prevEntry.entry.guid !== nextEntry.entry.guid) return false;
+  
+  // Check entry properties that affect rendering
+  if (prevEntry.entry.image !== nextEntry.entry.image) return false;
+  if (prevEntry.entry.title !== nextEntry.entry.title) return false;
+  if (prevEntry.entry.description !== nextEntry.entry.description) return false;
+  if (prevEntry.entry.link !== nextEntry.entry.link) return false;
+  if (prevEntry.entry.pub_date !== nextEntry.entry.pub_date) return false;
+  
+  // Check initialData metrics that affect UI
+  if (prevEntry.initialData?.likes?.count !== nextEntry.initialData?.likes?.count) return false;
+  if (prevEntry.initialData?.likes?.isLiked !== nextEntry.initialData?.likes?.isLiked) return false;
+  if (prevEntry.initialData?.comments?.count !== nextEntry.initialData?.comments?.count) return false;
+  if (prevEntry.initialData?.retweets?.count !== nextEntry.initialData?.retweets?.count) return false;
+  if (prevEntry.initialData?.retweets?.isRetweeted !== nextEntry.initialData?.retweets?.isRetweeted) return false;
+  if (prevEntry.initialData?.bookmarks?.isBookmarked !== nextEntry.initialData?.bookmarks?.isBookmarked) return false;
+  
+  // Check postMetadata that affects display
+  if (prevEntry.postMetadata?.title !== nextEntry.postMetadata?.title) return false;
+  if (prevEntry.postMetadata?.featuredImg !== nextEntry.postMetadata?.featuredImg) return false;
+  if (prevEntry.postMetadata?.verified !== nextEntry.postMetadata?.verified) return false;
+  if (prevEntry.postMetadata?.mediaType !== nextEntry.postMetadata?.mediaType) return false;
+  
+  // Check function reference
+  if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // Check isPriority prop
+  if (prevProps.isPriority !== nextProps.isPriority) return false;
+  
+  return true;
 });
 FeaturedEntry.displayName = 'FeaturedEntry';
 
-// Feed content component is already memoized
-const FeedContent = React.memo(({ 
-  entries,
-  visibleEntries,
-  loadMoreRef,
-  hasMore,
-  loadMore,
-  isLoading,
-  onOpenCommentDrawer,
-  onRefresh
-}: { 
-  entries: FeaturedEntryWithData[],
-  visibleEntries: FeaturedEntryWithData[],
-  loadMoreRef: React.MutableRefObject<HTMLDivElement | null>,
-  hasMore: boolean,
-  loadMore: () => void,
-  isLoading: boolean,
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void,
-  onRefresh: () => void
-}) => {
-  // Add ref to prevent multiple endReached calls - MOVED BEFORE CONDITIONAL
-  const endReachedCalledRef = useRef(false);
-  
-  // Reset the endReachedCalled flag when entries change - MOVED BEFORE CONDITIONAL
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [visibleEntries.length]);
-  
-  // Use the shared hook for intersection observer with 3-second delay
-  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
-    enabled: hasMore && !isLoading,
-    isLoading,
-    hasMore,
-    rootMargin: '300px',
-    threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
-  });
+// Featured Content component with virtualization
+interface FeaturedContentProps {
+  paginatedEntries: FeaturedFeedEntryWithData[];
+  hasMore: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  isPending: boolean;
+  loadMore: () => void;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  isInitializing?: boolean;
+  pageSize: number;
+}
 
-  // Implement the itemContentCallback using the standard pattern
-  const itemContentCallback = useCallback((index: number, entryWithData: FeaturedEntryWithData) => {
-    // Create a consistent interface for the FeaturedEntry component
+function FeaturedContentComponent({
+  paginatedEntries,
+  hasMore,
+  loadMoreRef,
+  isPending,
+  loadMore,
+  onOpenCommentDrawer,
+  isInitializing = false,
+  pageSize
+}: FeaturedContentProps) {
+  const endReachedCalledRef = useRef(false);
+  const entriesDataRef = useRef(paginatedEntries);
+  const virtuosoRef = useRef<any>(null);
+  
+  entriesDataRef.current = paginatedEntries;
+  
+  const currentEntriesLength = paginatedEntries.length;
+  const prevEntriesLengthRef = useRef(currentEntriesLength);
+  if (prevEntriesLengthRef.current !== currentEntriesLength) {
+    endReachedCalledRef.current = false;
+    prevEntriesLengthRef.current = currentEntriesLength;
+  }
+  
+  const itemContentCallback = useCallback((index: number, item: FeaturedFeedEntryWithData) => {
     return (
-      <FeaturedEntry
-        entryWithData={entryWithData}
+      <FeaturedEntry 
+        entryWithData={item} 
         onOpenCommentDrawer={onOpenCommentDrawer}
-        isPriority={index < 2} // Set priority for the first 2 entries
+        isPriority={index < 2} // First two entries get priority loading
       />
     );
   }, [onOpenCommentDrawer]);
+  
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isPending && !endReachedCalledRef.current) {
+      endReachedCalledRef.current = true;
+      loadMore();
+    }
+  }, [hasMore, isPending, loadMore]);
+  
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const timer = setTimeout(() => {
+      const loadMoreElement = loadMoreRef.current;
+      
+      if (!loadMoreElement) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
+            endReachedCalledRef.current = true;
+            loadMore();
+          }
+        },
+        { 
+          rootMargin: '1000px',
+          threshold: 0.1
+        }
+      );
+      
+      observer.observe(loadMoreElement);
+      
+      return () => {
+        observer.disconnect();
+      };
+    }, 3000);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [loadMoreRef, hasMore, isPending, loadMore]);
+  
+  const hasLoggedInitialCreateRef = useRef(false);
+  
+  const virtuosoStyle = useMemo(() => ({ 
+    outline: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation'
+  }), []);
 
-  if (!entries.length) {
+  const virtuosoComponents = useMemo(() => ({
+    Footer: () => null
+  }), []);
+  
+  const virtuosoComponent = useMemo(() => {
+    if (paginatedEntries.length === 0 && !isInitializing) {
+      return null;
+    }
+    
+    const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
+    
+    if (!hasLoggedInitialCreateRef.current) {
+      hasLoggedInitialCreateRef.current = true;
+    }
+    
     return (
-      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-4">
-        <p>No featured entries found.</p>
-        <Button 
-          variant="outline" 
-          onClick={onRefresh}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
+      <Virtuoso
+        ref={virtuosoRef}
+        useWindowScroll
+        data={optimizedEntries}
+        computeItemKey={(_, item) => item.entry.guid}
+        itemContent={itemContentCallback}
+        overscan={VIRTUAL_SCROLL_CONFIG.overscan}
+        components={virtuosoComponents}
+        style={virtuosoStyle}
+        className="focus:outline-none focus-visible:outline-none"
+        increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+        restoreStateFrom={undefined}
+      />
+    );
+  }, [paginatedEntries.length, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
+
+  if (paginatedEntries.length === 0 && !isInitializing) {
+    return (
+      <section 
+        className="flex justify-center items-center py-10"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading featured entries"
+      >
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+        <span className="sr-only">Loading featured entries...</span>
+      </section>
     );
   }
 
   return (
-    <div 
-      className="space-y-0 feed-container" 
+    <section 
+      className="space-y-0 featured-feed-container" 
+      role="feed"
+      aria-label="Featured feed entries"
+      aria-busy={isPending ? 'true' : 'false'}
       style={{ 
-        // CSS properties to prevent focus scrolling
         scrollBehavior: 'auto',
         WebkitOverflowScrolling: 'touch',
         WebkitTapHighlightColor: 'transparent'
       }}
     >
-      <Virtuoso
-        useWindowScroll
-        data={visibleEntries}
-        overscan={2000}
-        itemContent={itemContentCallback}
-        components={{
-          Footer: () => null
-        }}
-        style={{ 
-          outline: 'none',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
-        }}
-        className="focus:outline-none focus-visible:outline-none"
-        computeItemKey={(_, item) => item.entry.guid}
-      />
+      {virtuosoComponent}
       
-      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
-      <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-        {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-        {!hasMore && visibleEntries.length > 0 && <div></div>}
+      <div 
+        ref={loadMoreRef} 
+        className="h-52 flex items-center justify-center mb-20"
+        role="status"
+        aria-live="polite"
+        aria-label={hasMore ? (isPending ? "Loading more entries..." : "Scroll to load more entries") : "All entries loaded"}
+      >
+        {hasMore && isPending && (
+          <>
+            <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+            <span className="sr-only">Loading more entries...</span>
+          </>
+        )}
+        {!hasMore && paginatedEntries.length > 0 && (
+          <span className="sr-only">All entries have been loaded</span>
+        )}
       </div>
-    </div>
+    </section>
   );
-});
-FeedContent.displayName = 'FeedContent';
-
-interface FeaturedFeedClientProps {
-  initialData: {
-    entries: FeaturedEntryWithData[];
-    totalEntries: number;
-  };
-  pageSize?: number;
-  isActive?: boolean;
 }
 
-// Refreshable Error UI Component
-const RefreshableErrorFallback = ({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) => {
-  return (
-    <div className="w-full flex flex-col items-center justify-center p-8 space-y-4">
-      <p className="text-muted-foreground text-center">Something went wrong loading the feed.</p>
-      <Button 
-        variant="outline" 
-        onClick={resetErrorBoundary}
-        className="flex items-center gap-2"
-      >
-        <RefreshCw className="h-4 w-4" />
-        Refresh
-      </Button>
-    </div>
-  );
-};
-
-export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
-  const [key, setKey] = useState(0);
-  
-  // Reset key to force component remount
-  const handleReset = useCallback(() => {
-    setKey(prevKey => prevKey + 1);
-    // Force refresh the window if no other refresh method is available
-    window.location.reload();
-  }, []);
-  
-  return (
-    <ErrorBoundary 
-      FallbackComponent={RefreshableErrorFallback}
-      onReset={() => {
-        handleReset();
-      }}
-    >
-      <FeaturedFeedClient 
-        key={key} 
-        {...props} 
-      />
-    </ErrorBoundary>
-  );
-});
-
-// Create the client component that will be memoized
-const FeaturedFeedClientComponent = ({ initialData, pageSize = 30, isActive = true }: FeaturedFeedClientProps) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
+const FeaturedContent = React.memo<FeaturedContentProps>(
+  FeaturedContentComponent, 
+  (prevProps, nextProps) => {
+    if (prevProps.hasMore !== nextProps.hasMore) return false;
+    if (prevProps.isPending !== nextProps.isPending) return false;
+    if (prevProps.isInitializing !== nextProps.isInitializing) return false;
+    if (prevProps.pageSize !== nextProps.pageSize) return false;
     
-    // Cleanup function to set mounted flag to false when component unmounts
+    const prevLength = prevProps.paginatedEntries.length;
+    const nextLength = nextProps.paginatedEntries.length;
+    if (prevLength !== nextLength) return false;
+    
+    if (prevLength > 0 && nextLength > 0) {
+      const prevFirst = prevProps.paginatedEntries[0];
+      const nextFirst = nextProps.paginatedEntries[0];
+      const prevLast = prevProps.paginatedEntries[prevLength - 1];
+      const nextLast = nextProps.paginatedEntries[nextLength - 1];
+      
+      if (prevFirst?.entry.guid !== nextFirst?.entry.guid) return false;
+      if (prevLast?.entry.guid !== nextLast?.entry.guid) return false;
+      
+      if (prevLength > 10) {
+        const midIndex = Math.floor(prevLength / 2);
+        const prevMid = prevProps.paginatedEntries[midIndex];
+        const nextMid = nextProps.paginatedEntries[midIndex];
+        if (prevMid?.entry.guid !== nextMid?.entry.guid) return false;
+      }
+    }
+    
+    if (prevProps.loadMore !== nextProps.loadMore) return false;
+    if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+    
+    return true;
+  }
+);
+
+FeaturedContent.displayName = 'FeaturedContent';
+
+// Main client component
+const FeaturedFeedClientComponent = ({ 
+  initialData, 
+  pageSize = 30, 
+  isActive = true
+}: FeaturedFeedClientProps) => {
+  // Critical store hooks
+  const entries = useFeaturedFeedEntries();
+  const isLoading = useFeaturedFeedIsLoading();
+  const hasMore = useFeaturedFeedHasMore();
+  const commentDrawerOpen = useFeaturedFeedCommentDrawerOpen();
+  const selectedCommentEntry = useFeaturedFeedSelectedCommentEntry();
+  const hasInitialized = useFeaturedFeedHasInitialized();
+  
+  // Non-critical store hooks with deferred values
+  const currentPage = useDeferredValue(useFeaturedFeedCurrentPage());
+  const totalEntries = useDeferredValue(useFeaturedFeedTotalEntries());
+
+  // Store actions
+  const initialize = useFeaturedFeedInitialize();
+  const setLoading = useFeaturedFeedSetLoading();
+  const setCurrentPage = useFeaturedFeedSetCurrentPage();
+  const setHasMore = useFeaturedFeedSetHasMore();
+  const setTotalEntries = useFeaturedFeedSetTotalEntries();
+  const openCommentDrawer = useFeaturedFeedOpenCommentDrawer();
+  const closeCommentDrawer = useFeaturedFeedCloseCommentDrawer();
+
+  // Refs for state persistence
+  const isMountedRef = useRef(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Initialize store with data
+  useEffect(() => {
+    if (!hasInitialized && initialData && isMountedRef.current) {
+      initialize(initialData);
+    }
+  }, [hasInitialized, initialData, initialize]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.feed-container');
-
-  // Log to confirm we're using prefetched data from LayoutManager
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    logger.debug('FeaturedFeedClient: Using prefetched data from LayoutManager', {
-      entriesCount: initialData?.entries?.length || 0
-    });
-  }, [initialData]);
-  
-  // Calculate visible entries based on current page
-  const visibleEntries = useMemo(() => {
-    return initialData.entries.slice(0, currentPage * pageSize);
-  }, [initialData.entries, currentPage, pageSize]);
-  
-  // Check if there are more entries to load
-  const hasMore = visibleEntries.length < initialData.entries.length;
-  
-  // Function to load more entries - just update the page number
-  const loadMore = useCallback(() => {
-    if (hasMore && !isLoading) {
-      if (!isMountedRef.current) return;
+  // Load more entries function
+  const loadMoreEntries = useCallback(() => {
+    if (hasMore && !isLoading && isMountedRef.current) {
+      setLoading(true);
       
-      logger.debug('🔄 Loading more featured entries, current page:', currentPage);
-      setIsLoading(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
         if (isMountedRef.current) {
-          setCurrentPage(prev => prev + 1);
-          setIsLoading(false);
-          logger.debug('✅ Finished loading more featured entries');
+          setCurrentPage(currentPage + 1);
+          setLoading(false);
         }
       }, 300);
     }
-  }, [hasMore, isLoading, currentPage]);
-  
-  // Check if we need to load more when component mounts or content is short
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    const checkContentHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // If content is shorter than viewport and we have more entries to load, load them
-      if (documentHeight <= viewportHeight && visibleEntries.length > 0 && hasMore && !isLoading) {
-        logger.debug('📏 Content is shorter than viewport, loading more entries automatically');
-        loadMore();
-      }
-    };
-    
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
-    
-    return () => clearTimeout(timer);
-  }, [visibleEntries.length, hasMore, isLoading, loadMore]);
-  
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    if (!isMountedRef.current) return;
-    
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
+  }, [hasMore, isLoading, currentPage, setLoading, setCurrentPage]);
 
-  // Memoize the comment drawer state change handler
-  const handleCommentDrawerOpenChange = useCallback((open: boolean) => {
-    if (!isMountedRef.current) return;
-    setCommentDrawerOpen(open);
-  }, []);
+  // Calculate visible entries based on current page
+  const visibleEntries = useMemo(() => {
+    return entries.slice(0, currentPage * pageSize);
+  }, [entries, currentPage, pageSize]);
 
-  // Handle refresh by resetting page
-  const handleRefresh = useCallback(() => {
-    if (!isMountedRef.current) return;
-    setCurrentPage(1);
-    // Could trigger a data refetch here if needed
-  }, []);
+  // Apply memory optimization
+  const optimizedEntries = useMemo(() => 
+    optimizeEntriesForMemory(visibleEntries), 
+    [visibleEntries]
+  );
+
+  // Focus prevention
+  const shouldPreventFocus = useMemo(() => 
+    isActive && !commentDrawerOpen, 
+    [isActive, commentDrawerOpen]
+  );
+
+  useFeedFocusPrevention(shouldPreventFocus, '.featured-feed-container');
+
+  // Memoized comment handlers
+  const memoizedCommentHandlers = useMemo(() => ({
+    open: openCommentDrawer,
+    close: closeCommentDrawer
+  }), [openCommentDrawer, closeCommentDrawer]);
 
   return (
-    <div className="w-full feed-container">
-      <FeedContent
-        entries={initialData.entries}
-        visibleEntries={visibleEntries}
-        loadMoreRef={loadMoreRef}
-        hasMore={hasMore}
-        loadMore={loadMore}
-        isLoading={isLoading}
-        onOpenCommentDrawer={handleOpenCommentDrawer}
-        onRefresh={handleRefresh}
-      />
-      {selectedCommentEntry && (
+    <main className="w-full featured-feed-container" role="main" aria-label="Featured Feed">
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none focus:ring-2 focus:ring-primary-foreground"
+      >
+        Skip to main content
+      </a>
+      
+      <section id="main-content" aria-labelledby="feed-heading">
+        <h1 id="feed-heading" className="sr-only">
+          Featured Feed Entries
+          {totalEntries > 0 && ` (${totalEntries} total entries)`}
+          {isLoading && ' - Loading...'}
+        </h1>
+        
+        <FeaturedContent
+          paginatedEntries={optimizedEntries}
+          hasMore={hasMore}
+          loadMoreRef={loadMoreRef}
+          isPending={isLoading}
+          loadMore={loadMoreEntries}
+          onOpenCommentDrawer={memoizedCommentHandlers.open}
+          isInitializing={!hasInitialized}
+          pageSize={pageSize}
+        />
+      </section>
+      
+      {/* Comment drawer */}
+      {commentDrawerOpen && selectedCommentEntry && (
         <CommentSectionClient
           entryGuid={selectedCommentEntry.entryGuid}
           feedUrl={selectedCommentEntry.feedUrl}
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
-          setIsOpen={handleCommentDrawerOpenChange}
+          setIsOpen={memoizedCommentHandlers.close}
         />
       )}
-    </div>
+    </main>
   );
 };
 
-// Export the memoized version of the component
-export const FeaturedFeedClient = memo(FeaturedFeedClientComponent); 
+// Export the memoized version with optimized comparison
+export const FeaturedFeedClient = memo(FeaturedFeedClientComponent, (prevProps, nextProps) => {
+  if (prevProps.isActive !== nextProps.isActive) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  
+  if (!prevProps.initialData && nextProps.initialData) return false;
+  if (prevProps.initialData && !nextProps.initialData) return false;
+  
+  if (prevProps.initialData && nextProps.initialData) {
+    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
+    if (prevProps.initialData.totalEntries !== nextProps.initialData.totalEntries) return false;
+    
+    const prevEntries = prevProps.initialData.entries;
+    const nextEntries = nextProps.initialData.entries;
+    if (prevEntries?.length !== nextEntries?.length) return false;
+    if (prevEntries?.length && nextEntries?.length && prevEntries.length > 0) {
+      if (prevEntries[0] !== nextEntries[0]) return false;
+      if (prevEntries[prevEntries.length - 1] !== nextEntries[nextEntries.length - 1]) return false;
+      
+      if (prevEntries.length > 10) {
+        const midIndex = Math.floor(prevEntries.length / 2);
+        if (prevEntries[midIndex] !== nextEntries[midIndex]) return false;
+      }
+    }
+  }
+  
+  return true;
+});
+FeaturedFeedClient.displayName = 'FeaturedFeedClient';
+
+// Export with store provider wrapper
+export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
+  return (
+    <ErrorBoundary>
+      <FeaturedFeedStoreProvider>
+        <FeaturedFeedClient {...props} />
+      </FeaturedFeedStoreProvider>
+    </ErrorBoundary>
+  );
+}); 

@@ -8,16 +8,19 @@ interface KVNamespace {
 }
 
 import { cache } from "react";
-import { getFeaturedEntriesKV, FeaturedEntry as KVFeaturedEntry } from "@/lib/featured_kv";
+import { getFeaturedEntriesKV } from "@/lib/featured_kv";
 import { FeaturedFeedClient } from "@/components/featured/FeaturedFeedClient";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import type { 
+  FeaturedFeedEntry, 
+  FeaturedFeedEntryWithData, 
+  FeaturedFeedProps 
+} from "@/lib/types";
 import 'server-only';
 
-interface FeaturedFeedProps {
-  initialData?: Awaited<ReturnType<typeof getInitialEntries>>;
-}
+// Remove local interface - using centralized type from @/lib/types
 
 export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
   if (!kvBinding) {
@@ -26,7 +29,7 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
   }
 
   // Get ALL featured entries from KV (or fetch and cache if needed)
-  const entries: KVFeaturedEntry[] = await getFeaturedEntriesKV(kvBinding);
+  const entries: FeaturedFeedEntry[] = await getFeaturedEntriesKV(kvBinding);
 
   if (!entries || entries.length === 0) return null;
   

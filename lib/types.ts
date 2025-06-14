@@ -2177,4 +2177,162 @@ export interface UseCommentSectionReturn {
   // Refs and utilities
   setCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
   updateCommentLikeCount: (commentId: string, count: number) => void;
-} 
+}
+
+// ===================================================================
+// FEATURED FEED TYPES - Phase 1: Type System Centralization
+// ===================================================================
+
+// Core Featured Entry Interface (from featured_kv.ts)
+export interface FeaturedFeedEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_url: string;
+  post_title?: string; // From Convex post
+  category?: string; // From Convex post
+}
+
+// Featured Entry with Interaction Data
+export interface FeaturedFeedEntryWithData {
+  entry: FeaturedFeedEntry;
+  initialData: {
+    likes: {
+      isLiked: boolean;
+      count: number;
+    };
+    comments: {
+      count: number;
+    };
+    retweets?: {
+      isRetweeted: boolean;
+      count: number;
+    };
+    bookmarks?: {
+      isBookmarked: boolean;
+    };
+  };
+  postMetadata: {
+    title: string;
+    featuredImg?: string;
+    mediaType?: string;
+    categorySlug?: string;
+    postSlug?: string;
+    verified?: boolean;
+  };
+}
+
+// Featured Feed Pagination State
+export interface FeaturedFeedPaginationState {
+  currentPage: number;
+  hasMore: boolean;
+  totalEntries: number;
+}
+
+// Featured Feed Loading State
+export interface FeaturedFeedLoadingState {
+  isLoading: boolean;
+  fetchError: Error | null;
+}
+
+// Featured Feed UI State
+export interface FeaturedFeedUIState {
+  commentDrawerOpen: boolean;
+  selectedCommentEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+  isActive: boolean;
+}
+
+// Featured Feed Metadata State
+export interface FeaturedFeedMetadataState {
+  feedMetadataCache: Record<string, FeaturedFeedEntryWithData['postMetadata']>;
+}
+
+// Main Featured Feed State Interface
+export interface FeaturedFeedState {
+  // Core data
+  entries: FeaturedFeedEntryWithData[];
+  
+  // Pagination state
+  pagination: FeaturedFeedPaginationState;
+  
+  // Loading state
+  loading: FeaturedFeedLoadingState;
+  
+  // UI state
+  ui: FeaturedFeedUIState;
+  
+  // Metadata state
+  metadata: FeaturedFeedMetadataState;
+  
+  // Initialization flag
+  hasInitialized: boolean;
+}
+
+// Featured Feed Store Actions Interface
+export interface FeaturedFeedActions {
+  // Entry management actions
+  setEntries: (entries: FeaturedFeedEntryWithData[]) => void;
+  addEntries: (newEntries: FeaturedFeedEntryWithData[]) => void;
+  updateEntryMetrics: (entryGuid: string, metrics: FeaturedFeedEntryWithData['initialData']) => void;
+  
+  // Pagination actions
+  setCurrentPage: (page: number) => void;
+  setHasMore: (hasMore: boolean) => void;
+  setTotalEntries: (total: number) => void;
+  
+  // Loading actions
+  setLoading: (isLoading: boolean) => void;
+  setFetchError: (error: Error | null) => void;
+  
+  // UI actions
+  setActive: (isActive: boolean) => void;
+  openCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  closeCommentDrawer: () => void;
+  
+  // Metadata actions
+  updateFeedMetadataCache: (feedUrl: string, metadata: FeaturedFeedEntryWithData['postMetadata']) => void;
+  
+  // Utility actions
+  reset: () => void;
+  initialize: (initialData: {
+    entries: FeaturedFeedEntryWithData[];
+    totalEntries: number;
+  }) => void;
+}
+
+// Combined Featured Feed Store Interface
+export interface FeaturedFeedStore extends FeaturedFeedState, FeaturedFeedActions {}
+
+// Featured Feed Client Props Interface
+export interface FeaturedFeedClientProps {
+  initialData: {
+    entries: FeaturedFeedEntryWithData[];
+    totalEntries: number;
+  };
+  pageSize?: number;
+  isActive?: boolean;
+}
+
+// Featured Feed Server Props Interface
+export interface FeaturedFeedProps {
+  initialData?: {
+    entries: FeaturedFeedEntryWithData[];
+    totalEntries: number;
+  } | null;
+  kvBindingFromProps?: any; // KVNamespace type from Cloudflare Workers
+}
+
+// FeaturedFeedWrapperProps removed - using FeaturedFeedClient directly
+
+// ===================================================================
+// END FEATURED FEED TYPES
+// =================================================================== 
