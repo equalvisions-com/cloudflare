@@ -766,7 +766,7 @@ function EntriesContentComponent({
       return () => {
         observer.disconnect();
       };
-    }, 3000); // 3 second delay to prevent initial page load triggering
+    }, 1000); // 1 second delay to prevent initial page load triggering
     
     return () => {
       clearTimeout(timer);

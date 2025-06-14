@@ -564,7 +564,7 @@ function FeaturedContentComponent({
       return () => {
         observer.disconnect();
       };
-    }, 3000);
+    }, 1000);
     
     return () => {
       clearTimeout(timer);
