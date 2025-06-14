@@ -36,9 +36,9 @@ export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
   ...createInitialState(),
 
   // Track management actions
-  playTrack: (src: string, title: string, image?: string) => {
+  playTrack: (src: string, title: string, image?: string, creator?: string) => {
     const { isPlaying: wasPlaying } = get();
-    const newTrack: AudioTrack = { src, title, image };
+    const newTrack: AudioTrack = { src, title, image, creator };
     set({ 
       currentTrack: newTrack,
       isLoading: true,

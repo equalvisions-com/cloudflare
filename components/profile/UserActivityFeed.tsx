@@ -539,9 +539,10 @@ const ActivityCard = React.memo(({
     if (isPodcast && entryLink) {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entryLink, entryTitle || '', entryImage);
+      const creatorName = entryDetail?.post_title || entryDetail?.feed_title || undefined;
+      playTrack(entryLink, entryTitle || '', entryImage, creatorName);
     }
-  }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
+  }, [isPodcast, entryLink, entryTitle, entryImage, entryDetail?.post_title, entryDetail?.feed_title, playTrack]);
   
   // Helper function to prevent scroll jumping on link interaction
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -1182,9 +1183,10 @@ const ActivityGroupRenderer = React.memo(({
     if (isPodcast && entryLink) {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entryLink, entryTitle, entryImage);
+      const creatorName = entryDetail?.post_title || entryDetail?.feed_title || undefined;
+      playTrack(entryLink, entryTitle, entryImage, creatorName);
     }
-  }, [isPodcast, entryLink, entryTitle, entryImage, playTrack]);
+  }, [isPodcast, entryLink, entryTitle, entryImage, entryDetail?.post_title, entryDetail?.feed_title, playTrack]);
 
   // Comment drawer handler - always define
   const rendererHandleCommentClick = useCallback(() => {

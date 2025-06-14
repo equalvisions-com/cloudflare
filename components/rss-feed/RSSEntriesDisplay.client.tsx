@@ -286,12 +286,6 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     return null;
   }, []);
 
-  // Memoize play handler
-  const handlePlayAudio = useCallback(() => {
-    // Since audioTrackData is always null, use entry data directly
-    playTrack(entry.link, decodedContent.title, imageSrc);
-  }, [entry.link, decodedContent.title, imageSrc, playTrack]);
-
   // Memoize comment handler
   const handleOpenComments = useCallback(() => {
     onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData?.comments);
@@ -338,9 +332,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
     if (safePostMetadata.mediaType === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, decodedContent.title, imageSrc);
+      playTrack(entry.link, decodedContent.title, imageSrc, safePostMetadata.title);
     }
-  }, [safePostMetadata.mediaType, entry.link, decodedContent.title, imageSrc, playTrack]);
+  }, [safePostMetadata.mediaType, entry.link, decodedContent.title, imageSrc, safePostMetadata.title, playTrack]);
 
   return (
     <article 

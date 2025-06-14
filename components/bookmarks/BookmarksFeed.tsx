@@ -140,7 +140,8 @@ const BookmarkCard = memo(({
     if (entryDetails && (entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast')) {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined);
+      const creatorName = entryDetails.post_title || entryDetails.feed_title || undefined;
+      playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined, creatorName);
     }
   }, [entryDetails, playTrack]);
   

@@ -20,8 +20,9 @@ interface AudioContextType {
     src: string;
     title: string;
     image?: string;
+    creator?: string;
   } | null;
-  playTrack: (src: string, title: string, image?: string) => void;
+  playTrack: (src: string, title: string, image?: string, creator?: string) => void;
   stopTrack: () => void;
   isPlaying: boolean;
   togglePlayPause: () => void;

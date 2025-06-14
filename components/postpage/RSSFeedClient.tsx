@@ -186,9 +186,10 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     if (mediaType === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, decode(entry.title), entry.image || undefined);
+      const creatorName = postTitle || undefined;
+      playTrack(entry.link, decode(entry.title), entry.image || undefined, creatorName);
     }
-  }, [mediaType, entry.link, entry.title, entry.image, playTrack]);
+  }, [mediaType, entry.link, entry.title, entry.image, postTitle, playTrack]);
 
   // Memoize the comment handler
   const handleOpenCommentDrawer = useCallback(() => {

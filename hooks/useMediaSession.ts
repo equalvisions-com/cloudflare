@@ -54,11 +54,34 @@ export const useMediaSession = ({
   }, []);
 
   /**
-   * Extract artist name from title or use fallback
+   * Convert text to title case (capitalize every word)
    */
-  const getArtistName = useCallback((title: string): string => {
-    // Try to extract podcast name from title patterns
+  const toTitleCase = useCallback((text: string): string => {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map(word => {
+        if (word.length === 0) return word;
+        
+        // Always capitalize first letter of each word for podcast titles
+        // (keeping it simple for better readability on lock screen)
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+  }, []);
+
+  /**
+   * Get artist name from track creator or extract from title as fallback
+   */
+  const getArtistName = useCallback((track: { title: string; creator?: string }): string => {
+    // Use the creator field if available
+    if (track.creator) {
+      return track.creator;
+    }
+    
+    // Fallback: Try to extract podcast name from title patterns
     // Common patterns: "Episode Title - Podcast Name", "Podcast Name: Episode Title"
+    const title = track.title;
     if (title.includes(' - ')) {
       const parts = title.split(' - ');
       if (parts.length >= 2) {
@@ -73,7 +96,7 @@ export const useMediaSession = ({
         return parts[0].trim();
       }
     }
-    // Fallback to generic name
+    // Final fallback to generic name
     return 'FocusFix Podcast';
   }, []);
 
@@ -85,7 +108,7 @@ export const useMediaSession = ({
 
     try {
       if (currentTrack) {
-        const artistName = getArtistName(currentTrack.title);
+        const artistName = getArtistName(currentTrack);
         const imageType = currentTrack.image ? getImageType(currentTrack.image) : 'image/jpeg';
         
         // Create artwork array with multiple sizes for better iOS compatibility
@@ -112,15 +135,17 @@ export const useMediaSession = ({
           }
         ] : [];
 
+        const formattedTitle = toTitleCase(currentTrack.title);
+
         console.log('Setting Media Session metadata:', {
-          title: currentTrack.title,
+          title: formattedTitle,
           artist: artistName,
           album: 'Podcast',
           artwork: artwork
         });
 
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: currentTrack.title,
+          title: formattedTitle,
           artist: artistName,
           album: 'Podcast',
           artwork: artwork
@@ -132,7 +157,7 @@ export const useMediaSession = ({
     } catch (error) {
       console.error('Failed to update Media Session metadata:', error);
     }
-  }, [currentTrack, getArtistName, getImageType]);
+  }, [currentTrack, getArtistName, getImageType, toTitleCase]);
 
   /**
    * Update Media Session playback state

@@ -829,7 +829,7 @@ export interface ActivityFeedGroupRendererProps {
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   currentTrack: { src: string | null } | null;
-  playTrack: (src: string, title: string, image?: string) => void;
+  playTrack: (src: string, title: string, image?: string, creator?: string) => void;
 }
 
 export interface ActivityFeedState {
@@ -2340,6 +2340,7 @@ export interface AudioTrack {
   src: string;
   title: string;
   image?: string;
+  creator?: string; // Podcast creator/artist name for Media Session API
 }
 
 // Audio Player State Interface
@@ -2362,7 +2363,7 @@ export interface AudioPlayerState {
 // Audio Player Actions Interface
 export interface AudioPlayerActions {
   // Track management
-  playTrack: (src: string, title: string, image?: string) => void;
+  playTrack: (src: string, title: string, image?: string, creator?: string) => void;
   stopTrack: () => void;
   togglePlayPause: () => void;
   

@@ -101,7 +101,8 @@ const TrendingItem = memo(({
     
     if (isPodcast) {
       e.preventDefault();
-      playTrack(rssEntry.link, decode(rssEntry.title), rssEntry.image || undefined);
+      const creatorName = post.title || undefined;
+      playTrack(rssEntry.link, decode(rssEntry.title), rssEntry.image || undefined, creatorName);
     }
   }, [isPodcast, rssEntry.link, rssEntry.title, rssEntry.image, playTrack]);
   

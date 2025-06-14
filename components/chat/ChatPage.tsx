@@ -74,7 +74,7 @@ const ChatMessage = memo(({
   dislikedMessages: Record<string, boolean>;
   onLike: (messageId: string) => void;
   onDislike: (messageId: string) => void;
-  playTrack: (src: string, title: string, image?: string) => void;
+  playTrack: (src: string, title: string, image?: string, creator?: string) => void;
 }) => {
   const content = useMemo((): MessageContent | string | null => {
     if (isUser) {
@@ -192,7 +192,8 @@ const ChatMessage = memo(({
                           onClick={(e) => {
                           if (activeButton === 'podcasts' && article.link) {
                               e.preventDefault();
-                              playTrack(article.link, article.title, article.publisherIconUrl);
+                              const creatorName = article.source || undefined;
+                              playTrack(article.link, article.title, article.publisherIconUrl, creatorName);
                             }
                           }}
                         >

@@ -221,9 +221,9 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
     if (postMetadata?.mediaType === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, decodedContent.title, imageSrc);
+      playTrack(entry.link, decodedContent.title, imageSrc, postMetadata?.title);
     }
-  }, [postMetadata?.mediaType, entry.link, decodedContent.title, imageSrc, playTrack]);
+  }, [postMetadata?.mediaType, entry.link, decodedContent.title, imageSrc, postMetadata?.title, playTrack]);
 
   return (
     <article 

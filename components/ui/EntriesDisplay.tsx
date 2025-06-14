@@ -251,12 +251,13 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
     if (entry.post_media_type?.toLowerCase() === 'podcast' || entry.mediaType?.toLowerCase() === 'podcast') {
       e.preventDefault();
       e.stopPropagation();
-      playTrack(entry.link, entry.title, entry.image || undefined);
+      const creatorName = entry.post_title || entry.feed_title || undefined;
+      playTrack(entry.link, entry.title, entry.image || undefined, creatorName);
     } else {
       e.stopPropagation();
       handleLinkInteraction(e);
     }
-  }, [entry.post_media_type, entry.mediaType, entry.link, entry.title, entry.image, playTrack, handleLinkInteraction]);
+  }, [entry.post_media_type, entry.mediaType, entry.link, entry.title, entry.image, entry.post_title, entry.feed_title, playTrack, handleLinkInteraction]);
   
   // Memoize the comment handler
   const handleCommentClick = useCallback((e: MouseEvent) => {
