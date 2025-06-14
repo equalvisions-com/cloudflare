@@ -81,7 +81,7 @@ const Comment = memo<CommentProps>(({
     if (diffInMinutes < 60) return `${diffInMinutes}m`;
     if (diffInHours < 24) return `${diffInHours}h`;
     if (diffInDays < 30) return `${diffInDays}d`;
-    return `${diffInMonths}mo`;
+      return `${diffInMonths}mo`;
   }, [comment._creationTime]);
   
   // Don't render deleted comments
@@ -219,18 +219,18 @@ Comment.displayName = 'Comment';
 
 // Memoized comment button component
 const CommentButton = memo<CommentButtonProps>(({ onClick, commentCount }) => (
-  <Button
-    variant="ghost"
-    size="sm"
-    className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
-    onClick={onClick}
-    data-comment-input
-  >
-    <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
+    <Button
+      variant="ghost"
+      size="sm"
+      className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+      onClick={onClick}
+      data-comment-input
+    >
+      <MessageCircle className="h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200" />
     <span className="text-[14px] text-muted-foreground font-semibold transition-all duration-200">
       {commentCount}
     </span>
-  </Button>
+    </Button>
 ));
 
 CommentButton.displayName = 'CommentButton';
@@ -292,80 +292,80 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
         className="h-[75vh] w-full max-w-[550px] mx-auto" 
         data-drawer-content="comment-section"
       >
-        <DrawerHeader 
-          className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
-        >
+          <DrawerHeader 
+             className={`px-4 pb-4 ${commentHierarchy.length === 0 ? 'border-b' : ''}`}
+           >
           <DrawerTitle className="text-center text-base font-extrabold leading-none tracking-tight">
             Comments
           </DrawerTitle>
-        </DrawerHeader>
-        
-        <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
-          <div className="mt-0">
-            {commentHierarchy.length > 0 ? (
-              commentHierarchy.map(comment => (
-                <Comment
-                  key={comment._id}
-                  comment={comment}
-                  isAuthenticated={isAuthenticated}
-                  viewer={viewer}
+          </DrawerHeader>
+          
+          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+            <div className="mt-0">
+              {commentHierarchy.length > 0 ? (
+                commentHierarchy.map(comment => (
+                  <Comment
+                    key={comment._id}
+                    comment={comment}
+                    isAuthenticated={isAuthenticated}
+                    viewer={viewer}
                   deletedComments={state.deletedComments}
                   expandedReplies={state.expandedReplies}
-                  onReply={handleReply}
+                    onReply={handleReply}
                   onDeleteComment={handleDeleteComment}
                   onToggleReplies={handleToggleReplies}
-                  onSetCommentLikeCountRef={setCommentLikeCountRef}
-                  onUpdateCommentLikeCount={updateCommentLikeCount}
-                />
-              ))
-            ) : (
+                    onSetCommentLikeCountRef={setCommentLikeCountRef}
+                    onUpdateCommentLikeCount={updateCommentLikeCount}
+                  />
+                ))
+              ) : (
               <p className="text-muted-foreground py-4 text-center">
                 No comments yet. Be the first to comment!
               </p>
-            )}
-          </div>
-        </ScrollArea>
-        
-        <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Textarea
+              )}
+            </div>
+          </ScrollArea>
+          
+          <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Textarea
                 placeholder={state.replyToComment 
                   ? `Reply to ${state.replyToComment.username}...`
-                  : "Add a comment..."}
+                    : "Add a comment..."}
                 value={state.comment}
                 onChange={(e) => actions.setComment(e.target.value)}
-                className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
-                maxLength={500}
-                rows={1}
-                data-comment-input
-              />
-              <Button 
-                onClick={handleSubmit} 
+                  className="resize-none h-9 py-2 min-h-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                  maxLength={500}
+                  rows={1}
+                  data-comment-input
+                />
+                <Button 
+                  onClick={handleSubmit} 
                 disabled={!state.comment.trim() || state.isSubmitting}
-              >
-                {state.isSubmitting ? "Posting..." : "Post"}
-              </Button>
-            </div>
-            
-            <div className="flex justify-between items-center text-xs text-muted-foreground">
-              {state.replyToComment && (
-                <button 
-                  onClick={() => actions.setReplyToComment(null)}
-                  className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
                 >
-                  <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
-                  Cancel Reply
-                </button>
-              )}
+                {state.isSubmitting ? "Posting..." : "Post"}
+                </Button>
+              </div>
+            
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+              {state.replyToComment && (
+                  <button 
+                  onClick={() => actions.setReplyToComment(null)}
+                    className="text-xs text-muted-foreground hover:underline flex items-center font-semibold"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1 stroke-[2.5]" />
+                    Cancel Reply
+                  </button>
+                )}
               <div className={`${state.replyToComment ? '' : 'w-full'} text-right`}>
                 {state.comment.length}/500 characters
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </DrawerContent>
-    </Drawer>
+        </DrawerContent>
+      </Drawer>
   );
 });
 
