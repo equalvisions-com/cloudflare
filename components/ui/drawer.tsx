@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 
 // Global scroll lock manager for drawers
 let openDrawerCount = 0;
-let lockedScrollY = 0;
 let scrollbarWidth = 0;
 
 // Calculate scrollbar width once and cache it
@@ -35,28 +34,13 @@ const Drawer = React.memo(({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
   React.useEffect(() => {
-    // Helper to clean up body styles and restore scroll position
+    // Since Vaul already handles scroll prevention, we only need to handle
+    // scrollbar width compensation to prevent layout shift
     const cleanup = () => {
       openDrawerCount = Math.max(0, openDrawerCount - 1);
       if (openDrawerCount === 0) {
-        const y = document.body.style.top ? -parseInt(document.body.style.top || '0', 10) : 0;
-        
-        // Smooth restoration to prevent flash
-        document.body.style.transition = 'none';
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.left = '';
-        document.body.style.right = '';
-        document.body.style.overflow = '';
-        document.body.style.touchAction = '';
+        // Only reset the padding compensation
         document.body.style.paddingRight = '';
-        
-        // Restore scroll position smoothly
-        if (y) {
-          requestAnimationFrame(() => {
-            window.scrollTo(0, y);
-          });
-        }
       }
     };
 
@@ -65,19 +49,9 @@ const Drawer = React.memo(({
         // Calculate scrollbar width to prevent layout shift
         const scrollWidth = getScrollbarWidth();
         
-        // Save scroll position and lock smoothly
-        lockedScrollY = window.scrollY;
-        
-        // Apply styles in a way that prevents flash
+        // Only apply scrollbar width compensation
+        // Let Vaul handle the actual scroll prevention
         requestAnimationFrame(() => {
-          document.body.style.transition = 'none';
-          document.body.style.position = 'fixed';
-          document.body.style.top = `-${lockedScrollY}px`;
-          document.body.style.left = '0';
-          document.body.style.right = '0';
-          document.body.style.overflow = 'hidden';
-          document.body.style.touchAction = 'none';
-          // Compensate for scrollbar width to prevent layout shift
           document.body.style.paddingRight = `${scrollWidth}px`;
         });
       }
@@ -93,7 +67,7 @@ const Drawer = React.memo(({
   return (
     <DrawerPrimitive.Root
       shouldScaleBackground={shouldScaleBackground}
-      disablePreventScroll={false} // Ensure scroll lock is enabled
+      disablePreventScroll={false} // Let Vaul handle scroll prevention
       repositionInputs={false} // Let browser handle input/keyboard
       {...props}
     />
