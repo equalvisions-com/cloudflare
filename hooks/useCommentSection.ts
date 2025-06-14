@@ -18,7 +18,8 @@ export function useCommentSection({
   initialData = { count: 0 },
   isOpen: externalIsOpen,
   setIsOpen: externalSetIsOpen,
-}: Omit<CommentSectionProps, 'buttonOnly'>): UseCommentSectionReturn {
+  buttonOnly = false,
+}: Omit<CommentSectionProps, 'buttonOnly'> & { buttonOnly?: boolean }): UseCommentSectionReturn {
   // Create a unique store instance for this component
   const useStore = useMemo(() => createCommentSectionStore(), []);
   
@@ -31,19 +32,20 @@ export function useCommentSection({
   const viewer = useQuery(api.users.viewer);
   const { toast } = useToast();
   
-  // Convex queries and mutations
+  // Handle external isOpen state first (needed for conditional queries)
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : storeState.isOpen;
+  const setIsOpen = externalSetIsOpen !== undefined ? externalSetIsOpen : storeState.setIsOpen;
+  
+  // Convex queries and mutations - only query comments when drawer is open or not button-only
+  const shouldQueryComments = !buttonOnly || isOpen;
   const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
-  const comments = useQuery(api.comments.getComments, { entryGuid });
+  const comments = useQuery(api.comments.getComments, shouldQueryComments ? { entryGuid } : "skip");
   const addComment = useMutation(api.comments.addComment);
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   
   // Refs for cleanup and like count tracking
   const isMountedRef = useRef(true);
   const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
-  
-  // Handle external isOpen state
-  const isOpen = externalIsOpen !== undefined ? externalIsOpen : storeState.isOpen;
-  const setIsOpen = externalSetIsOpen !== undefined ? externalSetIsOpen : storeState.setIsOpen;
   
   // Cleanup on unmount
   useEffect(() => {

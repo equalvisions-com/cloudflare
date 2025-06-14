@@ -270,6 +270,7 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
     initialData,
     isOpen: externalIsOpen,
     setIsOpen: externalSetIsOpen,
+    buttonOnly,
   });
   
   // Get authentication state and viewer
