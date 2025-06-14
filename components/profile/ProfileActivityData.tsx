@@ -202,7 +202,16 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
       totalCount: result.activities.totalCount,
       hasMore: result.activities.hasMore,
       entryDetails,
-      entryMetrics: result.entryMetrics
+      entryMetrics: Object.fromEntries(
+        Object.entries(result.entryMetrics).map(([guid, metrics]: [string, any]) => [
+          guid,
+          {
+            likes: { isLiked: false, count: metrics.likeCount || 0 },
+            comments: { count: metrics.commentCount || 0 },
+            retweets: { isRetweeted: false, count: metrics.retweetCount || 0 }
+          }
+        ])
+      )
     };
   } catch (error) {
     console.error("❌ Error fetching initial activity data:", error);
@@ -369,7 +378,16 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
       totalCount: result.activities.totalCount,
       hasMore: result.activities.hasMore,
       entryDetails,
-      entryMetrics: result.entryMetrics
+      entryMetrics: Object.fromEntries(
+        Object.entries(result.entryMetrics).map(([guid, metrics]: [string, any]) => [
+          guid,
+          {
+            likes: { isLiked: false, count: metrics.likeCount || 0 },
+            comments: { count: metrics.commentCount || 0 },
+            retweets: { isRetweeted: false, count: metrics.retweetCount || 0 }
+          }
+        ])
+      )
     };
   } catch (error) {
     console.error("❌ Error fetching initial likes data:", error);

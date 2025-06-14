@@ -794,12 +794,6 @@ export interface ActivityFeedComment {
   } | null;
 }
 
-export interface ActivityFeedInteractionStates {
-  likes: { isLiked: boolean; count: number };
-  comments: { count: number };
-  retweets: { isRetweeted: boolean; count: number };
-}
-
 export interface UserActivityFeedComponentProps {
   userId: Id<"users">;
   username: string;
@@ -810,7 +804,7 @@ export interface UserActivityFeedComponentProps {
     totalCount: number;
     hasMore: boolean;
     entryDetails: Record<string, ActivityFeedRSSEntry>;
-    entryMetrics?: Record<string, ActivityFeedInteractionStates>;
+    entryMetrics?: Record<string, InteractionStates>;
   } | null;
   pageSize?: number;
   apiEndpoint?: string;
@@ -832,7 +826,7 @@ export interface ActivityFeedGroupRendererProps {
   name: string;
   profileImage?: string | null;
   userId: Id<"users">;
-  getEntryMetrics: (entryGuid: string) => ActivityFeedInteractionStates;
+  getEntryMetrics: (entryGuid: string) => InteractionStates;
   handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   currentTrack: { src: string | null } | null;
   playTrack: (src: string, title: string, image?: string) => void;
@@ -2335,4 +2329,107 @@ export interface FeaturedFeedProps {
 
 // ===================================================================
 // END FEATURED FEED TYPES
+// ===================================================================
+
+// ===================================================================
+// AUDIO PLAYER TYPES - Phase 1: Type System Centralization
+// ===================================================================
+
+// Core Audio Track Interface
+export interface AudioTrack {
+  src: string;
+  title: string;
+  image?: string;
+}
+
+// Audio Player State Interface
+export interface AudioPlayerState {
+  // Playback state
+  isPlaying: boolean;
+  isLoading: boolean;
+  duration: number;
+  seek: number;
+  volume: number;
+  isMuted: boolean;
+  
+  // Current track
+  currentTrack: AudioTrack | null;
+  
+  // Error state
+  error: string | null;
+}
+
+// Audio Player Actions Interface
+export interface AudioPlayerActions {
+  // Track management
+  playTrack: (src: string, title: string, image?: string) => void;
+  stopTrack: () => void;
+  togglePlayPause: () => void;
+  
+  // Controls
+  handleSeek: (value: number[]) => void;
+  handleVolume: (value: number[]) => void;
+  toggleMute: () => void;
+  
+  // Internal state management
+  setLoading: (loading: boolean) => void;
+  setDuration: (duration: number) => void;
+  setSeek: (seek: number) => void;
+  setVolume: (volume: number) => void;
+  setPlaying: (playing: boolean) => void;
+  setError: (error: string | null) => void;
+  
+  // Utility
+  reset: () => void;
+}
+
+// Combined Audio Player Store Interface
+export interface AudioPlayerStore extends AudioPlayerState, AudioPlayerActions {}
+
+// Audio Player Component Props Interface
+export interface AudioPlayerProps {
+  src: string;
+  title?: string;
+}
+
+// Audio Controls Hook Return Interface
+export interface UseAudioControlsReturn {
+  // Control handlers
+  handleSeek: (value: number[]) => void;
+  handleVolume: (value: number[]) => void;
+  togglePlayPause: () => void;
+  toggleMute: () => void;
+  
+  // Utility functions
+  formatTime: (secs: number) => string;
+}
+
+// Audio Lifecycle Hook Return Interface
+export interface UseAudioLifecycleReturn {
+  // Howler instance management
+  initializeHowler: (src: string) => void;
+  cleanupHowler: () => void;
+  
+  // State updates
+  updateSeekPosition: () => void;
+  
+  // Playback controls
+  playAudio: () => void;
+  pauseAudio: () => void;
+  seekToPosition: (position: number) => void;
+}
+
+// Audio Lifecycle Hook Props Interface
+export interface UseAudioLifecycleProps {
+  src: string;
+  onLoad?: () => void;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onStop?: () => void;
+  onEnd?: () => void;
+  onError?: (error: Error) => void;
+}
+
+// ===================================================================
+// END AUDIO PLAYER TYPES
 // =================================================================== 

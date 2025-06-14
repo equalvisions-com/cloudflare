@@ -20,7 +20,7 @@ import Script from "next/script";
 const AudioProvider = dynamic(
   () => import("@/components/audio-player/AudioContext").then(mod => mod.AudioProvider),
   { ssr: false }
-);
+) as React.ComponentType<{ children: React.ReactNode }>;
 
 const PersistentPlayer = dynamic(
   () => import("@/components/audio-player/PersistentPlayer").then(mod => mod.PersistentPlayer),

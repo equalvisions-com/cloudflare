@@ -29,7 +29,7 @@ import {
   ActivityFeedItem,
   ActivityFeedRSSEntry,
   ActivityFeedComment,
-  ActivityFeedInteractionStates,
+  InteractionStates,
   UserActivityFeedComponentProps,
   ActivityFeedGroupedActivity,
   ActivityFeedGroupRendererProps,
@@ -495,7 +495,7 @@ const ActivityCard = React.memo(({
   name: string;
   profileImage?: string | null;
   entryDetail?: ActivityFeedRSSEntry;
-  getEntryMetrics: (entryGuid: string) => ActivityFeedInteractionStates;
+  getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
   const { playTrack, currentTrack } = useAudio();
