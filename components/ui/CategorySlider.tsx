@@ -246,7 +246,7 @@ const CategorySliderComponent = ({
 
   return (
     <div className={cn("grid w-full overflow-hidden", className)}>
-      <div className="overflow-hidden" ref={emblaRef}>
+      <div className="overflow-hidden mr-4" ref={emblaRef}>
         <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
           {categories.map((category, index) => {
             const isSelected = category._id === selectedCategoryId;

@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, KeyboardEvent, useCallback, memo, useMemo } from "react";
-import { Search as SearchIcon, X, Mail, Podcast, Users } from "lucide-react";
+import { useRef, KeyboardEvent, useCallback, memo, useReducer } from "react";
+import { Search as SearchIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  Command,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { useRouter } from "next/navigation";
+
+// Import organized utilities and hooks
+import { useOutsideClick, useSearchStorage, useMountedRef } from "@/hooks/useSearchHooks";
+import { getSearchRoute, formatSearchQuery } from "@/lib/utils/search";
+import { SEARCH_CATEGORIES, SEARCH_CONFIG } from "@/lib/constants/search";
 
 interface SidebarSearchProps {
   className?: string;
@@ -17,233 +16,242 @@ interface SidebarSearchProps {
   hideClearButton?: boolean;
 }
 
-// Store search info in sessionStorage for cross-page persistence
-const storeSearchQuery = (query: string, mediaType?: string) => {
-  // Store the search query in sessionStorage so it persists through navigation
-  sessionStorage.setItem('app_search_query', query);
-  if (mediaType) {
-    sessionStorage.setItem('app_search_mediaType', mediaType);
-  } else {
-    sessionStorage.removeItem('app_search_mediaType');
-  }
-  
-  // Set a timestamp to know this is a fresh search
-  sessionStorage.setItem('app_search_timestamp', Date.now().toString());
-  
-  // Add a flag to indicate we're navigating between pages
-  // This helps prevent unnecessary widget re-renders
-  sessionStorage.setItem('app_is_navigation', 'true');
+// Custom hooks are now imported from @/hooks/useSearchHooks
+
+// Search state interface
+interface SearchState {
+  query: string;
+  isOpen: boolean;
+  activeIndex: number;
+}
+
+// Search actions
+type SearchAction =
+  | { type: 'SET_QUERY'; payload: string }
+  | { type: 'SET_OPEN'; payload: boolean }
+  | { type: 'SET_ACTIVE_INDEX'; payload: number }
+  | { type: 'OPEN_WITH_QUERY'; payload: string }
+  | { type: 'CLOSE_AND_RESET' }
+  | { type: 'CLEAR_ALL' }
+  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
+  | { type: 'NAVIGATE_UP'; maxIndex: number };
+
+// Initial state using constants
+const initialSearchState: SearchState = {
+  query: '',
+  isOpen: false,
+  activeIndex: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX,
 };
+
+// Reducer for search state management
+const searchReducer = (state: SearchState, action: SearchAction): SearchState => {
+  switch (action.type) {
+    case 'SET_QUERY':
+      return {
+        ...state,
+        query: action.payload,
+        isOpen: action.payload.length >= SEARCH_CONFIG.MIN_QUERY_LENGTH,
+        activeIndex: action.payload.length >= SEARCH_CONFIG.MIN_QUERY_LENGTH ? SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX : state.activeIndex,
+      };
+    
+    case 'SET_OPEN':
+      return {
+        ...state,
+        isOpen: action.payload,
+        activeIndex: action.payload ? state.activeIndex : SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX,
+      };
+    
+    case 'SET_ACTIVE_INDEX':
+      return {
+        ...state,
+        activeIndex: action.payload,
+      };
+    
+    case 'OPEN_WITH_QUERY':
+      return {
+        ...state,
+        query: action.payload,
+        isOpen: action.payload.length >= SEARCH_CONFIG.MIN_QUERY_LENGTH,
+        activeIndex: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX,
+      };
+    
+    case 'CLOSE_AND_RESET':
+      return {
+        ...state,
+        isOpen: false,
+        activeIndex: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX,
+      };
+    
+    case 'CLEAR_ALL':
+      return initialSearchState;
+    
+    case 'NAVIGATE_DOWN':
+      return {
+        ...state,
+        activeIndex: state.activeIndex === SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX 
+          ? 0 
+          : state.activeIndex >= action.maxIndex - 1 
+            ? 0 
+            : state.activeIndex + 1,
+      };
+    
+    case 'NAVIGATE_UP':
+      return {
+        ...state,
+        activeIndex: state.activeIndex === SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX 
+          ? action.maxIndex - 1 
+          : state.activeIndex === 0 
+            ? action.maxIndex - 1 
+            : state.activeIndex - 1,
+      };
+    
+    default:
+      return state;
+  }
+};
+
+// SessionStorage operations are now handled by the useSearchStorage custom hook
 
 const SidebarSearchComponent = ({
   className = "",
   onSearch,
   hideClearButton
 }: SidebarSearchProps) => {
-  const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Use reducer for consolidated state management
+  const [searchState, dispatch] = useReducer(searchReducer, initialSearchState);
+  const { query, isOpen, activeIndex } = searchState;
+  
+  // Use custom hook for optimized sessionStorage operations
+  const { storeSearch, clearSearch: clearSearchStorage } = useSearchStorage();
+  
   const commandRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
+  // Use custom hook for mount tracking
+  const mountedRef = useMountedRef();
   
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  // Memoize search categories to prevent recreation on each render
-  const searchCategories = useMemo(() => [
-    { id: "newsletter", label: "Newsletters", icon: Mail },
-    { id: "podcast", label: "Podcasts", icon: Podcast },
-    { id: "people", label: "Users", icon: Users },
-  ], []);
+  // Use imported search categories constant
+  const searchCategories = SEARCH_CATEGORIES;
   
   const handleSearch = useCallback((category: string) => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
     if (query.trim()) {
       // If onSearch is provided, use it (for backward compatibility)
       if (onSearch) {
-        const searchQuery = `${category}:${query.trim()}`;
+        const searchQuery = formatSearchQuery(category, query);
         onSearch(searchQuery);
       }
       
       // Store the search query in sessionStorage before navigation
-      // Use the category identifier as the mediaType consistently for all search types
-      storeSearchQuery(query.trim(), category);
+      storeSearch(query.trim(), category);
       
-      // Navigate to the appropriate page
-      switch (category) {
-        case "newsletter":
-          router.push("/newsletters");
-          break;
-        case "podcast":
-          router.push("/podcasts");
-          break;
-        case "people":
-          router.push("/users");
-          break;
-        default:
-          router.push("/newsletters");
-      }
+      // Navigate to the appropriate page using utility function
+      const route = getSearchRoute(category);
+      router.push(route);
       
-      if (isMountedRef.current) {
-        setIsOpen(false);
+      if (mountedRef.current) {
+        dispatch({ type: 'CLOSE_AND_RESET' });
       }
     }
   }, [query, onSearch, router]);
   
   const clearSearch = useCallback(() => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
-    setQuery("");
+    dispatch({ type: 'CLEAR_ALL' });
     if (onSearch) onSearch("");
-    setIsOpen(false);
     
-    // Clear search storage
-    sessionStorage.removeItem('app_search_query');
-    sessionStorage.removeItem('app_search_mediaType');
-    sessionStorage.removeItem('app_search_timestamp');
-  }, [onSearch]);
+    // Clear search storage using optimized hook
+    clearSearchStorage();
+  }, [onSearch, clearSearchStorage]);
 
   // Handle form submission for general search
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
     if (query.trim()) {
       // Store search query without a specific media type
-      storeSearchQuery(query.trim());
-      router.push("/newsletters");
+      storeSearch(query.trim());
+      router.push(SEARCH_CONFIG.DEFAULT_SEARCH_ROUTE);
     }
   }, [query, router]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen || !isMountedRef.current) return;
+    if (!isOpen || !mountedRef.current) return;
     
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setActiveIndex((prev) => {
-          // Start from -1 (no selection) and move to first item
-          if (prev === -1) {
-            return 0;
-          }
-          // If we're at the last item, wrap to first item
-          if (prev >= searchCategories.length - 1) {
-            return 0;
-          }
-          return prev + 1;
-        });
+        dispatch({ type: 'NAVIGATE_DOWN', maxIndex: searchCategories.length });
         break;
       case "ArrowUp":
         e.preventDefault();
-        setActiveIndex((prev) => {
-          // If no item is currently active, select last item
-          if (prev === -1) {
-            return searchCategories.length - 1;
-          }
-          // If at first item, go to last item
-          if (prev === 0) {
-            return searchCategories.length - 1;
-          }
-          return prev - 1;
-        });
+        dispatch({ type: 'NAVIGATE_UP', maxIndex: searchCategories.length });
         break;
       case "Enter":
         e.preventDefault();
         // Only handle enter if an item is actually selected (activeIndex >= 0)
         if (activeIndex >= 0 && activeIndex < searchCategories.length) {
           handleSearch(searchCategories[activeIndex].id);
-        } else if (activeIndex === -1) {
+        } else if (activeIndex === SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX) {
           // If no item is selected, treat as general search (default to newsletters)
           handleFormSubmit(e);
         }
         break;
       case "Escape":
         e.preventDefault();
-        setIsOpen(false);
-        setActiveIndex(-1);
+        dispatch({ type: 'CLOSE_AND_RESET' });
         break;
     }
   }, [isOpen, activeIndex, searchCategories, handleSearch, handleFormSubmit]);
 
-  // Reset active index when closing dropdown
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (!isOpen) {
-      setActiveIndex(-1);
+  // Note: activeIndex reset is now handled automatically by the reducer when isOpen changes
+
+  // Close dropdown when clicking outside - using custom hook for better performance
+  const handleOutsideClick = useCallback(() => {
+    if (mountedRef.current) {
+      dispatch({ type: 'SET_OPEN', payload: false });
     }
-  }, [isOpen]);
-
-  // Close command menu when clicking outside
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!isMountedRef.current) return;
-      
-      if (commandRef.current && !commandRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
   }, []);
   
+  useOutsideClick(commandRef, handleOutsideClick, isOpen);
+  
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
-    setQuery(e.target.value);
-    const shouldOpen = e.target.value.length > 0;
-    setIsOpen(shouldOpen);
-    
-    // Ensure no item is selected when opening the dropdown
-    if (shouldOpen) {
-      setActiveIndex(-1);
-    }
+    const value = e.target.value;
+    dispatch({ type: 'SET_QUERY', payload: value });
   }, []);
   
   const handleInputFocus = useCallback(() => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
-    if (query.length > 0) {
-      setIsOpen(true);
-      // Ensure no item is selected when opening the dropdown
-      setActiveIndex(-1);
+    if (query.length >= SEARCH_CONFIG.MIN_QUERY_LENGTH) {
+      dispatch({ type: 'SET_OPEN', payload: true });
     }
   }, [query]);
   
   const handleCategoryClick = useCallback((categoryId: string) => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
     handleSearch(categoryId);
   }, [handleSearch]);
   
   const handleCategoryMouseEnter = useCallback((index: number) => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
-    setActiveIndex(index);
+    dispatch({ type: 'SET_ACTIVE_INDEX', payload: index });
   }, []);
   
   const handleCategoryMouseLeave = useCallback(() => {
-    if (!isMountedRef.current) return;
+    if (!mountedRef.current) return;
     
-    setActiveIndex(-1);
+    dispatch({ type: 'SET_ACTIVE_INDEX', payload: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX });
   }, []);
   
   return (
