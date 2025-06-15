@@ -16,7 +16,10 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { ProfileImage } from "@/components/profile/ProfileImage";
@@ -498,7 +501,9 @@ const ActivityCard = React.memo(({
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   
   // Extract primitive values from objects for dependency arrays
   const entryGuid = entryDetail?.guid;

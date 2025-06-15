@@ -37,7 +37,10 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
@@ -108,7 +111,9 @@ const arePropsEqual = (prevProps: RSSEntryProps, nextProps: RSSEntryProps) => {
 };
 
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer }: RSSEntryProps): JSX.Element => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
   // Helper function to prevent scroll jumping on link interaction

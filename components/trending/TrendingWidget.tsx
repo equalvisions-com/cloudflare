@@ -11,7 +11,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import React from "react";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { decode } from 'html-entities';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
@@ -72,7 +75,9 @@ const TrendingItem = memo(({
   post: any & { verified?: boolean };
   rssEntry: RSSEntry 
 }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === rssEntry.link;
   
   // Add a ref to track if component is mounted to prevent state updates after unmount

@@ -37,8 +37,20 @@ export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
 
   // Track management actions
   playTrack: (src: string, title: string, image?: string, creator?: string) => {
-    const { isPlaying: wasPlaying } = get();
+    const { currentTrack, isPlaying } = get();
     const newTrack: AudioTrack = { src, title, image, creator };
+    
+    // Check if this is the same track that's already loaded
+    if (currentTrack && currentTrack.src === src) {
+      // Same track - just ensure it's playing, don't reset seek position
+      if (!isPlaying) {
+        set({ isPlaying: true });
+      }
+      // If already playing, do nothing (maintain current position)
+      return;
+    }
+    
+    // Different track - load new track and reset position
     set({ 
       currentTrack: newTrack,
       isLoading: true,

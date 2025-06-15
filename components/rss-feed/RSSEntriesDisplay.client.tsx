@@ -12,7 +12,10 @@ import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { Podcast, Mail, Loader2, ArrowDown, MoveUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
@@ -194,7 +197,9 @@ interface RSSEntryProps {
 
 // Memoize the RSSEntry component with optimized comparison for maximum performance
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
   // Helper function to prevent scroll jumping on link interaction

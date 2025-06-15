@@ -28,7 +28,7 @@ interface UseMediaSessionProps {
 export const useMediaSession = ({ 
   onSeekBackward, 
   onSeekForward, 
-  seekOffset = 30 
+  seekOffset = 10 
 }: UseMediaSessionProps = {}) => {
   // Get state from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -137,13 +137,6 @@ export const useMediaSession = ({
 
         const formattedTitle = toTitleCase(currentTrack.title);
 
-        console.log('Setting Media Session metadata:', {
-          title: formattedTitle,
-          artist: artistName,
-          album: 'Podcast',
-          artwork: artwork
-        });
-
         navigator.mediaSession.metadata = new MediaMetadata({
           title: formattedTitle,
           artist: artistName,
@@ -151,7 +144,6 @@ export const useMediaSession = ({
           artwork: artwork
         });
       } else {
-        console.log('Clearing Media Session metadata');
         navigator.mediaSession.metadata = null;
       }
     } catch (error) {
@@ -167,7 +159,6 @@ export const useMediaSession = ({
 
     try {
       const state = isPlaying ? 'playing' : 'paused';
-      console.log('Setting Media Session playback state:', state);
       navigator.mediaSession.playbackState = state;
     } catch (error) {
       console.error('Failed to update Media Session playback state:', error);
@@ -188,7 +179,6 @@ export const useMediaSession = ({
           position: Math.min(seek, duration) // Ensure position doesn't exceed duration
         };
         
-        console.log('Setting Media Session position state:', positionState);
         navigator.mediaSession.setPositionState(positionState);
       } catch (error) {
         console.warn('Failed to set Media Session position state:', error);
@@ -205,14 +195,12 @@ export const useMediaSession = ({
     try {
       // Play/Pause handlers
       navigator.mediaSession.setActionHandler('play', () => {
-        console.log('Media Session play action triggered');
         if (!isPlaying) {
           togglePlayPause();
         }
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
-        console.log('Media Session pause action triggered');
         if (isPlaying) {
           togglePlayPause();
         }
@@ -222,7 +210,6 @@ export const useMediaSession = ({
       navigator.mediaSession.setActionHandler('seekbackward', (details) => {
         const skipTime = details.seekOffset || seekOffset;
         const newPosition = Math.max(0, seek - skipTime);
-        console.log('Media Session seek backward:', { skipTime, newPosition });
         handleSeek([newPosition]);
         onSeekBackward?.();
       });
@@ -230,7 +217,6 @@ export const useMediaSession = ({
       navigator.mediaSession.setActionHandler('seekforward', (details) => {
         const skipTime = details.seekOffset || seekOffset;
         const newPosition = Math.min(duration, seek + skipTime);
-        console.log('Media Session seek forward:', { skipTime, newPosition });
         handleSeek([newPosition]);
         onSeekForward?.();
       });
@@ -239,7 +225,6 @@ export const useMediaSession = ({
       navigator.mediaSession.setActionHandler('seekto', (details) => {
         if (details.seekTime !== undefined) {
           const newPosition = Math.max(0, Math.min(duration, details.seekTime));
-          console.log('Media Session seek to:', { seekTime: details.seekTime, newPosition });
           handleSeek([newPosition]);
         }
       });
@@ -248,7 +233,7 @@ export const useMediaSession = ({
       navigator.mediaSession.setActionHandler('previoustrack', null);
       navigator.mediaSession.setActionHandler('nexttrack', null);
 
-      console.log('Media Session action handlers set up successfully');
+
     } catch (error) {
       console.error('Failed to set up Media Session action handlers:', error);
     }
@@ -279,7 +264,6 @@ export const useMediaSession = ({
     return () => {
       if ('mediaSession' in navigator) {
         try {
-          console.log('Cleaning up Media Session');
           navigator.mediaSession.metadata = null;
           navigator.mediaSession.playbackState = 'none';
           

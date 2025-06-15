@@ -15,7 +15,10 @@ import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-butto
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
 import { Button } from "@/components/ui/button";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -321,7 +324,9 @@ const ActivityCard = memo(({
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   
   // Helper function to prevent scroll jumping on link interaction
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {

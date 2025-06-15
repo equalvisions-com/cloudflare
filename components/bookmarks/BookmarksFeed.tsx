@@ -14,7 +14,10 @@ import { CommentSectionClient } from "@/components/comment-section/CommentSectio
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { BookmarkItem, BookmarkRSSEntry, BookmarkInteractionStates, BookmarksData } from "@/lib/types";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
@@ -111,7 +114,9 @@ const BookmarkCard = memo(({
   interactions?: BookmarkInteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
   
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);

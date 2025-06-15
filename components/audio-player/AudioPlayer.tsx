@@ -26,6 +26,20 @@ import { useAudioLifecycle } from "@/hooks/useAudioLifecycle";
 import type { AudioPlayerProps } from "@/lib/types";
 
 /**
+ * Convert text to title case (capitalize every word)
+ */
+const toTitleCase = (text: string): string => {
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map(word => {
+      if (word.length === 0) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
+/**
  * AudioPlayer Component - Production Ready
  * 
  * REFACTORED FOR PRODUCTION STANDARDS:
@@ -106,7 +120,7 @@ const AudioPlayerComponent = ({ src, title }: AudioPlayerProps) => {
     <div className="w-full max-w-md rounded-lg border bg-card p-4 shadow-sm">
       {title && (
         <div className="mb-4 text-sm font-medium text-muted-foreground">
-          {title}
+          {toTitleCase(title)}
         </div>
       )}
       

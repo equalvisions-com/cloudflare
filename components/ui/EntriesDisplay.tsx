@@ -15,7 +15,10 @@ import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-butto
 import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
 import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
 import { Virtuoso } from 'react-virtuoso';
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { 
+  useAudioPlayerCurrentTrack,
+  useAudioPlayerPlayTrack
+} from '@/lib/stores/audioPlayerStore';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention } from "@/utils/FeedInteraction";
 import { useEntriesData } from '@/lib/hooks/useEntriesData';
@@ -170,7 +173,9 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
   interactions: InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
-  const { playTrack, currentTrack } = useAudio();
+  // Get state and actions from Zustand store
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
   // Helper function to prevent scroll jumping on link interaction

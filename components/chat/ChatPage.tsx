@@ -15,7 +15,7 @@ import {
 import { MessageContent, MessageSchema } from '@/app/types/article';
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { useAudio } from '@/components/audio-player/AudioContext';
+import { useAudioPlayerPlayTrack } from '@/lib/stores/audioPlayerStore';
 import {
   ArrowUp,
   Copy,
@@ -376,7 +376,8 @@ const ChatPageComponent = () => {
   });
 
   // Audio player hook for podcast playback
-  const { playTrack } = useAudio();
+  // Get actions from Zustand store
+  const playTrack = useAudioPlayerPlayTrack();
   
   // Refs for DOM elements
   const textareaRef = useRef<HTMLTextAreaElement>(null);
