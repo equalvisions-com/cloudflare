@@ -28,7 +28,7 @@ interface UseMediaSessionProps {
 export const useMediaSession = ({ 
   onSeekBackward, 
   onSeekForward, 
-  seekOffset = 10 
+  seekOffset = 30 
 }: UseMediaSessionProps = {}) => {
   // Get state from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -244,16 +244,9 @@ export const useMediaSession = ({
         }
       });
 
-      // Previous/Next track handlers (optional - you can implement these later)
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        console.log('Media Session previous track requested');
-        // TODO: Implement previous track functionality
-      });
-
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        console.log('Media Session next track requested');
-        // TODO: Implement next track functionality  
-      });
+      // Remove previous/next track handlers to show seek buttons instead
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
 
       console.log('Media Session action handlers set up successfully');
     } catch (error) {
