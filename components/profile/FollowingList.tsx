@@ -290,7 +290,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     dispatch({ type: 'CLOSE_DRAWER' });
   }, []);
 
-  // Virtualized item renderer with enhanced error handling - optimized for performance
+  // Stable item renderer for Virtuoso - fixed dependencies  
   const itemContent = useCallback((index: number, item: FollowingListFollowingWithPost) => {
     // Add defensive check
     if (!item || !item.post) {
@@ -331,8 +331,8 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     );
   }, [memoizedCloseDrawer, state.followStatusMap, dispatch, isAuthenticated]);
 
-  // Footer component for virtualized list - memoized to prevent re-renders
-  const footerComponent = useMemo(() => {
+  // Stable Footer component - extracted to prevent re-creation
+  const FooterComponent = useMemo(() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
       const LoadingFooter = () => (
@@ -340,36 +340,36 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       );
-      LoadingFooter.displayName = 'LoadingFooter';
+      LoadingFooter.displayName = 'FollowingListLoadingFooter';
       return LoadingFooter;
     }
     
     return undefined;
   }, [virtualizationHook.footerComponent]);
 
-  // Empty placeholder component for Virtuoso
-  const emptyPlaceholder = useMemo(() => {
+  // Stable EmptyPlaceholder component
+  const EmptyPlaceholderComponent = useMemo(() => {
     const EmptyPlaceholder = () => (
       <div className="flex items-center justify-center py-8">
         <span className="text-sm text-muted-foreground">No items to display</span>
       </div>
     );
-    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
+    EmptyPlaceholder.displayName = 'FollowingListEmptyPlaceholder';
     return EmptyPlaceholder;
   }, []);
 
-  // Virtuoso components configuration
+  // Stable components object for Virtuoso
   const virtuosoComponents = useMemo(() => {
     const components: any = {
-      EmptyPlaceholder: emptyPlaceholder,
+      EmptyPlaceholder: EmptyPlaceholderComponent,
     };
     
-    if (footerComponent) {
-      components.Footer = footerComponent;
+    if (FooterComponent) {
+      components.Footer = FooterComponent;
     }
     
     return components;
-  }, [footerComponent, emptyPlaceholder]);
+  }, [FooterComponent, EmptyPlaceholderComponent]);
 
   return (
     <FollowingListErrorBoundary
@@ -424,9 +424,14 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
               />
             ) : computedValues.shouldShowVirtualizedList ? (
               <Virtuoso
-                {...virtualizationHook.virtuosoProps}
+                data={state.followingItems}
                 itemContent={itemContent}
                 components={virtuosoComponents}
+                endReached={virtualizationHook.handleEndReached}
+                overscan={5}
+                fixedItemHeight={80}
+                increaseViewportBy={{ top: 200, bottom: 200 }}
+                style={{ height: '100%' }}
                 aria-label="Following list"
                 role="feed"
                 aria-busy={state.isLoading}

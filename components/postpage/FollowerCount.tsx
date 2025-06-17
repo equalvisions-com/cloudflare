@@ -142,10 +142,14 @@ export function FollowerCount({
     }
   }, []);
 
-  // Cleanup on unmount
+  // Cleanup timeout on unmount
   useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
+    return () => {
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Virtualization hook - handles large list performance
   const virtualizationHook = useFollowersListVirtualization({
@@ -241,34 +245,22 @@ export function FollowerCount({
     [computedValues.followerCount]
   );
 
-  // Virtualized item renderer
+  // Stable item renderer for Virtuoso - fixed dependencies
   const itemContent = useCallback((index: number, follower: FollowersListUserData) => {
-    if (!follower) {
-      return (
-        <div 
-          key={`error-${index}`}
-          className="flex items-center justify-center p-4 text-muted-foreground"
-          role="alert"
-          aria-label="Invalid follower data"
-        >
-          <span className="text-sm">Invalid follower data</span>
-        </div>
-      );
-    }
-
     return (
       <MemoizedVirtualizedFollowerItem
-        key={`${follower.userId}-${index}`}
+        key={follower.userId || `follower-${index}`}
         follower={follower}
         index={index}
         isFirst={index === 0}
+        isLast={index === state.followers.length - 1}
         isAuthenticated={isAuthenticated}
       />
     );
-  }, [isAuthenticated]);
+  }, [state.followers.length, isAuthenticated]);
 
-  // Footer component for virtualized list
-  const footerComponent = useMemo(() => {
+  // Stable Footer component - extracted to prevent re-creation
+  const FooterComponent = useMemo(() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
       const LoadingFooter = () => (
@@ -276,36 +268,36 @@ export function FollowerCount({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       );
-      LoadingFooter.displayName = 'LoadingFooter';
+      LoadingFooter.displayName = 'FollowersListLoadingFooter';
       return LoadingFooter;
     }
     
     return undefined;
   }, [virtualizationHook.footerComponent]);
 
-  // Empty placeholder component for Virtuoso
-  const emptyPlaceholder = useMemo(() => {
+  // Stable EmptyPlaceholder component
+  const EmptyPlaceholderComponent = useMemo(() => {
     const EmptyPlaceholder = () => (
       <div className="flex items-center justify-center py-8">
         <span className="text-sm text-muted-foreground">No followers to display</span>
       </div>
     );
-    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
+    EmptyPlaceholder.displayName = 'FollowersListEmptyPlaceholder';
     return EmptyPlaceholder;
   }, []);
 
-  // Virtuoso components configuration
+  // Stable components object for Virtuoso
   const virtuosoComponents = useMemo(() => {
     const components: any = {
-      EmptyPlaceholder: emptyPlaceholder,
+      EmptyPlaceholder: EmptyPlaceholderComponent,
     };
     
-    if (footerComponent) {
-      components.Footer = footerComponent;
+    if (FooterComponent) {
+      components.Footer = FooterComponent;
     }
     
     return components;
-  }, [footerComponent, emptyPlaceholder]);
+  }, [FooterComponent, EmptyPlaceholderComponent]);
 
   return (
     <FollowersListErrorBoundary
@@ -358,9 +350,14 @@ export function FollowerCount({
               />
             ) : computedValues.shouldShowVirtualizedList ? (
               <Virtuoso
-                {...virtualizationHook.virtuosoProps}
+                data={state.followers}
                 itemContent={itemContent}
                 components={virtuosoComponents}
+                endReached={virtualizationHook.virtuosoProps.endReached}
+                overscan={5}
+                fixedItemHeight={80}
+                increaseViewportBy={{ top: 200, bottom: 200 }}
+                style={{ height: '100%' }}
                 aria-label="Followers list"
                 role="feed"
                 aria-busy={state.isLoading}

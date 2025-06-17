@@ -232,24 +232,24 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
     };
   }, []);
 
-     // Memoized item renderer for Virtuoso
-   const itemRenderer = useCallback((index: number) => {
-     const friend = computedValues.displayedFriends[index];
-     if (!friend) return null;
+  // Stable item renderer for Virtuoso - fixed dependencies
+  const itemRenderer = useCallback((index: number) => {
+    const friend = state.friends[index];
+    if (!friend) return null;
 
-     return (
-       <MemoizedVirtualizedFriendItem
-         key={friend.friendship._id}
-         friend={friend}
-         index={index}
-         isFirst={index === 0}
-         isLast={index === computedValues.displayedFriends.length - 1}
-       />
-     );
-   }, [computedValues.displayedFriends]);
+    return (
+      <MemoizedVirtualizedFriendItem
+        key={friend.friendship._id}
+        friend={friend}
+        index={index}
+        isFirst={index === 0}
+        isLast={index === state.friends.length - 1}
+      />
+    );
+  }, [state.friends]);
 
-  // Memoized components for Virtuoso
-  const components = useMemo(() => {
+  // Stable Footer component - extracted to prevent re-creation
+  const FooterComponent = useMemo(() => {
     const Footer = () => {
       if (!state.hasMore && !state.isLoading) return null;
       
@@ -271,24 +271,29 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         </div>
       );
     };
+    Footer.displayName = 'FriendsListFooter';
+    return Footer;
+  }, [state.hasMore, state.isLoading, friendsActions.handleLoadMore]);
 
-         const EmptyPlaceholder = () => (
-       <FriendsListEmptyState 
-         type="no-friends"
-         username={username}
-         onRefresh={friendsActions.handleRefresh}
-         isLoading={state.isLoading}
-       />
-     );
+  // Stable EmptyPlaceholder component
+  const EmptyPlaceholderComponent = useMemo(() => {
+    const EmptyPlaceholder = () => (
+      <FriendsListEmptyState 
+        type="no-friends"
+        username={username}
+        onRefresh={friendsActions.handleRefresh}
+        isLoading={state.isLoading}
+      />
+    );
+    EmptyPlaceholder.displayName = 'FriendsListEmptyPlaceholder';
+    return EmptyPlaceholder;
+  }, [username, friendsActions.handleRefresh, state.isLoading]);
 
-    return { Footer, EmptyPlaceholder };
-  }, [
-    state.hasMore,
-    state.isLoading,
-    username,
-    friendsActions.handleLoadMore,
-    friendsActions.handleRefresh,
-  ]);
+  // Stable components object for Virtuoso
+  const virtuosoComponents = useMemo(() => ({
+    Footer: FooterComponent,
+    EmptyPlaceholder: EmptyPlaceholderComponent,
+  }), [FooterComponent, EmptyPlaceholderComponent]);
 
   // Memoized error display component
   const ErrorDisplay = useMemo(() => {
@@ -326,7 +331,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
     state.isLoading,
   ]);
 
-  // Main drawer content
+  // Main drawer content - simplified dependencies
   const drawerContent = useMemo(() => {
     if (computedValues.shouldShowLoadingSpinner) {
       return <DrawerLoadingSkeleton />;
@@ -337,18 +342,20 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
     }
 
     if (computedValues.shouldShowEmptyState) {
-      return components.EmptyPlaceholder();
+      return <EmptyPlaceholderComponent />;
     }
 
     if (computedValues.shouldShowVirtualizedList) {
       return (
         <Virtuoso
-          {...virtualization.virtuosoProps}
+          data={state.friends}
           itemContent={itemRenderer}
-          components={{
-            Footer: components.Footer,
-            EmptyPlaceholder: components.EmptyPlaceholder,
-          }}
+          components={virtuosoComponents}
+          endReached={virtualization.handleEndReached}
+          overscan={5}
+          fixedItemHeight={80}
+          increaseViewportBy={{ top: 200, bottom: 200 }}
+          style={{ height: '100%' }}
           aria-label="Friends list"
           role="feed"
           aria-busy={state.isLoading}
@@ -357,17 +364,18 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
       );
     }
 
-    return components.EmptyPlaceholder();
+    return <EmptyPlaceholderComponent />;
   }, [
     computedValues.shouldShowLoadingSpinner,
     computedValues.shouldShowErrorState,
     computedValues.shouldShowEmptyState,
     computedValues.shouldShowVirtualizedList,
-    computedValues.displayedFriends,
+    state.friends,
+    state.isLoading,
     ErrorDisplay,
-    components.EmptyPlaceholder,
-    components.Footer,
+    EmptyPlaceholderComponent,
     itemRenderer,
+    virtuosoComponents,
     virtualization.handleEndReached,
   ]);
 

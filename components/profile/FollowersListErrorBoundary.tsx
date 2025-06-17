@@ -74,7 +74,7 @@ export class FollowersListErrorBoundary extends Component<
           <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
           <h3 className="text-lg font-semibold mb-2">Something went wrong</h3>
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            The followers list encountered an error and couldn't load properly.
+            The followers list encountered an error and couldn&apos;t load properly.
           </p>
           
           {canRetry && (

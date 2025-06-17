@@ -25,7 +25,7 @@ const FollowersListEmptyStateComponent = ({
         </div>
         <h3 className="text-lg font-semibold mb-2">Failed to load followers</h3>
         <p className="text-sm text-muted-foreground mb-4 max-w-md">
-          We couldn't load the followers list. Please check your connection and try again.
+          We couldn&apos;t load the followers list. Please check your connection and try again.
         </p>
         {onRetry && (
           <Button
@@ -55,7 +55,7 @@ const FollowersListEmptyStateComponent = ({
         }
       </p>
       <p className="text-xs text-muted-foreground">
-        When people follow this post, they'll appear here.
+        When people follow this post, they&apos;ll appear here.
       </p>
     </div>
   );
