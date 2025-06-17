@@ -204,8 +204,7 @@ export function useFollowersListData({
       const newFollowers = result.followers.filter(
         (f): f is FollowersListUserData => {
           return f !== null && 
-                 f.userId && 
-                 f.username && 
+                 Boolean(f.userId) && 
                  Boolean(f.username);
         }
       );
