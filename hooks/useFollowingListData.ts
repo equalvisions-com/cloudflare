@@ -244,8 +244,8 @@ export function useFollowingListData({
       const newFollowing = result.following.filter(
         (f): f is FollowingListFollowingWithPost => {
           return f !== null && 
-                 f.following && 
-                 f.following.postId;
+                 Boolean(f.following) && 
+                 Boolean(f.following?.postId);
         }
       );
 
