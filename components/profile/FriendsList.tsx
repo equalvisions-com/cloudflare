@@ -224,7 +224,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         }, 1000);
       }
     }
-  }, [friendsData.error, friendsData.resetError, accessibilityAnnouncement]);
+  }, [friendsData, accessibilityAnnouncement]);
   
   // Handle load more with error handling
   const handleLoadMore = useCallback(async () => {
@@ -235,7 +235,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         error instanceof Error ? error : new Error('Load more failed')
       );
     }
-  }, [friendsData.loadMoreFriends, friendsActions]);
+  }, [friendsData, friendsActions]);
   
   // Handle refresh with error handling
   const handleRefresh = useCallback(async () => {
@@ -246,7 +246,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         error instanceof Error ? error : new Error('Refresh failed')
       );
     }
-  }, [friendsData.refreshFriends, friendsActions]);
+  }, [friendsData, friendsActions]);
   
   // Use the count query when the drawer is open to make sure we have the latest count
   const latestCount = useQuery(api.friends.getFriendCountByUsername, state.isOpen ? { 
@@ -294,15 +294,15 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   // Memoized action handlers to prevent re-renders
   const memoizedHandleUnfriend = useCallback((friendshipId: Id<"friends">) => {
     return friendsActions.handleUnfriend(friendshipId);
-  }, [friendsActions.handleUnfriend]);
+  }, [friendsActions]);
 
   const memoizedHandleAcceptRequest = useCallback((friendshipId: Id<"friends">) => {
     return friendsActions.handleAcceptRequest(friendshipId);
-  }, [friendsActions.handleAcceptRequest]);
+  }, [friendsActions]);
 
   const memoizedHandleDeclineRequest = useCallback((friendshipId: Id<"friends">) => {
     return friendsActions.handleDeclineRequest(friendshipId);
-  }, [friendsActions.handleDeclineRequest]);
+  }, [friendsActions]);
 
   // Virtualized item renderer with enhanced error handling - optimized for performance
   const itemContent = useCallback((index: number, friend: FriendsListFriendWithProfile) => {
@@ -334,23 +334,27 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         isOperationPending={friendsActions.isOperationPending}
       />
     );
-  }, [computedValues.displayedFriends.length, memoizedHandleUnfriend, memoizedHandleAcceptRequest, memoizedHandleDeclineRequest]);
+  }, [computedValues.displayedFriends.length, memoizedHandleUnfriend, memoizedHandleAcceptRequest, memoizedHandleDeclineRequest, friendsActions]);
 
   // Footer component for virtualized list - memoized to prevent re-renders
   const footerComponent = useMemo(() => {
     if (state.isLoading && state.friends.length > 0) {
-      return () => <LoadingMoreSkeleton />;
+      const LoadingFooter = () => <LoadingMoreSkeleton />;
+      LoadingFooter.displayName = 'LoadingFooter';
+      return LoadingFooter;
     }
     return undefined;
   }, [state.isLoading, state.friends.length]);
 
   // Empty placeholder component for Virtuoso
   const emptyPlaceholder = useMemo(() => {
-    return () => (
+    const EmptyPlaceholder = () => (
       <div className="flex items-center justify-center py-8">
         <span className="text-sm text-muted-foreground">No friends to display</span>
       </div>
     );
+    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
+    return EmptyPlaceholder;
   }, []);
 
   // Virtuoso components configuration

@@ -72,22 +72,69 @@ export const VirtualizedFollowingItem = memo(({
     };
   }, []);
 
-  // Safety check
-  if (!item || !item.following || !item.following.postId || !item.post) {
-    return null;
-  }
-
-  const linkHref = useMemo(() => 
-    `/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`,
-    [item.post.mediaType, item.post.categorySlug, item.post.postSlug]
-  );
+  // ALL HOOKS MUST BE ABOVE THIS LINE - Move memoized values here before any early returns
+  const linkHref = useMemo(() => {
+    if (!item?.post) return '';
+    return `/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`;
+  }, [item?.post]);
 
   // Memoize click handler to prevent re-renders
   const handleLinkClick = useCallback(() => {
     onCloseDrawer();
   }, [onCloseDrawer]);
 
-  // Memoize the click handler to prevent unnecessary recreations between renders (exactly like FollowButton.tsx)
+  // Check if operation is pending (enhanced to include busy state) - MOVED BEFORE EARLY RETURN
+  const isPending = useMemo(() => {
+    if (!item?.following?.postId) return false;
+    const parentPending = isOperationPending ? isOperationPending(item.following.postId) : false;
+    return parentPending || isBusy;
+  }, [isOperationPending, item?.following?.postId, isBusy]);
+
+  // Determine the display state based on visual state or actual state (exactly like FollowButton.tsx) - MOVED BEFORE EARLY RETURN
+  const displayState = useMemo(() => {
+    // If we have a visual state set (during loading), use that
+    if (visualState !== null) {
+      return visualState;
+    }
+    
+    // Otherwise use the actual state
+    return currentUserFollowStatus ? 'following' : 'follow';
+  }, [currentUserFollowStatus, visualState]);
+
+  // Memoize the button content to prevent unnecessary re-renders (adapted from FollowButton.tsx) - MOVED BEFORE EARLY RETURN
+  const buttonContent = useMemo(() => {
+    return (
+      <span className="flex items-center gap-1">
+        {showIcon && (displayState === 'following' ? 
+          <MinusCircle className="h-4 w-4 mr-1" /> : 
+          <PlusCircle className="h-4 w-4 mr-1" />
+        )}
+        {displayState === 'following' ? "Following" : "Follow"}
+      </span>
+    );
+  }, [displayState, showIcon]);
+
+  // Use a stable class name based on following state (adapted from FollowButton.tsx) - MOVED BEFORE EARLY RETURN
+  const buttonClassName = useMemo(() => cn(
+    "w-[100px] rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none transition-all duration-200",
+    (displayState === 'following') && "text-muted-foreground border border-input",
+    isPending && "opacity-70 pointer-events-none"
+  ), [displayState, isPending]);
+
+  // Memoize image props to prevent re-renders - MOVED BEFORE EARLY RETURN
+  const imageProps = useMemo(() => {
+    if (!item?.post?.featuredImg) return null;
+    return {
+      src: item.post.featuredImg,
+      alt: item.post.title,
+      fill: true,
+      sizes: "48px",
+      className: "h-full w-full object-cover",
+      loading: "lazy" as const,
+    };
+  }, [item?.post?.featuredImg, item?.post?.title]);
+
+  // Memoize the click handler to prevent unnecessary recreations between renders (exactly like FollowButton.tsx) - MOVED BEFORE EARLY RETURN
   const handleButtonClick = useCallback(async () => {
     // Authentication check (exactly like FollowButton.tsx)
     if (!isAuthenticated) {
@@ -122,19 +169,19 @@ export const VirtualizedFollowingItem = memo(({
 
     try {
       // Apply optimistic update (adapted for Following list context)
-      if (onUpdateFollowStatus) {
+      if (onUpdateFollowStatus && item?.following?.postId) {
         optimisticUpdateApplied = true;
         onUpdateFollowStatus(item.following.postId, newState.isFollowing);
       }
       
       // Perform the actual server operation (adapted from FollowButton.tsx)
-      if (currentUserFollowStatus) {
+      if (currentUserFollowStatus && item?.following) {
         // Unfollow
         await unfollowMutation({ 
           postId: item.following.postId, 
           rssKey: item.following.feedUrl 
         });
-      } else {
+      } else if (item?.following) {
         // Follow
         await followMutation({ 
           postId: item.following.postId, 
@@ -150,9 +197,8 @@ export const VirtualizedFollowingItem = memo(({
         setVisualState(null);
       }
     } catch (err) {
-      console.error('Error updating follow status:', err);
       // Roll back to previous state if there was an error (adapted from FollowButton.tsx)
-      if (isMountedRef.current && optimisticUpdateApplied && onUpdateFollowStatus) {
+      if (isMountedRef.current && optimisticUpdateApplied && onUpdateFollowStatus && item?.following?.postId) {
         onUpdateFollowStatus(item.following.postId, previousState.isFollowing);
       }
 
@@ -166,7 +212,7 @@ export const VirtualizedFollowingItem = memo(({
       let toastTitle = "Error";
       let toastDescription = "Could not update follow status. Please try again.";
 
-      if (errorMessage.includes("Please wait 2 seconds between follow/unfollow operations")) {
+      if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "You're following and unfollowing too quickly. Please slow down.";
       } else if (errorMessage.includes("Please wait before toggling follow again")) {
@@ -207,9 +253,8 @@ export const VirtualizedFollowingItem = memo(({
     isAuthenticated, 
     router, 
     currentUserFollowStatus, 
-    item.following.postId,
-    item.following.feedUrl,
-    item.post.title,
+    item?.following,
+    item?.post?.title,
     followMutation,
     unfollowMutation,
     onUpdateFollowStatus,
@@ -217,55 +262,10 @@ export const VirtualizedFollowingItem = memo(({
     toast
   ]);
 
-  // Check if operation is pending (enhanced to include busy state)
-  const isPending = useMemo(() => {
-    const parentPending = isOperationPending ? isOperationPending(item.following.postId) : false;
-    return parentPending || isBusy;
-  }, [isOperationPending, item.following.postId, isBusy]);
-
-  // Determine the display state based on visual state or actual state (exactly like FollowButton.tsx)
-  const displayState = useMemo(() => {
-    // If we have a visual state set (during loading), use that
-    if (visualState !== null) {
-      return visualState;
-    }
-    
-    // Otherwise use the actual state
-    return currentUserFollowStatus ? 'following' : 'follow';
-  }, [currentUserFollowStatus, visualState]);
-
-  // Memoize the button content to prevent unnecessary re-renders (adapted from FollowButton.tsx)
-  const buttonContent = useMemo(() => {
-    return (
-      <span className="flex items-center gap-1">
-        {showIcon && (displayState === 'following' ? 
-          <MinusCircle className="h-4 w-4 mr-1" /> : 
-          <PlusCircle className="h-4 w-4 mr-1" />
-        )}
-        {displayState === 'following' ? "Following" : "Follow"}
-      </span>
-    );
-  }, [displayState, showIcon]);
-
-  // Use a stable class name based on following state (adapted from FollowButton.tsx)
-  const buttonClassName = useMemo(() => cn(
-    "w-[100px] rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none transition-all duration-200",
-    (displayState === 'following') && "text-muted-foreground border border-input",
-    isPending && "opacity-70 pointer-events-none"
-  ), [displayState, isPending]);
-
-  // Memoize image props to prevent re-renders
-  const imageProps = useMemo(() => {
-    if (!item.post.featuredImg) return null;
-    return {
-      src: item.post.featuredImg,
-      alt: item.post.title,
-      fill: true,
-      sizes: "48px",
-      className: "h-full w-full object-cover",
-      loading: "lazy" as const,
-    };
-  }, [item.post.featuredImg, item.post.title]);
+  // Safety check AFTER all hooks
+  if (!item || !item.following || !item.following.postId || !item.post) {
+    return null;
+  }
 
   return (
     <div 

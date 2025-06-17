@@ -36,7 +36,6 @@ const fetcher = async (key: string) => {
     if (!res.ok) throw new Error('Failed to fetch follow status');
     return res.json();
   } catch (error) {
-    console.error('Error fetching follow status:', error);
     // Return null to indicate an error occurred
     return null;
   }
@@ -209,7 +208,6 @@ const FollowButtonComponent = ({
         }
       }
     } catch (err) {
-      console.error('Error updating follow status:', err);
       // Roll back to previous state if there was an error
       if (isMountedRef.current && optimisticUpdateApplied) {
         await mutate(previousState, false);
@@ -225,9 +223,12 @@ const FollowButtonComponent = ({
       let toastTitle = "Error";
       let toastDescription = "Could not update follow status. Please try again.";
 
-      if (errorMessage.includes("Please wait before toggling follow again")) {
+      if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're toggling follows too quickly. Please slow down.";
+        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
+      } else if (errorMessage.includes("Please wait before toggling follow again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
       } else if (errorMessage.includes("Too many follows too quickly")) {
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Too many follows too quickly. Please slow down.";

@@ -357,4 +357,6 @@ export const EditProfileModal = React.memo(({
       </DialogContent>
     </Dialog>
   );
-}); 
+});
+
+EditProfileModal.displayName = 'EditProfileModal'; 

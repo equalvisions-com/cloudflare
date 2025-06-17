@@ -5,7 +5,7 @@ import { Id } from "./_generated/dataModel";
 
 // Rate limiting constants for following
 const FOLLOWING_RATE_LIMITS = {
-  GLOBAL_COOLDOWN: 2000,          // 2 seconds between ANY follow/unfollow operations (NEW)
+  GLOBAL_COOLDOWN: 1000,          // 1 second between ANY follow/unfollow operations (NEW)
   PER_USER_COOLDOWN: 1000,        // 1 second between follow/unfollow same user
   BURST_LIMIT: 10,                // 10 follows max (reduced from 30)
   BURST_WINDOW: 60000,            // in 1 minute (reduced from 30 seconds)
@@ -40,7 +40,7 @@ export const follow = mutation({
     if (lastGlobalAction) {
       const timeSinceLastGlobalAction = Date.now() - lastGlobalAction._creationTime;
       if (timeSinceLastGlobalAction < FOLLOWING_RATE_LIMITS.GLOBAL_COOLDOWN) {
-        throw new Error("Please wait 2 seconds between follow/unfollow operations");
+        throw new Error("Please wait 1 second between follow/unfollow operations");
       }
     }
     
@@ -153,7 +153,7 @@ export const unfollow = mutation({
     if (lastGlobalAction) {
       const timeSinceLastGlobalAction = Date.now() - lastGlobalAction._creationTime;
       if (timeSinceLastGlobalAction < FOLLOWING_RATE_LIMITS.GLOBAL_COOLDOWN) {
-        throw new Error("Please wait 2 seconds between follow/unfollow operations");
+        throw new Error("Please wait 1 second between follow/unfollow operations");
       }
     }
     

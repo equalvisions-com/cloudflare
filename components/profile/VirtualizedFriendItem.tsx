@@ -32,35 +32,9 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
 
-  // Defensive check for data integrity
-  if (!friend || !friend.friendship || !friend.profile) {
-    // Invalid friend data - render error placeholder
-    return (
-      <div 
-        className="flex items-center justify-center p-4 text-muted-foreground"
-        role="alert"
-        aria-label="Invalid friend data"
-      >
-        <span className="text-sm">Invalid friend data</span>
-      </div>
-    );
-  }
-
-  // Ensure friendship._id exists
-  const friendshipId = friend.friendship._id;
-  if (!friendshipId) {
-    // Missing friendship ID - render error placeholder
-    return (
-      <div 
-        className="flex items-center justify-center p-4 text-muted-foreground"
-        role="alert"
-        aria-label="Missing friendship data"
-      >
-        <span className="text-sm">Missing friendship ID</span>
-      </div>
-    );
-  }
-
+  // Safe access to friendship ID with optional chaining
+  const friendshipId = friend?.friendship?._id;
+  
   // Check if operations are pending using the rate limiting hook
   const acceptOperationKey = `accept-${friendshipId}`;
   const declineOperationKey = `decline-${friendshipId}`;
@@ -102,12 +76,12 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
 
   // Memoized computed values to prevent re-calculations
   const computedValues = useMemo(() => {
-    const isAcceptedFriend = friend.friendship.status === 'accepted';
-    const isPendingRequest = friend.friendship.status === 'pending';
-    const isOutgoingRequest = friend.friendship.direction === 'outgoing';
-    const isIncomingRequest = friend.friendship.direction === 'incoming';
-    const friendName = friend.profile.name || friend.profile.username;
-    const friendUsername = friend.profile.username;
+    const isAcceptedFriend = friend?.friendship?.status === 'accepted';
+    const isPendingRequest = friend?.friendship?.status === 'pending';
+    const isOutgoingRequest = friend?.friendship?.direction === 'outgoing';
+    const isIncomingRequest = friend?.friendship?.direction === 'incoming';
+    const friendName = friend?.profile?.name || friend?.profile?.username;
+    const friendUsername = friend?.profile?.username;
 
     return {
       isAcceptedFriend,
@@ -118,11 +92,39 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
       friendUsername,
     };
   }, [
-    friend.friendship.status,
-    friend.friendship.direction,
-    friend.profile.name,
-    friend.profile.username,
+    friend?.friendship?.status,
+    friend?.friendship?.direction,
+    friend?.profile?.name,
+    friend?.profile?.username,
   ]);
+
+  // Defensive check for data integrity - AFTER all hooks
+  if (!friend || !friend.friendship || !friend.profile) {
+    // Invalid friend data - render error placeholder
+    return (
+      <div 
+        className="flex items-center justify-center p-4 text-muted-foreground"
+        role="alert"
+        aria-label="Invalid friend data"
+      >
+        <span className="text-sm">Invalid friend data</span>
+      </div>
+    );
+  }
+
+  // Ensure friendship._id exists - AFTER all hooks
+  if (!friendshipId) {
+    // Missing friendship ID - render error placeholder
+    return (
+      <div 
+        className="flex items-center justify-center p-4 text-muted-foreground"
+        role="alert"
+        aria-label="Missing friendship data"
+      >
+        <span className="text-sm">Missing friendship ID</span>
+      </div>
+    );
+  }
 
   const {
     isAcceptedFriend,

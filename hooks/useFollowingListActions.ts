@@ -39,7 +39,7 @@ export function useFollowingListActions({
   const ongoingOperationsRef = useRef<Set<string>>(new Set());
   const retryTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const lastGlobalActionTimeRef = useRef<number>(0);
-  const GLOBAL_COOLDOWN_MS = 2000; // 2 seconds between ANY follow/unfollow operations
+  const GLOBAL_COOLDOWN_MS = 1000; // 1 second between ANY follow/unfollow operations
 
   // Create enhanced error with context
   const createEnhancedError = useCallback((
@@ -83,7 +83,7 @@ export function useFollowingListActions({
       userMessage = 'Network error. Please check your connection and try again.';
       toastTitle = "Network Error";
       toastDescription = "Please check your connection and try again.";
-    } else if (errorMessage.includes("Please wait 2 seconds between follow/unfollow operations")) {
+    } else if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
       errorType = ErrorType.RATE_LIMIT_ERROR;
       userMessage = "You're following and unfollowing too quickly. Please slow down.";
       toastTitle = "Rate Limit Exceeded";
@@ -143,14 +143,6 @@ export function useFollowingListActions({
       description: toastDescription,
     });
 
-    // Log error for debugging
-    console.error('FollowingList Action Error:', {
-      type: errorType,
-      message: userMessage,
-      originalError: error,
-      context: enhancedError.context,
-    });
-
     // Update state (but don't show error in UI since we're using toast)
     // dispatch({ type: 'SET_ERROR', payload: userMessage });
   }, [createEnhancedError, toast]);
@@ -179,7 +171,6 @@ export function useFollowingListActions({
     try {
       clearError();
       await refreshFollowing();
-      // console.log('Following list refreshed');
     } catch (error) {
       handleError(
         error instanceof Error ? error : new Error('Refresh failed'),
@@ -235,14 +226,8 @@ export function useFollowingListActions({
         payload: { postId: postId.toString(), isFollowing: true },
       });
 
-      // Log optimistic action
-      console.log(`Following ${postTitle}`, 'You will receive updates from this content');
-
       // Perform actual follow operation - need to add rssKey parameter
       await followMutation({ postId, feedUrl, rssKey: feedUrl });
-
-      // Success - the optimistic update is already in place
-      console.log('Follow operation successful:', { postId, postTitle });
 
     } catch (error) {
       // Revert optimistic update on error
@@ -261,9 +246,6 @@ export function useFollowingListActions({
           postTitle,
         }
       );
-
-      // Log error
-      console.error(`Failed to follow ${postTitle}`, 'Please try again');
     } finally {
       ongoingOperationsRef.current.delete(operationId);
     }
@@ -302,14 +284,8 @@ export function useFollowingListActions({
         payload: { postId: postId.toString(), isFollowing: false },
       });
 
-      // Log optimistic action
-      console.log(`Unfollowed ${postTitle}`, 'You will no longer receive updates from this content');
-
       // Perform actual unfollow operation - need to add rssKey parameter
       await unfollowMutation({ postId, rssKey: feedUrl });
-
-      // Success - the optimistic update is already in place
-      console.log('Unfollow operation successful:', { postId, postTitle });
 
     } catch (error) {
       // Revert optimistic update on error
@@ -328,9 +304,6 @@ export function useFollowingListActions({
           postTitle,
         }
       );
-
-      // Log error
-      console.error(`Failed to unfollow ${postTitle}`, 'Please try again');
     } finally {
       ongoingOperationsRef.current.delete(operationId);
     }

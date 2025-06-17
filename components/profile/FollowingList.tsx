@@ -256,7 +256,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         }, 1000);
       }
     }
-  }, [dataHook.error, dataHook.resetError, accessibilityAnnouncement]);
+  }, [dataHook, accessibilityAnnouncement]);
 
   // Memoized aria label for trigger button
   const triggerAriaLabel = useMemo(() => 
@@ -273,7 +273,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         error instanceof Error ? error : new Error('Load more failed')
       );
     }
-  }, [dataHook.loadMoreFollowing, actionsHook]);
+  }, [dataHook, actionsHook]);
 
   // Handle refresh with error handling
   const handleRefresh = useCallback(async () => {
@@ -284,7 +284,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         error instanceof Error ? error : new Error('Refresh failed')
       );
     }
-  }, [dataHook.refreshFollowing, actionsHook]);
+  }, [dataHook, actionsHook]);
 
   // Memoized close drawer handler to prevent re-renders
   const memoizedCloseDrawer = useCallback(() => {
@@ -339,20 +339,24 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   const footerComponent = useMemo(() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
-      return () => (
+      const LoadingFooter = () => (
         <div className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           {footer.message}
         </div>
       );
+      LoadingFooter.displayName = 'LoadingFooter';
+      return LoadingFooter;
     }
     
     if (footer?.type === 'no-more') {
-      return () => (
+      const NoMoreFooter = () => (
         <div className="py-4 text-center text-sm text-muted-foreground">
           {footer.message}
         </div>
       );
+      NoMoreFooter.displayName = 'NoMoreFooter';
+      return NoMoreFooter;
     }
     
     return undefined;
@@ -360,11 +364,13 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
 
   // Empty placeholder component for Virtuoso
   const emptyPlaceholder = useMemo(() => {
-    return () => (
+    const EmptyPlaceholder = () => (
       <div className="flex items-center justify-center py-8">
         <span className="text-sm text-muted-foreground">No items to display</span>
       </div>
     );
+    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
+    return EmptyPlaceholder;
   }, []);
 
   // Virtuoso components configuration

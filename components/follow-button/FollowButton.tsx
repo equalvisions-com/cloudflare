@@ -35,7 +35,6 @@ const fetcher = async (key: string) => {
     if (!res.ok) throw new Error('Failed to fetch follow status');
     return res.json();
   } catch (error) {
-    console.error('Error fetching follow status:', error);
     // Return null to indicate an error occurred
     return null;
   }
@@ -85,7 +84,7 @@ const FollowButtonComponent = ({
   
   // Global rate limiting - 2 seconds between ANY follow/unfollow operations
   const lastGlobalActionTimeRef = useRef(0);
-  const GLOBAL_COOLDOWN_MS = 2000;
+  const GLOBAL_COOLDOWN_MS = 1000;
 
   // Generate a stable key for SWR to prevent unnecessary revalidation
   const cacheKey = useMemo(() => postId ? postId.toString() : null, [postId]);
@@ -228,7 +227,6 @@ const FollowButtonComponent = ({
         }
       }
     } catch (err) {
-      console.error('Error updating follow status:', err);
       // Roll back to previous state if there was an error and we're using SWR
       if (isMountedRef.current && optimisticUpdateApplied && mutate) {
         await mutate(previousState, false);
@@ -244,9 +242,12 @@ const FollowButtonComponent = ({
       let toastTitle = "Error";
       let toastDescription = "Could not update follow status. Please try again.";
 
-      if (errorMessage.includes("Please wait before toggling follow again")) {
+      if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're toggling follows too quickly. Please slow down.";
+        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
+      } else if (errorMessage.includes("Please wait before toggling follow again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
       } else if (errorMessage.includes("Too many follows too quickly")) {
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Too many follows too quickly. Please slow down.";
@@ -256,9 +257,6 @@ const FollowButtonComponent = ({
       } else if (errorMessage.includes("Daily follow limit reached")) {
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Daily follow limit reached. Try again tomorrow.";
-      } else if (errorMessage.includes("Please wait 2 seconds between follow/unfollow operations")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Please wait 2 seconds between follow/unfollow operations";
       } else if (errorMessage.includes("User not found")) {
         // Keep generic message for this, as it's a server-side issue
         toastDescription = "Could not update follow status due to a server error.";
