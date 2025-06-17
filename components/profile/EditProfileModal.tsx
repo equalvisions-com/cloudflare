@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect } from "react";
+import React, { useEffect, useReducer, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,214 +12,220 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useMutation, useAction } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, AlertCircle } from "lucide-react";
 import Image from 'next/image';
-import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useProfileImageUpload } from "@/hooks/useProfileImageUpload";
+import { useProfileFormSubmission } from "@/hooks/useProfileFormSubmission";
+import { useProfileFormManagement } from "@/hooks/useProfileFormManagement";
+import { 
+  useFormValidation, 
+  useDebouncedCallback,
+  ResourceManager,
+  performanceUtils 
+} from "@/lib/utils/profilePerformance";
+import type { 
+  ProfileFormState, 
+  ProfileFormInitialData, 
+  ProfileFormAction 
+} from "@/lib/types";
 
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: Id<"users">; // The user ID is passed from parent but used by Convex auth context internally
-  initialData: {
-    name?: string | null;
-    bio?: string | null;
-    profileImage?: string | null;
-    username?: string;
-    profileImageKey?: string | null; // Ensure this is part of initialData if needed for deletion logic
-  };
+  initialData: ProfileFormInitialData;
 }
 
-export function EditProfileModal({ 
+// Create initial state from props with memoization
+const createInitialState = (initialData: ProfileFormInitialData): ProfileFormState => ({
+  name: initialData.name || "",
+  bio: initialData.bio || "",
+  previewImage: initialData.profileImage || null,
+  isLoading: false,
+  isUploading: false,
+  profileImageKey: initialData.profileImageKey || null,
+  selectedFile: null,
+});
+
+// Reducer for profile form state management with performance optimization
+const profileFormReducer = (state: ProfileFormState, action: ProfileFormAction): ProfileFormState => {
+  switch (action.type) {
+    case 'SET_NAME':
+      return state.name === action.payload ? state : { ...state, name: action.payload };
+    
+    case 'SET_BIO':
+      return state.bio === action.payload ? state : { ...state, bio: action.payload };
+    
+    case 'SET_PREVIEW_IMAGE':
+      return state.previewImage === action.payload ? state : { ...state, previewImage: action.payload };
+    
+    case 'SET_SELECTED_FILE':
+      return { ...state, selectedFile: action.payload };
+    
+    case 'SET_PROFILE_IMAGE_KEY':
+      return state.profileImageKey === action.payload ? state : { ...state, profileImageKey: action.payload };
+    
+    case 'START_LOADING':
+      return state.isLoading ? state : { ...state, isLoading: true };
+    
+    case 'STOP_LOADING':
+      return !state.isLoading ? state : { ...state, isLoading: false };
+    
+    case 'START_UPLOADING':
+      return state.isUploading ? state : { ...state, isUploading: true };
+    
+    case 'STOP_UPLOADING':
+      return !state.isUploading ? state : { ...state, isUploading: false };
+    
+    case 'UPLOAD_SUCCESS':
+      return {
+        ...state,
+        profileImageKey: action.payload.key,
+        previewImage: action.payload.previewUrl,
+        isUploading: false,
+      };
+    
+    case 'RESET_FORM':
+      return createInitialState(action.payload);
+    
+    case 'CLEAR_FILE_SELECTION':
+      return {
+        ...state,
+        selectedFile: null,
+        profileImageKey: state.profileImageKey, // Keep existing key if no new file
+      };
+    
+    default:
+      return state;
+  }
+};
+
+// Memoized component for performance
+export const EditProfileModal = React.memo(({ 
   isOpen, 
   onClose, 
   userId,
   initialData 
-}: EditProfileModalProps) {
-  const router = useRouter();
-  const { toast } = useToast();
-  // Form state
-  const [name, setName] = useState(initialData.name || "");
-  const [bio, setBio] = useState(initialData.bio || "");
-  const [previewImage, setPreviewImage] = useState<string | null>(initialData.profileImage || null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [profileImageKey, setProfileImageKey] = useState<string | null>(initialData.profileImageKey || null);
+}: EditProfileModalProps) => {
+  // Use reducer for consolidated state management
+  const [formState, dispatch] = useReducer(profileFormReducer, createInitialState(initialData));
+  const { name, bio, previewImage, isLoading, isUploading, profileImageKey, selectedFile } = formState;
   
-  // Hold the selected file for upload on save
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Memoized validation with performance optimization
+  const validation = useFormValidation(name, bio);
   
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Immediate input handlers for best user experience
+  // Note: We use immediate updates rather than debouncing for form inputs
+  // because users expect immediate visual feedback when typing
+  const handleNameInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    dispatch({ type: 'SET_NAME', payload: value });
+  }, [dispatch]);
+  
+  const handleBioInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    dispatch({ type: 'SET_BIO', payload: value });
+  }, [dispatch]);
+  
+  // Initialize image upload hook
+  const imageUpload = useProfileImageUpload({
+    onFileSelect: (file, previewUrl) => {
+      performanceUtils.batchUpdates([
+        () => dispatch({ type: 'SET_SELECTED_FILE', payload: file }),
+        () => dispatch({ type: 'SET_PREVIEW_IMAGE', payload: previewUrl }),
+        () => dispatch({ type: 'SET_PROFILE_IMAGE_KEY', payload: null }),
+      ]);
+    },
+    onUploadStart: () => dispatch({ type: 'START_UPLOADING' }),
+    onUploadSuccess: (key, previewUrl) => dispatch({ type: 'UPLOAD_SUCCESS', payload: { key, previewUrl } }),
+    onUploadError: () => dispatch({ type: 'STOP_UPLOADING' }),
+  });
 
-  // Get the update profile mutation
-  const updateProfile = useMutation(api.users.updateProfile);
-  
-  // Get R2 upload action
-  const getProfileImageUploadUrl = useAction(api.users.getProfileImageUploadUrl);
-  
+  // Initialize form submission hook
+  const formSubmission = useProfileFormSubmission({
+    onSubmitStart: () => dispatch({ type: 'START_LOADING' }),
+    onSubmitSuccess: () => {
+      performanceUtils.batchUpdates([
+        () => dispatch({ type: 'CLEAR_FILE_SELECTION' }),
+        () => dispatch({ type: 'STOP_LOADING' }),
+      ]);
+    },
+    onSubmitError: () => dispatch({ type: 'STOP_LOADING' }),
+    onClose,
+    uploadImageToR2: imageUpload.uploadImageToR2,
+    resetFileInput: imageUpload.resetFileInput,
+  });
+
+  // Initialize form management hook
+  const formManagement = useProfileFormManagement({
+    formState,
+    initialData,
+    dispatch,
+    onClose,
+    resetFileInput: imageUpload.resetFileInput,
+    cleanupPreviewUrl: imageUpload.cleanupPreviewUrl,
+  });
+
+  // Component ID for resource management
+  const componentId = useMemo(() => `edit-profile-modal-${userId}-${Date.now()}`, [userId]);
+
+  // Register cleanup on mount
+  useEffect(() => {
+    ResourceManager.register(componentId, () => {
+      imageUpload.cleanupPreviewUrl(previewImage || '');
+    });
+
+    return () => {
+      ResourceManager.cleanup(componentId);
+    };
+  }, [componentId, imageUpload.cleanupPreviewUrl, previewImage]);
+
   // Reset form fields when initialData changes (e.g., modal is re-opened for a different user or data is refreshed)
   useEffect(() => {
-    setName(initialData.name || "");
-    setBio(initialData.bio || "");
-    setPreviewImage(initialData.profileImage || null);
-    setProfileImageKey(initialData.profileImageKey || null);
-    setSelectedFile(null); // Clear any selected file from previous interaction
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''; // Reset file input
+    if (isOpen) {
+      dispatch({ type: 'RESET_FORM', payload: initialData });
+      imageUpload.resetFileInput();
     }
-  }, [initialData]);
+  }, [initialData, isOpen, imageUpload.resetFileInput]);
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    let finalProfileImageKey = profileImageKey; // Start with current key (could be existing or null)
-
-    try {
-      if (selectedFile) {
-        setIsUploading(true);
-        try {
-          const uploadData = await getProfileImageUploadUrl();
-          let uploadUrl = '';
-          if (typeof uploadData.url === 'string') {
-            uploadUrl = uploadData.url;
-          } else if (uploadData.url && typeof uploadData.url === 'object') {
-            uploadUrl = (uploadData.url as any).url || uploadData.url.toString();
-          } else {
-            throw new Error('Invalid URL format returned from server for image upload');
-          }
-          
-          const uploadResponse = await fetch(uploadUrl, {
-            method: "PUT",
-            body: selectedFile,
-            headers: {
-              "Content-Type": selectedFile.type,
-              "Content-Length": String(selectedFile.size)
-            },
-          });
-          
-          if (!uploadResponse.ok) {
-            throw new Error(`Image upload failed: ${uploadResponse.statusText || uploadResponse.status}`);
-          }
-          
-          finalProfileImageKey = uploadData.key; // Use the new key from successful upload
-        } catch (error) {
-          console.error("Failed to upload image:", error);
-          toast({
-            title: "Image Upload Error",
-            description: "Failed to upload image. Please try again later or contact support.",
-            variant: "destructive"
-          });
-          setIsLoading(false); // Stop loading if upload fails
-          setIsUploading(false);
-          return; 
-        } finally {
-          setIsUploading(false);
-        }
-      }
-      
-      const updateData: {
-        name: string | null;
-        bio: string | null;
-        profileImage: null;
-        profileImageKey?: string;
-      } = {
-        name: name.trim() === "" ? null : name.trim(), // Send null if name is empty after trim
-        bio: bio.trim() === "" ? null : bio.trim(),   // Send null if bio is empty after trim
-        profileImage: null, // Deprecated, R2 key is used
-      };
-      
-      // Only include profileImageKey if we actually have a new image
-      if (finalProfileImageKey) {
-        updateData.profileImageKey = finalProfileImageKey;
-      }
-      
-      await updateProfile(updateData);
-      
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
-      onClose();
-      router.refresh(); // Refresh data on the current page
-    } catch (error) {
-      console.error("Failed to update profile:", error);
-      
-      // Handle specific error types with appropriate toast messages
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      if (errorMessage.includes("Profile update limit exceeded")) {
-        // Rate limit error - show specific toast
-        toast({
-          title: "Rate Limit Exceeded",
-          description: "You can only change your profile 3 times per day. Try again later.",
-        });
-      } else {
-        // Generic error - show general toast
-        toast({
-          title: "Profile Update Error", 
-          description: "Failed to update profile. Please try again later or contact support.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Handle file selection (only preview, don't upload yet)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Store the file for later upload
-    setSelectedFile(file);
-    
-    // Create a local preview URL
-    const imageUrl = URL.createObjectURL(file);
-    setPreviewImage(imageUrl);
-    
-    // Clear any previous R2 key since we'll get a new one when we upload
-    setProfileImageKey(null);
+  // Handle form submission - prevent default immediately, then debounce the actual submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault(); // Always prevent default immediately
+    debouncedSubmit();
   };
 
-  // Handle cancel with cleanup
-  const handleCancel = () => {
-    // Don't allow cancel if currently loading/uploading
-    if (isLoading) return;
-    
-    // Clean up any object URLs we created to avoid memory leaks
-    if (selectedFile && previewImage && previewImage.startsWith('blob:')) {
-      URL.revokeObjectURL(previewImage);
-    }
-    
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    
-    // Reset to initial state
-    setName(initialData.name || "");
-    setBio(initialData.bio || "");
-    setPreviewImage(initialData.profileImage || null);
-    setSelectedFile(null);
-    setProfileImageKey(initialData.profileImageKey || null);
-    
-    // Close the modal
-    onClose();
-  };
+  // Debounced submission logic
+  const debouncedSubmit = useDebouncedCallback(async () => {
+    await formSubmission.handleSubmit({
+      name,
+      bio,
+      profileImageKey,
+      selectedFile,
+    });
+  }, 500);
+
+  // Memoized validation state
+  const validationState = useMemo(() => ({
+    nameValidation: validation.name,
+    bioValidation: validation.bio,
+    hasValidationErrors: validation.hasErrors,
+  }), [validation]);
+
+  // Memoized button states
+  const buttonStates = useMemo(() => ({
+    isSubmitDisabled: isLoading || isUploading || validationState.hasValidationErrors,
+    isCancelDisabled: isLoading,
+    isFileSelectDisabled: isLoading || isUploading,
+  }), [isLoading, isUploading, validationState.hasValidationErrors]);
 
   return (
     <Dialog 
       open={isOpen} 
       onOpenChange={(open) => {
         if (!open && !isLoading) {
-          handleCancel();
+          formManagement.handleCancel();
         }
       }}
     >
@@ -233,6 +238,16 @@ export function EditProfileModal({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {/* Validation Error Alert */}
+            {validationState.hasValidationErrors && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Please fix the validation errors below before submitting.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-4 items-start gap-4">
               <div className="text-right pt-2">Profile Image</div>
               <div className="col-span-3">
@@ -240,9 +255,9 @@ export function EditProfileModal({
                   <Input
                     type="file"
                     id="profileImageUpload"
-                    ref={fileInputRef}
+                    ref={imageUpload.fileInputRef}
                     accept="image/*"
-                    onChange={handleFileChange}
+                    onChange={imageUpload.handleFileChange}
                     className="hidden"
                   />
                   {previewImage && (
@@ -253,55 +268,81 @@ export function EditProfileModal({
                         width={64} 
                         height={64} 
                         className="w-full h-full object-cover"
+                        priority
                       />
                     </div>
                   )}
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading}
+                    onClick={() => imageUpload.fileInputRef.current?.click()}
+                    disabled={buttonStates.isFileSelectDisabled}
                     className="flex gap-2"
                   >
                     <Upload className="h-4 w-4" />
-                    Select Image
+                    {isUploading ? 'Uploading...' : 'Select Image'}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Upload an image for your profile. Files will be uploaded when you save.
+                  Upload an image for your profile. Max 5MB. Supported formats: JPEG, PNG, WebP, GIF.
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="text-right">Name</div>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="col-span-3"
-                placeholder="Your display name"
-                maxLength={60}
-              />
+              <div className="col-span-3">
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={handleNameInputChange}
+                  className={`${validationState.nameValidation.isError ? 'border-red-500' : ''}`}
+                  placeholder="Your display name"
+                  maxLength={60}
+                  disabled={isLoading}
+                />
+                {validationState.nameValidation.isError && (
+                  <p className="text-xs text-red-500 mt-1">{validationState.nameValidation.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {validationState.nameValidation.length}/60 characters
+                </p>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <div className="text-right pt-2">Bio</div>
-              <Textarea
-                id="bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                className="col-span-3"
-                placeholder="Tell others about yourself"
-                rows={3}
-                disabled={isLoading}
-                maxLength={250}
-              />
+              <div className="col-span-3">
+                <Textarea
+                  id="bio"
+                  value={bio}
+                  onChange={handleBioInputChange}
+                  className={`${validationState.bioValidation.isError ? 'border-red-500' : ''}`}
+                  placeholder="Tell others about yourself"
+                  rows={3}
+                  disabled={isLoading}
+                  maxLength={250}
+                />
+                {validationState.bioValidation.isError && (
+                  <p className="text-xs text-red-500 mt-1">{validationState.bioValidation.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {validationState.bioValidation.length}/250 characters
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={isLoading}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={formManagement.handleCancel} 
+              disabled={buttonStates.isCancelDisabled}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              disabled={buttonStates.isSubmitDisabled}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -316,4 +357,4 @@ export function EditProfileModal({
       </DialogContent>
     </Dialog>
   );
-} 
+}); 

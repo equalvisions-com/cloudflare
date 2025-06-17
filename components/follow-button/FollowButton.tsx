@@ -82,6 +82,10 @@ const FollowButtonComponent = ({
   
   // Track last operation time to prevent rapid successive clicks
   const lastClickTime = useRef(0);
+  
+  // Global rate limiting - 2 seconds between ANY follow/unfollow operations
+  const lastGlobalActionTimeRef = useRef(0);
+  const GLOBAL_COOLDOWN_MS = 2000;
 
   // Generate a stable key for SWR to prevent unnecessary revalidation
   const cacheKey = useMemo(() => postId ? postId.toString() : null, [postId]);
@@ -149,12 +153,26 @@ const FollowButtonComponent = ({
     // Don't allow clicks during initial loading or while busy
     if (!isMountedRef.current || isInitialLoading || isBusy) return;
     
-    // Prevent rapid clicks (debounce)
+    // Check global rate limiting first (2 seconds between ANY follow/unfollow operations)
     const now = Date.now();
+    const timeSinceLastGlobalAction = now - lastGlobalActionTimeRef.current;
+    if (timeSinceLastGlobalAction < GLOBAL_COOLDOWN_MS) {
+      const remainingTime = Math.ceil((GLOBAL_COOLDOWN_MS - timeSinceLastGlobalAction) / 1000);
+      toast({
+        title: "Rate Limit Exceeded",
+        description: `Please wait ${remainingTime} second${remainingTime > 1 ? 's' : ''} between follow/unfollow operations`,
+      });
+      return;
+    }
+    
+    // Prevent rapid clicks on same button (debounce)
     if (now - lastClickTime.current < 500) {
       return; // Ignore clicks that happen too quickly
     }
+    
+    // Update both timers
     lastClickTime.current = now;
+    lastGlobalActionTimeRef.current = now;
     
     // Set busy state to prevent multiple operations
     setIsBusy(true);
@@ -238,6 +256,9 @@ const FollowButtonComponent = ({
       } else if (errorMessage.includes("Daily follow limit reached")) {
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Daily follow limit reached. Try again tomorrow.";
+      } else if (errorMessage.includes("Please wait 2 seconds between follow/unfollow operations")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Please wait 2 seconds between follow/unfollow operations";
       } else if (errorMessage.includes("User not found")) {
         // Keep generic message for this, as it's a server-side issue
         toastDescription = "Could not update follow status due to a server error.";

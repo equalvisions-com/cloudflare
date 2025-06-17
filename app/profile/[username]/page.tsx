@@ -102,25 +102,7 @@ const getTransformedProfileData = (profileData: ProfilePageData, username: strin
 
   // Transform initial friends data with proper types
   const initialFriends: ProfileSocialData = {
-    friends: (profileData.social.friends || []).map(friend => ({
-      friendship: {
-        _id: friend._id as unknown as Id<"friends">, // Proper type assertion through unknown
-        requesterId: friend.userId,
-        requesteeId: profileData.profile.userId,
-        status: 'accepted',
-        createdAt: Date.now(),
-        direction: 'mutual',
-        friendId: friend.userId
-      },
-      profile: {
-        _id: friend._id,
-        userId: friend.userId,
-        username: friend.username,
-        name: friend.name ?? undefined,
-        profileImage: friend.profileImage ?? undefined,
-        bio: friend.bio ?? undefined
-      }
-    })),
+    friends: profileData.social.friends || [], // Already in correct FriendWithProfile[] format
     hasMore: (profileData.social.friends?.length || 0) >= 30,
     cursor: null
   };

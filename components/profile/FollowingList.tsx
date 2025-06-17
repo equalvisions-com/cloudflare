@@ -1,281 +1,450 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
+import { Virtuoso } from "react-virtuoso";
+import { useConvexAuth } from "convex/react";
+import { useRouter } from "next/navigation";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-  DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { Id } from "@/convex/_generated/dataModel";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { FollowButtonWithErrorBoundary } from "../follow-button/FollowButton";
-import { VerifiedBadge } from "../VerifiedBadge";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import Image from "next/image";
+import { Id } from "@/convex/_generated/dataModel";
+import type {
+  FollowingListProps,
+  FollowingListState,
+  FollowingListAction,
+  FollowingListFollowingWithPost,
+  FollowingListInitialData,
+  ProfileFollowingData,
+} from "@/lib/types";
+import { convertProfileFollowingDataToFollowingListData } from "@/lib/types";
+import { useFollowingListData } from "@/hooks/useFollowingListData";
+import { useFollowingListActions } from "@/hooks/useFollowingListActions";
+import { useFollowingListVirtualization } from "@/hooks/useFollowingListVirtualization";
+import { MemoizedVirtualizedFollowingItem } from "./VirtualizedFollowingItem";
+import { FollowingListErrorBoundary } from "./FollowingListErrorBoundary";
+import { FollowingListDrawerSkeleton } from "./FollowingListSkeleton";
+import { FollowingListEmptyState } from "./FollowingListEmptyState";
 
-interface FollowingListProps {
-  username: string;
-  initialCount?: number;
-  initialFollowing?: {
-    following: (FollowingWithPost | null)[]; // Allow null values in the array
-    hasMore: boolean;
-    cursor: Id<"following"> | null;
-  };
-}
-
-// Types for following data from the API
-interface FollowingData {
-  userId: Id<"users">;
-  postId: Id<"posts">;
-  feedUrl: string;
-  _id: Id<"following">;
-}
-
-interface PostData {
-  _id: Id<"posts">;
-  title: string;
-  postSlug: string;
-  categorySlug: string;
-  featuredImg?: string;
-  mediaType: string;
-  verified?: boolean;
-}
-
-interface FollowingWithPost {
-  following: FollowingData;
-  post: PostData;
-}
-
-// New Component Definition
-interface ViewerFollowStatusButtonProps {
-  postId: Id<"posts">;
-  feedUrl: string;
-  postTitle: string;
-}
-
-function ViewerFollowStatusButton({ postId, feedUrl, postTitle }: ViewerFollowStatusButtonProps) {
-  const isViewerFollowing = useQuery(
-    api.following.isFollowing,
-    { postId }
-  );
-
-  if (isViewerFollowing === undefined) {
-    return (
-      <Button variant="outline" size="sm" disabled className="flex-shrink-0 w-[100px]">
-        <Loader2 className="h-4 w-4 animate-spin" />
-      </Button>
-    );
+// Create initial state from props
+const createInitialState = (
+  initialCount: number,
+  initialFollowing?: ProfileFollowingData
+): FollowingListState => {
+  let convertedFollowing: FollowingListInitialData | undefined;
+  
+  if (initialFollowing) {
+    convertedFollowing = convertProfileFollowingDataToFollowingListData(initialFollowing);
   }
+  
+  return {
+    isOpen: false,
+    isLoading: false,
+    followingItems: convertedFollowing?.followingItems.filter((f): f is FollowingListFollowingWithPost => f !== null) || [],
+    count: initialCount,
+    cursor: convertedFollowing?.cursor || null,
+    hasMore: convertedFollowing?.hasMore ?? false,
+    followStatusMap: {},
+    isLoadingFollowStatus: false,
+    error: null,
+    lastFetchTime: null,
+    isInitialized: !!convertedFollowing,
+  };
+};
 
-  return (
-    <FollowButtonWithErrorBoundary
-      postId={postId}
-      feedUrl={feedUrl}
-      postTitle={postTitle}
-      initialIsFollowing={isViewerFollowing}
-      className="flex-shrink-0"
-      disableAutoFetch={true}
-      showIcon={false}
-    />
-  );
-}
-// End of New Component Definition
+// Reducer for following list state management
+const followingListReducer = (state: FollowingListState, action: FollowingListAction): FollowingListState => {
+  switch (action.type) {
+    case 'OPEN_DRAWER':
+      return { ...state, isOpen: true };
+    
+    case 'CLOSE_DRAWER':
+      return { ...state, isOpen: false };
+    
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload, error: action.payload ? null : state.error };
+    
+    case 'SET_COUNT':
+      return { ...state, count: action.payload };
+    
+    case 'INITIALIZE_FOLLOWING':
+      return {
+        ...state,
+        followingItems: action.payload.followingItems,
+        cursor: action.payload.cursor,
+        hasMore: action.payload.hasMore,
+        isInitialized: true,
+        lastFetchTime: Date.now(),
+        error: null,
+      };
+    
+    case 'LOAD_MORE_START':
+      return { ...state, isLoading: true, error: null };
+    
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        followingItems: [...state.followingItems, ...action.payload.followingItems],
+        cursor: action.payload.cursor,
+        hasMore: action.payload.hasMore,
+        isLoading: false,
+        lastFetchTime: Date.now(),
+        error: null,
+      };
+    
+    case 'LOAD_MORE_ERROR':
+      return {
+        ...state,
+        isLoading: false,
+        error: action.payload,
+      };
+    
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
+    
+    case 'SET_FOLLOW_STATUS_LOADING':
+      return { ...state, isLoadingFollowStatus: action.payload };
+    
+    case 'UPDATE_FOLLOW_STATUS_MAP':
+      return { ...state, followStatusMap: action.payload, isLoadingFollowStatus: false };
+    
+    case 'UPDATE_SINGLE_FOLLOW_STATUS':
+      return {
+        ...state,
+        followStatusMap: {
+          ...state.followStatusMap,
+          [action.payload.postId]: action.payload.isFollowing,
+        },
+      };
+    
+    case 'RESET_STATE':
+      return createInitialState(state.count, undefined);
+    
+    case 'REMOVE_FOLLOWING_ITEM':
+      return {
+        ...state,
+        followingItems: state.followingItems.filter(item => item.post._id !== action.payload),
+        count: Math.max(0, state.count - 1),
+      };
+    
+    default:
+      return state;
+  }
+};
 
 export function FollowingList({ username, initialCount = 0, initialFollowing }: FollowingListProps) {
-  const [open, setOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [followingItems, setFollowingItems] = useState<FollowingWithPost[]>(
-    initialFollowing?.following.filter((f): f is FollowingWithPost => f !== null) || []
-  );
-  const [cursor, setCursor] = useState<string | null>(initialFollowing?.cursor || null);
-  const [hasMore, setHasMore] = useState<boolean>(initialFollowing?.hasMore ?? false);
-  const [count, setCount] = useState<number>(initialCount);
+  // Authentication state (like FollowButton.tsx)
+  const { isAuthenticated } = useConvexAuth();
   
-  // Extract all post IDs for batched follow status query
-  const postIds = useMemo(() => 
-    followingItems
-      .filter(item => item && item.following && item.following.postId) // Safety check
-      .map(item => item.following.postId),
-    [followingItems]
-  );
+  // Router for navigation
+  const router = useRouter();
   
-  // Make a single batched query for all post IDs' follow status
-  // This returns an array of booleans where each index corresponds to the postIds array
-  const followStatusArray = useQuery(
-    api.following.getFollowStates,
-    open && postIds.length > 0 ? { postIds } : "skip"
-  );
+  // State management with useReducer
+  const [state, dispatch] = useReducer(followingListReducer, createInitialState(initialCount, initialFollowing));
   
-  // Create a mapping of postId to follow status for easier lookup
-  const followStatusMap = useMemo(() => {
-    if (!followStatusArray || !postIds) return {};
-    
-    // Build a map of postId string -> follow status boolean
-    const map: Record<string, boolean> = {};
-    
-    postIds.forEach((id, index) => {
-      // Make sure we don't access beyond the array bounds
-      if (index < followStatusArray.length) {
-        map[id.toString()] = followStatusArray[index];
-      }
-    });
-    
-    return map;
-  }, [followStatusArray, postIds]);
+  // Ref for cleanup of accessibility announcement timeout
+  const announcementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Get next page of following when the drawer is open
-  const loadMoreFollowing = async () => {
-    if (!hasMore || isLoading || !cursor) return;
-    
-    setIsLoading(true);
-    try {
-      const result = await fetch(`/api/following?username=${username}&cursor=${cursor}`).then(res => {
-         if (!res.ok) {
-           throw new Error(`HTTP error! status: ${res.status}`);
-         }
-         return res.json();
-      });
-      
-      const newFollowingItems = result.following.filter((f: FollowingWithPost | null): f is FollowingWithPost => f !== null);
-      
-      setFollowingItems(prevItems => [...prevItems, ...newFollowingItems]);
-      setCursor(result.cursor);
-      setHasMore(result.hasMore);
-    } catch (error) {
-      console.error("Failed to load more following:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-   // Effect to reset following list when drawer opens if initial data wasn't provided or might be stale
-   useEffect(() => {
-     if (open && !initialFollowing) {
-       setFollowingItems([]);
-       setCursor(null);
-       setHasMore(false);
-     }
-     
-     if (open && initialFollowing) {
-       setFollowingItems(initialFollowing.following.filter((f): f is FollowingWithPost => f !== null));
-       setCursor(initialFollowing.cursor);
-       setHasMore(initialFollowing.hasMore);
-     }
-   }, [open, initialFollowing]);
-  
-  return (
-    <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
-        <Button 
-          variant="link" 
-          className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-0 focus:outline-none hover:no-underline text-muted-foreground font-medium"
-        >
-          <span className="leading-none">{count}</span><span className="leading-none"> Following</span>
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
-        <DrawerHeader className="px-4 pb-4 border-b border-border">
-          <DrawerTitle className="text-base font-extrabold leading-none tracking-tight text-center">Following</DrawerTitle>
-        </DrawerHeader>
-        <ScrollArea className="flex-1 overflow-y-auto" scrollHideDelay={0} type="always">
-          {isLoading && followingItems.length === 0 ? (
-             <div className="flex items-center justify-center py-10">
-               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-             </div>
-           ) : !followingItems.length ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Not following any content yet
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {followingItems.map((item: FollowingWithPost) => {
-                // Additional safety check to prevent runtime errors
-                if (!item || !item.following || !item.following.postId || !item.post) {
-                  return null;
-                }
-                
-                // Get the follow status for this post from the mapping
-                const postIdStr = item.following.postId.toString();
-                const isFollowing = followStatusMap[postIdStr];
-                
-                // undefined means still loading
-                const isLoadingStatus = followStatusArray === undefined;
-                
-                return (
-                  <div key={item.following._id.toString()} className="flex items-center justify-between gap-3 p-4 border-b border-border">
-                    <Link
-                      href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                      className="flex-shrink-0 h-10 w-10 rounded-md bg-muted overflow-hidden relative"
-                      onClick={() => setOpen(false)}
-                    >
-                      <AspectRatio ratio={1}>
-                      {item.post.featuredImg ? (
-                        <Image
-                          src={item.post.featuredImg}
-                          alt={item.post.title}
-                          fill
-                          sizes="40px"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                         <div className="h-full w-full bg-muted"></div>
-                      )}
-                      </AspectRatio>
-                    </Link>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <Link
-                        href={`/${item.post.mediaType === 'newsletter' ? 'newsletters' : item.post.mediaType === 'podcast' ? 'podcasts' : item.post.categorySlug}/${item.post.postSlug}`}
-                        onClick={() => setOpen(false)}
-                      >
-                        <div className="text-sm font-bold overflow-anywhere">
-                          {item.post.title} {item.post.verified && <VerifiedBadge className="inline-block align-text-middle ml-0.5 h-3.5 w-3.5" />}
-                        </div>
-                      </Link>
-                    </div>
-                    {isLoadingStatus ? (
-                      <Button variant="outline" size="sm" disabled className="flex-shrink-0 w-[100px]">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </Button>
-                    ) : (
-                      <FollowButtonWithErrorBoundary
-                        postId={item.following.postId}
-                        feedUrl={item.following.feedUrl}
-                        postTitle={item.post.title}
-                        initialIsFollowing={isFollowing}
-                        className="flex-shrink-0"
-                        disableAutoFetch={true}
-                        showIcon={false}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+  // Data hook - handles all data fetching and management
+  const dataHook = useFollowingListData({
+    username,
+    state,
+    dispatch,
+    initialFollowing,
+  });
 
-              {hasMore && (
-                <div className="py-4 text-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadMoreFollowing}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isLoading ? "Loading..." : "Load more"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </ScrollArea>
-      </DrawerContent>
-    </Drawer>
+  // Actions hook - handles all user interactions
+  const actionsHook = useFollowingListActions({
+    username,
+    state,
+    dispatch,
+    loadMoreFollowing: dataHook.loadMoreFollowing,
+    refreshFollowing: dataHook.refreshFollowing,
+  });
+
+  // Memoized callbacks to prevent unnecessary re-renders
+  const handleCloseDrawer = useCallback(() => {
+    dispatch({ type: 'CLOSE_DRAWER' });
+  }, []);
+
+  // Cleanup function for component unmount
+  const cleanup = useCallback(() => {
+    if (announcementTimeoutRef.current) {
+      clearTimeout(announcementTimeoutRef.current);
+      announcementTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  // Virtualization hook - handles large list performance
+  const virtualizationHook = useFollowingListVirtualization({
+    state,
+    dispatch,
+    loadMoreFollowing: dataHook.loadMoreFollowing,
+    config: {
+      itemHeight: 80,
+      overscan: 5,
+      loadMoreThreshold: 3,
+      debounceMs: 150,
+    },
+  });
+
+  // Memoized computed values with optimized dependencies
+  const computedValues = useMemo(() => ({
+    followingCount: state.count,
+    hasError: !!dataHook.error,
+    isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
+    isInitialLoading: dataHook.isLoading && !state.isInitialized,
+    shouldShowLoadingSpinner: dataHook.isLoading && !state.isInitialized,
+    shouldShowErrorState: !!dataHook.error,
+    shouldShowEmptyState: !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
+    shouldShowVirtualizedList: state.isInitialized && dataHook.followingItems.length > 0 && !dataHook.error,
+  }), [
+    dataHook.followingItems.length, 
+    dataHook.isLoading,
+    dataHook.error,
+    state.count, 
+    state.isInitialized
+  ]);
+
+  // Memoized accessibility announcement
+  const accessibilityAnnouncement = useMemo(() => {
+    return computedValues.followingCount === 0 
+      ? "Following list opened. Not following any content yet."
+      : `Following list opened. Showing ${computedValues.followingCount} followed ${computedValues.followingCount === 1 ? 'item' : 'items'}.`;
+  }, [computedValues.followingCount]);
+
+  // Handle drawer state changes with accessibility - optimized
+  const handleOpenChange = useCallback((open: boolean) => {
+    dispatch({ type: open ? 'OPEN_DRAWER' : 'CLOSE_DRAWER' });
+    if (open && dataHook.error) {
+      dataHook.resetError();
+    }
+    
+    // Announce to screen readers
+    if (open) {
+      // Clear any existing timeout
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
+      }
+      
+      // Only run in browser environment
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        // Create temporary announcement element
+        const announcer = document.createElement('div');
+        announcer.setAttribute('aria-live', 'polite');
+        announcer.setAttribute('aria-atomic', 'true');
+        announcer.className = 'sr-only';
+        announcer.textContent = accessibilityAnnouncement;
+        document.body.appendChild(announcer);
+        
+        // Clean up after announcement with proper timeout management
+        announcementTimeoutRef.current = setTimeout(() => {
+          if (document.body.contains(announcer)) {
+            document.body.removeChild(announcer);
+          }
+          announcementTimeoutRef.current = null;
+        }, 1000);
+      }
+    }
+  }, [dataHook.error, dataHook.resetError, accessibilityAnnouncement]);
+
+  // Memoized aria label for trigger button
+  const triggerAriaLabel = useMemo(() => 
+    `View following list. Following ${computedValues.followingCount} ${computedValues.followingCount === 1 ? 'item' : 'items'}`,
+    [computedValues.followingCount]
+  );
+
+  // Handle load more with error handling
+  const handleLoadMore = useCallback(async () => {
+    try {
+      await dataHook.loadMoreFollowing();
+    } catch (error) {
+      actionsHook.handleError(
+        error instanceof Error ? error : new Error('Load more failed')
+      );
+    }
+  }, [dataHook.loadMoreFollowing, actionsHook]);
+
+  // Handle refresh with error handling
+  const handleRefresh = useCallback(async () => {
+    try {
+      await dataHook.refreshFollowing();
+    } catch (error) {
+      actionsHook.handleError(
+        error instanceof Error ? error : new Error('Refresh failed')
+      );
+    }
+  }, [dataHook.refreshFollowing, actionsHook]);
+
+  // Memoized close drawer handler to prevent re-renders
+  const memoizedCloseDrawer = useCallback(() => {
+    dispatch({ type: 'CLOSE_DRAWER' });
+  }, []);
+
+  // Virtualized item renderer with enhanced error handling - optimized for performance
+  const itemContent = useCallback((index: number, item: FollowingListFollowingWithPost) => {
+    // Add defensive check
+    if (!item || !item.post) {
+      // Invalid item data - render error placeholder
+      return (
+        <div 
+          key={`error-${index}`}
+          className="flex items-center justify-center p-4 text-muted-foreground"
+          role="alert"
+          aria-label="Invalid item data"
+        >
+          <span className="text-sm">Invalid item data</span>
+        </div>
+      );
+    }
+
+    // Get current user's follow status for this post
+    const currentUserFollowStatus = state.followStatusMap[item.following.postId.toString()] ?? false;
+
+    // Local update function that doesn't trigger parent error state
+    const handleUpdateFollowStatus = (postId: Id<"posts">, isFollowing: boolean) => {
+      dispatch({
+        type: 'UPDATE_SINGLE_FOLLOW_STATUS',
+        payload: { postId: postId.toString(), isFollowing },
+      });
+    };
+
+    return (
+      <MemoizedVirtualizedFollowingItem
+        key={`${item.post._id}-${index}`}
+        item={item}
+        onCloseDrawer={memoizedCloseDrawer}
+        onFollow={actionsHook.handleFollow}
+        onUnfollow={actionsHook.handleUnfollow}
+        isOperationPending={actionsHook.isOperationPending}
+        currentUserFollowStatus={currentUserFollowStatus}
+        onUpdateFollowStatus={handleUpdateFollowStatus}
+        isAuthenticated={isAuthenticated}
+        showIcon={false} // Keep icons disabled for cleaner Following list UI
+      />
+    );
+  }, [memoizedCloseDrawer, actionsHook.handleFollow, actionsHook.handleUnfollow, actionsHook.isOperationPending, state.followStatusMap, dispatch, isAuthenticated]);
+
+  // Footer component for virtualized list - memoized to prevent re-renders
+  const footerComponent = useMemo(() => {
+    const footer = virtualizationHook.footerComponent;
+    if (footer?.type === 'loading') {
+      return () => (
+        <div className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {footer.message}
+        </div>
+      );
+    }
+    
+    if (footer?.type === 'no-more') {
+      return () => (
+        <div className="py-4 text-center text-sm text-muted-foreground">
+          {footer.message}
+        </div>
+      );
+    }
+    
+    return undefined;
+  }, [virtualizationHook.footerComponent]);
+
+  // Empty placeholder component for Virtuoso
+  const emptyPlaceholder = useMemo(() => {
+    return () => (
+      <div className="flex items-center justify-center py-8">
+        <span className="text-sm text-muted-foreground">No items to display</span>
+      </div>
+    );
+  }, []);
+
+  // Virtuoso components configuration
+  const virtuosoComponents = useMemo(() => {
+    const components: any = {
+      EmptyPlaceholder: emptyPlaceholder,
+    };
+    
+    if (footerComponent) {
+      components.Footer = footerComponent;
+    }
+    
+    return components;
+  }, [footerComponent, emptyPlaceholder]);
+
+  return (
+    <FollowingListErrorBoundary
+      enableRecovery={true}
+      maxRetries={3}
+      onError={(error, errorInfo) => {
+        // console.error('FollowingList Error:', error, errorInfo);
+      }}
+    >
+      <Drawer open={state.isOpen} onOpenChange={handleOpenChange}>
+        <DrawerTrigger asChild>
+          <Button
+            variant="link" 
+            className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 hover:no-underline text-muted-foreground font-medium transition-colors duration-200 hover:text-foreground"
+            aria-label={triggerAriaLabel}
+          >
+            <span className="leading-none">{computedValues.followingCount}</span>
+            <span className="leading-none">Following</span>
+          </Button>
+        </DrawerTrigger>
+        
+        <DrawerContent 
+          className="h-[75vh] flex flex-col focus:outline-none w-full max-w-[550px] mx-auto"
+          aria-label="Following list"
+        >
+          <DrawerHeader className="flex-shrink-0 border-b">
+            <DrawerTitle className="text-base font-extrabold tracking-tight text-center flex items-center justify-center gap-2">
+              Following
+            </DrawerTitle>
+          </DrawerHeader>
+          
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-hidden" role="main">
+            {computedValues.shouldShowLoadingSpinner ? (
+              <FollowingListDrawerSkeleton count={6} />
+            ) : computedValues.shouldShowErrorState ? (
+              <FollowingListEmptyState
+                variant="error"
+                onRetry={handleRefresh}
+                className="h-full"
+              />
+            ) : computedValues.shouldShowEmptyState ? (
+              <FollowingListEmptyState
+                variant="default"
+                username={username}
+                isOwnProfile={true} // You might want to determine this based on current user
+                onExplore={() => {
+                  // Navigate to newsletters page
+                  router.push('/newsletters');
+                }}
+                className="h-full"
+              />
+            ) : computedValues.shouldShowVirtualizedList ? (
+              <Virtuoso
+                {...virtualizationHook.virtuosoProps}
+                itemContent={itemContent}
+                components={virtuosoComponents}
+                aria-label="Following list"
+                role="feed"
+                aria-busy={state.isLoading}
+                aria-live="polite"
+              />
+            ) : null}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    </FollowingListErrorBoundary>
   );
 } 

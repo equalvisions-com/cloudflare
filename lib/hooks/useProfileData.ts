@@ -44,33 +44,14 @@ export const useProfileData = ({
   // Memoize the initial friends data transformation
   const initialFriends = useMemo((): ProfileSocialData => {
     const friends = profileData?.social?.friends || [];
-    // Transform ProfileData[] to FriendWithProfile[]
-    const transformedFriends = friends.map(friend => ({
-      friendship: {
-        _id: friend._id as any as Id<"friends">, // Type assertion for compatibility
-        requesterId: friend.userId,
-        requesteeId: profileData?.profile?.userId || friend.userId,
-        status: 'accepted',
-        createdAt: Date.now(),
-        direction: 'mutual',
-        friendId: friend.userId
-      },
-      profile: {
-        _id: friend._id,
-        userId: friend.userId,
-        username: friend.username,
-        name: friend.name ?? undefined, // Convert null to undefined
-        profileImage: friend.profileImage ?? undefined, // Convert null to undefined
-        bio: friend.bio ?? undefined // Convert null to undefined
-      }
-    }));
     
+    // The friends data is already in FriendWithProfile[] format from the Convex function
     return {
-      friends: transformedFriends,
+      friends: friends, // Already in correct FriendWithProfile[] format
       hasMore: friends.length >= 30,
       cursor: null
     };
-  }, [profileData?.social?.friends, profileData?.profile?.userId]);
+  }, [profileData?.social?.friends]);
 
   // Memoize the initial following data transformation
   const initialFollowing = useMemo((): ProfileFollowingData => {

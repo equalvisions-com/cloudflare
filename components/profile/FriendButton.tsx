@@ -137,7 +137,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Daily friend request limit reached. Try again tomorrow.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
@@ -172,7 +172,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       } else if (errorMessage.includes("Friend request is not pending")) {
         toastDescription = "This friend request is no longer pending.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
@@ -209,7 +209,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
       } else if (errorMessage.includes("Not authorized to delete this friendship")) {
         toastDescription = "You are not authorized to modify this friendship.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);

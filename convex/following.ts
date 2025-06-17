@@ -5,12 +5,13 @@ import { Id } from "./_generated/dataModel";
 
 // Rate limiting constants for following
 const FOLLOWING_RATE_LIMITS = {
+  GLOBAL_COOLDOWN: 2000,          // 2 seconds between ANY follow/unfollow operations (NEW)
   PER_USER_COOLDOWN: 1000,        // 1 second between follow/unfollow same user
-  BURST_LIMIT: 30,                // 30 follows max
-  BURST_WINDOW: 30000,            // in 30 seconds
-  HOURLY_LIMIT: 100,              // 100 follows per hour
+  BURST_LIMIT: 10,                // 10 follows max (reduced from 30)
+  BURST_WINDOW: 60000,            // in 1 minute (reduced from 30 seconds)
+  HOURLY_LIMIT: 50,               // 50 follows per hour (reduced from 100)
   HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
-  DAILY_LIMIT: 500,               // 500 follows per day (anti-spam)
+  DAILY_LIMIT: 200,               // 200 follows per day (reduced from 500)
   DAILY_WINDOW: 86400000,         // 24 hours
 };
 
@@ -29,14 +30,28 @@ export const follow = mutation({
       throw new Error("Not authenticated");
     }
     
-    // 1. Check if already following (per-post cooldown)
+    // 1. GLOBAL COOLDOWN: Check time since last ANY follow/unfollow operation
+    const lastGlobalAction = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+
+    if (lastGlobalAction) {
+      const timeSinceLastGlobalAction = Date.now() - lastGlobalAction._creationTime;
+      if (timeSinceLastGlobalAction < FOLLOWING_RATE_LIMITS.GLOBAL_COOLDOWN) {
+        throw new Error("Please wait 2 seconds between follow/unfollow operations");
+      }
+    }
+    
+    // 2. Check if already following (per-post cooldown)
     const existing = await ctx.db
       .query("following")
       .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
       .first();
 
     if (existing) {
-      // Per-post cooldown: 2 seconds between follow/unfollow on same post
+      // Per-post cooldown: 1 second between follow/unfollow on same post
       const timeSinceLastAction = Date.now() - existing._creationTime;
       if (timeSinceLastAction < FOLLOWING_RATE_LIMITS.PER_USER_COOLDOWN) {
         throw new Error("Please wait before toggling follow again");
@@ -55,7 +70,7 @@ export const follow = mutation({
       throw new Error("Too many follows too quickly. Please slow down.");
     }
 
-    // 3. Hourly limit: Max 100 follows per hour
+    // 3. Hourly limit: Max 50 follows per hour
     const hourlyCheck = await ctx.db
       .query("following")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -66,7 +81,7 @@ export const follow = mutation({
       throw new Error("Hourly follow limit reached. Try again later.");
     }
 
-    // 4. Daily limit: Max 500 follows per day
+    // 4. Daily limit: Max 200 follows per day
     const dailyCheck = await ctx.db
       .query("following")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -128,7 +143,21 @@ export const unfollow = mutation({
       throw new Error("Not authenticated");
     }
     
-    // Get following record
+    // 1. GLOBAL COOLDOWN: Check time since last ANY follow/unfollow operation
+    const lastGlobalAction = await ctx.db
+      .query("following")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+
+    if (lastGlobalAction) {
+      const timeSinceLastGlobalAction = Date.now() - lastGlobalAction._creationTime;
+      if (timeSinceLastGlobalAction < FOLLOWING_RATE_LIMITS.GLOBAL_COOLDOWN) {
+        throw new Error("Please wait 2 seconds between follow/unfollow operations");
+      }
+    }
+    
+    // 2. Get following record
     const following = await ctx.db
       .query("following")
       .withIndex("by_user_post", (q) => q.eq("userId", userId).eq("postId", postId))
@@ -138,7 +167,7 @@ export const unfollow = mutation({
       return { success: false, error: "Not following this feed" };
     }
 
-    // Per-post cooldown: 2 seconds between follow/unfollow on same post
+    // 3. Per-post cooldown: 1 second between follow/unfollow on same post
     const timeSinceLastAction = Date.now() - following._creationTime;
     if (timeSinceLastAction < FOLLOWING_RATE_LIMITS.PER_USER_COOLDOWN) {
       throw new Error("Please wait before toggling follow again");

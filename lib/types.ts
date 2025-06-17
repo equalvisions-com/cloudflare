@@ -242,7 +242,6 @@ export interface UserProfile {
   userId: Id<"users">;
   username: string;
   name?: string | null;
-  bio?: string | null;
   profileImage?: string | null;
   isAuthenticated?: boolean;
   friendshipStatus?: {
@@ -481,7 +480,7 @@ export interface ProfilePageData {
   social: {
     friendCount: number;
     followingCount: number;
-    friends: ProfileData[];
+    friends: FriendWithProfile[]; // Fixed: This is actually FriendWithProfile[], not ProfileData[]
     following: FollowingWithPost[];
   };
   friendshipStatus: {
@@ -2431,6 +2430,945 @@ export interface UseAudioLifecycleProps {
   onError?: (error: Error) => void;
 }
 
+// Profile Form Types
+export interface ProfileFormState {
+  name: string;
+  bio: string;
+  previewImage: string | null;
+  isLoading: boolean;
+  isUploading: boolean;
+  profileImageKey: string | null;
+  selectedFile: File | null;
+}
+
+export interface ProfileFormInitialData {
+  name?: string | null;
+  bio?: string | null;
+  profileImage?: string | null;
+  username?: string;
+  profileImageKey?: string | null;
+}
+
+export type ProfileFormAction =
+  | { type: 'SET_NAME'; payload: string }
+  | { type: 'SET_BIO'; payload: string }
+  | { type: 'SET_PREVIEW_IMAGE'; payload: string | null }
+  | { type: 'SET_SELECTED_FILE'; payload: File | null }
+  | { type: 'SET_PROFILE_IMAGE_KEY'; payload: string | null }
+  | { type: 'START_LOADING' }
+  | { type: 'STOP_LOADING' }
+  | { type: 'START_UPLOADING' }
+  | { type: 'STOP_UPLOADING' }
+  | { type: 'UPLOAD_SUCCESS'; payload: { key: string; previewUrl: string } }
+  | { type: 'RESET_FORM'; payload: ProfileFormInitialData }
+  | { type: 'CLEAR_FILE_SELECTION' };
+
+export interface ProfileUpdateData {
+  name: string;
+  bio: string;
+  profileImageKey: string | null;
+  selectedFile: File | null;
+}
+
+// Profile Image Upload Hook Types
+export interface UseProfileImageUploadProps {
+  onFileSelect: (file: File, previewUrl: string) => void;
+  onUploadStart: () => void;
+  onUploadSuccess: (key: string, previewUrl: string) => void;
+  onUploadError: () => void;
+}
+
+export interface UseProfileImageUploadReturn {
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploadImageToR2: (file: File) => Promise<string>;
+  resetFileInput: () => void;
+  cleanupPreviewUrl: (url: string) => void;
+}
+
+// Profile Form Submission Hook Types
+export interface UseProfileFormSubmissionProps {
+  onSubmitStart: () => void;
+  onSubmitSuccess: () => void;
+  onSubmitError: () => void;
+  onClose: () => void;
+  uploadImageToR2: (file: File) => Promise<string>;
+  resetFileInput: () => void;
+}
+
+export interface UseProfileFormSubmissionReturn {
+  handleSubmit: (data: {
+    name: string;
+    bio: string;
+    profileImageKey: string | null;
+    selectedFile: File | null;
+  }) => Promise<void>;
+}
+
+// Profile Form Management Hook Types
+export interface UseProfileFormManagementProps {
+  formState: ProfileFormState;
+  initialData: ProfileFormInitialData;
+  dispatch: React.Dispatch<ProfileFormAction>;
+  onClose: () => void;
+  resetFileInput: () => void;
+  cleanupPreviewUrl: (url: string) => void;
+}
+
+export interface UseProfileFormManagementReturn {
+  handleCancel: () => void;
+  handleFormReset: () => void;
+  handleFileSelect: (file: File, previewUrl: string) => void;
+  handleNameChange: (value: string) => void;
+  handleBioChange: (value: string) => void;
+}
+
+// Profile Error Handling Types
+export enum ProfileErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UPLOAD_ERROR = 'UPLOAD_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  SERVER_ERROR = 'SERVER_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+export enum ErrorSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export interface ProfileError {
+  type: ProfileErrorType;
+  severity: ErrorSeverity;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  retryCount?: number;
+  maxRetries?: number;
+  context?: Record<string, unknown>;
+}
+
+export interface ErrorRecoveryStrategy {
+  shouldRetry: boolean;
+  retryDelay: number;
+  maxRetries: number;
+  recoveryAction: string;
+}
+
+export interface UseProfileErrorHandlerReturn {
+  handleError: (error: ProfileError, onRetry?: () => void) => void;
+  classifyError: (error: unknown, context?: Record<string, unknown>) => ProfileError;
+}
+
+// Performance Optimization Types
+export interface FormValidationResult {
+  name: {
+    isError: boolean;
+    message: string;
+    length: number;
+  };
+  bio: {
+    isError: boolean;
+    message: string;
+    length: number;
+  };
+  hasErrors: boolean;
+}
+
+export interface FileValidationResult {
+  isValid: boolean;
+  errors: string[];
+  size: number;
+  type: string;
+}
+
+export interface UseImagePreviewReturn {
+  createPreview: (file: File) => string;
+  cleanupPreview: () => void;
+  currentPreview: string | null;
+}
+
+export interface UseOptimizedRetryReturn {
+  scheduleRetry: <T>(
+    operation: () => Promise<T>,
+    delay: number,
+    onError?: (error: Error) => void
+  ) => Promise<T>;
+  cancelAllRetries: () => void;
+  activeRetryCount: number;
+}
+
+export interface OptimizedFormState<T> {
+  getState: () => T;
+  setState: (newState: T | ((prev: T) => T)) => void;
+  subscribe: (listener: (state: T) => void) => () => void;
+}
+
+export interface PerformanceConfig {
+  debounceDelay: number;
+  throttleDelay: number;
+  maxRetries: number;
+  retryBaseDelay: number;
+}
+
 // ===================================================================
 // END AUDIO PLAYER TYPES
+// ===================================================================
+
+// ===================================================================
+// FRIENDS LIST TYPES - Production Ready State Management
+// ===================================================================
+
+// Core FriendsList Data Types (moved from component)
+export interface FriendsListFriendshipData {
+  _id: Id<"friends">;
+  requesterId: Id<"users">;
+  requesteeId: Id<"users">;
+  status: string;
+  createdAt: number;
+  updatedAt?: number;
+  direction: string;
+  friendId: Id<"users">;
+}
+
+export interface FriendsListProfileData {
+  _id: Id<"users">;
+  userId: Id<"users">;
+  username: string;
+  name?: string;
+  profileImage?: string;
+  bio?: string;
+}
+
+export interface FriendsListFriendWithProfile {
+  friendship: FriendsListFriendshipData;
+  profile: FriendsListProfileData;
+}
+
+// FriendsList State Management Types
+export interface FriendsListState {
+  // UI State
+  isOpen: boolean;
+  isLoading: boolean;
+  
+  // Data State
+  friends: FriendsListFriendWithProfile[];
+  count: number;
+  
+  // Pagination State
+  cursor: string | null;
+  hasMore: boolean;
+  
+  // Error State
+  error: string | null;
+  
+  // Performance State
+  lastFetchTime: number | null;
+  isInitialized: boolean;
+}
+
+// FriendsList Action Types for useReducer
+export type FriendsListAction =
+  | { type: 'OPEN_DRAWER' }
+  | { type: 'CLOSE_DRAWER' }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_COUNT'; payload: number }
+  | { type: 'INITIALIZE_FRIENDS'; payload: { friends: FriendsListFriendWithProfile[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { friends: FriendsListFriendWithProfile[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_ERROR'; payload: string }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'RESET_STATE' }
+  | { type: 'UPDATE_FRIEND_STATUS'; payload: { friendshipId: Id<"friends">; newStatus: string } }
+  | { type: 'REMOVE_FRIEND'; payload: Id<"friends"> };
+
+// FriendsList Props Interface
+export interface FriendsListProps {
+  username: string;
+  initialCount?: number;
+  initialFriends?: ProfileSocialData;
+}
+
+// FriendsList Initial Data Type
+export interface FriendsListInitialData {
+  friends: (FriendsListFriendWithProfile | null)[];
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+// FriendsList API Response Types
+export interface FriendsListAPIResponse {
+  friends: (FriendsListFriendWithProfile | null)[];
+  hasMore: boolean;
+  cursor: string | null;
+  totalCount?: number;
+}
+
+// FriendsList Custom Hook Return Types
+export interface UseFriendsListDataReturn {
+  // State
+  friends: FriendsListFriendWithProfile[];
+  hasMore: boolean;
+  isLoading: boolean;
+  error: string | null;
+  cursor: string | null;
+  
+  // Actions
+  loadMoreFriends: () => Promise<void>;
+  refreshFriends: () => Promise<void>;
+  updateFriendStatus: (friendshipId: Id<"friends">, newStatus: string) => void;
+  removeFriend: (friendshipId: Id<"friends">) => void;
+  
+  // Utilities
+  resetError: () => void;
+}
+
+export interface UseFriendsListActionsReturn {
+  // Loading actions
+  handleLoadMore: () => Promise<void>;
+  handleRefresh: () => Promise<void>;
+  
+  // Friend management actions
+  handleUnfriend: (friendshipId: Id<"friends">) => Promise<void>;
+  handleAcceptRequest: (friendshipId: Id<"friends">) => Promise<void>;
+  handleDeclineRequest: (friendshipId: Id<"friends">) => Promise<void>;
+  
+  // Error handling
+  handleError: (error: Error, context?: Record<string, unknown>) => void;
+  clearError: () => void;
+  
+  // Rate limiting state
+  isOperationPending: (operationKey: string) => boolean;
+}
+
+export interface UseFriendsListUIReturn {
+  // Drawer management
+  openDrawer: () => void;
+  closeDrawer: () => void;
+  isDrawerOpen: boolean;
+  
+  // Loading states
+  isInitialLoading: boolean;
+  isLoadingMore: boolean;
+  
+  // Error display
+  shouldShowError: boolean;
+  errorMessage: string | null;
+  
+  // Empty states
+  shouldShowEmptyState: boolean;
+  emptyStateMessage: string;
+}
+
+// FriendsList Performance Types
+export interface FriendsListPerformanceConfig {
+  // Virtualization settings
+  overscan: number;
+  itemHeight: number;
+  
+  // Loading settings
+  loadMoreThreshold: number;
+  debounceDelay: number;
+  
+  // Cache settings
+  maxCacheSize: number;
+  cacheTimeout: number;
+  
+  // Error handling
+  maxRetries: number;
+  retryDelay: number;
+}
+
+export interface FriendsListVirtualizationProps {
+  friends: FriendsListFriendWithProfile[];
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
+  onUnfriend: (friendshipId: Id<"friends">) => void;
+  itemHeight: number;
+  overscan: number;
+}
+
+// FriendsList Error Types (Enhanced)
+export enum FriendsListErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  LOAD_MORE_ERROR = 'LOAD_MORE_ERROR',
+  UNFRIEND_ERROR = 'UNFRIEND_ERROR',
+  INITIALIZATION_ERROR = 'INITIALIZATION_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  SERVER_ERROR = 'SERVER_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  NOT_FOUND_ERROR = 'NOT_FOUND_ERROR',
+}
+
+export interface FriendsListError {
+  type: FriendsListErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
+// FriendsList Memory Management Types
+export interface FriendsListResourceManager {
+  register: (componentId: string, cleanup: () => void) => void;
+  cleanup: (componentId: string) => void;
+  cleanupAll: () => void;
+}
+
+export interface FriendsListMemoryConfig {
+  maxFriendsInMemory: number;
+  cleanupInterval: number;
+  enableVirtualization: boolean;
+}
+
+// FriendsList Store Types (for future Zustand integration)
+export interface FriendsListStoreState {
+  // Global friends cache
+  friendsCache: Record<string, FriendsListFriendWithProfile[]>;
+  
+  // Loading states by username
+  loadingStates: Record<string, boolean>;
+  
+  // Error states by username
+  errorStates: Record<string, FriendsListError | null>;
+  
+  // Pagination states by username
+  paginationStates: Record<string, { cursor: string | null; hasMore: boolean }>;
+  
+  // Last update timestamps
+  lastUpdated: Record<string, number>;
+}
+
+export interface FriendsListStoreActions {
+  // Cache management
+  setFriendsCache: (username: string, friends: FriendsListFriendWithProfile[]) => void;
+  appendToFriendsCache: (username: string, friends: FriendsListFriendWithProfile[]) => void;
+  clearFriendsCache: (username?: string) => void;
+  
+  // Loading state management
+  setLoading: (username: string, loading: boolean) => void;
+  
+  // Error state management
+  setError: (username: string, error: FriendsListError | null) => void;
+  clearError: (username: string) => void;
+  
+  // Pagination management
+  setPagination: (username: string, cursor: string | null, hasMore: boolean) => void;
+  
+  // Friend management
+  updateFriendInCache: (username: string, friendshipId: Id<"friends">, updates: Partial<FriendsListFriendWithProfile>) => void;
+  removeFriendFromCache: (username: string, friendshipId: Id<"friends">) => void;
+  
+  // Utility
+  invalidateCache: (username: string) => void;
+  cleanup: () => void;
+}
+
+export interface FriendsListStore extends FriendsListStoreState, FriendsListStoreActions {}
+
+// Virtualization Types
+export interface FriendsListVirtualizationConfig {
+  itemHeight: number;
+  overscan: number;
+  scrollSeekConfiguration: {
+    enter: (velocity: number) => boolean;
+    exit: (velocity: number) => boolean;
+  };
+  loadMoreThreshold: number;
+  debounceMs: number;
+}
+
+export interface UseFriendsListVirtualizationReturn {
+  // Virtuoso configuration
+  virtuosoRef: React.RefObject<any>;
+  virtuosoProps: any;
+  
+  // Data
+  virtualizedFriends: FriendsListFriendWithProfile[];
+  
+  // Handlers
+  handleEndReached: () => void;
+  handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
+  itemRenderer: (index: number, friend: FriendsListFriendWithProfile) => any;
+  
+  // Navigation
+  scrollToTop: () => void;
+  scrollToFriend: (friendshipId: string) => void;
+  getVisibleRange: () => { startIndex: number; endIndex: number };
+  
+  // Components
+  footerComponent: { type: string; message: string } | null;
+  
+  // Cleanup
+  cleanup: () => void;
+}
+
+// Enhanced Error Handling Types (extending existing ones)
+export enum FriendsListErrorSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export interface FriendsListErrorContext {
+  operation?: string;
+  userId?: Id<"users">;
+  friendshipId?: Id<"friends">;
+  username?: string;
+  timestamp?: number;
+  userAgent?: string;
+  url?: string;
+  additionalData?: Record<string, unknown>;
+}
+
+export interface FriendsListRetryConfig {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+  jitter: boolean;
+  retryCondition: (attempt: number, error?: Error) => boolean;
+}
+
+export interface FriendsListRecoveryStrategy {
+  type: string;
+  description: string;
+  actions: string[];
+}
+
+export interface FriendsListEnhancedError {
+  type: FriendsListErrorType;
+  severity: FriendsListErrorSeverity;
+  message: string;
+  originalError?: Error;
+  timestamp: number;
+  context?: FriendsListErrorContext;
+  retryable: boolean;
+  recoveryStrategy: FriendsListRecoveryStrategy;
+  retryConfig: FriendsListRetryConfig;
+}
+
+// Utility function to convert FriendWithProfile to FriendsListFriendWithProfile
+export function convertToFriendsListFriend(friend: FriendWithProfile): FriendsListFriendWithProfile {
+  return {
+    friendship: {
+      _id: friend.friendship._id,
+      requesterId: friend.friendship.requesterId,
+      requesteeId: friend.friendship.requesteeId,
+      status: friend.friendship.status,
+      createdAt: friend.friendship.createdAt,
+      updatedAt: friend.friendship.updatedAt,
+      direction: friend.friendship.direction,
+      friendId: friend.friendship.friendId,
+    },
+    profile: {
+      _id: friend.profile._id,
+      userId: friend.profile.userId,
+      username: friend.profile.username,
+      name: friend.profile.name,
+      profileImage: friend.profile.profileImage,
+      bio: friend.profile.bio,
+    },
+  };
+}
+
+// Utility function to convert ProfileSocialData to FriendsListInitialData
+export function convertProfileSocialDataToFriendsListData(data: ProfileSocialData): FriendsListInitialData {
+  return {
+    friends: data.friends.map(friend => 
+      friend ? convertToFriendsListFriend(friend) : null
+    ),
+    hasMore: data.hasMore,
+    cursor: data.cursor,
+  };
+}
+
+// ===================================================================
+// END FRIENDS LIST TYPES
+// ===================================================================
+
+// Following List types (similar pattern to FriendsList)
+export interface FollowingListFollowingData {
+  _id: Id<"following">;
+  userId: Id<"users">;
+  postId: Id<"posts">;
+  feedUrl: string;
+}
+
+export interface FollowingListPostData {
+  _id: Id<"posts">;
+  title: string;
+  postSlug: string;
+  categorySlug: string;
+  featuredImg?: string;
+  mediaType: string;
+  verified?: boolean;
+}
+
+export interface FollowingListFollowingWithPost {
+  following: FollowingListFollowingData;
+  post: FollowingListPostData;
+}
+
+export interface FollowingListState {
+  // UI State
+  isOpen: boolean;
+  isLoading: boolean;
+  
+  // Data State
+  followingItems: FollowingListFollowingWithPost[];
+  count: number;
+  
+  // Pagination State
+  cursor: string | null;
+  hasMore: boolean;
+  
+  // Follow Status State
+  followStatusMap: Record<string, boolean>;
+  isLoadingFollowStatus: boolean;
+  
+  // Error State
+  error: string | null;
+  
+  // Performance State
+  lastFetchTime: number | null;
+  isInitialized: boolean;
+}
+
+export type FollowingListAction =
+  | { type: 'OPEN_DRAWER' }
+  | { type: 'CLOSE_DRAWER' }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_COUNT'; payload: number }
+  | { type: 'INITIALIZE_FOLLOWING'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_ERROR'; payload: string }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_FOLLOW_STATUS_LOADING'; payload: boolean }
+  | { type: 'UPDATE_FOLLOW_STATUS_MAP'; payload: Record<string, boolean> }
+  | { type: 'UPDATE_SINGLE_FOLLOW_STATUS'; payload: { postId: string; isFollowing: boolean } }
+  | { type: 'RESET_STATE' }
+  | { type: 'REMOVE_FOLLOWING_ITEM'; payload: Id<"posts"> };
+
+export interface FollowingListProps {
+  username: string;
+  initialCount?: number;
+  initialFollowing?: ProfileFollowingData;
+}
+
+export interface FollowingListInitialData {
+  followingItems: (FollowingListFollowingWithPost | null)[];
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+export interface FollowingListAPIResponse {
+  following: (FollowingListFollowingWithPost | null)[];
+  hasMore: boolean;
+  cursor: string | null;
+  totalCount?: number;
+}
+
+export interface UseFollowingListDataReturn {
+  // State
+  followingItems: FollowingListFollowingWithPost[];
+  hasMore: boolean;
+  isLoading: boolean;
+  error: string | null;
+  cursor: string | null;
+  followStatusMap: Record<string, boolean>;
+  isLoadingFollowStatus: boolean;
+  
+  // Actions
+  loadMoreFollowing: () => Promise<void>;
+  refreshFollowing: () => Promise<void>;
+  updateFollowStatus: (postId: Id<"posts">, isFollowing: boolean) => void;
+  removeFollowingItem: (postId: Id<"posts">) => void;
+  
+  // Utilities
+  resetError: () => void;
+}
+
+export interface UseFollowingListActionsReturn {
+  // Loading actions
+  handleLoadMore: () => Promise<void>;
+  handleRefresh: () => Promise<void>;
+  
+  // Follow management actions
+  handleFollow: (postId: Id<"posts">, feedUrl: string, postTitle: string) => Promise<void>;
+  handleUnfollow: (postId: Id<"posts">, feedUrl: string, postTitle: string) => Promise<void>;
+  
+  // Batch operations
+  handleBatchFollow: (items: Array<{ postId: Id<"posts">; feedUrl: string; postTitle: string }>) => Promise<void>;
+  handleBatchUnfollow: (items: Array<{ postId: Id<"posts">; feedUrl: string; postTitle: string }>) => Promise<void>;
+  
+  // Error handling
+  handleError: (error: Error, context?: Record<string, unknown>) => void;
+  clearError: () => void;
+  
+  // Utilities
+  cleanup: () => void;
+  isOperationPending: (postId: Id<"posts">) => boolean;
+  isGlobalOperationPending: () => boolean;
+}
+
+export interface UseFollowingListUIReturn {
+  // Drawer management
+  openDrawer: () => void;
+  closeDrawer: () => void;
+  isDrawerOpen: boolean;
+  
+  // Loading states
+  isInitialLoading: boolean;
+  isLoadingMore: boolean;
+  
+  // Error display
+  shouldShowError: boolean;
+  errorMessage: string | null;
+  
+  // Empty states
+  shouldShowEmptyState: boolean;
+  emptyStateMessage: string;
+}
+
+export interface FollowingListPerformanceConfig {
+  // Virtualization settings
+  overscan: number;
+  itemHeight: number;
+  
+  // Loading settings
+  loadMoreThreshold: number;
+  debounceDelay: number;
+  
+  // Cache settings
+  maxCacheSize: number;
+  cacheTimeout: number;
+  
+  // Error handling
+  maxRetries: number;
+  retryDelay: number;
+}
+
+export interface FollowingListVirtualizationProps {
+  followingItems: FollowingListFollowingWithPost[];
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
+  onFollow: (postId: Id<"posts">, feedUrl: string, postTitle: string) => void;
+  onUnfollow: (postId: Id<"posts">, feedUrl: string, postTitle: string) => void;
+  itemHeight: number;
+  overscan: number;
+}
+
+export enum FollowingListErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  LOAD_MORE_ERROR = 'LOAD_MORE_ERROR',
+  FOLLOW_ERROR = 'FOLLOW_ERROR',
+  UNFOLLOW_ERROR = 'UNFOLLOW_ERROR',
+  INITIALIZATION_ERROR = 'INITIALIZATION_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  SERVER_ERROR = 'SERVER_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  NOT_FOUND_ERROR = 'NOT_FOUND_ERROR',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+  CIRCUIT_BREAKER_OPEN = 'CIRCUIT_BREAKER_OPEN',
+}
+
+export interface FollowingListError {
+  type: FollowingListErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
+export interface FollowingListResourceManager {
+  register: (componentId: string, cleanup: () => void) => void;
+  cleanup: (componentId: string) => void;
+  cleanupAll: () => void;
+}
+
+export interface FollowingListMemoryConfig {
+  maxFollowingInMemory: number;
+  cleanupInterval: number;
+  enableVirtualization: boolean;
+}
+
+export interface FollowingListStoreState {
+  // Global following cache
+  followingCache: Record<string, FollowingListFollowingWithPost[]>;
+  
+  // Loading states by username
+  loadingStates: Record<string, boolean>;
+  
+  // Error states by username
+  errorStates: Record<string, FollowingListError | null>;
+  
+  // Pagination states by username
+  paginationStates: Record<string, { cursor: string | null; hasMore: boolean }>;
+  
+  // Follow status cache
+  followStatusCache: Record<string, Record<string, boolean>>;
+  
+  // Last update timestamps
+  lastUpdated: Record<string, number>;
+}
+
+export interface FollowingListStoreActions {
+  // Cache management
+  setFollowingCache: (username: string, following: FollowingListFollowingWithPost[]) => void;
+  appendToFollowingCache: (username: string, following: FollowingListFollowingWithPost[]) => void;
+  clearFollowingCache: (username?: string) => void;
+  
+  // Loading state management
+  setLoading: (username: string, loading: boolean) => void;
+  
+  // Error state management
+  setError: (username: string, error: FollowingListError | null) => void;
+  clearError: (username: string) => void;
+  
+  // Pagination management
+  setPagination: (username: string, cursor: string | null, hasMore: boolean) => void;
+  
+  // Follow status management
+  setFollowStatusCache: (username: string, statusMap: Record<string, boolean>) => void;
+  updateFollowStatus: (username: string, postId: Id<"posts">, isFollowing: boolean) => void;
+  
+  // Following management
+  updateFollowingInCache: (username: string, postId: Id<"posts">, updates: Partial<FollowingListFollowingWithPost>) => void;
+  removeFollowingFromCache: (username: string, postId: Id<"posts">) => void;
+  
+  // Utility
+  invalidateCache: (username: string) => void;
+  cleanup: () => void;
+}
+
+export interface FollowingListStore extends FollowingListStoreState, FollowingListStoreActions {}
+
+export interface FollowingListVirtualizationConfig {
+  itemHeight: number;
+  overscan: number;
+  scrollSeekConfiguration: {
+    enter: (velocity: number) => boolean;
+    exit: (velocity: number) => boolean;
+  };
+  loadMoreThreshold: number;
+  debounceMs: number;
+}
+
+export interface UseFollowingListVirtualizationReturn {
+  // Virtuoso configuration
+  virtuosoRef: React.RefObject<any>;
+  virtuosoProps: any;
+  
+  // Data
+  virtualizedFollowing: FollowingListFollowingWithPost[];
+  
+  // Handlers
+  handleEndReached: () => void;
+  handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
+  itemRenderer: (index: number, item: FollowingListFollowingWithPost) => any;
+  
+  // Navigation
+  scrollToTop: () => void;
+  scrollToItem: (postId: string) => void;
+  getVisibleRange: () => { startIndex: number; endIndex: number };
+  
+  // Components
+  footerComponent: { type: string; message: string } | null;
+  
+  // Cleanup
+  cleanup: () => void;
+}
+
+export enum FollowingListErrorSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export interface FollowingListErrorContext extends Record<string, unknown> {
+  operation?: string;
+  userId?: Id<"users">;
+  postId?: Id<"posts">;
+  username?: string;
+  feedUrl?: string;
+  timestamp?: number;
+  userAgent?: string;
+  url?: string;
+  httpStatus?: number;
+  attempt?: number;
+  additionalData?: Record<string, unknown>;
+}
+
+export interface FollowingListRetryConfig {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+  jitter: boolean;
+  retryCondition: (attempt: number, error?: Error) => boolean;
+}
+
+export interface FollowingListRecoveryStrategy {
+  type: string;
+  description: string;
+  actions: string[];
+}
+
+export interface FollowingListEnhancedError {
+  type: FollowingListErrorType;
+  severity: FollowingListErrorSeverity;
+  message: string;
+  originalError?: Error;
+  timestamp: number;
+  context?: FollowingListErrorContext;
+  retryable: boolean;
+  recoveryStrategy: FollowingListRecoveryStrategy;
+  retryConfig: FollowingListRetryConfig;
+}
+
+export type FollowingListCircuitBreakerState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+// Utility function to convert ProfileFollowingData to FollowingListInitialData
+export function convertProfileFollowingDataToFollowingListData(data: ProfileFollowingData): FollowingListInitialData {
+  return {
+    followingItems: data.following.map(item => 
+      item ? {
+        following: {
+          _id: item.following._id,
+          userId: item.following.userId,
+          postId: item.following.postId,
+          feedUrl: item.following.feedUrl,
+        },
+        post: {
+          _id: item.post._id,
+          title: item.post.title,
+          postSlug: item.post.postSlug,
+          categorySlug: item.post.categorySlug,
+          featuredImg: item.post.featuredImg,
+          mediaType: item.post.mediaType,
+          verified: item.post.verified,
+        },
+      } : null
+    ),
+    hasMore: data.hasMore,
+    cursor: data.cursor,
+  };
+}
+
+// ===================================================================
+// END FRIENDS LIST TYPES
 // =================================================================== 

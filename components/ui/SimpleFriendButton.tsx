@@ -137,7 +137,7 @@ const SimpleFriendButtonComponent = ({
         toastTitle = "Rate Limit Exceeded";
         toastDescription = "Daily friend request limit reached. Try again tomorrow.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
@@ -176,7 +176,7 @@ const SimpleFriendButtonComponent = ({
       } else if (errorMessage.includes("Friend request is not pending")) {
         toastDescription = "This friend request is no longer pending.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
@@ -215,7 +215,7 @@ const SimpleFriendButtonComponent = ({
       } else if (errorMessage.includes("Not authorized to delete this friendship")) {
         toastDescription = "You are not authorized to modify this friendship.";
       }
-      toast({ title: toastTitle, description: toastDescription, variant: "destructive" });
+      toast({ title: toastTitle, description: toastDescription });
     } finally {
       if (isMountedRef.current) {
         setIsActionLoading(false);
@@ -242,8 +242,7 @@ const SimpleFriendButtonComponent = ({
         disabled 
         className={cn(className, loadingClassName, "border-0 shadow-none")}
       >
-        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-        Loading
+        <Loader2 className="h-3 w-3 animate-spin" />
       </Button>
     );
   }
