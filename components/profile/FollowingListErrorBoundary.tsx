@@ -3,7 +3,6 @@
 import React, { Component, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw, Home, Bug } from "lucide-react";
-import { followingListErrorHandler, handleFollowingListError } from "@/lib/followingListErrorHandler";
 import type { FollowingListError, FollowingListErrorType } from "@/lib/types";
 
 // Props for the error boundary
@@ -44,10 +43,15 @@ export class FollowingListErrorBoundary extends Component<
 
   static getDerivedStateFromError(error: Error): Partial<FollowingListErrorBoundaryState> {
     // Convert the error to our standardized format
-    const followingListError = handleFollowingListError(error, 'error_boundary', {
-      operation: 'error_boundary',
-      timestamp: Date.now(),
-    });
+    const followingListError: FollowingListError = {
+      type: 'UNKNOWN_ERROR' as FollowingListErrorType,
+      message: error.message || 'An unexpected error occurred',
+      retryable: true,
+      context: {
+        operation: 'error_boundary',
+        timestamp: Date.now(),
+      },
+    };
 
     return {
       hasError: true,
@@ -57,11 +61,16 @@ export class FollowingListErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log the error and call the onError callback if provided
-    const followingListError = handleFollowingListError(error, 'error_boundary', {
-      operation: 'error_boundary',
-      timestamp: Date.now(),
-      additionalData: { stack: errorInfo.componentStack },
-    });
+    const followingListError: FollowingListError = {
+      type: 'UNKNOWN_ERROR' as FollowingListErrorType,
+      message: error.message || 'An unexpected error occurred',
+      retryable: true,
+      context: {
+        operation: 'error_boundary',
+        timestamp: Date.now(),
+        additionalData: { stack: errorInfo.componentStack },
+      },
+    };
 
     this.setState({ errorInfo });
 

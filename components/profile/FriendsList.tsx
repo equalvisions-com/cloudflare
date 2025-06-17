@@ -1,8 +1,6 @@
 "use client";
 
 import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import {
   Drawer,
   DrawerContent,
@@ -17,7 +15,6 @@ import type {
   FriendsListAction,
   FriendsListFriendWithProfile,
   FriendsListInitialData,
-  FriendsListAPIResponse,
   ProfileSocialData,
 } from "@/lib/types";
 import { Id } from "@/convex/_generated/dataModel";
@@ -137,7 +134,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   // Ref for cleanup of accessibility announcement timeout
   const announcementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Custom hooks for business logic
+  // Three-hook architecture pattern (matching FollowerCount and FollowingList)
   const friendsData = useFriendsListData({
     username,
     state,
@@ -146,16 +143,17 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   });
   
   const friendsActions = useFriendsListActions({
+    state,
     dispatch,
-    updateFriendStatus: friendsData.updateFriendStatus,
-    removeFriend: friendsData.removeFriend,
+    loadMoreFriends: friendsData.loadMoreFriends,
+    refreshFriends: friendsData.refreshFriends,
   });
   
   // Virtualization hook for performance
   const virtualization = useFriendsListVirtualization({
     state,
     dispatch,
-    loadMoreFriends: friendsData.loadMoreFriends,
+    loadMoreFriends: friendsActions.handleLoadMore,
     config: {
       itemHeight: 80,
       overscan: 5,
@@ -191,203 +189,199 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
       : `Friends list opened. Showing ${computedValues.friendCount} ${computedValues.friendCount === 1 ? 'friend' : 'friends'}.`;
   }, [computedValues.friendCount]);
   
-  // Handle drawer state changes with accessibility - optimized
-  const handleOpenChange = useCallback((open: boolean) => {
-    dispatch({ type: open ? 'OPEN_DRAWER' : 'CLOSE_DRAWER' });
-    if (open && friendsData.error) {
-      friendsData.resetError();
-    }
-    
-    // Announce to screen readers
-    if (open) {
-      // Clear any existing timeout
-      if (announcementTimeoutRef.current) {
-        clearTimeout(announcementTimeoutRef.current);
-      }
-      
-      // Only run in browser environment
-      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-        // Create temporary announcement element
-        const announcer = document.createElement('div');
-        announcer.setAttribute('aria-live', 'polite');
-        announcer.setAttribute('aria-atomic', 'true');
-        announcer.className = 'sr-only';
-        announcer.textContent = accessibilityAnnouncement;
-        document.body.appendChild(announcer);
-        
-        // Clean up after announcement with proper timeout management
-        announcementTimeoutRef.current = setTimeout(() => {
-          if (document.body.contains(announcer)) {
-            document.body.removeChild(announcer);
-          }
-          announcementTimeoutRef.current = null;
-        }, 1000);
-      }
-    }
-  }, [friendsData, accessibilityAnnouncement]);
-  
-  // Handle load more with error handling
-  const handleLoadMore = useCallback(async () => {
-    try {
-      await friendsData.loadMoreFriends();
-    } catch (error) {
-      friendsActions.handleError(
-        error instanceof Error ? error : new Error('Load more failed')
-      );
-    }
-  }, [friendsData, friendsActions]);
-  
-  // Handle refresh with error handling
-  const handleRefresh = useCallback(async () => {
-    try {
-      await friendsData.refreshFriends();
-    } catch (error) {
-      friendsActions.handleError(
-        error instanceof Error ? error : new Error('Refresh failed')
-      );
-    }
-  }, [friendsData, friendsActions]);
-  
-  // Use the count query when the drawer is open to make sure we have the latest count
-  const latestCount = useQuery(api.friends.getFriendCountByUsername, state.isOpen ? { 
-    username,
-    status: "accepted"
-  } : "skip");
-  
-  // Cleanup function for component unmount
-  const cleanup = useCallback(() => {
-    if (announcementTimeoutRef.current) {
-      clearTimeout(announcementTimeoutRef.current);
-      announcementTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Cleanup on unmount and handle count updates
-  useEffect(() => {
-    // Update the count if it changes
-    if (latestCount !== undefined && latestCount !== null) {
-      dispatch({ type: 'SET_COUNT', payload: latestCount });
-    }
-    
-    // Initialize friends list when drawer opens (moved from separate useEffect)
-    if (state.isOpen && !state.isInitialized && initialFriends) {
-      dispatch({
-        type: 'INITIALIZE_FRIENDS',
-        payload: {
-          friends: initialFriends.friends.filter((f): f is FriendsListFriendWithProfile => f !== null),
-          cursor: initialFriends.cursor,
-          hasMore: initialFriends.hasMore,
-        },
-      });
-    }
-    
-    // Return cleanup function
-    return cleanup;
-  }, [latestCount, state.isOpen, state.isInitialized, initialFriends, cleanup]);
-  
   // Memoized aria label for trigger button
   const triggerAriaLabel = useMemo(() => 
     `View friends list. ${computedValues.friendCount} ${computedValues.friendCount === 1 ? 'friend' : 'friends'}`,
     [computedValues.friendCount]
   );
+  
+  // Handle drawer state changes with accessibility - optimized
+  const handleOpenChange = useCallback((open: boolean) => {
+    dispatch({ type: open ? 'OPEN_DRAWER' : 'CLOSE_DRAWER' });
+    
+    if (open) {
+      // Reset error state when opening
+      if (friendsData.error) {
+        friendsActions.clearError();
+      }
+      
+      // Announce for screen readers with debouncing
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
+      }
+      
+      announcementTimeoutRef.current = setTimeout(() => {
+        const announcement = document.createElement('div');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.setAttribute('aria-atomic', 'true');
+        announcement.className = 'sr-only';
+        announcement.textContent = accessibilityAnnouncement;
+        document.body.appendChild(announcement);
+        
+        setTimeout(() => document.body.removeChild(announcement), 1000);
+      }, 150);
+    }
+  }, [friendsData.error, friendsActions.clearError, accessibilityAnnouncement]);
 
-  // Memoized action handlers to prevent re-renders
-  const memoizedHandleUnfriend = useCallback((friendshipId: Id<"friends">) => {
-    return friendsActions.handleUnfriend(friendshipId);
-  }, [friendsActions]);
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  const memoizedHandleAcceptRequest = useCallback((friendshipId: Id<"friends">) => {
-    return friendsActions.handleAcceptRequest(friendshipId);
-  }, [friendsActions]);
+     // Memoized item renderer for Virtuoso
+   const itemRenderer = useCallback((index: number) => {
+     const friend = computedValues.displayedFriends[index];
+     if (!friend) return null;
 
-  const memoizedHandleDeclineRequest = useCallback((friendshipId: Id<"friends">) => {
-    return friendsActions.handleDeclineRequest(friendshipId);
-  }, [friendsActions]);
+     return (
+       <MemoizedVirtualizedFriendItem
+         key={friend.friendship._id}
+         friend={friend}
+         index={index}
+         isFirst={index === 0}
+         isLast={index === computedValues.displayedFriends.length - 1}
+       />
+     );
+   }, [computedValues.displayedFriends]);
 
-  // Virtualized item renderer with enhanced error handling - optimized for performance
-  const itemContent = useCallback((index: number, friend: FriendsListFriendWithProfile) => {
-    // Add defensive check
-    if (!friend) {
-      // Invalid friend data - render error placeholder
+  // Memoized components for Virtuoso
+  const components = useMemo(() => {
+    const Footer = () => {
+      if (!state.hasMore && !state.isLoading) return null;
+      
       return (
-        <div 
-          key={`error-${index}`}
-          className="flex items-center justify-center p-4 text-muted-foreground"
-          role="alert"
-          aria-label="Invalid friend data"
-        >
-          <span className="text-sm">Invalid friend data</span>
+        <div className="p-4 text-center">
+          {state.isLoading ? (
+            <LoadingMoreSkeleton />
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={friendsActions.handleLoadMore}
+              disabled={state.isLoading}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Load more friends
+            </Button>
+          )}
         </div>
+      );
+    };
+
+         const EmptyPlaceholder = () => (
+       <FriendsListEmptyState 
+         type="no-friends"
+         username={username}
+         onRefresh={friendsActions.handleRefresh}
+         isLoading={state.isLoading}
+       />
+     );
+
+    return { Footer, EmptyPlaceholder };
+  }, [
+    state.hasMore,
+    state.isLoading,
+    username,
+    friendsActions.handleLoadMore,
+    friendsActions.handleRefresh,
+  ]);
+
+  // Memoized error display component
+  const ErrorDisplay = useMemo(() => {
+    if (!computedValues.shouldShowErrorState) return null;
+
+    return (
+      <div className="p-6 text-center space-y-4">
+        <div className="text-sm text-muted-foreground">
+          {friendsData.error}
+        </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={friendsActions.clearError}
+          >
+            Dismiss
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={friendsActions.handleRefresh}
+            disabled={state.isLoading}
+          >
+            {state.isLoading ? 'Retrying...' : 'Retry'}
+          </Button>
+        </div>
+      </div>
+    );
+  }, [
+    computedValues.shouldShowErrorState,
+    friendsData.error,
+    friendsActions.clearError,
+    friendsActions.handleRefresh,
+    state.isLoading,
+  ]);
+
+  // Main drawer content
+  const drawerContent = useMemo(() => {
+    if (computedValues.shouldShowLoadingSpinner) {
+      return <DrawerLoadingSkeleton />;
+    }
+
+    if (computedValues.shouldShowErrorState) {
+      return ErrorDisplay;
+    }
+
+    if (computedValues.shouldShowEmptyState) {
+      return components.EmptyPlaceholder();
+    }
+
+    if (computedValues.shouldShowVirtualizedList) {
+      return (
+        <Virtuoso
+          {...virtualization.virtuosoProps}
+          itemContent={itemRenderer}
+          components={{
+            Footer: components.Footer,
+            EmptyPlaceholder: components.EmptyPlaceholder,
+          }}
+          aria-label="Friends list"
+          role="feed"
+          aria-busy={state.isLoading}
+          aria-live="polite"
+        />
       );
     }
 
-    return (
-      <MemoizedVirtualizedFriendItem
-        key={`${friend.friendship._id}-${index}`}
-        friend={friend}
-        index={index}
-        isFirst={index === 0}
-        isLast={index === computedValues.displayedFriends.length - 1}
-        onUnfriend={memoizedHandleUnfriend}
-        onAcceptRequest={memoizedHandleAcceptRequest}
-        onDeclineRequest={memoizedHandleDeclineRequest}
-        isOperationPending={friendsActions.isOperationPending}
-      />
-    );
-  }, [computedValues.displayedFriends.length, memoizedHandleUnfriend, memoizedHandleAcceptRequest, memoizedHandleDeclineRequest, friendsActions]);
-
-  // Footer component for virtualized list - memoized to prevent re-renders
-  const footerComponent = useMemo(() => {
-    if (state.isLoading && state.friends.length > 0) {
-      const LoadingFooter = () => <LoadingMoreSkeleton />;
-      LoadingFooter.displayName = 'LoadingFooter';
-      return LoadingFooter;
-    }
-    return undefined;
-  }, [state.isLoading, state.friends.length]);
-
-  // Empty placeholder component for Virtuoso
-  const emptyPlaceholder = useMemo(() => {
-    const EmptyPlaceholder = () => (
-      <div className="flex items-center justify-center py-8">
-        <span className="text-sm text-muted-foreground">No friends to display</span>
-      </div>
-    );
-    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
-    return EmptyPlaceholder;
-  }, []);
-
-  // Virtuoso components configuration
-  const virtuosoComponents = useMemo(() => {
-    const components: any = {
-      EmptyPlaceholder: emptyPlaceholder,
-    };
-    
-    if (footerComponent) {
-      components.Footer = footerComponent;
-    }
-    
-    return components;
-  }, [footerComponent, emptyPlaceholder]);
+    return components.EmptyPlaceholder();
+  }, [
+    computedValues.shouldShowLoadingSpinner,
+    computedValues.shouldShowErrorState,
+    computedValues.shouldShowEmptyState,
+    computedValues.shouldShowVirtualizedList,
+    computedValues.displayedFriends,
+    ErrorDisplay,
+    components.EmptyPlaceholder,
+    components.Footer,
+    itemRenderer,
+    virtualization.handleEndReached,
+  ]);
 
   return (
-    <FriendsListErrorBoundary
-      fallback={MinimalFriendsListErrorFallback}
-      onError={(error, errorInfo) => {
-        // console.error('FriendsList Error Boundary:', { error, errorInfo });
-      }}
-      maxRetries={3}
-      resetTimeoutMs={30000}
-    >
+    <FriendsListErrorBoundary fallback={MinimalFriendsListErrorFallback}>
       <Drawer open={state.isOpen} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>
-          <Button 
+          <Button
             variant="link" 
             className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 hover:no-underline text-muted-foreground font-medium transition-colors duration-200 hover:text-foreground"
             aria-label={triggerAriaLabel}
           >
             <span className="leading-none">{computedValues.friendCount}</span>
-            <span className="leading-none">{computedValues.friendCount === 1 ? "Friend" : "Friends"}</span>
+            <span className="leading-none">{computedValues.friendCount === 1 ? 'Friend' : 'Friends'}</span>
           </Button>
         </DrawerTrigger>
         
@@ -396,41 +390,14 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
           aria-label="Friends list"
         >
           <DrawerHeader className="flex-shrink-0 border-b">
-            <DrawerTitle className="text-base font-extrabold tracking-tight flex items-center justify-center gap-2">
+            <DrawerTitle className="text-base font-extrabold tracking-tight text-center flex items-center justify-center gap-2">
               Friends
             </DrawerTitle>
           </DrawerHeader>
           
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden" role="main">
-            {computedValues.shouldShowLoadingSpinner ? (
-              <DrawerLoadingSkeleton />
-            ) : computedValues.shouldShowErrorState ? (
-              <FriendsListEmptyState
-                type="error"
-                username={username}
-                error={friendsData.error}
-                onRetry={handleRefresh}
-                isLoading={state.isLoading}
-              />
-            ) : computedValues.shouldShowEmptyState ? (
-              <FriendsListEmptyState
-                type="no-friends"
-                username={username}
-              />
-            ) : computedValues.shouldShowVirtualizedList ? (
-              <Virtuoso
-                {...virtualization.virtuosoProps}
-                itemContent={itemContent}
-                components={virtuosoComponents}
-                className="friends-list-virtuoso"
-                style={{ height: '100%' }}
-                aria-label="Friends list"
-                role="feed"
-                aria-busy={state.isLoading}
-                aria-live="polite"
-              />
-            ) : null}
+            {drawerContent}
           </div>
         </DrawerContent>
       </Drawer>

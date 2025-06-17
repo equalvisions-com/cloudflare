@@ -3,80 +3,64 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import type {
-  FriendsListState,
-  FriendsListAction,
-  FriendsListFriendWithProfile,
-  ProfileSocialData,
+  FollowersListState,
+  FollowersListAction,
+  FollowersListUserData,
 } from '@/lib/types';
 
-interface UseFriendsListDataProps {
-  username: string;
-  state: FriendsListState;
-  dispatch: React.Dispatch<FriendsListAction>;
-  initialFriends?: ProfileSocialData;
+interface UseFollowersListDataProps {
+  postId: Id<"posts">;
+  state: FollowersListState;
+  dispatch: React.Dispatch<FollowersListAction>;
 }
 
-interface FriendsListError {
+interface FollowersListError {
   type: string;
   message: string;
   retryable: boolean;
   context?: Record<string, unknown>;
 }
 
-export function useFriendsListData({
-  username,
+export function useFollowersListData({
+  postId,
   state,
   dispatch,
-  initialFriends,
-}: UseFriendsListDataProps) {
+}: UseFollowersListDataProps) {
   // Refs for cleanup and request management
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestIdRef = useRef<string>("");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Direct Convex query for initial friends data
-  const friendsQuery = useQuery(
-    api.friends.getFriendsByUsername,
+  // Direct Convex query for initial followers data
+  const followersQuery = useQuery(
+    api.following.getFollowers,
     state.isOpen && !state.isInitialized ? { 
-      username,
+      postId,
       limit: 30 
     } : "skip"
   );
 
   // Handle initial data loading from Convex query
   useEffect(() => {
-    if (state.isOpen && !state.isInitialized && friendsQuery !== undefined) {
-      if (friendsQuery === null) {
+    if (state.isOpen && !state.isInitialized && followersQuery !== undefined) {
+      if (followersQuery === null) {
         dispatch({ 
           type: 'SET_ERROR', 
-          payload: 'Failed to load friends list. Please try again.' 
+          payload: 'Failed to load followers. Please try again.' 
         });
       } else {
         dispatch({
-          type: 'INITIALIZE_FRIENDS',
+          type: 'INITIALIZE_FOLLOWERS',
           payload: {
-            friends: friendsQuery.friends.filter(Boolean) as FriendsListFriendWithProfile[],
-            cursor: friendsQuery.cursor || null,
-            hasMore: friendsQuery.hasMore,
+            followers: followersQuery.followers,
+            cursor: followersQuery.cursor,
+            hasMore: followersQuery.hasMore,
           },
         });
       }
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [friendsQuery, state.isOpen, state.isInitialized, dispatch]);
-
-  // Get latest count when drawer is open
-  const latestCount = useQuery(
-    api.friends.getFriendCountByUsername,
-    state.isOpen ? { username, status: 'accepted' } : 'skip'
-  );
-  
-  // Update count when it changes
-  useEffect(() => {
-    if (latestCount !== undefined && latestCount !== null) {
-      dispatch({ type: 'SET_COUNT', payload: latestCount });
-    }
-  }, [latestCount, dispatch]);
+  }, [followersQuery, state.isOpen, state.isInitialized, dispatch]);
 
   // Create error with context
   const createError = useCallback((
@@ -84,22 +68,22 @@ export function useFriendsListData({
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
-  ): FriendsListError => ({
+  ): FollowersListError => ({
     type,
     message,
     retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
     context: {
-      username,
+      postId: postId.toString(),
       timestamp: Date.now(),
       ...context,
     },
-  }), [username]);
+  }), [postId]);
 
   // Enhanced Convex call with retry logic for pagination
   const makeConvexCall = useCallback(async (
     queryArgs: any,
     retryCount = 0
-  ): Promise<{ friends: FriendsListFriendWithProfile[]; hasMore: boolean; cursor: string | null }> => {
+  ): Promise<{ followers: FollowersListUserData[]; hasMore: boolean; cursor: string | null }> => {
     const maxRetries = 3;
     const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
 
@@ -116,7 +100,7 @@ export function useFriendsListData({
 
       // Use direct Convex query for pagination
       const { fetchQuery } = await import('convex/nextjs');
-      const result = await fetchQuery(api.friends.getFriendsByUsername, queryArgs);
+      const result = await fetchQuery(api.following.getFollowers, queryArgs);
 
       // Check if this is still the latest request
       if (lastRequestIdRef.current !== requestId) {
@@ -143,7 +127,7 @@ export function useFriendsListData({
       }
 
       return {
-        friends: result.friends.filter(Boolean) as FriendsListFriendWithProfile[] || [],
+        followers: result.followers || [],
         hasMore: Boolean(result.hasMore),
         cursor: result.cursor || null,
       };
@@ -171,7 +155,7 @@ export function useFriendsListData({
         }
       }
 
-      // Re-throw FriendsListError as-is
+      // Re-throw FollowersListError as-is
       if (error && typeof error === 'object' && 'type' in error) {
         throw error;
       }
@@ -191,8 +175,8 @@ export function useFriendsListData({
     dispatch({ type: 'SET_ERROR', payload: null });
   }, [dispatch]);
 
-  // Initial load of friends
-  const loadFriends = useCallback(async () => {
+  // Initial load of followers
+  const loadFollowers = useCallback(async () => {
     if (state.isInitialized) return;
     
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -201,8 +185,8 @@ export function useFriendsListData({
     // This function is kept for API compatibility
   }, [state.isInitialized, dispatch]);
 
-  // Load more friends (pagination) - uses direct Convex for cursor-based pagination
-  const loadMoreFriends = useCallback(async () => {
+  // Load more followers (pagination) - uses direct Convex for cursor-based pagination
+  const loadMoreFollowers = useCallback(async () => {
     if (!state.hasMore || state.isLoading || !state.cursor) {
       return;
     }
@@ -211,24 +195,25 @@ export function useFriendsListData({
 
     try {
       const result = await makeConvexCall({
-        username,
+        postId,
         limit: 30,
         cursor: state.cursor
       });
 
       // Filter out null values and validate data
-             const newFriends = result.friends.filter(
-         (f): f is FriendsListFriendWithProfile => {
-           return f !== null && 
-                  f.friendship && 
-                  Boolean(f.profile);
-         }
-       );
+      const newFollowers = result.followers.filter(
+        (f): f is FollowersListUserData => {
+          return f !== null && 
+                 f.userId && 
+                 f.username && 
+                 Boolean(f.username);
+        }
+      );
 
       dispatch({
         type: 'LOAD_MORE_SUCCESS',
         payload: {
-          friends: newFriends,
+          followers: newFollowers,
           cursor: result.cursor,
           hasMore: result.hasMore,
         },
@@ -240,25 +225,25 @@ export function useFriendsListData({
         return;
       }
 
-      const friendsError = error as FriendsListError;
-      const errorMessage = friendsError?.retryable
-        ? `${friendsError.message} (Tap to retry)`
-        : friendsError?.message || 'An error occurred';
+      const followersError = error as FollowersListError;
+      const errorMessage = followersError?.retryable
+        ? `${followersError.message} (Tap to retry)`
+        : followersError?.message || 'An error occurred';
 
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: errorMessage 
       });
 
-      console.error('Load more friends error:', {
-        error: friendsError,
-        context: friendsError.context,
+      console.error('Load more followers error:', {
+        error: followersError,
+        context: followersError.context,
       });
     }
-  }, [state.hasMore, state.isLoading, state.cursor, username, makeConvexCall, dispatch]);
+  }, [state.hasMore, state.isLoading, state.cursor, postId, makeConvexCall, dispatch]);
 
-  // Refresh friends list
-  const refreshFriends = useCallback(async () => {
+  // Refresh followers list
+  const refreshFollowers = useCallback(async () => {
     dispatch({ type: 'RESET_STATE' });
     
     // Reset initialization to trigger fresh data load
@@ -267,20 +252,20 @@ export function useFriendsListData({
     // The refresh will be handled by the Convex query re-running
   }, [dispatch]);
 
-  // Update friend status
-  const updateFriendStatus = useCallback((
-    friendshipId: Id<"friends">, 
-    newStatus: string
+  // Update follower friend status
+  const updateFollowerFriendStatus = useCallback((
+    userId: Id<"users">, 
+    friendshipStatus: any
   ): void => {
     dispatch({
       type: 'UPDATE_FRIEND_STATUS',
-      payload: { friendshipId, newStatus },
+      payload: { userId, friendshipStatus },
     });
   }, [dispatch]);
 
-  // Remove friend from list
-  const removeFriend = useCallback((friendshipId: Id<"friends">): void => {
-    dispatch({ type: 'REMOVE_FRIEND', payload: friendshipId });
+  // Remove follower from list
+  const removeFollower = useCallback((userId: Id<"users">): void => {
+    dispatch({ type: 'REMOVE_FOLLOWER', payload: userId });
   }, [dispatch]);
 
   // Cleanup function
@@ -305,18 +290,18 @@ export function useFriendsListData({
 
   return {
     // State
-    friends: state.friends,
-    isLoading: state.isLoading || (state.isOpen && !state.isInitialized && friendsQuery === undefined),
+    followers: state.followers,
+    isLoading: state.isLoading || (state.isOpen && !state.isInitialized && followersQuery === undefined),
     error: state.error,
     hasMore: state.hasMore,
     cursor: state.cursor,
     
     // Actions
-    loadFriends,
-    loadMoreFriends,
-    refreshFriends,
-    updateFriendStatus,
-    removeFriend,
+    loadFollowers,
+    loadMoreFollowers,
+    refreshFollowers,
+    updateFollowerFriendStatus,
+    removeFollower,
     
     // Utilities
     resetError,

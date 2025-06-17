@@ -160,7 +160,6 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
 
   // Actions hook - handles all user interactions
   const actionsHook = useFollowingListActions({
-    username,
     state,
     dispatch,
     loadMoreFollowing: dataHook.loadMoreFollowing,
@@ -189,7 +188,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   const virtualizationHook = useFollowingListVirtualization({
     state,
     dispatch,
-    loadMoreFollowing: dataHook.loadMoreFollowing,
+    loadMoreFollowing: actionsHook.handleLoadMore,
     config: {
       itemHeight: 80,
       overscan: 5,
@@ -324,39 +323,25 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         key={`${item.post._id}-${index}`}
         item={item}
         onCloseDrawer={memoizedCloseDrawer}
-        onFollow={actionsHook.handleFollow}
-        onUnfollow={actionsHook.handleUnfollow}
-        isOperationPending={actionsHook.isOperationPending}
         currentUserFollowStatus={currentUserFollowStatus}
         onUpdateFollowStatus={handleUpdateFollowStatus}
         isAuthenticated={isAuthenticated}
         showIcon={false} // Keep icons disabled for cleaner Following list UI
       />
     );
-  }, [memoizedCloseDrawer, actionsHook.handleFollow, actionsHook.handleUnfollow, actionsHook.isOperationPending, state.followStatusMap, dispatch, isAuthenticated]);
+  }, [memoizedCloseDrawer, state.followStatusMap, dispatch, isAuthenticated]);
 
   // Footer component for virtualized list - memoized to prevent re-renders
   const footerComponent = useMemo(() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
       const LoadingFooter = () => (
-        <div className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {footer.message}
+        <div className="py-4 text-center flex items-center justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       );
       LoadingFooter.displayName = 'LoadingFooter';
       return LoadingFooter;
-    }
-    
-    if (footer?.type === 'no-more') {
-      const NoMoreFooter = () => (
-        <div className="py-4 text-center text-sm text-muted-foreground">
-          {footer.message}
-        </div>
-      );
-      NoMoreFooter.displayName = 'NoMoreFooter';
-      return NoMoreFooter;
     }
     
     return undefined;

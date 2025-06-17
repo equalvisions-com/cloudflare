@@ -1,31 +1,30 @@
 import { useCallback, useRef } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
 import type {
-  FollowingListState,
-  FollowingListAction,
+  FollowersListState,
+  FollowersListAction,
 } from '@/lib/types';
 
-interface UseFollowingListActionsProps {
-  state: FollowingListState;
-  dispatch: React.Dispatch<FollowingListAction>;
-  loadMoreFollowing: () => Promise<void>;
-  refreshFollowing: () => Promise<void>;
+interface UseFollowersListActionsProps {
+  state: FollowersListState;
+  dispatch: React.Dispatch<FollowersListAction>;
+  loadMoreFollowers: () => Promise<void>;
+  refreshFollowers: () => Promise<void>;
 }
 
-interface FollowingListError {
+interface FollowersListError {
   type: string;
   message: string;
   retryable: boolean;
   context?: Record<string, unknown>;
 }
 
-export function useFollowingListActions({
+export function useFollowersListActions({
   state,
   dispatch,
-  loadMoreFollowing,
-  refreshFollowing,
-}: UseFollowingListActionsProps) {
-
+  loadMoreFollowers,
+  refreshFollowers,
+}: UseFollowersListActionsProps) {
   // Track pending operations to prevent duplicate requests
   const pendingOperationsRef = useRef<Set<string>>(new Set());
 
@@ -35,7 +34,7 @@ export function useFollowingListActions({
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
-  ): FollowingListError => ({
+  ): FollowersListError => ({
     type,
     message,
     retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
@@ -55,28 +54,28 @@ export function useFollowingListActions({
 
     try {
       pendingOperationsRef.current.add(operationKey);
-      await loadMoreFollowing();
+      await loadMoreFollowers();
     } catch (error) {
-      const followingError = createError(
+      const followersError = createError(
         'LOAD_MORE_ERROR',
-        error instanceof Error ? error.message : 'Failed to load more following',
+        error instanceof Error ? error.message : 'Failed to load more followers',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
       );
 
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
-        payload: followingError.message 
+        payload: followersError.message 
       });
 
-      console.error('Load more following error:', {
-        error: followingError,
-        context: followingError.context,
+      console.error('Load more followers error:', {
+        error: followersError,
+        context: followersError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
     }
-  }, [loadMoreFollowing, createError, dispatch]);
+  }, [loadMoreFollowers, createError, dispatch]);
 
   // Handle refresh with error handling
   const handleRefresh = useCallback(async (): Promise<void> => {
@@ -88,35 +87,35 @@ export function useFollowingListActions({
 
     try {
       pendingOperationsRef.current.add(operationKey);
-      await refreshFollowing();
+      await refreshFollowers();
     } catch (error) {
-      const followingError = createError(
+      const followersError = createError(
         'REFRESH_ERROR',
-        error instanceof Error ? error.message : 'Failed to refresh following',
+        error instanceof Error ? error.message : 'Failed to refresh followers',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
       );
 
       dispatch({ 
         type: 'SET_ERROR', 
-        payload: followingError.message 
+        payload: followersError.message 
       });
 
-      console.error('Refresh following error:', {
-        error: followingError,
-        context: followingError.context,
+      console.error('Refresh followers error:', {
+        error: followersError,
+        context: followersError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
     }
-  }, [refreshFollowing, createError, dispatch]);
+  }, [refreshFollowers, createError, dispatch]);
 
   // Handle general errors
   const handleError = useCallback((
     error: Error, 
     context?: Record<string, unknown>
   ): void => {
-    const followingError = createError(
+    const followersError = createError(
       'GENERAL_ERROR',
       error.message || 'An unexpected error occurred',
       error,
@@ -125,12 +124,12 @@ export function useFollowingListActions({
 
     dispatch({ 
       type: 'SET_ERROR', 
-      payload: followingError.message 
+      payload: followersError.message 
     });
 
-    console.error('Following list error:', {
-      error: followingError,
-      context: followingError.context,
+    console.error('Followers list error:', {
+      error: followersError,
+      context: followersError.context,
     });
   }, [createError, dispatch]);
 
@@ -144,20 +143,20 @@ export function useFollowingListActions({
     return pendingOperationsRef.current.has(operationKey);
   }, []);
 
-  // Update following status (for FollowButton integration)
-  const updateFollowingStatus = useCallback((
-    postId: Id<"posts">, 
-    isFollowing: boolean
+  // Update follower friend status (for SimpleFriendButton integration)
+  const updateFollowerFriendStatus = useCallback((
+    userId: Id<"users">, 
+    friendshipStatus: any
   ): void => {
     dispatch({
-      type: 'UPDATE_SINGLE_FOLLOW_STATUS',
-      payload: { postId: postId.toString(), isFollowing },
+      type: 'UPDATE_FRIEND_STATUS',
+      payload: { userId, friendshipStatus },
     });
   }, [dispatch]);
 
-  // Remove following from list
-  const removeFollowing = useCallback((postId: Id<"posts">): void => {
-    dispatch({ type: 'REMOVE_FOLLOWING_ITEM', payload: postId });
+  // Remove follower from list
+  const removeFollower = useCallback((userId: Id<"users">): void => {
+    dispatch({ type: 'REMOVE_FOLLOWER', payload: userId });
   }, [dispatch]);
 
   return {
@@ -165,9 +164,9 @@ export function useFollowingListActions({
     handleLoadMore,
     handleRefresh,
     
-    // Follow management actions (for FollowButton integration)
-    updateFollowingStatus,
-    removeFollowing,
+    // Friend management actions (for SimpleFriendButton integration)
+    updateFollowerFriendStatus,
+    removeFollower,
     
     // Error handling
     handleError,

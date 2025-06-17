@@ -1,42 +1,166 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { Button } from "@/components/ui/button";
+import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
+import { Virtuoso } from "react-virtuoso";
+import { useConvexAuth } from "convex/react";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger
+  DrawerTrigger,
 } from "@/components/ui/drawer";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ProfileImage } from "@/components/profile/ProfileImage";
-import { SimpleFriendButton } from "@/components/ui/SimpleFriendButton";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import Link from "next/link";
+import { Id } from "@/convex/_generated/dataModel";
+import type {
+  FollowersListState,
+  FollowersListAction,
+  FollowersListUserData,
+} from "@/lib/types";
+import { useFollowersListData } from "@/hooks/useFollowersListData";
+import { useFollowersListActions } from "@/hooks/useFollowersListActions";
+import { useFollowersListVirtualization } from "@/hooks/useFollowersListVirtualization";
+import { MemoizedVirtualizedFollowerItem } from "@/components/profile/VirtualizedFollowerItem";
+import { FollowersListErrorBoundary } from "@/components/profile/FollowersListErrorBoundary";
+import { FollowersListDrawerSkeleton } from "@/components/profile/FollowersListSkeleton";
+import { FollowersListEmptyState } from "@/components/profile/FollowersListEmptyState";
 
-interface Props {
+// Create initial state
+const createInitialState = (initialCount: number = 0): FollowersListState => ({
+  isOpen: false,
+  isLoading: false,
+  followers: [],
+  count: initialCount,
+  cursor: null,
+  hasMore: false,
+  error: null,
+  lastFetchTime: null,
+  isInitialized: false,
+});
+
+// Reducer for followers list state management
+const followersListReducer = (state: FollowersListState, action: FollowersListAction): FollowersListState => {
+  switch (action.type) {
+    case 'OPEN_DRAWER':
+      return { ...state, isOpen: true };
+    
+    case 'CLOSE_DRAWER':
+      return { ...state, isOpen: false };
+    
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload, error: action.payload ? null : state.error };
+    
+    case 'SET_COUNT':
+      return { ...state, count: action.payload };
+    
+    case 'INITIALIZE_FOLLOWERS':
+      return {
+        ...state,
+        followers: action.payload.followers,
+        cursor: action.payload.cursor,
+        hasMore: action.payload.hasMore,
+        isInitialized: true,
+        lastFetchTime: Date.now(),
+        error: null,
+      };
+    
+    case 'LOAD_MORE_START':
+      return { ...state, isLoading: true, error: null };
+    
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        followers: [...state.followers, ...action.payload.followers],
+        cursor: action.payload.cursor,
+        hasMore: action.payload.hasMore,
+        isLoading: false,
+        lastFetchTime: Date.now(),
+        error: null,
+      };
+    
+    case 'LOAD_MORE_ERROR':
+      return {
+        ...state,
+        isLoading: false,
+        error: action.payload,
+      };
+    
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
+    
+    case 'RESET_STATE':
+      return createInitialState(state.count);
+    
+    default:
+      return state;
+  }
+};
+
+interface FollowerCountProps {
   followerCount: number;
   postId: Id<"posts">;
   totalEntries?: number | null;
   mediaType?: string;
 }
 
-export const FollowerCount = React.memo(function FollowerCount({ 
+export function FollowerCount({ 
   followerCount, 
   postId, 
   totalEntries, 
   mediaType 
-}: Props) {
-  const [isOpen, setIsOpen] = useState(false);
-  const followers = useQuery(api.following.getFollowers, 
-    isOpen ? { postId } : "skip"
-  );
+}: FollowerCountProps) {
+  // Authentication state
+  const { isAuthenticated } = useConvexAuth();
+  
+  // State management with useReducer
+  const [state, dispatch] = useReducer(followersListReducer, createInitialState(followerCount));
+  
+  // Ref for cleanup of accessibility announcement timeout
+  const announcementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Data hook - handles all data fetching and management
+  const dataHook = useFollowersListData({
+    postId,
+    state,
+    dispatch,
+  });
 
+  // Actions hook - handles user interactions with error handling
+  const actionsHook = useFollowersListActions({
+    state,
+    dispatch,
+    loadMoreFollowers: dataHook.loadMoreFollowers,
+    refreshFollowers: dataHook.refreshFollowers,
+  });
+
+  // Cleanup function for component unmount
+  const cleanup = useCallback(() => {
+    if (announcementTimeoutRef.current) {
+      clearTimeout(announcementTimeoutRef.current);
+      announcementTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  // Virtualization hook - handles large list performance
+  const virtualizationHook = useFollowersListVirtualization({
+    state,
+    dispatch,
+    loadMoreFollowers: actionsHook.handleLoadMore,
+    config: {
+      itemHeight: 80,
+      overscan: 5,
+      loadMoreThreshold: 3,
+      debounceMs: 150,
+    },
+  });
+
+  // Get content label based on media type
   const getContentLabel = useCallback(() => {
     switch (mediaType?.toLowerCase()) {
       case 'podcast':
@@ -48,76 +172,215 @@ export const FollowerCount = React.memo(function FollowerCount({
     }
   }, [mediaType, totalEntries]);
 
+  // Memoized computed values
+  const computedValues = useMemo(() => ({
+    followerCount: state.count || followerCount,
+    hasError: !!dataHook.error,
+    isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0,
+    isInitialLoading: dataHook.isLoading && !state.isInitialized,
+    shouldShowLoadingSpinner: dataHook.isLoading && !state.isInitialized,
+    shouldShowErrorState: !!dataHook.error,
+    shouldShowEmptyState: !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0,
+    shouldShowVirtualizedList: state.isInitialized && dataHook.followers.length > 0 && !dataHook.error,
+  }), [
+    dataHook.followers.length, 
+    dataHook.isLoading,
+    dataHook.error,
+    state.count,
+    followerCount,
+    state.isInitialized
+  ]);
+
+  // Memoized accessibility announcement
+  const accessibilityAnnouncement = useMemo(() => {
+    return computedValues.followerCount === 0 
+      ? "Followers list opened. No followers yet."
+      : `Followers list opened. Showing ${computedValues.followerCount} ${computedValues.followerCount === 1 ? 'follower' : 'followers'}.`;
+  }, [computedValues.followerCount]);
+
+  // Handle drawer state changes with accessibility
   const handleOpenChange = useCallback((open: boolean) => {
-    setIsOpen(open);
+    dispatch({ type: open ? 'OPEN_DRAWER' : 'CLOSE_DRAWER' });
+    
+    if (open) {
+      if (dataHook.error) {
+        dataHook.resetError();
+      }
+      
+      // Load followers if not already loaded
+      if (!state.isInitialized) {
+        dataHook.loadFollowers();
+      }
+      
+      // Announce to screen readers
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
+      }
+      
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const announcer = document.createElement('div');
+        announcer.setAttribute('aria-live', 'polite');
+        announcer.setAttribute('aria-atomic', 'true');
+        announcer.className = 'sr-only';
+        announcer.textContent = accessibilityAnnouncement;
+        document.body.appendChild(announcer);
+        
+        announcementTimeoutRef.current = setTimeout(() => {
+          if (document.body.contains(announcer)) {
+            document.body.removeChild(announcer);
+          }
+          announcementTimeoutRef.current = null;
+        }, 1000);
+      }
+    }
+  }, [dataHook, accessibilityAnnouncement, state.isInitialized]);
+
+  // Memoized aria label for trigger button
+  const triggerAriaLabel = useMemo(() => 
+    `View followers. ${computedValues.followerCount} ${computedValues.followerCount === 1 ? 'follower' : 'followers'}`,
+    [computedValues.followerCount]
+  );
+
+  // Virtualized item renderer
+  const itemContent = useCallback((index: number, follower: FollowersListUserData) => {
+    if (!follower) {
+      return (
+        <div 
+          key={`error-${index}`}
+          className="flex items-center justify-center p-4 text-muted-foreground"
+          role="alert"
+          aria-label="Invalid follower data"
+        >
+          <span className="text-sm">Invalid follower data</span>
+        </div>
+      );
+    }
+
+    return (
+      <MemoizedVirtualizedFollowerItem
+        key={`${follower.userId}-${index}`}
+        follower={follower}
+        index={index}
+        isFirst={index === 0}
+        isAuthenticated={isAuthenticated}
+      />
+    );
+  }, [isAuthenticated]);
+
+  // Footer component for virtualized list
+  const footerComponent = useMemo(() => {
+    const footer = virtualizationHook.footerComponent;
+    if (footer?.type === 'loading') {
+      const LoadingFooter = () => (
+        <div className="py-4 text-center flex items-center justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      );
+      LoadingFooter.displayName = 'LoadingFooter';
+      return LoadingFooter;
+    }
+    
+    return undefined;
+  }, [virtualizationHook.footerComponent]);
+
+  // Empty placeholder component for Virtuoso
+  const emptyPlaceholder = useMemo(() => {
+    const EmptyPlaceholder = () => (
+      <div className="flex items-center justify-center py-8">
+        <span className="text-sm text-muted-foreground">No followers to display</span>
+      </div>
+    );
+    EmptyPlaceholder.displayName = 'EmptyPlaceholder';
+    return EmptyPlaceholder;
   }, []);
 
+  // Virtuoso components configuration
+  const virtuosoComponents = useMemo(() => {
+    const components: any = {
+      EmptyPlaceholder: emptyPlaceholder,
+    };
+    
+    if (footerComponent) {
+      components.Footer = footerComponent;
+    }
+    
+    return components;
+  }, [footerComponent, emptyPlaceholder]);
+
   return (
-    <div className="max-w-4xl text-sm flex items-center gap-4">
-      <Drawer open={isOpen} onOpenChange={handleOpenChange}>
+    <FollowersListErrorBoundary
+      enableRecovery={true}
+      maxRetries={3}
+      onError={(error, errorInfo) => {
+        // Log error in development
+        if (process.env.NODE_ENV === 'development') {
+          console.error('FollowerCount Error:', error, errorInfo);
+        }
+      }}
+    >
+      <div className="max-w-4xl text-sm flex items-center gap-4">
+      <Drawer open={state.isOpen} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>
-          <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none">
-              <span className="leading-none font-medium mr-[-3px]">{followerCount}</span>{' '}
-              <span className="leading-none font-medium">{followerCount === 1 ? 'Follower' : 'Followers'}</span>
+          <Button 
+            variant="ghost" 
+            className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none"
+            aria-label={triggerAriaLabel}
+          >
+            <span className="leading-none font-medium mr-[-3px]">{computedValues.followerCount}</span>{' '}
+            <span className="leading-none font-medium">{computedValues.followerCount === 1 ? 'Follower' : 'Followers'}</span>
           </Button>
         </DrawerTrigger>
-        <DrawerContent className="h-[75vh] w-full max-w-[550px] mx-auto">
-          <DrawerHeader className="px-4 pb-4 border-b border-border">
-            <DrawerTitle className="text-base font-extrabold leading-none tracking-tight text-center">Followers</DrawerTitle>
+        
+        <DrawerContent 
+          className="h-[75vh] flex flex-col focus:outline-none w-full max-w-[550px] mx-auto"
+          aria-label="Followers list"
+        >
+          <DrawerHeader className="flex-shrink-0 border-b">
+            <DrawerTitle className="text-base font-extrabold tracking-tight text-center flex items-center justify-center gap-2">
+              Followers
+            </DrawerTitle>
           </DrawerHeader>
-          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
-            <div>
-              <div className="space-y-0">
-                {followers === undefined ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : followers.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-4">No followers yet</div>
-                ) : (
-                  followers.map((follower) => (
-                    <div key={follower.userId} className="flex items-center gap-3 p-4 border-b border-border">
-                      <Link href={`/@${follower.username}`} className="flex-shrink-0">
-                        <ProfileImage
-                          profileImage={follower.profileImage}
-                          username={follower.username}
-                          size="md-lg"
-                        />
-                      </Link>
-                      <div className="flex flex-col flex-1">
-                        <Link href={`/@${follower.username}`}>
-                          <span className="text-sm font-bold overflow-anywhere">{follower.name || follower.username}</span>
-                        </Link>
-                        <Link href={`/@${follower.username}`} className="mt-[-4px]">
-                          <span className="text-xs text-muted-foreground overflow-anywhere">@{follower.username}</span>
-                        </Link>
-                      </div>
-                      <SimpleFriendButton
-                        username={follower.username}
-                        userId={follower.userId}
-                        profileData={{
-                          username: follower.username,
-                          name: follower.name,
-                          profileImage: follower.profileImage
-                        }}
-                        className="rounded-full h-9 px-4 py-2 flex-shrink-0 mt-0 font-semibold text-sm"
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </ScrollArea>
+          
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-hidden" role="main">
+            {computedValues.shouldShowLoadingSpinner ? (
+              <FollowersListDrawerSkeleton count={6} />
+            ) : computedValues.shouldShowErrorState ? (
+              <FollowersListEmptyState
+                variant="error"
+                onRetry={() => dataHook.refreshFollowers()}
+                className="h-full"
+              />
+            ) : computedValues.shouldShowEmptyState ? (
+              <FollowersListEmptyState
+                variant="default"
+                className="h-full"
+              />
+            ) : computedValues.shouldShowVirtualizedList ? (
+              <Virtuoso
+                {...virtualizationHook.virtuosoProps}
+                itemContent={itemContent}
+                components={virtuosoComponents}
+                aria-label="Followers list"
+                role="feed"
+                aria-busy={state.isLoading}
+                aria-live="polite"
+              />
+            ) : null}
+          </div>
         </DrawerContent>
       </Drawer>
+      
+      {/* Total entries display (unchanged functionality) */}
       {totalEntries ? (
         <div className="flex items-center gap-1">
           <Button variant="ghost" className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none">
-              <span className="leading-none font-medium mr-[-3px]">{totalEntries}</span>{' '}
-              <span className="leading-none font-medium">{getContentLabel()}</span>
+            <span className="leading-none font-medium mr-[-3px]">{totalEntries}</span>{' '}
+            <span className="leading-none font-medium">{getContentLabel()}</span>
           </Button>
         </div>
       ) : null}
-    </div>
+      </div>
+    </FollowersListErrorBoundary>
   );
-}); 
+} 

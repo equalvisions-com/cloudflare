@@ -43,10 +43,10 @@ export function FollowerCount({ followerCount, postId }: Props) {
             <div className="space-y-2">
               {followers === undefined ? (
                 <div className="text-sm text-muted-foreground">Loading...</div>
-              ) : followers.length === 0 ? (
+              ) : followers.followers.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No followers yet</div>
               ) : (
-                followers.map((follower) => (
+                followers.followers.map((follower) => (
                   <div key={follower.userId} className="flex items-center gap-2 py-2">
                     <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
                       <Users className="h-4 w-4 text-muted-foreground" />

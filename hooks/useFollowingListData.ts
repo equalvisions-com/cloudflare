@@ -1,19 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useCallback, useRef, useEffect, useMemo } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 import type {
-  UseFollowingListDataReturn,
-  FollowingListFollowingWithPost,
-  FollowingListAPIResponse,
   FollowingListState,
   FollowingListAction,
+  FollowingListFollowingWithPost,
   ProfileFollowingData,
-  FollowingListError,
-} from "@/lib/types";
-import { FollowingListErrorType } from "@/lib/types";
+} from '@/lib/types';
 
 interface UseFollowingListDataProps {
   username: string;
@@ -22,16 +18,54 @@ interface UseFollowingListDataProps {
   initialFollowing?: ProfileFollowingData;
 }
 
+interface FollowingListError {
+  type: string;
+  message: string;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
 export function useFollowingListData({
   username,
   state,
   dispatch,
   initialFollowing,
-}: UseFollowingListDataProps): UseFollowingListDataReturn {
+}: UseFollowingListDataProps) {
   // Refs for cleanup and request management
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestIdRef = useRef<string>("");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Direct Convex query for initial following data
+  const followingQuery = useQuery(
+    api.following.getFollowingByUsername,
+    state.isOpen && !state.isInitialized ? { 
+      username,
+      limit: 30 
+    } : "skip"
+  );
+
+  // Handle initial data loading from Convex query
+  useEffect(() => {
+    if (state.isOpen && !state.isInitialized && followingQuery !== undefined) {
+      if (followingQuery === null) {
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: 'Failed to load following list. Please try again.' 
+        });
+      } else {
+        dispatch({
+          type: 'INITIALIZE_FOLLOWING',
+          payload: {
+            followingItems: followingQuery.following.filter(Boolean) as FollowingListFollowingWithPost[],
+            cursor: followingQuery.cursor,
+            hasMore: followingQuery.hasMore,
+          },
+        });
+      }
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, [followingQuery, state.isOpen, state.isInitialized, dispatch]);
 
   // Extract post IDs for batched follow status query
   const postIds = useMemo(() => 
@@ -68,47 +102,16 @@ export function useFollowingListData({
     }
   }, [followStatusArray, postIds, dispatch]);
 
-  // Initialize following list when drawer opens
-  useEffect(() => {
-    if (state.isOpen && !state.isInitialized && initialFollowing) {
-      try {
-        const validFollowingItems = initialFollowing.following.filter(
-          (f): f is FollowingListFollowingWithPost => f !== null
-        );
-        
-        dispatch({
-          type: 'INITIALIZE_FOLLOWING',
-          payload: {
-            followingItems: validFollowingItems,
-            cursor: initialFollowing.cursor,
-            hasMore: initialFollowing.hasMore,
-          },
-        });
-      } catch (error) {
-        console.error('Error initializing following list:', error);
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to load following list. Please try again.' 
-        });
-      }
-    }
-  }, [state.isOpen, state.isInitialized, initialFollowing, dispatch]);
-
   // Create error with context
   const createError = useCallback((
-    type: FollowingListErrorType,
+    type: string,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FollowingListError => ({
     type,
     message,
-    originalError,
-    retryable: [
-      FollowingListErrorType.NETWORK_ERROR,
-      FollowingListErrorType.LOAD_MORE_ERROR,
-      FollowingListErrorType.SERVER_ERROR,
-    ].includes(type),
+    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
     context: {
       username,
       timestamp: Date.now(),
@@ -116,12 +119,11 @@ export function useFollowingListData({
     },
   }), [username]);
 
-  // Enhanced API call with retry logic
-  const makeAPICall = useCallback(async (
-    url: string,
-    options: RequestInit = {},
+  // Enhanced Convex call with retry logic for pagination
+  const makeConvexCall = useCallback(async (
+    queryArgs: any,
     retryCount = 0
-  ): Promise<FollowingListAPIResponse> => {
+  ): Promise<{ following: FollowingListFollowingWithPost[]; hasMore: boolean; cursor: string | null }> => {
     const maxRetries = 3;
     const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
 
@@ -136,56 +138,38 @@ export function useFollowingListData({
       const requestId = `${Date.now()}-${Math.random()}`;
       lastRequestIdRef.current = requestId;
 
-      const response = await fetch(url, {
-        ...options,
-        signal: abortControllerRef.current.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      });
+      // Use direct Convex query for pagination
+      const { fetchQuery } = await import('convex/nextjs');
+      const result = await fetchQuery(api.following.getFollowingByUsername, queryArgs);
 
       // Check if this is still the latest request
       if (lastRequestIdRef.current !== requestId) {
         throw new Error('Request superseded');
       }
 
-      if (!response.ok) {
-        const errorType = response.status >= 500 
-          ? FollowingListErrorType.SERVER_ERROR
-          : response.status === 429
-          ? FollowingListErrorType.RATE_LIMIT_ERROR
-          : response.status === 401
-          ? FollowingListErrorType.AUTHENTICATION_ERROR
-          : response.status === 404
-          ? FollowingListErrorType.NOT_FOUND_ERROR
-          : FollowingListErrorType.NETWORK_ERROR;
-
+      if (!result) {
         throw createError(
-          errorType,
-          `HTTP ${response.status}: ${response.statusText}`,
-          new Error(`HTTP ${response.status}`),
-          { status: response.status, url }
+          'NETWORK_ERROR',
+          'No data returned from Convex',
+          new Error('Empty response'),
+          { queryArgs }
         );
       }
-
-      const data = await response.json();
       
       // Validate response structure
-      if (!data || typeof data !== 'object') {
+      if (!result || typeof result !== 'object') {
         throw createError(
-          FollowingListErrorType.VALIDATION_ERROR,
+          'VALIDATION_ERROR',
           'Invalid response format',
-          new Error('Invalid JSON response'),
-          { url, responseType: typeof data }
+          new Error('Invalid response structure'),
+          { responseType: typeof result }
         );
       }
 
       return {
-        following: data.following || [],
-        hasMore: Boolean(data.hasMore),
-        cursor: data.cursor || null,
-        totalCount: data.totalCount,
+        following: result.following.filter(Boolean) as FollowingListFollowingWithPost[] || [],
+        hasMore: Boolean(result.hasMore),
+        cursor: result.cursor || null,
       };
 
     } catch (error) {
@@ -200,14 +184,14 @@ export function useFollowingListData({
           error.message.includes('fetch') ||
           error.message.includes('network') ||
           error.message.includes('timeout') ||
-          (error as any).code === 'NETWORK_ERROR';
+          error.message.includes('superseded');
 
         if (shouldRetry) {
           await new Promise(resolve => {
             retryTimeoutRef.current = setTimeout(resolve, retryDelay);
           });
           
-          return makeAPICall(url, options, retryCount + 1);
+          return makeConvexCall(queryArgs, retryCount + 1);
         }
       }
 
@@ -218,16 +202,31 @@ export function useFollowingListData({
 
       // Create new error for unknown errors
       throw createError(
-        FollowingListErrorType.UNKNOWN_ERROR,
+        'UNKNOWN_ERROR',
         error instanceof Error ? error.message : 'An unknown error occurred',
         error instanceof Error ? error : new Error(String(error)),
-        { url, retryCount }
+        { retryCount }
       );
     }
   }, [createError]);
 
-  // Load more following with comprehensive error handling
-  const loadMoreFollowing = useCallback(async (): Promise<void> => {
+  // Reset error state
+  const resetError = useCallback(() => {
+    dispatch({ type: 'SET_ERROR', payload: null });
+  }, [dispatch]);
+
+  // Initial load of following
+  const loadFollowing = useCallback(async () => {
+    if (state.isInitialized) return;
+    
+    dispatch({ type: 'SET_LOADING', payload: true });
+    
+    // The initial load is handled by the Convex query above
+    // This function is kept for API compatibility
+  }, [state.isInitialized, dispatch]);
+
+  // Load more following (pagination) - uses direct Convex for cursor-based pagination
+  const loadMoreFollowing = useCallback(async () => {
     if (!state.hasMore || state.isLoading || !state.cursor) {
       return;
     }
@@ -235,24 +234,25 @@ export function useFollowingListData({
     dispatch({ type: 'LOAD_MORE_START' });
 
     try {
-      const url = `/api/following?username=${encodeURIComponent(username)}&cursor=${encodeURIComponent(state.cursor)}`;
-      const result = await makeAPICall(url);
+      const result = await makeConvexCall({
+        username,
+        limit: 30,
+        cursor: state.cursor
+      });
 
-              // Filter out null values and validate data
-        const newFollowingItems = result.following.filter(
-          (f): f is FollowingListFollowingWithPost => {
-            return f !== null && 
-                   f.following && 
-                   f.following.postId && 
-                   f.post && 
-                   Boolean(f.post.title);
-          }
-        );
+      // Filter out null values and validate data
+      const newFollowing = result.following.filter(
+        (f): f is FollowingListFollowingWithPost => {
+          return f !== null && 
+                 f.following && 
+                 f.following.postId;
+        }
+      );
 
       dispatch({
         type: 'LOAD_MORE_SUCCESS',
         payload: {
-          followingItems: newFollowingItems,
+          followingItems: newFollowing,
           cursor: result.cursor,
           hasMore: result.hasMore,
         },
@@ -279,37 +279,20 @@ export function useFollowingListData({
         context: followingError.context,
       });
     }
-  }, [state.hasMore, state.isLoading, state.cursor, username, makeAPICall, dispatch]);
+  }, [state.hasMore, state.isLoading, state.cursor, username, makeConvexCall, dispatch]);
 
   // Refresh following list
-  const refreshFollowing = useCallback(async (): Promise<void> => {
+  const refreshFollowing = useCallback(async () => {
     dispatch({ type: 'RESET_STATE' });
     
-    if (initialFollowing) {
-      try {
-        const validFollowingItems = initialFollowing.following.filter(
-          (f): f is FollowingListFollowingWithPost => f !== null
-        );
-        
-        dispatch({
-          type: 'INITIALIZE_FOLLOWING',
-          payload: {
-            followingItems: validFollowingItems,
-            cursor: initialFollowing.cursor,
-            hasMore: initialFollowing.hasMore,
-          },
-        });
-      } catch (error) {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to refresh following list. Please try again.' 
-        });
-      }
-    }
-  }, [initialFollowing, dispatch]);
+    // Reset initialization to trigger fresh data load
+    dispatch({ type: 'SET_LOADING', payload: true });
+    
+    // The refresh will be handled by the Convex query re-running
+  }, [dispatch]);
 
-  // Update follow status for a specific post
-  const updateFollowStatus = useCallback((
+  // Update following status
+  const updateFollowingStatus = useCallback((
     postId: Id<"posts">, 
     isFollowing: boolean
   ): void => {
@@ -319,14 +302,9 @@ export function useFollowingListData({
     });
   }, [dispatch]);
 
-  // Remove following item from list
-  const removeFollowingItem = useCallback((postId: Id<"posts">): void => {
+  // Remove following from list
+  const removeFollowing = useCallback((postId: Id<"posts">): void => {
     dispatch({ type: 'REMOVE_FOLLOWING_ITEM', payload: postId });
-  }, [dispatch]);
-
-  // Reset error state
-  const resetError = useCallback((): void => {
-    dispatch({ type: 'SET_ERROR', payload: null });
   }, [dispatch]);
 
   // Cleanup function
@@ -352,18 +330,18 @@ export function useFollowingListData({
   return {
     // State
     followingItems: state.followingItems,
-    hasMore: state.hasMore,
-    isLoading: state.isLoading,
+    isLoading: state.isLoading || (state.isOpen && !state.isInitialized && followingQuery === undefined),
     error: state.error,
+    hasMore: state.hasMore,
     cursor: state.cursor,
     followStatusMap: state.followStatusMap,
-    isLoadingFollowStatus: state.isLoadingFollowStatus,
     
     // Actions
+    loadFollowing,
     loadMoreFollowing,
     refreshFollowing,
-    updateFollowStatus,
-    removeFollowingItem,
+    updateFollowingStatus,
+    removeFollowing,
     
     // Utilities
     resetError,

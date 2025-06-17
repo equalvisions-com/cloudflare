@@ -136,10 +136,11 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
   } = computedValues;
 
   return (
-    <article 
+    <div 
       className="flex items-center justify-between gap-3 p-4 border-b border-border min-h-[80px] hover:bg-muted/30 transition-colors duration-200"
       data-index={index}
       data-friend-id={friendshipId.toString()}
+      role="listitem"
       aria-label={`Friend: ${friendName}`}
     >
       {/* Friend Profile Section */}
@@ -240,7 +241,7 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
           </div>
         )}
       </div>
-    </article>
+    </div>
   );
 });
 

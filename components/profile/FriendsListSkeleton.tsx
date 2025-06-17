@@ -62,10 +62,7 @@ FriendItemSkeleton.displayName = "FriendItemSkeleton";
 export const LoadingMoreSkeleton = memo(() => {
   return (
     <div className="flex items-center justify-center py-4" role="status" aria-label="Loading more friends">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
-        <span className="text-sm">Loading more...</span>
-      </div>
+      <div className="animate-spin rounded-full h-4 w-4 border-2 border-muted-foreground border-t-transparent" />
       <span className="sr-only">Loading more friends</span>
     </div>
   );

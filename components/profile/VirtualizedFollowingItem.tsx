@@ -271,6 +271,8 @@ export const VirtualizedFollowingItem = memo(({
     <div 
       className="flex items-center justify-between gap-3 p-4 border-b border-border"
       style={{ height: '80px' }} // Fixed height for virtualization
+      role="listitem"
+      aria-label={`Following: ${item.post.title}`}
     >
       <Link
         href={linkHref}

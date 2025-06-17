@@ -221,21 +221,41 @@ export const isFollowing = query({
 export const getFollowers = query({
   args: {
     postId: v.id("posts"),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.id("following")),
   },
   handler: async (ctx, args) => {
-    const { postId } = args;
+    const { postId, limit = 30, cursor } = args;
     
-    // Get all following records for this post - only select the userId
-    const followers = await ctx.db
+    // Get following records for this post with pagination
+    let query = ctx.db
       .query("following")
-      .withIndex("by_post", (q) => q.eq("postId", postId))
-      .collect()
+      .withIndex("by_post", (q) => q.eq("postId", postId));
+    
+    // Apply cursor if provided
+    if (cursor) {
+      query = query.filter(q => q.gt(q.field("_id"), cursor));
+    }
+    
+    // Fetch one more than requested to know if there are more
+    const followers = await query.take(limit + 1)
       .then(followers => followers.map(follow => ({
+        _id: follow._id,
         userId: follow.userId
       })));
     
+    // Check if there are more results
+    const hasMore = followers.length > limit;
+    if (hasMore) {
+      followers.pop(); // Remove the extra item
+    }
+    
     if (followers.length === 0) {
-      return [];
+      return {
+        followers: [],
+        hasMore: false,
+        cursor: null,
+      };
     }
 
     // Get only the required user fields using filtered queries
@@ -255,7 +275,7 @@ export const getFollowers = query({
     );
     
     // Return only valid users with usernames
-    return users
+    const validUsers = users
       .filter(Boolean)
       .map(user => ({
         userId: user!._id,
@@ -263,6 +283,15 @@ export const getFollowers = query({
         name: user!.name,
         profileImage: user!.profileImage
       }));
+    
+    // Get the cursor for the next page (last following record's _id)
+    const nextCursor = followers.length > 0 ? followers[followers.length - 1]._id : null;
+    
+    return {
+      followers: validUsers,
+      hasMore,
+      cursor: nextCursor,
+    };
   },
 });
 

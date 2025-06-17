@@ -155,22 +155,15 @@ export const useFriendsListVirtualization = ({
   
   // Footer component configuration for loading state
   const footerComponent = useMemo(() => {
-    if (!state.hasMore) {
-      return {
-        type: 'no-more',
-        message: virtualizedFriends.length === 0 ? 'No friends found' : 'No more friends to load'
-      };
-    }
-    
     if (state.isLoading) {
       return {
         type: 'loading',
-        message: 'Loading more friends...'
+        message: ''
       };
     }
     
     return null;
-  }, [state.hasMore, state.isLoading, virtualizedFriends.length]);
+  }, [state.isLoading]);
   
   // Stable style object to prevent re-renders
   const virtuosoStyle = useMemo(() => ({ height: '100%' }), []);

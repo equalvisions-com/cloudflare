@@ -167,7 +167,7 @@ export function useFollowingListVirtualization({
     if (state.isLoading) {
       return {
         type: 'loading',
-        message: 'Loading more...'
+        message: ''
       };
     }
     

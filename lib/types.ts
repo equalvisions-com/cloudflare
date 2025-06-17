@@ -3364,12 +3364,200 @@ export function convertProfileFollowingDataToFollowingListData(data: ProfileFoll
           verified: item.post.verified,
         },
       } : null
-    ),
+    ).filter(Boolean) as FollowingListFollowingWithPost[],
     hasMore: data.hasMore,
-    cursor: data.cursor,
+    cursor: data.cursor?.toString() || null,
   };
 }
 
 // ===================================================================
-// END FRIENDS LIST TYPES
+// END FOLLOWING LIST TYPES
+// ===================================================================
+
+// Followers List types (similar pattern to FriendsList and FollowingList)
+export interface FollowersListUserData {
+  userId: Id<"users">;
+  username: string;
+  name?: string | null;
+  profileImage?: string | null;
+}
+
+export interface FollowersListState {
+  // UI State
+  isOpen: boolean;
+  isLoading: boolean;
+  
+  // Data State
+  followers: FollowersListUserData[];
+  count: number;
+  
+  // Pagination State
+  cursor: string | null;
+  hasMore: boolean;
+  
+  // Error State
+  error: string | null;
+  
+  // Performance State
+  lastFetchTime: number | null;
+  isInitialized: boolean;
+}
+
+export type FollowersListAction =
+  | { type: 'OPEN_DRAWER' }
+  | { type: 'CLOSE_DRAWER' }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_COUNT'; payload: number }
+  | { type: 'INITIALIZE_FOLLOWERS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_ERROR'; payload: string }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'RESET_STATE' }
+  | { type: 'UPDATE_FRIEND_STATUS'; payload: { userId: Id<"users">; friendshipStatus: any } }
+  | { type: 'REMOVE_FOLLOWER'; payload: Id<"users"> };
+
+export interface FollowersListProps {
+  postId: Id<"posts">;
+  initialCount?: number;
+  totalEntries?: number | null;
+  mediaType?: string;
+}
+
+export interface FollowersListInitialData {
+  followers: FollowersListUserData[];
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+export interface FollowersListAPIResponse {
+  followers: FollowersListUserData[];
+  hasMore: boolean;
+  cursor: string | null;
+  totalCount?: number;
+}
+
+export interface UseFollowersListDataReturn {
+  // State
+  followers: FollowersListUserData[];
+  hasMore: boolean;
+  isLoading: boolean;
+  error: string | null;
+  cursor: string | null;
+  
+  // Actions
+  loadMoreFollowers: () => Promise<void>;
+  refreshFollowers: () => Promise<void>;
+  updateFollowerFriendStatus: (userId: Id<"users">, friendshipStatus: any) => void;
+  removeFollower: (userId: Id<"users">) => void;
+  
+  // Utilities
+  resetError: () => void;
+}
+
+export interface UseFollowersListActionsReturn {
+  // Loading actions
+  handleLoadMore: () => Promise<void>;
+  handleRefresh: () => Promise<void>;
+  
+  // Friend management actions (for SimpleFriendButton integration)
+  handleSendFriendRequest: (userId: Id<"users">, username: string) => Promise<void>;
+  handleAcceptFriendRequest: (friendshipId: Id<"friends">) => Promise<void>;
+  handleDeclineFriendRequest: (friendshipId: Id<"friends">) => Promise<void>;
+  handleUnfriend: (friendshipId: Id<"friends">) => Promise<void>;
+  
+  // Error handling
+  handleError: (error: Error, context?: Record<string, unknown>) => void;
+  clearError: () => void;
+  
+  // Rate limiting state
+  isOperationPending: (operationKey: string) => boolean;
+}
+
+export interface FollowersListPerformanceConfig {
+  // Virtualization settings
+  overscan: number;
+  itemHeight: number;
+  
+  // Loading settings
+  loadMoreThreshold: number;
+  debounceDelay: number;
+  
+  // Cache settings
+  maxCacheSize: number;
+  cacheTimeout: number;
+  
+  // Error handling
+  maxRetries: number;
+  retryDelay: number;
+}
+
+export interface FollowersListVirtualizationProps {
+  followers: FollowersListUserData[];
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
+  itemHeight: number;
+  overscan: number;
+}
+
+export enum FollowersListErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  LOAD_MORE_ERROR = 'LOAD_MORE_ERROR',
+  FRIEND_REQUEST_ERROR = 'FRIEND_REQUEST_ERROR',
+  INITIALIZATION_ERROR = 'INITIALIZATION_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  SERVER_ERROR = 'SERVER_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  NOT_FOUND_ERROR = 'NOT_FOUND_ERROR',
+}
+
+export interface FollowersListError {
+  type: FollowersListErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
+export interface FollowersListVirtualizationConfig {
+  itemHeight: number;
+  overscan: number;
+  scrollSeekConfiguration: {
+    enter: (velocity: number) => boolean;
+    exit: (velocity: number) => boolean;
+  };
+  loadMoreThreshold: number;
+  debounceMs: number;
+}
+
+export interface UseFollowersListVirtualizationReturn {
+  // Virtuoso configuration
+  virtuosoRef: React.RefObject<any>;
+  virtuosoProps: any;
+  
+  // Data
+  virtualizedFollowers: FollowersListUserData[];
+  
+  // Handlers
+  handleEndReached: () => void;
+  handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
+  itemRenderer: (index: number, follower: FollowersListUserData) => any;
+  
+  // Navigation
+  scrollToTop: () => void;
+  scrollToFollower: (userId: string) => void;
+  getVisibleRange: () => { startIndex: number; endIndex: number };
+  
+  // Components
+  footerComponent: { type: string; message: string } | null;
+  
+  // Cleanup
+  cleanup: () => void;
+}
+
+// ===================================================================
+// END FOLLOWERS LIST TYPES
 // =================================================================== 
