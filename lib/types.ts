@@ -242,6 +242,7 @@ export interface UserProfile {
   userId: Id<"users">;
   username: string;
   name?: string | null;
+  bio?: string | null;
   profileImage?: string | null;
   isAuthenticated?: boolean;
   friendshipStatus?: {
