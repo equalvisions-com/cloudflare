@@ -10,16 +10,9 @@ const DAILY_LIMIT = 50;
 const DAY = 24 * 60 * 60 * 1000;
 
 // -----------------------------------------------------------------------------
-// Rate-limiter configuration
+// Rate-limiter instance
 // -----------------------------------------------------------------------------
-export const chatLimiter = new RateLimiter(components.rateLimiter, {
-  chat: {
-    kind: "fixed window",
-    period: DAY,
-    rate: DAILY_LIMIT,
-    capacity: DAILY_LIMIT,
-  },
-});
+const rateLimiter = new RateLimiter(components.rateLimiter, {});
 
 // -----------------------------------------------------------------------------
 // Mutation: sendChatMessage
@@ -33,8 +26,17 @@ export const sendChatMessage = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Consume one token from the user's chat bucket
-    const limitResult = await chatLimiter.limit(ctx, "chat", { key: userId });
+    // Consume one token from the user's chat bucket using inline config
+    const limitResult = await rateLimiter.limit(ctx, "chat", { 
+      key: userId,
+      config: {
+        kind: "fixed window",
+        period: DAY,
+        rate: DAILY_LIMIT,
+        capacity: DAILY_LIMIT,
+      }
+    });
+    
     if (!limitResult.ok) {
       return {
         limited: true,
@@ -70,9 +72,15 @@ export const getRateLimitStatus = query({
 
     while (low < high) {
       const mid = Math.ceil((low + high + 1) / 2);
-      const { ok } = await chatLimiter.check(ctx, "chat", {
+      const { ok } = await rateLimiter.check(ctx, "chat", {
         key: userId,
         count: mid,
+        config: {
+          kind: "fixed window",
+          period: DAY,
+          rate: DAILY_LIMIT,
+          capacity: DAILY_LIMIT,
+        }
       });
       if (ok) {
         low = mid;          // mid tokens are available
