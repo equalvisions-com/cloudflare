@@ -385,7 +385,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         <DrawerTrigger asChild>
           <Button
             variant="link" 
-            className="p-0 h-auto text-sm flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 hover:no-underline text-muted-foreground font-medium transition-colors duration-200 hover:text-foreground"
+            className="p-0 h-auto text-sm flex items-center gap-1 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none hover:no-underline text-muted-foreground font-medium transition-colors duration-200 hover:text-foreground"
             aria-label={triggerAriaLabel}
           >
             <span className="leading-none">{computedValues.friendCount}</span>

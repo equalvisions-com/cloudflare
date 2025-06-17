@@ -299,7 +299,7 @@ export const VirtualizedFollowingItem = memo(({
         <Link
           href={linkHref}
           onClick={handleLinkClick}
-          className="hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+          className="hover:underline focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
         >
           <div className="text-sm font-bold overflow-anywhere line-clamp-2">
             {item.post.title}
