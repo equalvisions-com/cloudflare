@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { 
   useAudioPlayerCurrentTrack,
   useAudioPlayerIsPlaying,
@@ -39,6 +39,24 @@ export const useMediaSession = ({
   // Get actions
   const togglePlayPause = useAudioPlayerTogglePlayPause();
   const handleSeek = useAudioPlayerHandleSeek();
+
+  // Use refs to track current values for media session handlers
+  const isPlayingRef = useRef(isPlaying);
+  const seekRef = useRef(seek);
+  const durationRef = useRef(duration);
+
+  // Update refs when values change
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    seekRef.current = seek;
+  }, [seek]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
 
   /**
    * Detect image type from URL
@@ -188,6 +206,7 @@ export const useMediaSession = ({
 
   /**
    * Set up Media Session action handlers
+   * Using refs to access current values to prevent unnecessary re-registrations
    */
   const setupActionHandlers = useCallback(() => {
     if (!('mediaSession' in navigator)) return;
@@ -195,28 +214,28 @@ export const useMediaSession = ({
     try {
       // Play/Pause handlers
       navigator.mediaSession.setActionHandler('play', () => {
-        if (!isPlaying) {
+        if (!isPlayingRef.current) {
           togglePlayPause();
         }
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
-        if (isPlaying) {
+        if (isPlayingRef.current) {
           togglePlayPause();
         }
       });
 
-      // Seek handlers
+      // Seek handlers - use ref values to get current state
       navigator.mediaSession.setActionHandler('seekbackward', (details) => {
         const skipTime = details.seekOffset || seekOffset;
-        const newPosition = Math.max(0, seek - skipTime);
+        const newPosition = Math.max(0, seekRef.current - skipTime);
         handleSeek([newPosition]);
         onSeekBackward?.();
       });
 
       navigator.mediaSession.setActionHandler('seekforward', (details) => {
         const skipTime = details.seekOffset || seekOffset;
-        const newPosition = Math.min(duration, seek + skipTime);
+        const newPosition = Math.min(durationRef.current, seekRef.current + skipTime);
         handleSeek([newPosition]);
         onSeekForward?.();
       });
@@ -224,7 +243,7 @@ export const useMediaSession = ({
       // Seek to specific position
       navigator.mediaSession.setActionHandler('seekto', (details) => {
         if (details.seekTime !== undefined) {
-          const newPosition = Math.max(0, Math.min(duration, details.seekTime));
+          const newPosition = Math.max(0, Math.min(durationRef.current, details.seekTime));
           handleSeek([newPosition]);
         }
       });
@@ -233,11 +252,10 @@ export const useMediaSession = ({
       navigator.mediaSession.setActionHandler('previoustrack', null);
       navigator.mediaSession.setActionHandler('nexttrack', null);
 
-
     } catch (error) {
       console.error('Failed to set up Media Session action handlers:', error);
     }
-  }, [isPlaying, seek, duration, seekOffset, togglePlayPause, handleSeek, onSeekBackward, onSeekForward]);
+  }, [seekOffset, togglePlayPause, handleSeek, onSeekBackward, onSeekForward]);
 
   // Update metadata when track changes
   useEffect(() => {
@@ -254,10 +272,11 @@ export const useMediaSession = ({
     updatePositionState();
   }, [updatePositionState]);
 
-  // Set up action handlers once
+  // Set up action handlers only when track changes or on mount
+  // This prevents re-registration during playback
   useEffect(() => {
     setupActionHandlers();
-  }, [setupActionHandlers]);
+  }, [currentTrack?.src, setupActionHandlers]);
 
   // Cleanup on unmount
   useEffect(() => {
