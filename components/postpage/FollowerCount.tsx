@@ -209,33 +209,21 @@ export function FollowerCount({
     }
   }, [mediaType, totalEntries]);
 
-  // Memoized computed values
-  const computedValues = useMemo(() => ({
-    followerCount: state.count || followerCount,
-    hasError: !!dataHook.error,
-    isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0,
-    isInitialLoading: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
-    // Show skeleton during initial load (check both state.isLoading OR dataHook.isLoading)
-    shouldShowLoadingSpinner: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
-    shouldShowErrorState: !!dataHook.error,
-    shouldShowEmptyState: !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followers.length === 0,
-    shouldShowVirtualizedList: state.isInitialized && dataHook.followers.length > 0 && !dataHook.error,
-  }), [
-    dataHook.followers.length, 
-    dataHook.isLoading,
-    dataHook.error,
-    state.count,
-    state.isLoading,
-    followerCount,
-    state.isInitialized
-  ]);
+  // Simple calculations - no memoization needed
+  const currentFollowerCount = state.count || followerCount;
+  const hasError = !!dataHook.error;
+  const isEmpty = !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0;
+  const shouldShowLoadingSpinner = (state.isLoading || dataHook.isLoading) && !state.isInitialized;
+  const shouldShowErrorState = !!dataHook.error;
+  const shouldShowEmptyState = !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followers.length === 0;
+  const shouldShowVirtualizedList = state.isInitialized && dataHook.followers.length > 0 && !dataHook.error;
 
-  // Memoized accessibility announcement
-  const accessibilityAnnouncement = useMemo(() => {
-    return computedValues.followerCount === 0 
-      ? "Followers list opened. No followers yet."
-      : `Followers list opened. Showing ${computedValues.followerCount} ${computedValues.followerCount === 1 ? 'follower' : 'followers'}.`;
-  }, [computedValues.followerCount]);
+  // Simple calculations - no memoization needed (React best practice)
+  const accessibilityAnnouncement = currentFollowerCount === 0 
+    ? "Followers list opened. No followers yet."
+    : `Followers list opened. Showing ${currentFollowerCount} ${currentFollowerCount === 1 ? 'follower' : 'followers'}.`;
+
+  const triggerAriaLabel = `View followers. ${currentFollowerCount} ${currentFollowerCount === 1 ? 'follower' : 'followers'}`;
 
   // Handle drawer state changes with accessibility
   const handleOpenChange = useCallback((open: boolean) => {
@@ -257,31 +245,37 @@ export function FollowerCount({
       }
       
       if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-        const announcer = document.createElement('div');
-        announcer.setAttribute('aria-live', 'polite');
-        announcer.setAttribute('aria-atomic', 'true');
-        announcer.className = 'sr-only';
-        announcer.textContent = accessibilityAnnouncement;
-        document.body.appendChild(announcer);
-        
         announcementTimeoutRef.current = setTimeout(() => {
-          if (document.body.contains(announcer)) {
-            document.body.removeChild(announcer);
+          try {
+            const announcer = document.createElement('div');
+            announcer.setAttribute('aria-live', 'polite');
+            announcer.setAttribute('aria-atomic', 'true');
+            announcer.className = 'sr-only';
+            announcer.textContent = accessibilityAnnouncement;
+            document.body.appendChild(announcer);
+            
+            // Safe cleanup with error handling
+            setTimeout(() => {
+              try {
+                if (document.body.contains(announcer)) {
+                  document.body.removeChild(announcer);
+                }
+              } catch (e) {
+                // Silently handle cleanup errors
+              }
+              announcementTimeoutRef.current = null;
+            }, 1000);
+          } catch (e) {
+            // Silently handle DOM creation errors
+            announcementTimeoutRef.current = null;
           }
-          announcementTimeoutRef.current = null;
-        }, 1000);
+        }, 150);
       }
     }
   }, [dataHook, accessibilityAnnouncement, state.isInitialized]);
 
-  // Memoized aria label for trigger button
-  const triggerAriaLabel = useMemo(() => 
-    `View followers. ${computedValues.followerCount} ${computedValues.followerCount === 1 ? 'follower' : 'followers'}`,
-    [computedValues.followerCount]
-  );
-
-  // Stable item renderer for Virtuoso - fixed dependencies
-  const itemContent = useCallback((index: number, follower: FollowersListUserData) => {
+  // Simple item renderer - dependencies are stable, no memoization needed
+  const itemContent = (index: number, follower: FollowersListUserData) => {
     // Get friendship status from the optimized query data
     const friendshipStatus = state.friendshipStates[follower.userId.toString()] || null;
     
@@ -297,10 +291,10 @@ export function FollowerCount({
         onFriendshipStatusChange={dataHook.updateFriendshipStatus}
       />
     );
-  }, [state.followers.length, state.friendshipStates, isAuthenticated, dataHook.updateFriendshipStatus]);
+  };
 
-  // Stable Footer component - extracted to prevent re-creation
-  const FooterComponent = useMemo(() => {
+  // Simple components - no memoization needed for basic JSX
+  const FooterComponent = (() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
       const LoadingFooter = () => (
@@ -308,25 +302,19 @@ export function FollowerCount({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       );
-      LoadingFooter.displayName = 'FollowersListLoadingFooter';
+      LoadingFooter.displayName = 'LoadingFooter';
       return LoadingFooter;
     }
-    
     return undefined;
-  }, [virtualizationHook.footerComponent]);
+  })();
 
-  // Stable EmptyPlaceholder component
-  const EmptyPlaceholderComponent = useMemo(() => {
-    const EmptyPlaceholder = () => (
-      <div className="flex items-center justify-center py-8">
-        <span className="text-sm text-muted-foreground">No followers to display</span>
-      </div>
-    );
-    EmptyPlaceholder.displayName = 'FollowersListEmptyPlaceholder';
-    return EmptyPlaceholder;
-  }, []);
+  const EmptyPlaceholderComponent = () => (
+    <div className="flex items-center justify-center py-8">
+      <span className="text-sm text-muted-foreground">No followers to display</span>
+    </div>
+  );
 
-  // Stable components object for Virtuoso
+  // Only memoize the components object since it's passed to Virtuoso
   const virtuosoComponents = useMemo(() => {
     const components: any = {
       EmptyPlaceholder: EmptyPlaceholderComponent,
@@ -337,17 +325,14 @@ export function FollowerCount({
     }
     
     return components;
-  }, [FooterComponent, EmptyPlaceholderComponent]);
+  }, [FooterComponent]);
 
   return (
     <FollowersListErrorBoundary
       enableRecovery={true}
       maxRetries={3}
       onError={(error, errorInfo) => {
-        // Log error in development
-        if (process.env.NODE_ENV === 'development') {
-          console.error('FollowerCount Error:', error, errorInfo);
-        }
+        // Error handled by error boundary
       }}
     >
       <div className="max-w-4xl text-sm flex items-center gap-4">
@@ -358,8 +343,8 @@ export function FollowerCount({
             className="flex items-center h-auto p-0 hover:bg-transparent group focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
             aria-label={triggerAriaLabel}
           >
-            <span className="leading-none font-medium mr-[-3px]">{computedValues.followerCount}</span>{' '}
-            <span className="leading-none font-medium">{computedValues.followerCount === 1 ? 'Follower' : 'Followers'}</span>
+            <span className="leading-none font-medium mr-[-3px]">{currentFollowerCount}</span>{' '}
+            <span className="leading-none font-medium">{currentFollowerCount === 1 ? 'Follower' : 'Followers'}</span>
           </Button>
         </DrawerTrigger>
         
@@ -375,20 +360,20 @@ export function FollowerCount({
           
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden" role="main">
-            {computedValues.shouldShowLoadingSpinner ? (
+            {shouldShowLoadingSpinner ? (
               <DrawerLoadingSkeleton />
-            ) : computedValues.shouldShowErrorState ? (
+            ) : shouldShowErrorState ? (
               <FollowersListEmptyState
                 variant="error"
                 onRetry={() => dataHook.refreshFollowers()}
                 className="h-full"
               />
-            ) : computedValues.shouldShowEmptyState ? (
+            ) : shouldShowEmptyState ? (
               <FollowersListEmptyState
                 variant="default"
                 className="h-full"
               />
-            ) : computedValues.shouldShowVirtualizedList ? (
+            ) : shouldShowVirtualizedList ? (
               <Virtuoso
                 data={state.followers}
                 itemContent={itemContent}

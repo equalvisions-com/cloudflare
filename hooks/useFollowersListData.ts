@@ -6,20 +6,12 @@ import type {
   FollowersListState,
   FollowersListAction,
   FollowersListUserData,
+  UseFollowersListDataProps,
+  FollowersListError,
 } from '@/lib/types';
+import { FollowersListErrorType } from '@/lib/types';
 
-interface UseFollowersListDataProps {
-  postId: Id<"posts">;
-  state: FollowersListState;
-  dispatch: React.Dispatch<FollowersListAction>;
-}
 
-interface FollowersListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
 
 export function useFollowersListData({
   postId,
@@ -38,6 +30,15 @@ export function useFollowersListData({
     state.isOpen && !state.isInitialized ? { 
       postId,
       limit: 30 
+    } : "skip"
+  );
+
+  // Reactive query for real-time friendship status updates
+  const followersFriendshipQuery = useQuery(
+    api.following.getFollowersFriendshipStates,
+    state.isOpen && state.isInitialized ? { 
+      postId,
+      userIds: state.followers.map(f => f.userId)
     } : "skip"
   );
 
@@ -91,16 +92,35 @@ export function useFollowersListData({
     }
   }, [followersQuery, state.isOpen, state.isInitialized, dispatch]);
 
+  // Handle real-time friendship status updates during render (React best practice)
+  // Update state during render when followersFriendshipQuery changes
+  if (state.isOpen && state.isInitialized && followersFriendshipQuery !== undefined && followersFriendshipQuery !== null) {
+    // Check if any friendship status has changed and update during render
+    Object.entries(followersFriendshipQuery).forEach(([userIdStr, newFriendshipStatus]) => {
+      const userId = userIdStr as Id<"users">;
+      const currentFriendshipStatus = state.friendshipStates[userIdStr];
+      
+      // Only update if the status has actually changed
+      if (JSON.stringify(currentFriendshipStatus) !== JSON.stringify(newFriendshipStatus)) {
+        // Update state during render - React will re-render immediately
+        dispatch({
+          type: 'UPDATE_FRIENDSHIP_STATE',
+          payload: { userId, friendshipStatus: newFriendshipStatus },
+        });
+      }
+    });
+  }
+
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FollowersListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FollowersListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FollowersListErrorType.NETWORK_ERROR, FollowersListErrorType.LOAD_MORE_ERROR, FollowersListErrorType.SERVER_ERROR].includes(type),
     context: {
       postId: postId.toString(),
       timestamp: Date.now(),
@@ -138,7 +158,7 @@ export function useFollowersListData({
 
       if (!result) {
         throw createError(
-          'NETWORK_ERROR',
+          FollowersListErrorType.NETWORK_ERROR,
           'No data returned from Convex',
           new Error('Empty response'),
           { queryArgs }
@@ -148,7 +168,7 @@ export function useFollowersListData({
       // Validate response structure
       if (!result || typeof result !== 'object') {
         throw createError(
-          'VALIDATION_ERROR',
+          FollowersListErrorType.VALIDATION_ERROR,
           'Invalid response format',
           new Error('Invalid response structure'),
           { responseType: typeof result }
@@ -200,7 +220,7 @@ export function useFollowersListData({
 
       // Create new error for unknown errors
       throw createError(
-        'UNKNOWN_ERROR',
+        FollowersListErrorType.UNKNOWN_ERROR,
         error instanceof Error ? error.message : 'An unknown error occurred',
         error instanceof Error ? error : new Error(String(error)),
         { retryCount }

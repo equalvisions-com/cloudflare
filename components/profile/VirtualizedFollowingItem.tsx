@@ -269,53 +269,50 @@ export const VirtualizedFollowingItem = memo(({
 
   return (
     <div 
-      className="flex items-center justify-between gap-3 p-4 border-b border-border"
-      style={{ height: '80px' }} // Fixed height for virtualization
+      className="flex items-center justify-between gap-3 p-4 border-b border-border min-h-[80px] hover:bg-muted/30 transition-colors duration-200"
       role="listitem"
       aria-label={`Following: ${item.post.title}`}
     >
+      {/* Left side - Post info (entire area clickable like FriendsList) */}
       <Link
         href={linkHref}
-        className="flex-shrink-0 h-12 w-12 rounded-md bg-muted overflow-hidden relative"
+        className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none p-1 -m-1"
         onClick={handleLinkClick}
         aria-label={`View ${item.post.title}`}
       >
-        <AspectRatio ratio={1}>
-          {item.post.featuredImg && imageProps ? (
-            <Image
-              {...imageProps}
-            />
-          ) : (
-            <div className="h-full w-full bg-muted flex items-center justify-center">
-              <span className="text-xs text-muted-foreground">
-                {item.post.title.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
-        </AspectRatio>
-      </Link>
-      
-      <div className="flex flex-col flex-1 min-w-0">
-        <Link
-          href={linkHref}
-          onClick={handleLinkClick}
-          className="hover:underline focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
-        >
-          <div className="text-sm font-bold overflow-anywhere line-clamp-2">
+        <div className="flex-shrink-0 h-12 w-12 rounded-md bg-muted overflow-hidden relative">
+          <AspectRatio ratio={1}>
+            {item.post.featuredImg && imageProps ? (
+              <Image
+                {...imageProps}
+              />
+            ) : (
+              <div className="h-full w-full bg-muted flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">
+                  {item.post.title.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+          </AspectRatio>
+        </div>
+        
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="text-sm font-bold overflow-anywhere line-clamp-2 text-foreground">
             {item.post.title}
             {item.post.verified && (
               <VerifiedBadge className="inline-block align-text-middle ml-0.5 h-3.5 w-3.5" />
             )}
           </div>
-        </Link>
-        
-        {/* Media type indicator */}
-        <div className="text-xs text-muted-foreground mt-1 capitalize">
-          {item.post.mediaType}
+          
+          {/* Media type indicator */}
+          <div className="text-xs text-muted-foreground mt-1 capitalize">
+            {item.post.mediaType}
+          </div>
         </div>
-      </div>
+      </Link>
       
-      <div className="flex-shrink-0">
+      {/* Right side - Action button */}
+      <div className="flex-shrink-0" role="group" aria-label="Follow actions">
         <Button
           variant={displayState === 'following' ? "ghost" : "default"}
           onClick={handleButtonClick}

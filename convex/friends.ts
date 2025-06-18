@@ -264,7 +264,7 @@ export const getFriendsByUsername = query({
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { username, status, limit = 30, cursor } = args;
+    const { username, status = "accepted", limit = 30, cursor } = args;
     
     // Get the user by username using the by_username index
     const user = await ctx.db
@@ -293,13 +293,9 @@ export const getFriendsByUsername = query({
       // Get friendships where the user is the requester
       let sentQuery = ctx.db
         .query("friends")
-        .withIndex("by_requester_time", q => q.eq("requesterId", userId));
+        .withIndex("by_requester_time", q => q.eq("requesterId", userId))
+        .filter(q => q.eq(q.field("status"), status)); // Filter by status (defaults to "accepted")
         
-      // Apply status filter if provided
-      if (status) {
-        sentQuery = sentQuery.filter(q => q.eq(q.field("status"), status));
-      }
-      
       // Take half the limit for sent friendships
       const halfLimit = Math.ceil(limit / 2);
       const sentFriendships = await sentQuery.take(halfLimit);
@@ -314,13 +310,9 @@ export const getFriendsByUsername = query({
       // Get friendships where the user is the requestee
       let receivedQuery = ctx.db
         .query("friends")
-        .withIndex("by_requestee_time", q => q.eq("requesteeId", userId));
+        .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
+        .filter(q => q.eq(q.field("status"), status)); // Filter by status (defaults to "accepted")
         
-      // Apply status filter if provided
-      if (status) {
-        receivedQuery = receivedQuery.filter(q => q.eq(q.field("status"), status));
-      }
-      
       // Take remaining limit for received friendships
       const receivedLimit = Math.max(limit - sentFriendships.length + 1, 1); // +1 to check for more
       const receivedFriendships = await receivedQuery.take(receivedLimit);
@@ -371,13 +363,9 @@ export const getFriendsByUsername = query({
       // Get friendships where the user is the requester, using timestamp for pagination
       let query = ctx.db
         .query("friends")
-        .withIndex("by_requester_time", q => q.eq("requesterId", userId));
+        .withIndex("by_requester_time", q => q.eq("requesterId", userId))
+        .filter(q => q.eq(q.field("status"), status)); // Filter by status (defaults to "accepted")
         
-      // Apply status filter if provided
-      if (status) {
-        query = query.filter(q => q.eq(q.field("status"), status));
-      }
-      
       // Apply cursor if provided
       if (cursorObj.lastTimestamp) {
         query = query.filter(q => q.gt(q.field("createdAt"), cursorObj.lastTimestamp));
@@ -416,13 +404,9 @@ export const getFriendsByUsername = query({
       // Get friendships where the user is the requestee, using timestamp for pagination
       let query = ctx.db
         .query("friends")
-        .withIndex("by_requestee_time", q => q.eq("requesteeId", userId));
+        .withIndex("by_requestee_time", q => q.eq("requesteeId", userId))
+        .filter(q => q.eq(q.field("status"), status)); // Filter by status (defaults to "accepted")
         
-      // Apply status filter if provided
-      if (status) {
-        query = query.filter(q => q.eq(q.field("status"), status));
-      }
-      
       // Apply cursor if provided
       if (cursorObj.lastTimestamp) {
         query = query.filter(q => q.gt(q.field("createdAt"), cursorObj.lastTimestamp));
@@ -577,6 +561,17 @@ export const sendFriendRequest = mutation({
           status: "accepted",
           updatedAt: Date.now(),
         });
+      } else if (receivedRequest.status === "cancelled") {
+        // If it's cancelled, reactivate it by updating the existing record
+        // We need to flip the direction since the requester/requestee are reversed
+        return ctx.db.patch(receivedRequest._id, {
+          requesterId,
+          requesteeId,
+          status: "pending",
+          updatedAt: Date.now(),
+        });
+      } else if (receivedRequest.status === "accepted") {
+        throw new Error("You are already friends with this user");
       } else {
         throw new Error("Friendship already exists");
       }
@@ -1112,5 +1107,38 @@ export const getFriendsCountForSSR = query({
       .collect();
       
     return friendships.length;
+  },
+});
+
+// Get real-time friendship status updates for a list of friendship IDs
+export const getFriendsStatusByUsername = query({
+  args: {
+    username: v.string(),
+    friendIds: v.array(v.id("friends")),
+  },
+  handler: async (ctx, args) => {
+    const { username, friendIds } = args;
+    
+    if (friendIds.length === 0) {
+      return {};
+    }
+    
+    // Get all friendships by their IDs
+    const friendships = await Promise.all(
+      friendIds.map(async (friendId) => {
+        const friendship = await ctx.db.get(friendId);
+        return friendship;
+      })
+    );
+    
+    // Return a map of friendship ID to current status
+    const statusMap: Record<string, string> = {};
+    friendships.forEach((friendship) => {
+      if (friendship) {
+        statusMap[friendship._id] = friendship.status;
+      }
+    });
+    
+    return statusMap;
   },
 });

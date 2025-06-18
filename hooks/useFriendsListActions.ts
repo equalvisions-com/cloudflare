@@ -3,21 +3,10 @@ import { Id } from '@/convex/_generated/dataModel';
 import type {
   FriendsListState,
   FriendsListAction,
+  UseFriendsListActionsProps,
+  FriendsListError,
 } from '@/lib/types';
-
-interface UseFriendsListActionsProps {
-  state: FriendsListState;
-  dispatch: React.Dispatch<FriendsListAction>;
-  loadMoreFriends: () => Promise<void>;
-  refreshFriends: () => Promise<void>;
-}
-
-interface FriendsListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
+import { FriendsListErrorType } from '@/lib/types';
 
 export function useFriendsListActions({
   state,
@@ -30,14 +19,14 @@ export function useFriendsListActions({
   
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FriendsListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FriendsListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FriendsListErrorType.NETWORK_ERROR, FriendsListErrorType.LOAD_MORE_ERROR, FriendsListErrorType.SERVER_ERROR].includes(type),
     context: {
       timestamp: Date.now(),
       ...context,
@@ -57,7 +46,7 @@ export function useFriendsListActions({
       await loadMoreFriends();
     } catch (error) {
       const friendsError = createError(
-        'LOAD_MORE_ERROR',
+        FriendsListErrorType.LOAD_MORE_ERROR,
         error instanceof Error ? error.message : 'Failed to load more friends',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -66,11 +55,6 @@ export function useFriendsListActions({
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: friendsError.message 
-      });
-
-      console.error('Load more friends error:', {
-        error: friendsError,
-        context: friendsError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -90,7 +74,7 @@ export function useFriendsListActions({
       await refreshFriends();
     } catch (error) {
       const friendsError = createError(
-        'REFRESH_ERROR',
+        FriendsListErrorType.REFRESH_ERROR,
         error instanceof Error ? error.message : 'Failed to refresh friends',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -99,11 +83,6 @@ export function useFriendsListActions({
       dispatch({ 
         type: 'SET_ERROR', 
         payload: friendsError.message 
-      });
-
-      console.error('Refresh friends error:', {
-        error: friendsError,
-        context: friendsError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -116,7 +95,7 @@ export function useFriendsListActions({
     context?: Record<string, unknown>
   ): void => {
     const friendsError = createError(
-      'GENERAL_ERROR',
+      FriendsListErrorType.GENERAL_ERROR,
       error.message || 'An unexpected error occurred',
       error,
       context
@@ -125,11 +104,6 @@ export function useFriendsListActions({
     dispatch({ 
       type: 'SET_ERROR', 
       payload: friendsError.message 
-    });
-
-    console.error('Friends list error:', {
-      error: friendsError,
-      context: friendsError.context,
     });
   }, [createError, dispatch]);
   

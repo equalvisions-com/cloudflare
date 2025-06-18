@@ -3,21 +3,10 @@ import { Id } from '@/convex/_generated/dataModel';
 import type {
   FollowersListState,
   FollowersListAction,
+  UseFollowersListActionsProps,
+  FollowersListError,
 } from '@/lib/types';
-
-interface UseFollowersListActionsProps {
-  state: FollowersListState;
-  dispatch: React.Dispatch<FollowersListAction>;
-  loadMoreFollowers: () => Promise<void>;
-  refreshFollowers: () => Promise<void>;
-}
-
-interface FollowersListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
+import { FollowersListErrorType } from '@/lib/types';
 
 export function useFollowersListActions({
   state,
@@ -30,14 +19,14 @@ export function useFollowersListActions({
 
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FollowersListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FollowersListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FollowersListErrorType.NETWORK_ERROR, FollowersListErrorType.LOAD_MORE_ERROR, FollowersListErrorType.SERVER_ERROR].includes(type),
     context: {
       timestamp: Date.now(),
       ...context,
@@ -57,7 +46,7 @@ export function useFollowersListActions({
       await loadMoreFollowers();
     } catch (error) {
       const followersError = createError(
-        'LOAD_MORE_ERROR',
+        FollowersListErrorType.LOAD_MORE_ERROR,
         error instanceof Error ? error.message : 'Failed to load more followers',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -66,11 +55,6 @@ export function useFollowersListActions({
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: followersError.message 
-      });
-
-      console.error('Load more followers error:', {
-        error: followersError,
-        context: followersError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -90,7 +74,7 @@ export function useFollowersListActions({
       await refreshFollowers();
     } catch (error) {
       const followersError = createError(
-        'REFRESH_ERROR',
+        FollowersListErrorType.REFRESH_ERROR,
         error instanceof Error ? error.message : 'Failed to refresh followers',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -99,11 +83,6 @@ export function useFollowersListActions({
       dispatch({ 
         type: 'SET_ERROR', 
         payload: followersError.message 
-      });
-
-      console.error('Refresh followers error:', {
-        error: followersError,
-        context: followersError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -116,7 +95,7 @@ export function useFollowersListActions({
     context?: Record<string, unknown>
   ): void => {
     const followersError = createError(
-      'GENERAL_ERROR',
+      FollowersListErrorType.GENERAL_ERROR,
       error.message || 'An unexpected error occurred',
       error,
       context
@@ -125,11 +104,6 @@ export function useFollowersListActions({
     dispatch({ 
       type: 'SET_ERROR', 
       payload: followersError.message 
-    });
-
-    console.error('Followers list error:', {
-      error: followersError,
-      context: followersError.context,
     });
   }, [createError, dispatch]);
 

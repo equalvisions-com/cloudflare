@@ -275,6 +275,8 @@ export class FollowingListErrorBoundary extends Component<
       TIMEOUT_ERROR: 'Request Timeout',
       PERMISSION_DENIED: 'Permission Denied',
       CIRCUIT_BREAKER_OPEN: 'Service Unavailable',
+      REFRESH_ERROR: 'Refresh Error',
+      GENERAL_ERROR: 'General Error',
     };
     return titles[errorType] || 'Error';
   }
@@ -296,6 +298,8 @@ export class FollowingListErrorBoundary extends Component<
       TIMEOUT_ERROR: 'Request timed out. Please try again.',
       PERMISSION_DENIED: 'You do not have permission to perform this action.',
       CIRCUIT_BREAKER_OPEN: 'Service is temporarily unavailable. Please try again later.',
+      REFRESH_ERROR: 'Failed to refresh the following list. Please try again.',
+      GENERAL_ERROR: 'An error occurred. Please try again.',
     };
     return messages[error.type] || error.message;
   }

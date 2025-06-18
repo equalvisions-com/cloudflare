@@ -879,3 +879,81 @@ export const getFollowersCountForSSR = query({
     return count;
   },
 });
+
+// Get real-time friendship status updates for a list of user IDs (for followers)
+export const getFollowersFriendshipStates = query({
+  args: {
+    postId: v.id("posts"),
+    userIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const { postId, userIds } = args;
+    
+    if (userIds.length === 0) {
+      return {};
+    }
+    
+    // Get current authenticated user
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) {
+      return {};
+    }
+    
+    // Get current user's friendship states for these users
+    const friendships = await ctx.db
+      .query("friends")
+      .withIndex("by_users")
+      .filter(q =>
+        q.or(
+          ...userIds.flatMap(userId => [
+            q.and(
+              q.eq(q.field("requesterId"), currentUserId),
+              q.eq(q.field("requesteeId"), userId)
+            ),
+            q.and(
+              q.eq(q.field("requesterId"), userId),
+              q.eq(q.field("requesteeId"), currentUserId)
+            )
+          ])
+        )
+      )
+      .collect();
+    
+    // Create friendship state map
+    const friendshipStates: { [key: string]: any } = {};
+    userIds.forEach(userId => {
+      const userIdStr = userId.toString();
+      
+      // Check if viewing own profile
+      if (currentUserId.toString() === userIdStr) {
+        friendshipStates[userIdStr] = { status: "self" };
+        return;
+      }
+      
+      // Find friendship record
+      const friendship = friendships.find(f => 
+        (f.requesterId.toString() === currentUserId.toString() && f.requesteeId.toString() === userIdStr) ||
+        (f.requesterId.toString() === userIdStr && f.requesteeId.toString() === currentUserId.toString())
+      );
+      
+      if (friendship) {
+        const isSender = friendship.requesterId.toString() === currentUserId.toString();
+        friendshipStates[userIdStr] = {
+          exists: true,
+          status: friendship.status,
+          direction: isSender ? "sent" : "received",
+          friendshipId: friendship._id
+        };
+      } else {
+        friendshipStates[userIdStr] = {
+          exists: false,
+          status: null,
+          direction: null,
+          friendshipId: null
+        };
+      }
+    });
+    
+    return friendshipStates;
+  },
+});

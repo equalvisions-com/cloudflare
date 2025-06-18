@@ -9,15 +9,8 @@ import type {
   FollowingListAction,
   FollowingListVirtualizationConfig,
   UseFollowingListVirtualizationReturn,
+  UseFollowingListVirtualizationProps,
 } from "@/lib/types";
-
-// Props interface for the virtualization hook
-interface UseFollowingListVirtualizationProps {
-  state: FollowingListState;
-  dispatch: React.Dispatch<FollowingListAction>;
-  loadMoreFollowing: () => Promise<void>;
-  config?: Partial<FollowingListVirtualizationConfig>;
-}
 
 const DEFAULT_CONFIG: FollowingListVirtualizationConfig = {
   itemHeight: 80,
@@ -89,9 +82,9 @@ export function useFollowingListVirtualization({
       loadingRef.current = true;
       try {
         await loadMoreFollowing();
-      } catch (error) {
-        console.error('Virtualized load more failed:', error);
-      } finally {
+              } catch (error) {
+          // Error handled by error boundary
+        } finally {
         loadingRef.current = false;
       }
     }, mergedConfig.debounceMs);

@@ -6,14 +6,8 @@ import type {
   FriendsListFriendWithProfile,
   UseFriendsListVirtualizationReturn,
   FriendsListVirtualizationConfig,
+  UseFriendsListVirtualizationProps,
 } from '@/lib/types';
-
-interface UseFriendsListVirtualizationProps {
-  state: FriendsListState;
-  dispatch: React.Dispatch<FriendsListAction>;
-  loadMoreFriends: () => Promise<void>;
-  config?: Partial<FriendsListVirtualizationConfig>;
-}
 
 const DEFAULT_CONFIG: FriendsListVirtualizationConfig = {
   itemHeight: 80, // Height of each friend item
@@ -80,9 +74,9 @@ export const useFriendsListVirtualization = ({
       loadingRef.current = true;
       try {
         await loadMoreFriends();
-      } catch (error) {
-        console.error('Virtualized load more failed:', error);
-      } finally {
+              } catch (error) {
+          // Error handled by error boundary
+        } finally {
         loadingRef.current = false;
       }
     }, mergedConfig.debounceMs);

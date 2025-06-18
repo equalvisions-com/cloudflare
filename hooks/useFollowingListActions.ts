@@ -3,21 +3,10 @@ import { Id } from '@/convex/_generated/dataModel';
 import type {
   FollowingListState,
   FollowingListAction,
+  UseFollowingListActionsProps,
+  FollowingListError,
 } from '@/lib/types';
-
-interface UseFollowingListActionsProps {
-  state: FollowingListState;
-  dispatch: React.Dispatch<FollowingListAction>;
-  loadMoreFollowing: () => Promise<void>;
-  refreshFollowing: () => Promise<void>;
-}
-
-interface FollowingListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
+import { FollowingListErrorType } from '@/lib/types';
 
 export function useFollowingListActions({
   state,
@@ -31,14 +20,14 @@ export function useFollowingListActions({
 
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FollowingListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FollowingListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FollowingListErrorType.NETWORK_ERROR, FollowingListErrorType.LOAD_MORE_ERROR, FollowingListErrorType.SERVER_ERROR].includes(type),
     context: {
       timestamp: Date.now(),
       ...context,
@@ -58,7 +47,7 @@ export function useFollowingListActions({
       await loadMoreFollowing();
     } catch (error) {
       const followingError = createError(
-        'LOAD_MORE_ERROR',
+        FollowingListErrorType.LOAD_MORE_ERROR,
         error instanceof Error ? error.message : 'Failed to load more following',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -67,11 +56,6 @@ export function useFollowingListActions({
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: followingError.message 
-      });
-
-      console.error('Load more following error:', {
-        error: followingError,
-        context: followingError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -91,7 +75,7 @@ export function useFollowingListActions({
       await refreshFollowing();
     } catch (error) {
       const followingError = createError(
-        'REFRESH_ERROR',
+        FollowingListErrorType.REFRESH_ERROR,
         error instanceof Error ? error.message : 'Failed to refresh following',
         error instanceof Error ? error : new Error(String(error)),
         { operation: operationKey }
@@ -100,11 +84,6 @@ export function useFollowingListActions({
       dispatch({ 
         type: 'SET_ERROR', 
         payload: followingError.message 
-      });
-
-      console.error('Refresh following error:', {
-        error: followingError,
-        context: followingError.context,
       });
     } finally {
       pendingOperationsRef.current.delete(operationKey);
@@ -117,7 +96,7 @@ export function useFollowingListActions({
     context?: Record<string, unknown>
   ): void => {
     const followingError = createError(
-      'GENERAL_ERROR',
+      FollowingListErrorType.GENERAL_ERROR,
       error.message || 'An unexpected error occurred',
       error,
       context
@@ -126,11 +105,6 @@ export function useFollowingListActions({
     dispatch({ 
       type: 'SET_ERROR', 
       payload: followingError.message 
-    });
-
-    console.error('Following list error:', {
-      error: followingError,
-      context: followingError.context,
     });
   }, [createError, dispatch]);
 

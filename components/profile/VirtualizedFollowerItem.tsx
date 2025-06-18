@@ -273,11 +273,11 @@ export const VirtualizedFollowerItem = memo<VirtualizedFollowerItemProps>((props
           />
         </div>
         
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate text-foreground">
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="text-sm font-bold overflow-anywhere line-clamp-2 text-foreground">
             {computedValues.displayName}
           </div>
-          <div className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground truncate mt-1">
             @{computedValues.username}
           </div>
         </div>

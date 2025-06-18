@@ -230,36 +230,19 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     },
   });
 
-  // Memoized computed values with optimized dependencies
-  const computedValues = useMemo(() => ({
-    followingCount: state.count,
-    hasError: !!dataHook.error,
-    isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
-    isInitialLoading: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
-    // Show skeleton during initial load only (follow status now comes with main query)
-    shouldShowLoadingSpinner: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
-    shouldShowErrorState: !!dataHook.error,
-    shouldShowEmptyState: !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
-    // Show content when we have following data (follow status is included in the optimized query)
-    shouldShowVirtualizedList: state.isInitialized && 
-                               dataHook.followingItems.length > 0 && 
-                               !dataHook.error,
-  }), [
-    dataHook.followingItems.length, 
-    dataHook.isLoading,
-    dataHook.error,
-    state.count, 
-    state.isInitialized,
-    state.isLoading,
-    state.isOpen
-  ]);
+  // Simple calculations - no memoization needed
+  const followingCount = state.count;
+  const hasError = !!dataHook.error;
+  const isEmpty = !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0;
+  const shouldShowLoadingSpinner = (state.isLoading || dataHook.isLoading) && !state.isInitialized;
+  const shouldShowErrorState = !!dataHook.error;
+  const shouldShowEmptyState = !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followingItems.length === 0;
+  const shouldShowVirtualizedList = state.isInitialized && dataHook.followingItems.length > 0 && !dataHook.error;
 
-  // Memoized accessibility announcement
-  const accessibilityAnnouncement = useMemo(() => {
-    return computedValues.followingCount === 0 
-      ? "Following list opened. Not following any content yet."
-      : `Following list opened. Showing ${computedValues.followingCount} followed ${computedValues.followingCount === 1 ? 'item' : 'items'}.`;
-  }, [computedValues.followingCount]);
+  // Simple calculations - no memoization needed (React best practice)
+  const accessibilityAnnouncement = followingCount === 0 
+    ? "Following list opened. Not following any content yet."
+    : `Following list opened. Showing ${followingCount} followed ${followingCount === 1 ? 'item' : 'items'}.`;
 
   // Handle drawer state changes with accessibility - optimized
   const handleOpenChange = useCallback((open: boolean) => {
@@ -275,32 +258,38 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         clearTimeout(announcementTimeoutRef.current);
       }
       
-      // Only run in browser environment
+      // Only run in browser environment with proper error handling
       if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-        // Create temporary announcement element
-        const announcer = document.createElement('div');
-        announcer.setAttribute('aria-live', 'polite');
-        announcer.setAttribute('aria-atomic', 'true');
-        announcer.className = 'sr-only';
-        announcer.textContent = accessibilityAnnouncement;
-        document.body.appendChild(announcer);
-        
-        // Clean up after announcement with proper timeout management
         announcementTimeoutRef.current = setTimeout(() => {
-          if (document.body.contains(announcer)) {
-            document.body.removeChild(announcer);
+          try {
+            const announcer = document.createElement('div');
+            announcer.setAttribute('aria-live', 'polite');
+            announcer.setAttribute('aria-atomic', 'true');
+            announcer.className = 'sr-only';
+            announcer.textContent = accessibilityAnnouncement;
+            document.body.appendChild(announcer);
+            
+            // Safe cleanup with error handling
+            setTimeout(() => {
+              try {
+                if (document.body.contains(announcer)) {
+                  document.body.removeChild(announcer);
+                }
+              } catch (e) {
+                // Silently handle cleanup errors
+              }
+              announcementTimeoutRef.current = null;
+            }, 1000);
+          } catch (e) {
+            // Silently handle DOM creation errors
+            announcementTimeoutRef.current = null;
           }
-          announcementTimeoutRef.current = null;
-        }, 1000);
+        }, 150);
       }
     }
   }, [dataHook, accessibilityAnnouncement]);
 
-  // Memoized aria label for trigger button
-  const triggerAriaLabel = useMemo(() => 
-    `View following list. Following ${computedValues.followingCount} ${computedValues.followingCount === 1 ? 'item' : 'items'}`,
-    [computedValues.followingCount]
-  );
+  const triggerAriaLabel = `View following list. Following ${followingCount} ${followingCount === 1 ? 'item' : 'items'}`;
 
   // Handle load more with error handling
   const handleLoadMore = useCallback(async () => {
@@ -329,8 +318,8 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     dispatch({ type: 'CLOSE_DRAWER' });
   }, []);
 
-  // Stable item renderer for Virtuoso - fixed dependencies  
-  const itemContent = useCallback((index: number, item: FollowingListFollowingWithPost) => {
+  // Simple item renderer - dependencies are stable, no memoization needed  
+  const itemContent = (index: number, item: FollowingListFollowingWithPost) => {
     // Add defensive check
     if (!item || !item.post) {
       // Invalid item data - render error placeholder
@@ -368,10 +357,10 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
         showIcon={false} // Keep icons disabled for cleaner Following list UI
       />
     );
-  }, [memoizedCloseDrawer, state.followStatusMap, dispatch, isAuthenticated]);
+  };
 
-  // Stable Footer component - extracted to prevent re-creation
-  const FooterComponent = useMemo(() => {
+  // Simple components - no memoization needed for basic JSX
+  const FooterComponent = (() => {
     const footer = virtualizationHook.footerComponent;
     if (footer?.type === 'loading') {
       const LoadingFooter = () => (
@@ -379,25 +368,19 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       );
-      LoadingFooter.displayName = 'FollowingListLoadingFooter';
+      LoadingFooter.displayName = 'LoadingFooter';
       return LoadingFooter;
     }
-    
     return undefined;
-  }, [virtualizationHook.footerComponent]);
+  })();
 
-  // Stable EmptyPlaceholder component
-  const EmptyPlaceholderComponent = useMemo(() => {
-    const EmptyPlaceholder = () => (
-      <div className="flex items-center justify-center py-8">
-        <span className="text-sm text-muted-foreground">No items to display</span>
-      </div>
-    );
-    EmptyPlaceholder.displayName = 'FollowingListEmptyPlaceholder';
-    return EmptyPlaceholder;
-  }, []);
+  const EmptyPlaceholderComponent = () => (
+    <div className="flex items-center justify-center py-8">
+      <span className="text-sm text-muted-foreground">No items to display</span>
+    </div>
+  );
 
-  // Stable components object for Virtuoso
+  // Only memoize when footer state actually changes (for Virtuoso performance)
   const virtuosoComponents = useMemo(() => {
     const components: any = {
       EmptyPlaceholder: EmptyPlaceholderComponent,
@@ -408,7 +391,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     }
     
     return components;
-  }, [FooterComponent, EmptyPlaceholderComponent]);
+  }, [FooterComponent]);
 
   return (
     <FollowingListErrorBoundary
@@ -425,7 +408,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
             className="p-0 h-auto text-sm flex items-center gap-1 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none hover:no-underline text-muted-foreground font-medium transition-colors duration-200 hover:text-foreground"
             aria-label={triggerAriaLabel}
           >
-            <span className="leading-none">{computedValues.followingCount}</span>
+            <span className="leading-none">{followingCount}</span>
             <span className="leading-none">Following</span>
           </Button>
         </DrawerTrigger>
@@ -442,15 +425,15 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
           
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden" role="main">
-            {computedValues.shouldShowLoadingSpinner ? (
+            {shouldShowLoadingSpinner ? (
               <FollowingListDrawerSkeleton count={6} />
-            ) : computedValues.shouldShowErrorState ? (
+            ) : shouldShowErrorState ? (
               <FollowingListEmptyState
                 variant="error"
                 onRetry={handleRefresh}
                 className="h-full"
               />
-            ) : computedValues.shouldShowEmptyState ? (
+            ) : shouldShowEmptyState ? (
               <FollowingListEmptyState
                 variant="default"
                 username={username}
@@ -461,7 +444,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                 }}
                 className="h-full"
               />
-            ) : computedValues.shouldShowVirtualizedList ? (
+            ) : shouldShowVirtualizedList ? (
               <Virtuoso
                 data={state.followingItems}
                 itemContent={itemContent}

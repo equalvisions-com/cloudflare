@@ -9,21 +9,10 @@ import type {
   FollowingListAction,
   FollowingListFollowingWithPost,
   ProfileFollowingData,
+  UseFollowingListDataProps,
+  FollowingListError,
 } from '@/lib/types';
-
-interface UseFollowingListDataProps {
-  username: string;
-  state: FollowingListState;
-  dispatch: React.Dispatch<FollowingListAction>;
-  initialFollowing?: ProfileFollowingData;
-}
-
-interface FollowingListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
+import { FollowingListErrorType } from '@/lib/types';
 
 export function useFollowingListData({
   username,
@@ -92,14 +81,14 @@ export function useFollowingListData({
 
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FollowingListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FollowingListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FollowingListErrorType.NETWORK_ERROR, FollowingListErrorType.LOAD_MORE_ERROR, FollowingListErrorType.SERVER_ERROR].includes(type),
     context: {
       username,
       timestamp: Date.now(),
@@ -137,7 +126,7 @@ export function useFollowingListData({
 
       if (!result) {
         throw createError(
-          'NETWORK_ERROR',
+          FollowingListErrorType.NETWORK_ERROR,
           'No data returned from Convex',
           new Error('Empty response'),
           { queryArgs }
@@ -147,7 +136,7 @@ export function useFollowingListData({
       // Validate response structure
       if (!result || typeof result !== 'object') {
         throw createError(
-          'VALIDATION_ERROR',
+          FollowingListErrorType.VALIDATION_ERROR,
           'Invalid response format',
           new Error('Invalid response structure'),
           { responseType: typeof result }
@@ -191,7 +180,7 @@ export function useFollowingListData({
 
       // Create new error for unknown errors
       throw createError(
-        'UNKNOWN_ERROR',
+        FollowingListErrorType.UNKNOWN_ERROR,
         error instanceof Error ? error.message : 'An unknown error occurred',
         error instanceof Error ? error : new Error(String(error)),
         { retryCount }
@@ -262,11 +251,6 @@ export function useFollowingListData({
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: errorMessage 
-      });
-
-      console.error('Load more following error:', {
-        error: followingError,
-        context: followingError.context,
       });
     }
   }, [state.hasMore, state.isLoading, state.cursor, username, makeConvexCall, dispatch]);

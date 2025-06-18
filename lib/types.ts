@@ -2641,7 +2641,6 @@ export interface FriendsListProfileData {
   username: string;
   name?: string;
   profileImage?: string;
-  bio?: string;
 }
 
 export interface FriendsListFriendWithProfile {
@@ -2709,6 +2708,28 @@ export interface FriendsListAPIResponse {
 }
 
 // FriendsList Custom Hook Return Types
+// Hook Props Interfaces
+export interface UseFriendsListDataProps {
+  username: string;
+  state: FriendsListState;
+  dispatch: React.Dispatch<FriendsListAction>;
+  initialFriends?: ProfileSocialData;
+}
+
+export interface UseFriendsListActionsProps {
+  state: FriendsListState;
+  dispatch: React.Dispatch<FriendsListAction>;
+  loadMoreFriends: () => Promise<void>;
+  refreshFriends: () => Promise<void>;
+}
+
+export interface UseFriendsListVirtualizationProps {
+  state: FriendsListState;
+  dispatch: React.Dispatch<FriendsListAction>;
+  loadMoreFriends: () => Promise<void>;
+  config?: Partial<FriendsListVirtualizationConfig>;
+}
+
 export interface UseFriendsListDataReturn {
   // State
   friends: FriendsListFriendWithProfile[];
@@ -2805,6 +2826,8 @@ export enum FriendsListErrorType {
   AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   NOT_FOUND_ERROR = 'NOT_FOUND_ERROR',
+  REFRESH_ERROR = 'REFRESH_ERROR',
+  GENERAL_ERROR = 'GENERAL_ERROR',
 }
 
 export interface FriendsListError {
@@ -2975,7 +2998,6 @@ export function convertToFriendsListFriend(friend: FriendWithProfile): FriendsLi
       username: friend.profile.username,
       name: friend.profile.name,
       profileImage: friend.profile.profileImage,
-      bio: friend.profile.bio,
     },
   };
 }
@@ -3076,6 +3098,28 @@ export interface FollowingListAPIResponse {
   hasMore: boolean;
   cursor: string | null;
   totalCount?: number;
+}
+
+// Hook Props Interfaces
+export interface UseFollowingListDataProps {
+  username: string;
+  state: FollowingListState;
+  dispatch: React.Dispatch<FollowingListAction>;
+  initialFollowing?: ProfileFollowingData;
+}
+
+export interface UseFollowingListActionsProps {
+  state: FollowingListState;
+  dispatch: React.Dispatch<FollowingListAction>;
+  loadMoreFollowing: () => Promise<void>;
+  refreshFollowing: () => Promise<void>;
+}
+
+export interface UseFollowingListVirtualizationProps {
+  state: FollowingListState;
+  dispatch: React.Dispatch<FollowingListAction>;
+  loadMoreFollowing: () => Promise<void>;
+  config?: Partial<FollowingListVirtualizationConfig>;
 }
 
 export interface UseFollowingListDataReturn {
@@ -3184,6 +3228,8 @@ export enum FollowingListErrorType {
   TIMEOUT_ERROR = 'TIMEOUT_ERROR',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
   CIRCUIT_BREAKER_OPEN = 'CIRCUIT_BREAKER_OPEN',
+  REFRESH_ERROR = 'REFRESH_ERROR',
+  GENERAL_ERROR = 'GENERAL_ERROR',
 }
 
 export interface FollowingListError {
@@ -3441,6 +3487,28 @@ export interface FollowersListAPIResponse {
   totalCount?: number;
 }
 
+// Hook Props Interfaces
+export interface UseFollowersListDataProps {
+  postId: Id<"posts">;
+  state: FollowersListState;
+  dispatch: React.Dispatch<FollowersListAction>;
+  initialData?: FollowersListInitialData;
+}
+
+export interface UseFollowersListActionsProps {
+  state: FollowersListState;
+  dispatch: React.Dispatch<FollowersListAction>;
+  loadMoreFollowers: () => Promise<void>;
+  refreshFollowers: () => Promise<void>;
+}
+
+export interface UseFollowersListVirtualizationProps {
+  state: FollowersListState;
+  dispatch: React.Dispatch<FollowersListAction>;
+  loadMoreFollowers: () => Promise<void>;
+  config?: Partial<FollowersListVirtualizationConfig>;
+}
+
 export interface UseFollowersListDataReturn {
   // State
   followers: FollowersListUserData[];
@@ -3516,6 +3584,8 @@ export enum FollowersListErrorType {
   AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   NOT_FOUND_ERROR = 'NOT_FOUND_ERROR',
+  REFRESH_ERROR = 'REFRESH_ERROR',
+  GENERAL_ERROR = 'GENERAL_ERROR',
 }
 
 export interface FollowersListError {

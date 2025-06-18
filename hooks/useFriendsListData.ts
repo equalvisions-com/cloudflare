@@ -7,21 +7,10 @@ import type {
   FriendsListAction,
   FriendsListFriendWithProfile,
   ProfileSocialData,
+  UseFriendsListDataProps,
+  FriendsListError,
 } from '@/lib/types';
-
-interface UseFriendsListDataProps {
-  username: string;
-  state: FriendsListState;
-  dispatch: React.Dispatch<FriendsListAction>;
-  initialFriends?: ProfileSocialData;
-}
-
-interface FriendsListError {
-  type: string;
-  message: string;
-  retryable: boolean;
-  context?: Record<string, unknown>;
-}
+import { FriendsListErrorType } from '@/lib/types';
 
 export function useFriendsListData({
   username,
@@ -34,12 +23,21 @@ export function useFriendsListData({
   const lastRequestIdRef = useRef<string>("");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Direct Convex query for initial friends data
+  // Reactive Convex query for friends data - only for initial load
   const friendsQuery = useQuery(
     api.friends.getFriendsByUsername,
     state.isOpen && !state.isInitialized ? { 
       username,
       limit: 30 
+    } : "skip"
+  );
+
+  // Reactive query for real-time friendship status updates
+  const friendsStatusQuery = useQuery(
+    api.friends.getFriendsStatusByUsername,
+    state.isOpen && state.isInitialized ? { 
+      username,
+      friendIds: state.friends.map(f => f.friendship._id)
     } : "skip"
   );
 
@@ -74,29 +72,33 @@ export function useFriendsListData({
     }
   }, [friendsQuery, state.isOpen, state.isInitialized, dispatch]);
 
-  // Get latest count when drawer is open
-  const latestCount = useQuery(
-    api.friends.getFriendCountByUsername,
-    state.isOpen ? { username, status: 'accepted' } : 'skip'
-  );
-  
-  // Update count when it changes
-  useEffect(() => {
-    if (latestCount !== undefined && latestCount !== null) {
-      dispatch({ type: 'SET_COUNT', payload: latestCount });
-    }
-  }, [latestCount, dispatch]);
+  // Handle real-time friendship status updates during render (React best practice)
+  // Update state during render when friendsStatusQuery changes
+  if (state.isOpen && state.isInitialized && friendsStatusQuery !== undefined && friendsStatusQuery !== null) {
+    // Check if any friendship status has changed and update during render
+    Object.entries(friendsStatusQuery).forEach(([friendshipIdStr, newStatus]) => {
+      const friendshipId = friendshipIdStr as Id<"friends">;
+      const currentFriend = state.friends.find(f => f.friendship._id === friendshipId);
+      if (currentFriend && currentFriend.friendship.status !== newStatus) {
+        // Update state during render - React will re-render immediately
+        dispatch({
+          type: 'UPDATE_FRIEND_STATUS',
+          payload: { friendshipId, newStatus },
+        });
+      }
+    });
+  }
 
   // Create error with context
   const createError = useCallback((
-    type: string,
+    type: FriendsListErrorType,
     message: string,
     originalError?: Error,
     context?: Record<string, unknown>
   ): FriendsListError => ({
     type,
     message,
-    retryable: ['NETWORK_ERROR', 'LOAD_MORE_ERROR', 'SERVER_ERROR'].includes(type),
+    retryable: [FriendsListErrorType.NETWORK_ERROR, FriendsListErrorType.LOAD_MORE_ERROR, FriendsListErrorType.SERVER_ERROR].includes(type),
     context: {
       username,
       timestamp: Date.now(),
@@ -134,7 +136,7 @@ export function useFriendsListData({
 
       if (!result) {
         throw createError(
-          'NETWORK_ERROR',
+          FriendsListErrorType.NETWORK_ERROR,
           'No data returned from Convex',
           new Error('Empty response'),
           { queryArgs }
@@ -144,7 +146,7 @@ export function useFriendsListData({
       // Validate response structure
       if (!result || typeof result !== 'object') {
         throw createError(
-          'VALIDATION_ERROR',
+          FriendsListErrorType.VALIDATION_ERROR,
           'Invalid response format',
           new Error('Invalid response structure'),
           { responseType: typeof result }
@@ -187,7 +189,7 @@ export function useFriendsListData({
 
       // Create new error for unknown errors
       throw createError(
-        'UNKNOWN_ERROR',
+        FriendsListErrorType.UNKNOWN_ERROR,
         error instanceof Error ? error.message : 'An unknown error occurred',
         error instanceof Error ? error : new Error(String(error)),
         { retryCount }
@@ -257,11 +259,6 @@ export function useFriendsListData({
       dispatch({ 
         type: 'LOAD_MORE_ERROR', 
         payload: errorMessage 
-      });
-
-      console.error('Load more friends error:', {
-        error: friendsError,
-        context: friendsError.context,
       });
     }
   }, [state.hasMore, state.isLoading, state.cursor, username, makeConvexCall, dispatch]);
