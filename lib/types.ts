@@ -3048,9 +3048,9 @@ export type FollowingListAction =
   | { type: 'CLOSE_DRAWER' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_COUNT'; payload: number }
-  | { type: 'INITIALIZE_FOLLOWING'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'INITIALIZE_FOLLOWING'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean; followStates?: Record<string, boolean> } }
   | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { followingItems: FollowingListFollowingWithPost[]; cursor: string | null; hasMore: boolean; followStates?: Record<string, boolean> } }
   | { type: 'LOAD_MORE_ERROR'; payload: string }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_FOLLOW_STATUS_LOADING'; payload: boolean }

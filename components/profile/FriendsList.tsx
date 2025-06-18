@@ -33,22 +33,20 @@ const createInitialState = (
   initialCount: number,
   initialFriends?: ProfileSocialData
 ): FriendsListState => {
-  let convertedFriends: FriendsListInitialData | undefined;
-  
-  if (initialFriends) {
-    convertedFriends = convertProfileSocialDataToFriendsListData(initialFriends);
-  }
+  // Don't initialize with data immediately - let the drawer opening trigger loading
+  // This ensures the skeleton shows even when we have initial data
   
   return {
     isOpen: false,
     isLoading: false,
-    friends: convertedFriends?.friends.filter((f): f is FriendsListFriendWithProfile => f !== null) || [],
+    friends: [], // Always start empty to show skeleton
     count: initialCount,
-    cursor: convertedFriends?.cursor || null,
-    hasMore: convertedFriends?.hasMore ?? false,
+    cursor: null, // Will be set when data loads
+    hasMore: false, // Will be set when data loads
     error: null,
     lastFetchTime: null,
-    isInitialized: !!convertedFriends,
+    // Always start as not initialized to show skeleton on first open
+    isInitialized: false,
   };
 };
 
@@ -56,7 +54,12 @@ const createInitialState = (
 const friendsListReducer = (state: FriendsListState, action: FriendsListAction): FriendsListState => {
   switch (action.type) {
     case 'OPEN_DRAWER':
-      return { ...state, isOpen: true };
+      return { 
+        ...state, 
+        isOpen: true,
+        // Set loading state if not already initialized to show skeleton
+        isLoading: !state.isInitialized ? true : state.isLoading
+      };
     
     case 'CLOSE_DRAWER':
       return { ...state, isOpen: false };
@@ -167,16 +170,21 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
     displayedFriends: virtualization.virtualizedFriends,
     friendCount: state.count,
     hasError: !!friendsData.error,
-    isEmpty: !state.isLoading && state.isInitialized && state.friends.length === 0,
-    isInitialLoading: state.isLoading && !state.isInitialized,
-    shouldShowLoadingSpinner: state.isLoading && !state.isInitialized,
+    isEmpty: !friendsData.isLoading && state.isInitialized && state.friends.length === 0,
+    isInitialLoading: (state.isLoading || friendsData.isLoading) && !state.isInitialized,
+    // Show skeleton during initial load (check both state.isLoading OR friendsData.isLoading)
+    shouldShowLoadingSpinner: (state.isLoading || friendsData.isLoading) && !state.isInitialized,
     shouldShowErrorState: !!friendsData.error,
-    shouldShowEmptyState: !state.isLoading && state.isInitialized && state.friends.length === 0,
-    shouldShowVirtualizedList: state.isInitialized && state.friends.length > 0 && !friendsData.error,
+    shouldShowEmptyState: !friendsData.isLoading && !state.isLoading && state.isInitialized && state.friends.length === 0,
+    // Show content when we have friends data and no errors
+    shouldShowVirtualizedList: state.isInitialized && 
+                               state.friends.length > 0 && 
+                               !friendsData.error,
   }), [
     virtualization.virtualizedFriends,
     state.count,
     friendsData.error,
+    friendsData.isLoading,
     state.isLoading,
     state.isInitialized,
     state.friends.length

@@ -347,6 +347,11 @@ export const getProfileImageUrl = action({
 });
 
 // Helper functions for the batch queries
+/**
+ * @deprecated This helper is no longer used in SSR for performance optimization.
+ * SSR now only fetches friends count. Actual friends data is fetched by the drawer
+ * using the optimized getFriendsByUsername query. Kept for backward compatibility.
+ */
 async function getFriendsWithProfiles(
   ctx: any, 
   userId: Id<"users">, 
@@ -522,70 +527,40 @@ export const getProfilePageData = query({
       }
     }
 
-    // Get friends with profiles - making sure to optimize the helper function
-    const friendsWithProfiles = await getFriendsWithProfiles(ctx, user._id, limit);
+    // Get friends count only - no need for profile data in SSR
+    // The drawer will fetch actual friends data when opened using the optimized query
+    const friendsCount = await ctx.db
+      .query("friends")
+      .withIndex("by_users")
+      .filter(q =>
+        q.and(
+          q.or(
+            q.eq(q.field("requesterId"), user._id),
+            q.eq(q.field("requesteeId"), user._id)
+          ),
+          q.eq(q.field("status"), "accepted")
+        )
+      )
+      .collect()
+      .then(records => records.length);
 
-    // Get following count using optimized count-only query
+    // Get following count only - no need for post data in SSR
+    // The drawer will fetch actual following data when opened using the optimized query
     const followingCount = await ctx.db
       .query("following")
       .withIndex("by_user", q => q.eq("userId", user._id))
       .collect()
       .then(records => records.length);
-    
-    // Get following data (limited)
-    const following = await ctx.db
-      .query("following")
-      .withIndex("by_user", q => q.eq("userId", user._id))
-      .order("desc")
-      .take(limit);
-
-    // Get post data for followed feeds - only fetch specific fields needed
-    const postIds = following.map(f => f.postId);
-    const postsPromises = postIds.length > 0 
-      ? postIds.map(id => 
-          ctx.db
-            .query("posts")
-            .filter(q => q.eq(q.field("_id"), id))
-            .first()
-            .then(post => post ? {
-              _id: post._id,
-              title: post.title,
-              featuredImg: post.featuredImg,
-              categorySlug: post.categorySlug,
-              postSlug: post.postSlug,
-              mediaType: post.mediaType,
-              verified: post.verified ?? false
-            } : null)
-        )
-      : [];
-    
-    const posts = await Promise.all(postsPromises);
-
-    // Filter out any null posts and format following data
-    const followingData = following
-      .map((follow, i) => {
-        const post = posts[i];
-        return post ? {
-          following: {
-            _id: follow._id,
-            userId: user._id,
-            postId: follow.postId,
-            feedUrl: follow.feedUrl
-          },
-          post: post // Already formatted with only the fields we need
-        } : null;
-      })
-      .filter(Boolean);
 
     // Return complete profile page data
     return {
       profile,
       friendshipStatus,
       social: {
-        friendCount: friendsWithProfiles.items.length,
+        friendCount: friendsCount,
         followingCount,
-        friends: friendsWithProfiles.items,
-        following: followingData
+        friends: [], // Empty array - actual friends data fetched by drawer when opened
+        following: [] // Empty array - actual following data fetched by drawer when opened
       }
     };
   }

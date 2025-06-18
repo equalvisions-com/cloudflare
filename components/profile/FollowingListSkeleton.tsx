@@ -13,7 +13,7 @@ interface FollowingListSkeletonProps {
 
 // Individual following item skeleton
 const FollowingItemSkeleton = React.memo(() => (
-  <div className="flex items-center space-x-4 p-4 border-b border-gray-100 last:border-b-0">
+  <div className="flex items-center space-x-4 p-4 border-b border-border">
     {/* Post image skeleton */}
     <div className="flex-shrink-0">
       <Skeleton className="h-16 w-16 rounded-lg" />
@@ -37,7 +37,7 @@ const FollowingItemSkeleton = React.memo(() => (
     
     {/* Follow button skeleton */}
     <div className="flex-shrink-0">
-      <Skeleton className="h-8 w-20 rounded-md" />
+      <Skeleton className="h-9 w-[100px] rounded-full" />
     </div>
   </div>
 ));
@@ -59,7 +59,7 @@ FollowingListHeaderSkeleton.displayName = "FollowingListHeaderSkeleton";
 
 // Load more button skeleton
 const LoadMoreButtonSkeleton = React.memo(() => (
-  <div className="p-4 border-t border-gray-100">
+  <div className="p-4 border-t border-border">
     <Skeleton className="h-10 w-full rounded-md" />
   </div>
 ));
@@ -126,40 +126,23 @@ export const FollowingListCompactSkeleton: React.FC<{
 export const FollowingListDrawerSkeleton: React.FC<{
   count?: number;
 }> = ({ count = 6 }) => (
-  <div className="flex flex-col h-full">
-    {/* Drawer header skeleton */}
-    <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
-      <div className="space-y-1">
-        <Skeleton className="h-5 w-28" />
-        <Skeleton className="h-3 w-20" />
-      </div>
-      <Skeleton className="h-6 w-6 rounded" />
-    </div>
-    
-    {/* Scrollable content skeleton */}
-    <div className="flex-1 overflow-hidden">
-      <div className="h-full overflow-y-auto">
-        {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="flex items-center space-x-4 p-4 border-b border-gray-100 last:border-b-0">
-            <Skeleton className="h-14 w-14 rounded-lg flex-shrink-0" />
-            <div className="flex-1 min-w-0 space-y-2">
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-3 w-2/3" />
-              <div className="flex items-center space-x-2">
-                <Skeleton className="h-3 w-12" />
-                <Skeleton className="h-2 w-2 rounded-full" />
-                <Skeleton className="h-3 w-16" />
-              </div>
+  <div className="flex-1 overflow-hidden">
+    <div className="h-full overflow-y-auto">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="flex items-center space-x-4 p-4 border-b border-border">
+          <Skeleton className="h-14 w-14 rounded-lg flex-shrink-0" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-3 w-2/3" />
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-3 w-16" />
             </div>
-            <Skeleton className="h-8 w-18 rounded-md flex-shrink-0" />
           </div>
-        ))}
-        
-        {/* Load more skeleton at bottom */}
-        <div className="p-4">
-          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-[100px] rounded-full flex-shrink-0" />
         </div>
-      </div>
+      ))}
     </div>
   </div>
 );

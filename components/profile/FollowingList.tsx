@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * FollowingList Component
+ * 
+ * Displays a user's following list in a drawer with optimized loading and follow button states.
+ * 
+ * Key optimizations:
+ * - Uses a single optimized query that fetches both following data and current user's follow states
+ * - Prevents follow button state flashing by waiting for complete data before rendering
+ * - Implements virtualization for performance with large lists
+ * - Includes proper error handling and loading states
+ * 
+ * Performance features:
+ * - Cursor-based pagination
+ * - Memoized components and callbacks
+ * - Atomic state updates to prevent UI flashing
+ * - Efficient data fetching with combined queries
+ */
+
 import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useConvexAuth } from "convex/react";
@@ -36,24 +54,22 @@ const createInitialState = (
   initialCount: number,
   initialFollowing?: ProfileFollowingData
 ): FollowingListState => {
-  let convertedFollowing: FollowingListInitialData | undefined;
-  
-  if (initialFollowing) {
-    convertedFollowing = convertProfileFollowingDataToFollowingListData(initialFollowing);
-  }
+  // Don't initialize with data immediately - let the drawer opening trigger loading
+  // This ensures the skeleton shows even when we have initial data
   
   return {
     isOpen: false,
     isLoading: false,
-    followingItems: convertedFollowing?.followingItems.filter((f): f is FollowingListFollowingWithPost => f !== null) || [],
+    followingItems: [], // Always start empty to show skeleton
     count: initialCount,
-    cursor: convertedFollowing?.cursor || null,
-    hasMore: convertedFollowing?.hasMore ?? false,
+    cursor: null, // Will be set when data loads
+    hasMore: false, // Will be set when data loads
     followStatusMap: {},
     isLoadingFollowStatus: false,
     error: null,
     lastFetchTime: null,
-    isInitialized: !!convertedFollowing,
+    // Always start as not initialized to show skeleton on first open
+    isInitialized: false,
   };
 };
 
@@ -61,7 +77,12 @@ const createInitialState = (
 const followingListReducer = (state: FollowingListState, action: FollowingListAction): FollowingListState => {
   switch (action.type) {
     case 'OPEN_DRAWER':
-      return { ...state, isOpen: true };
+      return { 
+        ...state, 
+        isOpen: true,
+        // Set loading state if not initialized to show skeleton
+        isLoading: !state.isInitialized ? true : state.isLoading
+      };
     
     case 'CLOSE_DRAWER':
       return { ...state, isOpen: false };
@@ -78,9 +99,13 @@ const followingListReducer = (state: FollowingListState, action: FollowingListAc
         followingItems: action.payload.followingItems,
         cursor: action.payload.cursor,
         hasMore: action.payload.hasMore,
+        // Atomically update follow status map to prevent button state flashing
+        followStatusMap: action.payload.followStates || state.followStatusMap,
         isInitialized: true,
         lastFetchTime: Date.now(),
         error: null,
+        isLoading: false,
+        isLoadingFollowStatus: false,
       };
     
     case 'LOAD_MORE_START':
@@ -92,6 +117,10 @@ const followingListReducer = (state: FollowingListState, action: FollowingListAc
         followingItems: [...state.followingItems, ...action.payload.followingItems],
         cursor: action.payload.cursor,
         hasMore: action.payload.hasMore,
+        // Merge new follow states with existing ones for pagination
+        followStatusMap: action.payload.followStates 
+          ? { ...state.followStatusMap, ...action.payload.followStates }
+          : state.followStatusMap,
         isLoading: false,
         lastFetchTime: Date.now(),
         error: null,
@@ -184,6 +213,10 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     return cleanup;
   }, [cleanup]);
 
+  // Note: Initial data handling is disabled to prevent follow button state flashing
+  // The optimized query provides both following data and follow states atomically
+  // This ensures buttons display correct states immediately when content appears
+
   // Virtualization hook - handles large list performance
   const virtualizationHook = useFollowingListVirtualization({
     state,
@@ -202,17 +235,23 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
     followingCount: state.count,
     hasError: !!dataHook.error,
     isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
-    isInitialLoading: dataHook.isLoading && !state.isInitialized,
-    shouldShowLoadingSpinner: dataHook.isLoading && !state.isInitialized,
+    isInitialLoading: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
+    // Show skeleton during initial load only (follow status now comes with main query)
+    shouldShowLoadingSpinner: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
     shouldShowErrorState: !!dataHook.error,
-    shouldShowEmptyState: !dataHook.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
-    shouldShowVirtualizedList: state.isInitialized && dataHook.followingItems.length > 0 && !dataHook.error,
+    shouldShowEmptyState: !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followingItems.length === 0,
+    // Show content when we have following data (follow status is included in the optimized query)
+    shouldShowVirtualizedList: state.isInitialized && 
+                               dataHook.followingItems.length > 0 && 
+                               !dataHook.error,
   }), [
     dataHook.followingItems.length, 
     dataHook.isLoading,
     dataHook.error,
     state.count, 
-    state.isInitialized
+    state.isInitialized,
+    state.isLoading,
+    state.isOpen
   ]);
 
   // Memoized accessibility announcement
@@ -443,4 +482,4 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
       </Drawer>
     </FollowingListErrorBoundary>
   );
-} 
+}

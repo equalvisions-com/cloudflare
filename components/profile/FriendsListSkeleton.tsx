@@ -33,7 +33,7 @@ FriendsListSkeleton.displayName = "FriendsListSkeleton";
 
 const FriendItemSkeleton = memo(() => {
   return (
-    <div className="flex items-center justify-between p-4 border-b border-border/50 last:border-b-0">
+    <div className="flex items-center justify-between p-4 border-b border-border">
       {/* Profile section */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
         {/* Profile image skeleton */}
@@ -50,7 +50,7 @@ const FriendItemSkeleton = memo(() => {
       
       {/* Action button skeleton */}
       <div className="flex-shrink-0 ml-3">
-        <Skeleton className="h-8 w-20 rounded-md" />
+        <Skeleton className="h-8 w-[100px] rounded-full" />
       </div>
     </div>
   );
@@ -74,7 +74,7 @@ LoadingMoreSkeleton.displayName = "LoadingMoreSkeleton";
 export const DrawerLoadingSkeleton = memo(() => {
   return (
     <div className="flex-1 overflow-hidden">
-      <FriendsListSkeleton count={8} />
+      <FriendsListSkeleton count={6} />
     </div>
   );
 });

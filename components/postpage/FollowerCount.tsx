@@ -315,7 +315,7 @@ export function FollowerCount({
         <DrawerTrigger asChild>
           <Button 
             variant="ghost" 
-            className="flex items-center h-auto p-0 hover:bg-transparent group focus-visible:ring-0 focus:outline-none"
+            className="flex items-center h-auto p-0 hover:bg-transparent group focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
             aria-label={triggerAriaLabel}
           >
             <span className="leading-none font-medium mr-[-3px]">{computedValues.followerCount}</span>{' '}

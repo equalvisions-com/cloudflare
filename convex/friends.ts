@@ -1069,3 +1069,48 @@ export const getMyPendingFriendRequestCount = query({
     return totalPendingRequests;
   },
 });
+
+/**
+ * Lean SSR query that only fetches the friends count for initial page render.
+ * 
+ * This is optimized for SSR where we only need to display the count in the UI.
+ * The actual friends data and profiles are fetched later when the drawer opens
+ * using the optimized getFriendsByUsername query.
+ * 
+ * @param username - Username to get friends count for
+ * @returns Just the count number, no profile data or friendship details
+ */
+export const getFriendsCountForSSR = query({
+  args: { 
+    username: v.string() 
+  },
+  handler: async (ctx, args) => {
+    // Get user by username using the by_username index
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_username", q => q.eq("username", args.username))
+      .first();
+    
+    if (!user) {
+      return 0;
+    }
+    
+    // Count accepted friendships where this user is involved (either direction)
+    // Use the by_users index for efficient counting
+    const friendships = await ctx.db
+      .query("friends")
+      .withIndex("by_users")
+      .filter(q =>
+        q.and(
+          q.or(
+            q.eq(q.field("requesterId"), user._id),
+            q.eq(q.field("requesteeId"), user._id)
+          ),
+          q.eq(q.field("status"), "accepted")
+        )
+      )
+      .collect();
+      
+    return friendships.length;
+  },
+});

@@ -185,6 +185,12 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
               profileImage: friend.profile.profileImage,
               username: friendUsername,
             }}
+            initialFriendshipStatus={{
+              exists: true,
+              status: friend.friendship.status,
+              direction: friend.friendship.direction,
+              friendshipId: friend.friendship._id,
+            }}
             className="w-[100px] rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none transition-all duration-200 text-sm"
             friendsClassName="text-muted-foreground border border-input"
             pendingClassName="text-muted-foreground border border-input"

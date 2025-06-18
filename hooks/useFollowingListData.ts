@@ -36,9 +36,9 @@ export function useFollowingListData({
   const lastRequestIdRef = useRef<string>("");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Direct Convex query for initial following data
+  // Direct Convex query for initial following data with follow states
   const followingQuery = useQuery(
-    api.following.getFollowingByUsername,
+    api.following.getFollowingByUsernameWithFollowStates,
     state.isOpen && !state.isInitialized ? { 
       username,
       limit: 30 
@@ -48,59 +48,47 @@ export function useFollowingListData({
   // Handle initial data loading from Convex query
   useEffect(() => {
     if (state.isOpen && !state.isInitialized && followingQuery !== undefined) {
-      if (followingQuery === null) {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to load following list. Please try again.' 
-        });
-      } else {
-        dispatch({
-          type: 'INITIALIZE_FOLLOWING',
-          payload: {
-            followingItems: followingQuery.following.filter(Boolean) as FollowingListFollowingWithPost[],
-            cursor: followingQuery.cursor,
-            hasMore: followingQuery.hasMore,
-          },
-        });
-      }
-      dispatch({ type: 'SET_LOADING', payload: false });
+      const processData = async () => {
+        // Add minimum delay to ensure loading skeleton is visible
+        const minDelay = new Promise(resolve => setTimeout(resolve, 300));
+        
+        if (followingQuery === null) {
+          await minDelay;
+          dispatch({ 
+            type: 'SET_ERROR', 
+            payload: 'Failed to load following list. Please try again.' 
+          });
+        } else {
+          await minDelay;
+          
+          // Only initialize when we have complete data to prevent button state flashing
+          // This ensures follow states are available when content is displayed
+          const hasFollowStates = followingQuery.followStates && Object.keys(followingQuery.followStates).length > 0;
+          const isEmpty = followingQuery.following.length === 0;
+          
+          // Initialize if we have complete data (with follow states) or if the list is empty
+          if (hasFollowStates || isEmpty) {
+            dispatch({
+              type: 'INITIALIZE_FOLLOWING',
+              payload: {
+                followingItems: followingQuery.following.filter(Boolean) as FollowingListFollowingWithPost[],
+                cursor: followingQuery.cursor,
+                hasMore: followingQuery.hasMore,
+                followStates: followingQuery.followStates || {},
+              },
+            });
+          }
+          // If we have following items but no follow states, continue showing skeleton
+          // until the optimized query completes with both data and follow states
+        }
+      };
+      
+      processData();
     }
   }, [followingQuery, state.isOpen, state.isInitialized, dispatch]);
 
-  // Extract post IDs for batched follow status query
-  const postIds = useMemo(() => 
-    state.followingItems
-      .filter(item => item?.following?.postId)
-      .map(item => item.following.postId),
-    [state.followingItems]
-  );
-
-  // Batched follow status query with error handling
-  const followStatusArray = useQuery(
-    api.following.getFollowStates,
-    state.isOpen && postIds.length > 0 ? { postIds } : "skip"
-  );
-
-  // Update follow status map when data arrives
-  useEffect(() => {
-    if (followStatusArray && postIds.length > 0) {
-      try {
-        const statusMap: Record<string, boolean> = {};
-        postIds.forEach((id, index) => {
-          if (index < followStatusArray.length) {
-            statusMap[id.toString()] = followStatusArray[index];
-          }
-        });
-        dispatch({ type: 'UPDATE_FOLLOW_STATUS_MAP', payload: statusMap });
-      } catch (error) {
-        console.error('Error updating follow status map:', error);
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to update follow status. Please refresh.' 
-        });
-      }
-    }
-  }, [followStatusArray, postIds, dispatch]);
+  // Note: Follow status is now included in the optimized query above
+  // No need for separate follow status query or follow status effects
 
   // Create error with context
   const createError = useCallback((
@@ -123,7 +111,7 @@ export function useFollowingListData({
   const makeConvexCall = useCallback(async (
     queryArgs: any,
     retryCount = 0
-  ): Promise<{ following: FollowingListFollowingWithPost[]; hasMore: boolean; cursor: string | null }> => {
+  ): Promise<{ following: FollowingListFollowingWithPost[]; hasMore: boolean; cursor: string | null; followStates?: Record<string, boolean> }> => {
     const maxRetries = 3;
     const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
 
@@ -138,9 +126,9 @@ export function useFollowingListData({
       const requestId = `${Date.now()}-${Math.random()}`;
       lastRequestIdRef.current = requestId;
 
-      // Use direct Convex query for pagination
+      // Use direct Convex query for pagination with follow states
       const { fetchQuery } = await import('convex/nextjs');
-      const result = await fetchQuery(api.following.getFollowingByUsername, queryArgs);
+      const result = await fetchQuery(api.following.getFollowingByUsernameWithFollowStates, queryArgs);
 
       // Check if this is still the latest request
       if (lastRequestIdRef.current !== requestId) {
@@ -170,6 +158,7 @@ export function useFollowingListData({
         following: result.following.filter(Boolean) as FollowingListFollowingWithPost[] || [],
         hasMore: Boolean(result.hasMore),
         cursor: result.cursor || null,
+        followStates: result.followStates || {},
       };
 
     } catch (error) {
@@ -255,6 +244,7 @@ export function useFollowingListData({
           followingItems: newFollowing,
           cursor: result.cursor,
           hasMore: result.hasMore,
+          followStates: result.followStates || {},
         },
       });
 

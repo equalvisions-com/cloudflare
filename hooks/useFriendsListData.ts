@@ -46,22 +46,31 @@ export function useFriendsListData({
   // Handle initial data loading from Convex query
   useEffect(() => {
     if (state.isOpen && !state.isInitialized && friendsQuery !== undefined) {
-      if (friendsQuery === null) {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to load friends list. Please try again.' 
-        });
-      } else {
-        dispatch({
-          type: 'INITIALIZE_FRIENDS',
-          payload: {
-            friends: friendsQuery.friends.filter(Boolean) as FriendsListFriendWithProfile[],
-            cursor: friendsQuery.cursor || null,
-            hasMore: friendsQuery.hasMore,
-          },
-        });
-      }
-      dispatch({ type: 'SET_LOADING', payload: false });
+      const processData = async () => {
+        // Add minimum delay to ensure loading skeleton is visible
+        const minDelay = new Promise(resolve => setTimeout(resolve, 300));
+        
+        if (friendsQuery === null) {
+          await minDelay;
+          dispatch({ 
+            type: 'SET_ERROR', 
+            payload: 'Failed to load friends list. Please try again.' 
+          });
+        } else {
+          await minDelay;
+          dispatch({
+            type: 'INITIALIZE_FRIENDS',
+            payload: {
+              friends: friendsQuery.friends.filter(Boolean) as FriendsListFriendWithProfile[],
+              cursor: friendsQuery.cursor || null,
+              hasMore: friendsQuery.hasMore,
+            },
+          });
+        }
+        dispatch({ type: 'SET_LOADING', payload: false });
+      };
+      
+      processData();
     }
   }, [friendsQuery, state.isOpen, state.isInitialized, dispatch]);
 
