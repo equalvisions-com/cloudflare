@@ -53,11 +53,12 @@ export const getByMediaTypeAndSlug = query({
       .order("desc")
       .take(5);
     
-    // Get follower count in same query
-    const followerCount = (await ctx.db
+    // Get follower count efficiently using the optimized SSR query
+    const followerCount = await ctx.db
       .query("following")
       .withIndex("by_post", q => q.eq("postId", post._id))
-      .collect()).length;
+      .collect()
+      .then(records => records.length);
 
     // Return explicitly listed fields instead of spreading the whole post object
     return {

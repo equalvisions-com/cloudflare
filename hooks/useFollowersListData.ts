@@ -30,35 +30,64 @@ export function useFollowersListData({
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestIdRef = useRef<string>("");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingStartTimeRef = useRef<number | null>(null);
 
-  // Direct Convex query for initial followers data
+  // Optimized Convex query for initial followers data with friendship states
   const followersQuery = useQuery(
-    api.following.getFollowers,
+    api.following.getFollowersWithFriendshipStates,
     state.isOpen && !state.isInitialized ? { 
       postId,
       limit: 30 
     } : "skip"
   );
 
-  // Handle initial data loading from Convex query
+  // Handle initial data loading from optimized Convex query with minimum loading delay
   useEffect(() => {
     if (state.isOpen && !state.isInitialized && followersQuery !== undefined) {
-      if (followersQuery === null) {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to load followers. Please try again.' 
-        });
-      } else {
-        dispatch({
-          type: 'INITIALIZE_FOLLOWERS',
-          payload: {
-            followers: followersQuery.followers,
-            cursor: followersQuery.cursor,
-            hasMore: followersQuery.hasMore,
-          },
-        });
+      // Start tracking loading time when query starts
+      if (loadingStartTimeRef.current === null) {
+        loadingStartTimeRef.current = Date.now();
       }
-      dispatch({ type: 'SET_LOADING', payload: false });
+
+      const processResults = () => {
+        if (followersQuery === null) {
+          dispatch({ 
+            type: 'SET_ERROR', 
+            payload: 'Failed to load followers. Please try again.' 
+          });
+        } else {
+          // Transform the data to match expected format
+          const transformedFollowers: FollowersListUserData[] = followersQuery.followers.map(follower => ({
+            userId: follower.userId,
+            username: follower.username || 'Guest',
+            name: follower.displayName !== follower.username ? follower.displayName : undefined,
+            profileImage: follower.profilePicture,
+          }));
+
+          dispatch({
+            type: 'INITIALIZE_FOLLOWERS',
+            payload: {
+              followers: transformedFollowers,
+              cursor: followersQuery.cursor,
+              hasMore: followersQuery.hasMore,
+              friendshipStates: followersQuery.friendshipStates || {},
+            },
+          });
+        }
+        dispatch({ type: 'SET_LOADING', payload: false });
+        loadingStartTimeRef.current = null;
+      };
+
+      // Ensure minimum loading time of 300ms for skeleton visibility
+      const elapsedTime = Date.now() - loadingStartTimeRef.current;
+      const remainingTime = Math.max(0, 300 - elapsedTime);
+
+      if (remainingTime > 0) {
+        const timeoutId = setTimeout(processResults, remainingTime);
+        return () => clearTimeout(timeoutId);
+      } else {
+        processResults();
+      }
     }
   }, [followersQuery, state.isOpen, state.isInitialized, dispatch]);
 
@@ -83,7 +112,7 @@ export function useFollowersListData({
   const makeConvexCall = useCallback(async (
     queryArgs: any,
     retryCount = 0
-  ): Promise<{ followers: FollowersListUserData[]; hasMore: boolean; cursor: string | null }> => {
+  ): Promise<{ followers: FollowersListUserData[]; hasMore: boolean; cursor: string | null; friendshipStates: Record<string, any> }> => {
     const maxRetries = 3;
     const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
 
@@ -100,7 +129,7 @@ export function useFollowersListData({
 
       // Use direct Convex query for pagination
       const { fetchQuery } = await import('convex/nextjs');
-      const result = await fetchQuery(api.following.getFollowers, queryArgs);
+      const result = await fetchQuery(api.following.getFollowersWithFriendshipStates, queryArgs);
 
       // Check if this is still the latest request
       if (lastRequestIdRef.current !== requestId) {
@@ -126,10 +155,19 @@ export function useFollowersListData({
         );
       }
 
+      // Transform the data to match expected format
+      const transformedFollowers: FollowersListUserData[] = result.followers.map(follower => ({
+        userId: follower.userId,
+        username: follower.username || 'Guest',
+        name: follower.displayName !== follower.username ? follower.displayName : undefined,
+        profileImage: follower.profilePicture,
+      }));
+
       return {
-        followers: result.followers || [],
+        followers: transformedFollowers,
         hasMore: Boolean(result.hasMore),
         cursor: result.cursor || null,
+        friendshipStates: result.friendshipStates || {},
       };
 
     } catch (error) {
@@ -180,12 +218,13 @@ export function useFollowersListData({
     if (state.isInitialized) return;
     
     dispatch({ type: 'SET_LOADING', payload: true });
+    loadingStartTimeRef.current = Date.now();
     
-    // The initial load is handled by the Convex query above
+    // The initial load is handled by the optimized Convex query above
     // This function is kept for API compatibility
   }, [state.isInitialized, dispatch]);
 
-  // Load more followers (pagination) - uses direct Convex for cursor-based pagination
+  // Load more followers (pagination) - uses optimized Convex query
   const loadMoreFollowers = useCallback(async () => {
     if (!state.hasMore || state.isLoading || !state.cursor) {
       return;
@@ -200,58 +239,39 @@ export function useFollowersListData({
         cursor: state.cursor
       });
 
-      // Filter out null values and validate data
-      const newFollowers = result.followers.filter(
-        (f): f is FollowersListUserData => {
-          return f !== null && 
-                 Boolean(f.userId) && 
-                 Boolean(f.username);
-        }
-      );
-
       dispatch({
         type: 'LOAD_MORE_SUCCESS',
         payload: {
-          followers: newFollowers,
+          followers: result.followers,
           cursor: result.cursor,
           hasMore: result.hasMore,
+          friendshipStates: result.friendshipStates,
         },
       });
-
     } catch (error) {
-      // Handle abort errors silently
       if (error instanceof Error && error.name === 'AbortError') {
-        return;
+        return; // Silently handle aborted requests
       }
-
-      const followersError = error as FollowersListError;
-      const errorMessage = followersError?.retryable
-        ? `${followersError.message} (Tap to retry)`
-        : followersError?.message || 'An error occurred';
-
-      dispatch({ 
-        type: 'LOAD_MORE_ERROR', 
-        payload: errorMessage 
-      });
-
-      console.error('Load more followers error:', {
-        error: followersError,
-        context: followersError.context,
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load more followers';
+      dispatch({
+        type: 'LOAD_MORE_ERROR',
+        payload: errorMessage,
       });
     }
-  }, [state.hasMore, state.isLoading, state.cursor, postId, makeConvexCall, dispatch]);
+  }, [state.hasMore, state.isLoading, state.cursor, makeConvexCall, postId, dispatch]);
 
-  // Refresh followers list
+  // Refresh followers data
   const refreshFollowers = useCallback(async () => {
     dispatch({ type: 'RESET_STATE' });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    loadingStartTimeRef.current = Date.now();
     
     // Reset initialization to trigger fresh data load
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    // The refresh will be handled by the Convex query re-running
+    // The optimized query will handle the refresh
   }, [dispatch]);
 
-  // Update follower friend status
+  // Update follower friendship status
   const updateFollowerFriendStatus = useCallback((
     userId: Id<"users">, 
     friendshipStatus: any
@@ -259,6 +279,17 @@ export function useFollowersListData({
     dispatch({
       type: 'UPDATE_FRIEND_STATUS',
       payload: { userId, friendshipStatus },
+    });
+  }, [dispatch]);
+
+  // Update friendship status in the friendshipStates map
+  const updateFriendshipStatus = useCallback((
+    userId: Id<"users">,
+    newFriendshipStatus: any
+  ): void => {
+    dispatch({
+      type: 'UPDATE_FRIENDSHIP_STATE',
+      payload: { userId, friendshipStatus: newFriendshipStatus },
     });
   }, [dispatch]);
 
@@ -280,6 +311,7 @@ export function useFollowersListData({
     }
     
     lastRequestIdRef.current = "";
+    loadingStartTimeRef.current = null;
   }, []);
 
   // Cleanup on unmount
@@ -294,12 +326,14 @@ export function useFollowersListData({
     error: state.error,
     hasMore: state.hasMore,
     cursor: state.cursor,
+    friendshipStates: state.friendshipStates,
     
     // Actions
     loadFollowers,
     loadMoreFollowers,
     refreshFollowers,
     updateFollowerFriendStatus,
+    updateFriendshipStatus,
     removeFollower,
     
     // Utilities

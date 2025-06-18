@@ -3395,6 +3395,9 @@ export interface FollowersListState {
   cursor: string | null;
   hasMore: boolean;
   
+  // Friendship Status State
+  friendshipStates: Record<string, any>;
+  
   // Error State
   error: string | null;
   
@@ -3408,13 +3411,14 @@ export type FollowersListAction =
   | { type: 'CLOSE_DRAWER' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_COUNT'; payload: number }
-  | { type: 'INITIALIZE_FOLLOWERS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'INITIALIZE_FOLLOWERS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, any> } }
   | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean } }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, any> } }
   | { type: 'LOAD_MORE_ERROR'; payload: string }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'RESET_STATE' }
   | { type: 'UPDATE_FRIEND_STATUS'; payload: { userId: Id<"users">; friendshipStatus: any } }
+  | { type: 'UPDATE_FRIENDSHIP_STATE'; payload: { userId: Id<"users">; friendshipStatus: any } }
   | { type: 'REMOVE_FOLLOWER'; payload: Id<"users"> };
 
 export interface FollowersListProps {

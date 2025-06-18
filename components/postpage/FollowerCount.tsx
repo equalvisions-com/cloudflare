@@ -23,27 +23,39 @@ import { useFollowersListActions } from "@/hooks/useFollowersListActions";
 import { useFollowersListVirtualization } from "@/hooks/useFollowersListVirtualization";
 import { MemoizedVirtualizedFollowerItem } from "@/components/profile/VirtualizedFollowerItem";
 import { FollowersListErrorBoundary } from "@/components/profile/FollowersListErrorBoundary";
-import { FollowersListDrawerSkeleton } from "@/components/profile/FollowersListSkeleton";
+import { DrawerLoadingSkeleton } from "@/components/profile/FriendsListSkeleton";
 import { FollowersListEmptyState } from "@/components/profile/FollowersListEmptyState";
 
-// Create initial state
-const createInitialState = (initialCount: number = 0): FollowersListState => ({
-  isOpen: false,
-  isLoading: false,
-  followers: [],
-  count: initialCount,
-  cursor: null,
-  hasMore: false,
-  error: null,
-  lastFetchTime: null,
-  isInitialized: false,
-});
+// Create initial state from props
+const createInitialState = (initialCount: number = 0): FollowersListState => {
+  // Don't initialize with data immediately - let the drawer opening trigger loading
+  // This ensures the skeleton shows even when we have initial data
+  
+  return {
+    isOpen: false,
+    isLoading: false,
+    followers: [], // Always start empty to show skeleton
+    count: initialCount,
+    cursor: null, // Will be set when data loads
+    hasMore: false, // Will be set when data loads
+    friendshipStates: {},
+    error: null,
+    lastFetchTime: null,
+    // Always start as not initialized to show skeleton on first open
+    isInitialized: false,
+  };
+};
 
 // Reducer for followers list state management
 const followersListReducer = (state: FollowersListState, action: FollowersListAction): FollowersListState => {
   switch (action.type) {
     case 'OPEN_DRAWER':
-      return { ...state, isOpen: true };
+      return { 
+        ...state, 
+        isOpen: true,
+        // Set loading state if not already initialized to show skeleton
+        isLoading: !state.isInitialized ? true : state.isLoading
+      };
     
     case 'CLOSE_DRAWER':
       return { ...state, isOpen: false };
@@ -60,6 +72,7 @@ const followersListReducer = (state: FollowersListState, action: FollowersListAc
         followers: action.payload.followers,
         cursor: action.payload.cursor,
         hasMore: action.payload.hasMore,
+        friendshipStates: action.payload.friendshipStates || {},
         isInitialized: true,
         lastFetchTime: Date.now(),
         error: null,
@@ -74,6 +87,7 @@ const followersListReducer = (state: FollowersListState, action: FollowersListAc
         followers: [...state.followers, ...action.payload.followers],
         cursor: action.payload.cursor,
         hasMore: action.payload.hasMore,
+        friendshipStates: { ...state.friendshipStates, ...(action.payload.friendshipStates || {}) },
         isLoading: false,
         lastFetchTime: Date.now(),
         error: null,
@@ -88,6 +102,25 @@ const followersListReducer = (state: FollowersListState, action: FollowersListAc
     
     case 'SET_ERROR':
       return { ...state, error: action.payload, isLoading: false };
+    
+    case 'UPDATE_FRIEND_STATUS':
+      return {
+        ...state,
+        // Update friendship state in the map
+        friendshipStates: {
+          ...state.friendshipStates,
+          [action.payload.userId.toString()]: action.payload.friendshipStatus
+        }
+      };
+    
+    case 'UPDATE_FRIENDSHIP_STATE':
+      return {
+        ...state,
+        friendshipStates: {
+          ...state.friendshipStates,
+          [action.payload.userId.toString()]: action.payload.friendshipStatus
+        }
+      };
     
     case 'RESET_STATE':
       return createInitialState(state.count);
@@ -181,16 +214,18 @@ export function FollowerCount({
     followerCount: state.count || followerCount,
     hasError: !!dataHook.error,
     isEmpty: !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0,
-    isInitialLoading: dataHook.isLoading && !state.isInitialized,
-    shouldShowLoadingSpinner: dataHook.isLoading && !state.isInitialized,
+    isInitialLoading: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
+    // Show skeleton during initial load (check both state.isLoading OR dataHook.isLoading)
+    shouldShowLoadingSpinner: (state.isLoading || dataHook.isLoading) && !state.isInitialized,
     shouldShowErrorState: !!dataHook.error,
-    shouldShowEmptyState: !dataHook.isLoading && state.isInitialized && dataHook.followers.length === 0,
+    shouldShowEmptyState: !dataHook.isLoading && !state.isLoading && state.isInitialized && dataHook.followers.length === 0,
     shouldShowVirtualizedList: state.isInitialized && dataHook.followers.length > 0 && !dataHook.error,
   }), [
     dataHook.followers.length, 
     dataHook.isLoading,
     dataHook.error,
     state.count,
+    state.isLoading,
     followerCount,
     state.isInitialized
   ]);
@@ -247,6 +282,9 @@ export function FollowerCount({
 
   // Stable item renderer for Virtuoso - fixed dependencies
   const itemContent = useCallback((index: number, follower: FollowersListUserData) => {
+    // Get friendship status from the optimized query data
+    const friendshipStatus = state.friendshipStates[follower.userId.toString()] || null;
+    
     return (
       <MemoizedVirtualizedFollowerItem
         key={follower.userId || `follower-${index}`}
@@ -255,9 +293,11 @@ export function FollowerCount({
         isFirst={index === 0}
         isLast={index === state.followers.length - 1}
         isAuthenticated={isAuthenticated}
+        initialFriendshipStatus={friendshipStatus}
+        onFriendshipStatusChange={dataHook.updateFriendshipStatus}
       />
     );
-  }, [state.followers.length, isAuthenticated]);
+  }, [state.followers.length, state.friendshipStates, isAuthenticated, dataHook.updateFriendshipStatus]);
 
   // Stable Footer component - extracted to prevent re-creation
   const FooterComponent = useMemo(() => {
@@ -336,7 +376,7 @@ export function FollowerCount({
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden" role="main">
             {computedValues.shouldShowLoadingSpinner ? (
-              <FollowersListDrawerSkeleton count={6} />
+              <DrawerLoadingSkeleton />
             ) : computedValues.shouldShowErrorState ? (
               <FollowersListEmptyState
                 variant="error"

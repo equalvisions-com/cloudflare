@@ -129,19 +129,7 @@ export const FollowingListDrawerSkeleton: React.FC<{
   <div className="flex-1 overflow-hidden">
     <div className="h-full overflow-y-auto">
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="flex items-center space-x-4 p-4 border-b border-border">
-          <Skeleton className="h-14 w-14 rounded-lg flex-shrink-0" />
-          <div className="flex-1 min-w-0 space-y-2">
-            <Skeleton className="h-4 w-4/5" />
-            <Skeleton className="h-3 w-2/3" />
-            <div className="flex items-center space-x-2">
-              <Skeleton className="h-3 w-12" />
-              <Skeleton className="h-2 w-2 rounded-full" />
-              <Skeleton className="h-3 w-16" />
-            </div>
-          </div>
-          <Skeleton className="h-9 w-[100px] rounded-full flex-shrink-0" />
-        </div>
+        <FollowingItemSkeleton key={index} />
       ))}
     </div>
   </div>

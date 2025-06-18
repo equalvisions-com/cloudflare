@@ -338,34 +338,7 @@ export const getFollowStates = query({
   },
 });
 
-/**
- * @deprecated Use getFollowingCountForSSR instead for better performance.
- * This query is kept for backward compatibility but may be removed in future versions.
- */
-export const getFollowingCountByUsername = query({
-  args: { 
-    username: v.string() 
-  },
-  handler: async (ctx, args) => {
-    // Get user by username using the by_username index
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_username", q => q.eq("username", args.username))
-      .first();
-    
-    if (!user) {
-      return 0;
-    }
-    
-    // Count posts this user is following using the by_user index
-    const count = await ctx.db
-      .query("following")
-      .withIndex("by_user", q => q.eq("userId", user._id))
-      .collect();
-      
-    return count.length;
-  },
-});
+
 
 // Get all posts that a user is following by username with pagination
 export const getFollowingByUsername = query({
@@ -720,6 +693,186 @@ export const getFollowingCountForSSR = query({
     const count = await ctx.db
       .query("following")
       .withIndex("by_user", q => q.eq("userId", user._id))
+      .collect()
+      .then(records => records.length);
+      
+    return count;
+  },
+});
+
+/**
+ * Optimized query that retrieves followers for a post with current user's friendship states.
+ * 
+ * This combines two operations in a single query to prevent UI flashing:
+ * 1. Get users following the specified post (with pagination)
+ * 2. Get current authenticated user's friendship status with those users
+ * 
+ * @param postId - ID of the post to get followers for
+ * @param limit - Maximum number of items to return (default: 30)
+ * @param cursor - Pagination cursor for loading more items
+ * 
+ * @returns Object containing:
+ * - followers: Array of follower user data
+ * - hasMore: Whether there are more items to load
+ * - cursor: Pagination cursor for next page
+ * - friendshipStates: Map of userId -> friendship status for current user
+ */
+export const getFollowersWithFriendshipStates = query({
+  args: { 
+    postId: v.id("posts"),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    const { postId, limit = 30, cursor } = args;
+    
+    // Get current authenticated user
+    const currentUserId = await getAuthUserId(ctx);
+    
+    // Build query for followers
+    let followersQuery = ctx.db
+      .query("following")
+      .withIndex("by_post", q => q.eq("postId", postId))
+      .order("desc");
+    
+    // Apply cursor if provided
+    if (cursor) {
+      followersQuery = followersQuery.filter(q => 
+        q.lt(q.field("_id"), cursor)
+      );
+    }
+    
+    // Get followers with limit + 1 to check for more
+    const followings = await followersQuery
+      .take(limit + 1);
+    
+    const hasMore = followings.length > limit;
+    const followingsToProcess = hasMore ? followings.slice(0, limit) : followings;
+    
+    // Get user details for each follower
+    const followersWithDetails = await Promise.all(
+      followingsToProcess.map(async (following) => {
+        const user = await ctx.db
+          .query("users")
+          .filter(q => q.eq(q.field("_id"), following.userId))
+          .first();
+        
+        if (!user) {
+          return null;
+        }
+        
+        return {
+          userId: user._id,
+          username: user.username,
+          displayName: user.name || user.username,
+          profilePicture: user.profileImage,
+          verified: false, // Note: verified field doesn't exist in users table, posts have verified field
+          followerSince: following._creationTime
+        };
+      })
+    );
+    
+    // Filter out null values
+    const followers = followersWithDetails.filter((item): item is NonNullable<typeof item> => item !== null);
+    
+    // Get current user's friendship states for these users in one optimized query
+    let friendshipStates: { [key: string]: any } = {};
+    if (currentUserId && followers.length > 0) {
+      try {
+        const followerUserIds = followers.map(follower => follower.userId);
+        
+        // Efficiently get current user's friendships with these specific users
+        const friendships = await ctx.db
+          .query("friends")
+          .withIndex("by_users")
+          .filter(q =>
+            q.or(
+              ...followerUserIds.flatMap(userId => [
+                q.and(
+                  q.eq(q.field("requesterId"), currentUserId),
+                  q.eq(q.field("requesteeId"), userId)
+                ),
+                q.and(
+                  q.eq(q.field("requesterId"), userId),
+                  q.eq(q.field("requesteeId"), currentUserId)
+                )
+              ])
+            )
+          )
+          .collect();
+        
+        // Create friendship state map - explicitly set all users to null first
+        followerUserIds.forEach(userId => {
+          const userIdStr = userId.toString();
+          
+          // Check if viewing own profile
+          if (currentUserId.toString() === userIdStr) {
+            friendshipStates[userIdStr] = { status: "self" };
+            return;
+          }
+          
+          // Find friendship record
+          const friendship = friendships.find(f => 
+            (f.requesterId.toString() === currentUserId.toString() && f.requesteeId.toString() === userIdStr) ||
+            (f.requesterId.toString() === userIdStr && f.requesteeId.toString() === currentUserId.toString())
+          );
+          
+          if (friendship) {
+            const isSender = friendship.requesterId.toString() === currentUserId.toString();
+            friendshipStates[userIdStr] = {
+              exists: true,
+              status: friendship.status,
+              direction: isSender ? "sent" : "received",
+              friendshipId: friendship._id
+            };
+          } else {
+            friendshipStates[userIdStr] = {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            };
+          }
+        });
+      } catch (error) {
+        // If friendship state query fails, initialize all as null to prevent UI issues
+        console.error("Failed to fetch friendship states:", error);
+        const followerUserIds = followers.map(follower => follower.userId);
+        followerUserIds.forEach(userId => {
+          friendshipStates[userId.toString()] = null;
+        });
+      }
+    }
+    
+    return {
+      followers,
+      hasMore,
+      cursor: hasMore ? followingsToProcess[followingsToProcess.length - 1]._id : null,
+      friendshipStates, // Map of userId -> friendship status for current user
+    };
+  },
+});
+
+/**
+ * Lean SSR query that only fetches the followers count for initial page render.
+ * 
+ * This is optimized for SSR where we only need to display the count in the UI.
+ * The actual follower data and friendship states are fetched later when the drawer opens
+ * using the optimized getFollowersWithFriendshipStates query.
+ * 
+ * @param postId - Post ID to get followers count for
+ * @returns Just the count number, no user data or friendship states
+ */
+export const getFollowersCountForSSR = query({
+  args: { 
+    postId: v.id("posts")
+  },
+  handler: async (ctx, args) => {
+    // Count users following this post using the by_post index
+    // This is much faster than fetching all records and getting length
+    const count = await ctx.db
+      .query("following")
+      .withIndex("by_post", q => q.eq("postId", args.postId))
       .collect()
       .then(records => records.length);
       
