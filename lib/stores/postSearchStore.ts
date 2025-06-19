@@ -7,14 +7,22 @@ const initialState: PostSearchState = {
   searchQuery: '',
 };
 
-export const usePostSearchStore = create<PostSearchStore>((set) => ({
+export const usePostSearchStore = create<PostSearchStore>((set, get) => ({
   ...initialState,
   
   setSearchQuery: (query: string) => {
-    set({ searchQuery: query });
+    // Only update if the query actually changed to prevent unnecessary re-renders
+    const currentQuery = get().searchQuery;
+    if (currentQuery !== query) {
+      set({ searchQuery: query });
+    }
   },
   
   reset: () => {
-    set(initialState);
+    // Only reset if state is not already at initial values
+    const currentState = get();
+    if (currentState.searchQuery !== initialState.searchQuery) {
+      set(initialState);
+    }
   },
 })); 

@@ -37,7 +37,10 @@ export const useSearchResults = ({
   // Fetch initial search results
   const fetchInitialSearchResults = useCallback(async () => {
     if (!searchQuery || !postTitle || !feedUrl) {
-      setSearchData(null);
+      // Skip setting null if searchData is already null/empty to prevent redundant updates
+      if (searchData !== null && searchData?.entries?.length !== 0) {
+        setSearchData(null);
+      }
       return;
     }
     
@@ -69,7 +72,7 @@ export const useSearchResults = ({
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, postTitle, feedUrl, mediaType, setSearchData, setIsLoading, setCurrentPage]);
+  }, [searchQuery, postTitle, feedUrl, mediaType, searchData, setSearchData, setIsLoading, setCurrentPage]);
 
   // Load more search results for pagination
   const loadMoreSearchResults = useCallback(async () => {
@@ -119,12 +122,8 @@ export const useSearchResults = ({
     fetchInitialSearchResults();
   }, [fetchInitialSearchResults]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      reset();
-    };
-  }, [reset]);
+  // Removed cleanup useEffect - let store persist across component lifecycles
+  // Store will be reset when search query changes or manually reset
 
   return {
     searchData,

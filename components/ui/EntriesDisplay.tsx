@@ -243,13 +243,17 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
     }
   }, [entry.pub_date]);
 
-  // Generate post URL if we have category and post slugs
-  const postUrl = useMemo(() => 
-    entry.category_slug && entry.post_slug 
-      ? `/${entry.category_slug}/${entry.post_slug}`
-      : null,
-    [entry.category_slug, entry.post_slug]
-  );
+  // Generate post URL if we have media type and post slugs
+  const postUrl = useMemo(() => {
+    const mediaType = entry.post_media_type || entry.mediaType;
+    if (!mediaType || !entry.post_slug) return null;
+    
+    // Convert media type to plural form for URL
+    const mediaTypeLower = mediaType.toLowerCase();
+    const pluralMediaType = mediaTypeLower.endsWith('s') ? mediaTypeLower : `${mediaTypeLower}s`;
+    
+    return `/${pluralMediaType}/${entry.post_slug}`;
+  }, [entry.post_media_type, entry.mediaType, entry.post_slug]);
 
   // Handle card click for podcasts
   const handleCardClick = useCallback((e: MouseEvent) => {

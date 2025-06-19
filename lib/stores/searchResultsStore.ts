@@ -27,15 +27,24 @@ export const useSearchResultsStore = create<SearchResultsStore>((set, get) => ({
   ...initialState,
   
   setSearchData: (data: PostSearchRSSData | null) => {
-    set({ searchData: data });
+    const currentData = get().searchData;
+    if (currentData !== data) {
+      set({ searchData: data });
+    }
   },
   
   setIsLoading: (loading: boolean) => {
-    set({ isLoading: loading });
+    const currentLoading = get().isLoading;
+    if (currentLoading !== loading) {
+      set({ isLoading: loading });
+    }
   },
   
   setCurrentPage: (page: number) => {
-    set({ currentPage: page });
+    const currentPage = get().currentPage;
+    if (currentPage !== page) {
+      set({ currentPage: page });
+    }
   },
   
   appendSearchData: (newData: PostSearchRSSData) => {
@@ -52,6 +61,14 @@ export const useSearchResultsStore = create<SearchResultsStore>((set, get) => ({
   },
   
   reset: () => {
-    set(initialState);
+    const currentState = get();
+    const needsReset = 
+      currentState.searchData !== initialState.searchData ||
+      currentState.isLoading !== initialState.isLoading ||
+      currentState.currentPage !== initialState.currentPage;
+    
+    if (needsReset) {
+      set(initialState);
+    }
   },
 })); 
