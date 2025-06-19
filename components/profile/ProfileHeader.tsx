@@ -98,7 +98,7 @@ const ProfileHeaderComponent = ({
             className="w-full"
           />
           
-          <ShareButton className="w-full py-2 rounded-lg" displayName={displayName} shareUrl={`/@${normalizedUsername}`} />
+          <ShareButton className="w-full py-2 rounded-lg" displayName={displayName} />
         </div>
       </div>
     </div>
