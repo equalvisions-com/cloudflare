@@ -135,7 +135,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: post.featuredImg ? [{
+        images: (post.featuredImg && post.featuredImg.trim()) ? [{
           url: post.featuredImg,
           width: 1200,
           height: 630,
@@ -155,7 +155,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: post.featuredImg ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
+        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -246,7 +246,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
-        "logo": post.featuredImg ? {
+        "logo": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
           "url": post.featuredImg,
           "width": 1200,
@@ -279,7 +279,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "url": profileUrl,
         "description": description,
         "inLanguage": "en",
-        "image": post.featuredImg ? {
+        "image": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
           "url": post.featuredImg,
           "width": 1200,
@@ -319,8 +319,6 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
 
 // Simplified PostContent component for detailed feed info
 function PostContent({ post, followState, rssData }: PostContentProps) {
-  const siteUrl = process.env.SITE_URL;
-  const shareUrl = `${siteUrl}/podcasts/${post.postSlug}`;
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
       <div className="flex flex-col w-full" style={{ gap: '16px' }}>
@@ -380,11 +378,7 @@ function PostContent({ post, followState, rssData }: PostContentProps) {
             className="w-full rounded-lg"
           />
           
-          <ShareButton 
-            className="w-full py-2 rounded-lg" 
-            displayName={post.title}
-            shareUrl={shareUrl}
-          />
+          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
         </div>
       </div>
     </div>

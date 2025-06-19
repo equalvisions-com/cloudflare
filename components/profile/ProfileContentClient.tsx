@@ -21,7 +21,6 @@ interface ProfileContentClientProps {
   };
   initialFriends: ProfileSocialData;
   initialFollowing: ProfileFollowingData;
-  shareUrl: string;
 }
 
 const ProfileContentClientComponent = ({
@@ -32,7 +31,6 @@ const ProfileContentClientComponent = ({
   socialCounts,
   initialFriends,
   initialFollowing,
-  shareUrl,
 }: ProfileContentClientProps) => {
   // Validate required data
   if (!profile || !profile.userId || !normalizedUsername) {
@@ -85,7 +83,6 @@ const ProfileContentClientComponent = ({
         socialCounts={socialCounts}
         initialFriends={initialFriends}
         initialFollowing={initialFollowing}
-        shareUrl={shareUrl}
       />
     </ErrorBoundary>
   );
@@ -102,8 +99,7 @@ export const ProfileContentClient = memo(ProfileContentClientComponent, (prevPro
     prevProps.normalizedUsername === nextProps.normalizedUsername &&
     prevProps.socialCounts.friendCount === nextProps.socialCounts.friendCount &&
     prevProps.socialCounts.followingCount === nextProps.socialCounts.followingCount &&
-    prevProps.friendshipStatus?.status === nextProps.friendshipStatus?.status &&
-    prevProps.shareUrl === nextProps.shareUrl
+    prevProps.friendshipStatus?.status === nextProps.friendshipStatus?.status
   );
 });
 

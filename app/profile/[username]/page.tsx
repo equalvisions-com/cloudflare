@@ -225,7 +225,7 @@ const generateProfileMetadata = cache(async (username: string): Promise<Metadata
       description,
       url: `${siteUrl}/@${normalizedUsername}`,
       type: 'profile',
-      images: [`${siteUrl}/api/og/profile?user=${normalizedUsername}`],
+      images: profile.profileImage ? [profile.profileImage] : [`${siteUrl}/api/og/profile?user=${normalizedUsername}`],
     },
     twitter: {
       card: 'summary_large_image',
@@ -269,10 +269,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   // Transform data on the server
   const transformedData = getTransformedProfileData(profileData, username);
   
-  // Construct the share URL
-  const siteUrl = process.env.SITE_URL || 'https://focusfix.app';
-  const shareUrl = `${siteUrl}/@${transformedData.normalizedUsername}`;
-  
   return (
     <>
       <script
@@ -292,7 +288,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             socialCounts={transformedData.socialCounts}
             initialFriends={transformedData.initialFriends}
             initialFollowing={transformedData.initialFollowing}
-            shareUrl={shareUrl}
           />
           
           {/* Profile Activity with Suspense boundary */}
