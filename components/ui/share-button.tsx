@@ -35,6 +35,7 @@ export const ShareButton = React.memo(function ShareButton({
     setIsSharing(true);
 
     try {
+      // Use shareUrl if provided, otherwise fall back to current page
       const url = shareUrl || window.location.href;
       const shareTitle = displayName ? `${displayName} on FocusFix` : "Check out this post on FocusFix";
 

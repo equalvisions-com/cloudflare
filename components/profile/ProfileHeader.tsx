@@ -23,6 +23,7 @@ interface ProfileHeaderProps {
   };
   initialFriends: ProfileSocialData;
   initialFollowing: ProfileFollowingData;
+  shareUrl: string;
 }
 
 const ProfileHeaderComponent = ({
@@ -33,6 +34,7 @@ const ProfileHeaderComponent = ({
   socialCounts,
   initialFriends,
   initialFollowing,
+  shareUrl,
 }: ProfileHeaderProps) => {
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -98,7 +100,11 @@ const ProfileHeaderComponent = ({
             className="w-full"
           />
           
-          <ShareButton className="w-full py-2 rounded-lg" displayName={displayName} />
+          <ShareButton 
+            className="w-full py-2 rounded-lg" 
+            displayName={displayName}
+            shareUrl={shareUrl}
+          />
         </div>
       </div>
     </div>
@@ -116,7 +122,8 @@ export const ProfileHeader = memo(ProfileHeaderComponent, (prevProps, nextProps)
     prevProps.normalizedUsername === nextProps.normalizedUsername &&
     prevProps.socialCounts.friendCount === nextProps.socialCounts.friendCount &&
     prevProps.socialCounts.followingCount === nextProps.socialCounts.followingCount &&
-    prevProps.friendshipStatus?.status === nextProps.friendshipStatus?.status
+    prevProps.friendshipStatus?.status === nextProps.friendshipStatus?.status &&
+    prevProps.shareUrl === nextProps.shareUrl
   );
 });
 
