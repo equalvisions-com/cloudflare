@@ -11,7 +11,6 @@ export default function AutoRedirect() {
       try {
         await setOnboardedCookieAndRedirect();
       } catch (error) {
-        console.error("Failed to redirect:", error);
         // Fallback to manual redirect if server action fails - redirect to signin not home
         window.location.href = '/signin';
       }

@@ -398,7 +398,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
       enableRecovery={true}
       maxRetries={3}
       onError={(error, errorInfo) => {
-        // console.error('FollowingList Error:', error, errorInfo);
+    
       }}
     >
       <Drawer open={state.isOpen} onOpenChange={handleOpenChange}>

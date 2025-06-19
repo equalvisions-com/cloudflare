@@ -204,7 +204,7 @@ export const useProfileImageUpload = ({
       BlobURLManager.revoke(url);
     } catch (error) {
       // Silently handle cleanup errors - not critical
-      console.warn('Failed to cleanup preview URL:', error);
+      
     }
   }, []);
 

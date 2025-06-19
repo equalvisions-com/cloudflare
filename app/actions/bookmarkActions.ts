@@ -114,7 +114,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
           }])
         );
       } catch (error) {
-        console.error("Error fetching entry details:", error);
+        // Error handled silently for production
       }
     }
     
@@ -158,7 +158,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
         }
       }
     } catch (error) {
-      console.error("Error fetching post data:", error);
+      // Error handled silently for production
     }
     
     // Step 4: Get interaction metrics for entries
@@ -179,7 +179,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
         });
       }
     } catch (error) {
-      console.error("Error fetching entry metrics:", error);
+      // Error handled silently for production
     }
     
     return {
@@ -190,7 +190,6 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
       entryMetrics
     };
   } catch (error) {
-    console.error("Error fetching bookmarks data:", error);
     return {
       bookmarks: [],
       totalCount: 0,

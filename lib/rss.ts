@@ -37,7 +37,7 @@ export async function getRSSEntries(postTitle: string, feedUrl: string, mediaTyp
     const data = await response.json() as RSSEntryResponse;
     return data.entries.map((item) => item.entry);
   } catch (error) {
-    console.error(`Error fetching RSS entries for ${postTitle}:`, error);
+
     return [];
   }
 }
@@ -69,7 +69,7 @@ export async function getMergedRSSEntries(
     const data = await response.json();
     return data.entries;
   } catch (error) {
-    console.error('Error merging RSS entries:', error);
+
     return null;
   }
 } 

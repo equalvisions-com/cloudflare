@@ -24,7 +24,6 @@ export async function setOnboardedCookieAndRedirect(): Promise<void> {
   'use server';
   
   try {
-    console.log("Setting onboarded cookie in server action");
     // Set the cookie to true
     cookies().set('user_onboarded', 'true', {
       path: '/',
@@ -37,7 +36,6 @@ export async function setOnboardedCookieAndRedirect(): Promise<void> {
     // This will redirect after the server action completes
     redirect('/');
   } catch (error) {
-    console.error("Error setting cookie in server action:", error);
     // Let the component handle the error
   }
 }
@@ -55,7 +53,6 @@ async function fetchProfileWithTimeout(token: string, timeoutMs = 5000): Promise
     
     return await Promise.race([profilePromise, timeoutPromise]) as UserProfile | null;
   } catch (error) {
-    console.error("Error fetching profile:", error);
     return null;
   }
 }
@@ -69,12 +66,10 @@ export default async function VerifyOnboardingStatus() {
   try {
     // Make sure to catch any token errors
     const token = await convexAuthNextjsToken().catch(err => {
-      console.error("Token retrieval error:", err);
       return null;
     });
     
     if (!token) {
-      console.error("No auth token available - redirecting to signin");
       redirect('/signin');
     }
     
@@ -92,43 +87,33 @@ export default async function VerifyOnboardingStatus() {
       
       retries++;
       if (retries <= MAX_RETRIES) {
-        console.log(`Retry ${retries}/${MAX_RETRIES} for profile fetch`);
         await delay(1000 * retries); // Exponential backoff
       }
     }
     
     // If all retries failed, redirect to signin
     if (!profile) {
-      console.error("Failed to fetch profile after retries - redirecting to signin");
       // Clear any existing cookies to force re-authentication
       cookies().set('user_onboarded', '', { maxAge: 0, path: '/' });
       redirect('/signin');
     }
     
-    // Log for debugging
-    console.log("Profile from Convex:", JSON.stringify(profile));
-    
     if (profile.isBoarded) {
       // User is already onboarded according to database (source of truth)
-      console.log("User is onboarded in database");
       
       // Check if cookie doesn't match Convex status
       if (onboardedCookie?.value !== 'true') {
-        console.log("Cookie mismatch - updating cookie to match Convex status");
         // Use the client component to handle the cookie update and redirect
         return <AutoRedirect />;
       } else {
         // Cookie already matches - redirect directly
-        console.log("Cookie already matches Convex status - redirecting");
         redirect('/');
       }
     } else {
       // User is not onboarded according to database (source of truth)
-      console.log("User not onboarded in database");
       
       // Check if cookie incorrectly says they're onboarded
       if (onboardedCookie?.value === 'true') {
-        console.log("Cookie mismatch - removing incorrect cookie");
         // Remove the incorrect cookie
         cookies().set('user_onboarded', '', {
           path: '/',
@@ -137,10 +122,8 @@ export default async function VerifyOnboardingStatus() {
       }
       
       // Continue to onboarding flow
-      console.log("Continuing to onboarding flow");
     }
   } catch (error) {
-    console.error("Error verifying onboarding status:", error);
     // For any unexpected errors, redirect to signin as a fallback
     redirect('/signin');
   }

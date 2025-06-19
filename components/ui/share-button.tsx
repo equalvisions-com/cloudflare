@@ -48,7 +48,7 @@ export const ShareButton = React.memo(function ShareButton({
       }
     } catch (error) {
       // Silently handle errors
-      console.error("Share failed:", error);
+      
     } finally {
       setIsSharing(false);
     }

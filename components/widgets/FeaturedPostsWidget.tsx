@@ -110,7 +110,7 @@ const FeaturedPostItem = memo(({ post, isFollowing }: FeaturedPostItemProps) => 
       await globalMutate(FOLLOWED_POSTS_KEY);
 
     } catch (error) {
-      console.error("Error updating follow state:", error);
+      
       setVisualIsFollowing(null); // Rollback optimistic UI on error
     } finally {
       // Allow time for mutation effects / potential prop updates before clearing busy

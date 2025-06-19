@@ -113,7 +113,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         });
       }
     } catch (error) {
-      console.error("Failed to send friend request:", error);
+      
       const errorMessage = (error as Error).message || "An unknown error occurred";
       let toastTitle = "Error Sending Request";
       let toastDescription = "Could not send friend request. Please try again.";
@@ -160,7 +160,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
       }
     } catch (error) {
-      console.error("Failed to accept friend request:", error);
+      
       const errorMessage = (error as Error).message || "An unknown error occurred";
       let toastTitle = "Error Accepting Request";
       let toastDescription = "Could not accept friend request. Please try again.";
@@ -199,7 +199,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         }
       }
     } catch (error) {
-      console.error("Failed to unfriend:", error);
+      
       const errorMessage = (error as Error).message || "An unknown error occurred";
       let toastTitle = "Error Modifying Friendship";
       let toastDescription = "Could not update friendship status. Please try again.";

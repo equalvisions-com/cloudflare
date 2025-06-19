@@ -61,7 +61,6 @@ type ConvexPost = {
 // Cache the initial data fetching using the new batch query
 export const getInitialActivityData = cache(async (userId: Id<"users">) => {
   try {
-    console.log(`📡 Fetching optimized activity data for user: ${userId}`);
     const startTime = Date.now();
     
     // Use the new optimized batch query
@@ -70,12 +69,10 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
       limit: 30
     });
     
-    console.log(`✅ Fetched optimized activity data in ${Date.now() - startTime}ms`);
-    
     // For now, we'll need to handle any external API calls for entry details
     // since our batch query can't directly access external APIs
-    const activities: any[] = result.activities.activities;
-    const guids = activities.map((activity: any) => activity.entryGuid);
+    const activities = result.activities.activities;
+    const guids = activities.map((activity: { entryGuid: string }) => activity.entryGuid);
     
     // Get Convex post metadata from the batch query
     let postMetadata: Record<string, any> = result.entryDetails as Record<string, any> || {};
@@ -86,7 +83,6 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     
     if (guids.length > 0) {
       try {
-        console.log(`📡 Fetching entries from PlanetScale`);
         const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -129,14 +125,10 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
                 }
               }
             }
-          } else {
-            console.error('❌ Invalid data format from PlanetScale API:', data);
           }
-        } else {
-          console.error(`❌ API response error: ${response.status}`);
         }
       } catch (error) {
-        console.error("❌ Error fetching entry details from PlanetScale:", error);
+        // Error handling for PlanetScale API call
       }
     }
     
@@ -150,7 +142,6 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
     
     if (feedTitles.length > 0) {
       try {
-        console.log(`📡 Fetching post data for ${feedTitles.length} feed titles`);
         const postsStartTime = Date.now();
         
         const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
@@ -187,7 +178,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
           }
         }
       } catch (error) {
-        console.error("❌ Error fetching post data from Convex:", error);
+        // Error handling for Convex post data fetch
       }
     }
     
@@ -214,7 +205,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
       )
     };
   } catch (error) {
-    console.error("❌ Error fetching initial activity data:", error);
+    // Error handling for initial activity data fetch
     // Return empty data instead of null to avoid loading state
     return {
       activities: [],
@@ -229,7 +220,6 @@ export const getInitialActivityData = cache(async (userId: Id<"users">) => {
 // Cache the initial likes data fetching using the new batch query
 export const getInitialLikesData = cache(async (userId: Id<"users">) => {
   try {
-    console.log(`📡 Fetching optimized likes data for user: ${userId}`);
     const startTime = Date.now();
     
     // Use the new optimized batch query
@@ -237,8 +227,6 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
       userId,
       limit: 30
     });
-    
-    console.log(`✅ Fetched optimized likes data in ${Date.now() - startTime}ms`);
     
     // For now, we'll need to handle any external API calls for entry details
     // since our batch query can't directly access external APIs
@@ -254,7 +242,6 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
     
     if (guids.length > 0) {
       try {
-        console.log(`📡 Fetching entries from PlanetScale`);
         const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -297,14 +284,10 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
                 }
               }
             }
-          } else {
-            console.error('❌ Invalid data format from PlanetScale API:', data);
           }
-        } else {
-          console.error(`❌ API response error: ${response.status}`);
         }
       } catch (error) {
-        console.error("❌ Error fetching entry details from PlanetScale:", error);
+        // Error handling for PlanetScale API call
       }
     }
     
@@ -318,9 +301,6 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
     
     if (feedTitles.length > 0) {
       try {
-        console.log(`📡 Fetching post data for ${feedTitles.length} feed titles`);
-        const postsStartTime = Date.now();
-        
         const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
         
         if (posts.length > 0) {
@@ -355,22 +335,14 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
           }
         }
       } catch (error) {
-        console.error("❌ Error fetching post data from Convex:", error);
+        // Error handling for Convex post data fetch
       }
     }
     
     // Ensure the likes match the ActivityItem type
-    const typedLikes: ActivityItem[] = likes.map((like: { 
-      _id: string; 
-      timestamp: number; 
-      entryGuid: string; 
-      feedUrl: string; 
-      title?: string; 
-      link?: string; 
-      pubDate?: string; 
-    }) => ({
+    const typedLikes: ActivityItem[] = likes.map((like: any) => ({
       ...like,
-      type: "comment" as "comment" | "retweet"
+      type: "like" as "comment" | "retweet" // This might need adjustment based on your type
     }));
     
     return {
@@ -390,7 +362,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">) => {
       )
     };
   } catch (error) {
-    console.error("❌ Error fetching initial likes data:", error);
+    // Error handling for initial likes data fetch
     // Return empty data instead of null to avoid loading state
     return {
       activities: [],

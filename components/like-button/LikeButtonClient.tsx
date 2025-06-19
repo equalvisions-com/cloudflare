@@ -127,7 +127,7 @@ export const LikeButtonClient = memo(function LikeButtonClient({
       // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
       // Revert optimistic update on error
-      console.error('Error updating like status:', err);
+
       
       const errorMessage = (err as Error).message || 'Something went wrong';
       let toastTitle = "Error";

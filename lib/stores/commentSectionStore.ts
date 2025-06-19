@@ -69,12 +69,12 @@ export const createCommentSectionStore = () => create<CommentSectionStore>((set,
   // Comment Actions (these will be implemented in the hook)
   submitComment: async () => {
     // Implementation will be in the custom hook
-    console.log('submitComment called - implementation in hook');
+
   },
 
   deleteComment: async (commentId: Id<"comments">) => {
     // Implementation will be in the custom hook
-    console.log('deleteComment called - implementation in hook', commentId);
+
   },
 
   // Optimistic Updates

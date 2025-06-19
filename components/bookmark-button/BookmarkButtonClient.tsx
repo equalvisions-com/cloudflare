@@ -126,7 +126,7 @@ const BookmarkButtonClientComponent = ({
       // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
       // Revert optimistic update on error
-      console.error('Error updating bookmark status:', err);
+
       if (isMountedRef.current) {
         setOptimisticState(null);
 

@@ -124,7 +124,7 @@ export const useEntriesData = ({
       setHasMore(data.hasMore);
       setPage(nextPage);
     } catch (error) {
-      console.error('Error loading more entries:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -160,7 +160,7 @@ export const useEntriesData = ({
         setPage(1);
         setLastSearchQuery(searchQuery);
       } catch (error) {
-        console.error('Error searching entries:', error);
+
       } finally {
         setLoading(false);
         setInitialLoad(false);

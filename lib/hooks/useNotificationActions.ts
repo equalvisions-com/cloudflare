@@ -33,7 +33,7 @@ export function useNotificationActions() {
       });
       updatePendingFriendRequestCount(Math.max(0, pendingFriendRequestCount - 1));
     } catch (error) {
-      console.error("Failed to accept friend request:", error);
+
       toast({
         variant: "destructive",
         description: "Failed to accept friend request",
@@ -54,7 +54,7 @@ export function useNotificationActions() {
       });
       updatePendingFriendRequestCount(Math.max(0, pendingFriendRequestCount - 1));
     } catch (error) {
-      console.error("Failed to decline friend request:", error);
+
       toast({
         variant: "destructive",
         description: "Failed to decline friend request",
@@ -74,7 +74,7 @@ export function useNotificationActions() {
         description: "Friend removed",
       });
     } catch (error) {
-      console.error("Failed to remove friend:", error);
+
       toast({
         variant: "destructive",
         description: "Failed to remove friend",

@@ -329,7 +329,7 @@ const ChatPageComponent = () => {
       // Response complete
     },
     onError: (error) => {
-      console.error('Chat error:', error);
+
         
       // Parse error message
       let errorMessage = 'Something went wrong';

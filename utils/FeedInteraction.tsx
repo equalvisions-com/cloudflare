@@ -4,22 +4,16 @@ import Link, { LinkProps } from 'next/link';
 // Add a consistent logging utility
 const logger = {
   debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📋 ${message}`, data !== undefined ? data : '');
-    }
+    // Debug logging removed for production
   },
   info: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`ℹ️ ${message}`, data !== undefined ? data : '');
-    }
+    // Info logging removed for production
   },
   warn: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`⚠️ ${message}`, data !== undefined ? data : '');
-    }
+    // Warning logging removed for production
   },
   error: (message: string, error?: unknown) => {
-    console.error(`❌ ${message}`, error !== undefined ? error : '');
+    // Error logging removed for production
   }
 };
 

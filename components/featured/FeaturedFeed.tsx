@@ -24,7 +24,7 @@ import 'server-only';
 
 export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
   if (!kvBinding) {
-    console.error("KV binding was not provided to getInitialEntries. Serving empty.");
+
     return null;
   }
 
@@ -99,17 +99,7 @@ export default async function FeaturedFeed({ initialData: preloadedData, kvBindi
     );
   }
   
-  if (preloadedData) {
-    console.log('FeaturedFeed: Using prefetched featured data.', {
-      entriesCount: preloadedData.entries?.length || 0
-    });
-  } else if (kvBindingFromProps) {
-    console.log('FeaturedFeed: Fetched data directly using provided KV binding.', {
-      entriesCount: data.entries?.length || 0
-    });
-  } else {
-    console.log('FeaturedFeed: No preloaded data and no KV binding provided for direct fetch.');
-  }
+  // Data source tracking removed
   
   return (
     <FeaturedFeedClient

@@ -79,11 +79,7 @@ export class FollowingListErrorBoundary extends Component<
       this.props.onError(followingListError, errorInfo);
     }
 
-    // Log to console for development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('FollowingList Error Boundary caught an error:', error);
-      console.error('Component stack:', errorInfo.componentStack);
-    }
+    // Error logging removed for production
   }
 
   componentWillUnmount() {
@@ -231,19 +227,7 @@ export class FollowingListErrorBoundary extends Component<
                 Reset
               </Button>
 
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  onClick={() => {
-                    
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Bug className="h-4 w-4" />
-                  Debug
-                </Button>
-              )}
+
             </div>
 
             {/* Retry count indicator */}

@@ -45,10 +45,7 @@ function RSSFeedErrorFallback({
 
 // PHASE 4: Enhanced error logging for production monitoring
 function handleError(error: Error, errorInfo: { componentStack?: string | null }) {
-  // Log error for monitoring in production
-  if (process.env.NODE_ENV === 'development') {
-    console.error('[RSS Feed Error Boundary]', error, errorInfo);
-  }
+  // Error logging removed for production
   
   // TODO: Send to error tracking service
   // Sentry.captureException(error, {

@@ -59,7 +59,6 @@ export const useFeedTabsAuth = ({
     );
 
     if (hasChanges) {
-      console.log('🔄 Updating auth state:', newAuthState);
       setAuthState(newAuthState);
     }
   }, [
@@ -76,12 +75,6 @@ export const useFeedTabsAuth = ({
    * Handle authentication state changes
    */
   const handleAuthChange = useCallback(() => {
-    console.log('🔄 Authentication state changed:', {
-      isAuthenticated,
-      displayName,
-      isBoarded
-    });
-    
     // This is handled automatically by the useEffect above
     // but can be used for additional logic if needed
   }, [isAuthenticated, displayName, isBoarded]);

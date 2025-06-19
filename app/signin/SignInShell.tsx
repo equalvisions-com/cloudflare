@@ -113,7 +113,6 @@ function SignInPageContent() {
                           setEmail(emailFromSignin);
                           setStep("verifyEmail");
                         } else {
-                          console.error("Email not provided to onVerificationNeeded from SignInWithPassword.");
                           toast({
                             title: "Navigation Error",
                             description: "Could not proceed to email verification.",
@@ -228,7 +227,6 @@ function SignInWithPassword({
         
         try {
           const result: any = await signIn("password", formData); // Capture and type result as any for now
-          console.log("SignInWithPassword - signIn result:", result); // Log the result
 
           // Based on Convex patterns (like in SignUp), check if sign-in is pending verification
           // The exact properties might need adjustment after observing the log
@@ -242,7 +240,6 @@ function SignInWithPassword({
             if (email) {
               onVerificationNeeded(email); // Navigate to OTP input step
             } else {
-              console.error("Email was null when trying to redirect to verification from sign in.");
               toast({
                 title: "Error",
                 description: "Could not retrieve email to proceed with verification.",
@@ -254,7 +251,6 @@ function SignInWithPassword({
             router.push("/onboarding");
           } else {
             // Unexpected result structure
-            console.error("Unexpected sign-in result structure:", result);
             toast({
               title: "Sign-In Issue",
               description: "An unexpected issue occurred during sign-in. Please try again.",
@@ -263,7 +259,6 @@ function SignInWithPassword({
           }
         } catch (error: any) {
           // This catch block now handles other errors like wrong password, or if signIn truly fails
-          console.error("SignInWithPassword - catch block error:", error); 
           const originalErrorMessage = (error.data?.message || error.message || "").toString();
           const lowerErrorMessage = originalErrorMessage.toLowerCase();
           
@@ -294,7 +289,6 @@ function SignInWithPassword({
                  throw new Error("Email not available for OTP resend in catch block");
               }
             } catch (verifyError: any) {
-              console.error("Error resending verification code from catch block:", verifyError);
               toast({
                 title: "Verification Error",
                 description: (verifyError.data?.message || verifyError.message || "Could not send verification code. Please try again."),
@@ -499,7 +493,6 @@ function SignUpWithPassword({
               if (emailFromForm) {
                 onVerificationNeeded(emailFromForm);
               } else {
-                console.error("Email not found in signup form for verification step.");
                 toast({
                   title: "Sign-Up Error",
                   description: "Could not retrieve email for verification. Please try signing up again or sign in if you have an account.",
@@ -512,7 +505,6 @@ function SignUpWithPassword({
           })
           .catch((error) => {
             setSubmitting(false);
-            console.error("SignUp error:", error);
             
             // Check for both direct error message and nested error data
             const errorMessage = error instanceof Error ? error.message : "";
@@ -661,7 +653,6 @@ function ResetPasswordRequest({
             onEmailSent(email);
           })
           .catch((error) => {
-            console.error(error);
             toast({
               title: "Could not send reset code",
               description: "Please check your email address",
@@ -739,8 +730,6 @@ function SignUpVerification({
       onSuccess();
     } catch (error: any) {
       const clientErrorMessage = (error.data?.message || error.message || "An unknown error occurred during verification.").toString();
-      console.log("Full client-side error object:", error); // For debugging
-      console.log("Derived client-side errorMessage string:", clientErrorMessage); // For debugging
 
       const lowerClientErrorMessage = clientErrorMessage.toLowerCase();
 
@@ -752,7 +741,6 @@ function SignUpVerification({
           (error instanceof TypeError && lowerClientErrorMessage.includes("cannot read properties of null (reading 'redirect')")) ||
           lowerClientErrorMessage.includes("null is not an object (evaluating \'o.redirect\')")
          ) {
-        console.log("OTP Error: Entered specific failure block (expired/invalid or specific TypeError)."); // For debugging
         setOtpError("Invalid or expired code. Please try again or request a new one");
         setShowResendOtpButton(true);
         toast({
@@ -761,7 +749,6 @@ function SignUpVerification({
           
         });
       } else {
-        console.log("OTP Error: Entered generic failure block."); // For debugging
         // Handle other potential errors
         setOtpError(clientErrorMessage);
         toast({
@@ -792,7 +779,6 @@ function SignUpVerification({
       setShowResendOtpButton(false);
       setOtp(""); // Clear the OTP input field
     } catch (error: any) {
-      console.error("Resend OTP error:", error);
       const resendErrorMessage = error.data?.message || error.message || "Failed to resend code. Please try again.";
       toast({
         title: "Resend Failed",

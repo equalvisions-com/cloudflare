@@ -41,7 +41,7 @@ export const useEntriesStore = create<EntriesStore>((set, get) => ({
   },
 
   setLoading: (isLoading: boolean) => {
-    console.log('🔄 Zustand setLoading called with:', isLoading);
+
     set((state) => ({
       loadingState: {
         ...state.loadingState,

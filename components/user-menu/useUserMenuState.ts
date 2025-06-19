@@ -33,7 +33,7 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
       // Clear the onboarding cookie
       const cookieResult = await clearOnboardingCookieAction();
       if (!cookieResult.success) {
-        console.error("Failed to clear onboarding cookie:", cookieResult.error);
+  
         // Optionally, notify the user or handle the error further
       }
       // Optimistically update the UI after sign-out
@@ -41,7 +41,7 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
       setUsername("Guest");
       setProfileImage(undefined);
     } catch (error) {
-      console.error("Failed to sign out:", error);
+
       // Optionally, trigger a user-friendly notification here
     }
   };

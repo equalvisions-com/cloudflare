@@ -16,7 +16,7 @@ export async function getConvexAuthToken() {
   try {
     return process.env.NEXT_PUBLIC_CONVEX_URL;
   } catch (error) {
-    console.error('Error getting Convex auth token:', error);
+
     return null;
   }
 } 

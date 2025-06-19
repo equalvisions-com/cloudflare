@@ -22,7 +22,6 @@ export async function finalizeOnboardingCookieAction(): Promise<{ success: boole
     return { success: true };
 
   } catch (error: any) {
-    console.error('Error in finalizeOnboardingCookieAction:', error);
     return { success: false, error: "Failed to set onboarding cookie" };
   }
 }
@@ -360,7 +359,6 @@ function OnboardingPageContent() {
     e.preventDefault();
     
     if (usernameError) {
-      console.error("Username not available or invalid:", usernameError);
       setIsSubmitting(false);
       return;
     }
@@ -404,8 +402,6 @@ function OnboardingPageContent() {
           
           finalProfileImageKey = uploadData.key;
         } catch (error) {
-          console.error("Failed to upload image:", error);
-          console.error("Image upload failed:", error instanceof Error ? error.message : "Failed to upload profile image");
           setIsSubmitting(false);
           setIsUploading(false);
           return;
@@ -428,17 +424,6 @@ function OnboardingPageContent() {
       setIsSubmitting(false);
       
     } catch (error) {
-      console.error('Error saving profile:', error);
-      
-      if (error instanceof Error) {
-        if (error.message.includes("Username already taken")) {
-          console.error("Username not available: This username is already taken. Please choose another one.");
-        } else {
-          console.error("Could not save profile:", error.message);
-        }
-      } else {
-        console.error("Could not save profile: An unexpected error occurred. Please try again.");
-      }
       setIsSubmitting(false);
     }
   };
@@ -462,19 +447,16 @@ function OnboardingPageContent() {
         setFollowedPosts([...followedPosts, postId]);
       }
     } catch (error) {
-      console.error("Failed to toggle follow:", error);
-      console.error("Action failed: Could not follow or unfollow this post. Please try again.");
+      // Error handled silently for production
     }
   };
 
   const finalizeOnboarding = async () => {
     if (!profileData) {
-      console.error("Error: Profile data is missing. Please try again.");
       return;
     }
 
     if (followedPosts.length < REQUIRED_FOLLOWS) {
-      console.error(`Follow more posts: Please follow at least ${REQUIRED_FOLLOWS} posts to continue.`);
       return;
     }
 
@@ -501,17 +483,12 @@ function OnboardingPageContent() {
       ]) as OnboardingResult;
       
       if (!result.success) {
-        console.error("Could not complete onboarding:", result.error || "An unexpected error occurred");
-        
         // If there's a redirect URL in case of auth errors, use it
         if (result.redirectUrl) {
           router.push(result.redirectUrl);
           return;
         }
       } else {
-        console.log(result.message ? "Already Onboarded" : "Profile completed", 
-                   result.message || "Welcome to Grasper!");
-        
         // Clean up object URLs
         if (previewImage && previewImage.startsWith('blob:')) {
           URL.revokeObjectURL(previewImage);
@@ -528,9 +505,6 @@ function OnboardingPageContent() {
         }
       }
     } catch (error) {
-      console.error('Error completing onboarding:', error);
-      console.error("Could not complete onboarding:", error instanceof Error ? error.message : "An unexpected error occurred");
-      
       // For any unhandled errors, redirect to signin after a short delay
       setTimeout(() => {
         router.push('/signin');

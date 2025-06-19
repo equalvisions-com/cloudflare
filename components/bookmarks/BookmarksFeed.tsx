@@ -501,7 +501,7 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
       setEntryMetrics(prev => ({...prev, ...data.entryMetrics}));
       setHasMore(data.hasMore);
     } catch (error) {
-      console.error('Error loading more bookmarks:', error);
+      
     } finally {
       setIsLoading(false);
     }

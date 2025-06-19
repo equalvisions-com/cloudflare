@@ -17,7 +17,7 @@ export function useFollowActions() {
       });
       return true;
     } catch (error) {
-      console.error("Failed to follow post:", error);
+
       throw error;
     }
   };
@@ -31,7 +31,7 @@ export function useFollowActions() {
       });
       return true;
     } catch (error) {
-      console.error("Failed to unfollow post:", error);
+
       throw error;
     }
   };

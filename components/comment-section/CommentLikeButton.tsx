@@ -131,7 +131,7 @@ const CommentLikeButtonComponent = ({
       await toggleLike({ commentId });
       // Successful submission - no need to do anything as Convex will update the UI
     } catch (error) {
-      console.error('Error toggling comment like:', error);
+
       // Revert optimistic update on error
       if (isMountedRef.current) {
         setOptimisticIsLiked(null);

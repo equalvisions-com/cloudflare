@@ -72,7 +72,7 @@ export const useFeedTabsManagement = ({
   useEffect(() => {
     // Check if authentication status changed from authenticated to unauthenticated
     if (prevAuthRef.current && !isAuthenticated) {
-      console.log('🔓 User signed out, resetting to Discover tab');
+  
       
       // Reset to Discover tab
       setActiveTabIndex(0);

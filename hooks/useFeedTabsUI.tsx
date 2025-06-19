@@ -144,7 +144,7 @@ export const useFeedTabsUI = (
         if (featuredError) {
           return renderErrorState(featuredError, () => {
             // This will be handled by the parent component
-            console.log('🔄 Retry featured data fetch requested');
+        
           });
         }
         
@@ -169,7 +169,7 @@ export const useFeedTabsUI = (
         if (rssError) {
           return renderErrorState(rssError, () => {
             // This will be handled by the parent component
-            console.log('🔄 Retry RSS data fetch requested');
+        
           });
         }
         

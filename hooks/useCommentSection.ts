@@ -143,7 +143,7 @@ export function useCommentSection({
       });
       
     } catch (error) {
-      console.error('❌ Error adding comment:', error);
+
       
       if (isMountedRef.current) {
         // Revert optimistic update
@@ -215,7 +215,7 @@ export function useCommentSection({
       storeState.addDeletedComment(commentId.toString());
       
     } catch (error) {
-      console.error('❌ Error deleting comment:', error);
+
     }
   }, [deleteCommentMutation, storeState.addDeletedComment]);
   

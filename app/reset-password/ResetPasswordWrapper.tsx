@@ -136,7 +136,6 @@ function ResetPasswordPageContent(): JSX.Element {
       });
       router.push("/");
     } catch (err: any) {
-      console.error("Reset password error:", err);
       const errorMessage = err.data?.message || err.message || "";
       if (
         errorMessage.includes("Invalid verification code") || 

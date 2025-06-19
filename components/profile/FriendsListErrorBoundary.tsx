@@ -63,13 +63,7 @@ class FriendsListErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error for debugging
-    console.error('FriendsListErrorBoundary caught an error:', {
-      error: error.message,
-      stack: error.stack,
-      componentStack: errorInfo.componentStack,
-      retryCount: this.state.retryCount,
-    });
+    // Error boundary caught an error - removed console logging
 
     // Update state with error info
     this.setState({
@@ -118,8 +112,6 @@ class FriendsListErrorBoundary extends React.Component<
       return;
     }
 
-    // console.log(`FriendsListErrorBoundary: Retrying (attempt ${newRetryCount}/${this.maxRetries})`);
-    
     this.setState({
       hasError: false,
       error: null,
@@ -135,8 +127,6 @@ class FriendsListErrorBoundary extends React.Component<
   };
 
   private handleReset = () => {
-    // console.log('FriendsListErrorBoundary: Resetting error state');
-    
     this.setState({
       hasError: false,
       error: null,

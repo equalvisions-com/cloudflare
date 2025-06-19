@@ -85,7 +85,7 @@ export const useFeedTabsDataFetching = ({
     setFeaturedError(null);
 
     try {
-      console.log('🔄 Fetching featured data...');
+
       
       const response = await fetch('/api/featured-feed-data');
       
@@ -107,9 +107,9 @@ export const useFeedTabsDataFetching = ({
       const data: FeedTabsFeaturedData = await response.json();
       setFeaturedData(data);
       
-      console.log('✅ Featured data fetched successfully');
+      
     } catch (error: any) {
-      console.error('❌ Error fetching featured data:', error);
+      
       setFeaturedError(error.message || 'Failed to load featured content. Please try again.');
     } finally {
       setFeaturedLoading(false);
@@ -178,7 +178,7 @@ export const useFeedTabsDataFetching = ({
       } catch (error: any) {
         // Don't set error if it was aborted (user signed out)
         if (error.name !== 'AbortError') {
-          console.error('Error fetching RSS data:', error);
+  
           setRSSError('Failed to load RSS feed data. Please try again.');
         }
         throw error; // Re-throw for deduplication cleanup

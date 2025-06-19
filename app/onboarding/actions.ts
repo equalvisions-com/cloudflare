@@ -25,7 +25,6 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
   try {
     // 1. Get the Convex token
     const token = await convexAuthNextjsToken().catch(err => {
-      console.error("Token retrieval error:", err);
       throw new Error("Authentication error");
     });
     
@@ -38,8 +37,6 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
     
     // 3. Check for already onboarded status (handles race condition with multiple tabs)
     if (convexResult && typeof convexResult === 'object' && 'status' in convexResult && convexResult.status === "ALREADY_ONBOARDED") {
-      console.log("User already onboarded in another tab/session");
-      
       // Set cookie to ensure consistency and redirect to home
       cookies().set('user_onboarded', 'true', {
         path: '/',
@@ -73,8 +70,6 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
     };
 
   } catch (error: any) {
-    console.error('Error in atomicFinalizeOnboarding:', error);
-    
     // Detailed error handling with specific error messages
     if (error.message?.includes('Authentication')) {
       return { 
@@ -99,7 +94,6 @@ export async function clearOnboardingCookieAction(): Promise<{ success: boolean;
     cookies().delete('user_onboarded');
     return { success: true };
   } catch (error: any) {
-    console.error('Error in clearOnboardingCookieAction:', error);
     return { success: false, error: "Failed to clear onboarding cookie" };
   }
 } 

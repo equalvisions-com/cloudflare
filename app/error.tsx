@@ -64,10 +64,8 @@ export default function ErrorPage({
   const router = useRouter()
   const pathname = usePathname()
 
-  // Log the error to an error reporting service
+  // Handle error recovery
   useEffect(() => {
-    console.error('Application error:', error)
-    
     // Attempt to detect if this is a cold start connection timeout
     const isColdStartError = 
       error.message?.includes('timeout') || 
@@ -76,8 +74,6 @@ export default function ErrorPage({
       error.message?.includes('failed to fetch')
     
     if (isColdStartError) {
-      console.log('Detected cold start error, will attempt auto-retry')
-      
       // For cold start errors, auto-retry after a short delay
       const timer = setTimeout(() => {
         reset()

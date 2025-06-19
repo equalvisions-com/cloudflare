@@ -115,14 +115,7 @@ export const useProfileErrorHandler = () => {
   const { toast } = useToast();
 
   const handleError = (error: ProfileError, onRetry?: () => void) => {
-    // Log error for debugging
-    console.error('Profile Error:', {
-      type: error.type,
-      severity: error.severity,
-      message: error.message,
-      context: error.context,
-      originalError: error.originalError,
-    });
+    // Profile error handling - removed console logging
 
     // Show appropriate toast based on severity
     switch (error.severity) {

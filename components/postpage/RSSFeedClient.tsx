@@ -61,23 +61,15 @@ const CommentSectionFallback = () => (
 // PHASE 4: Enhanced production-ready error logging utility
 const logger = {
   error: (message: string, error?: unknown, context?: Record<string, any>) => {
-    // In production, errors are handled gracefully without console output
-    // Error tracking would be implemented here (e.g., Sentry, LogRocket)
-    if (process.env.NODE_ENV === 'development') {
-      console.error(`[RSS Feed Error] ${message}`, { error, context });
-    }
+    // Error tracking removed for production
     // TODO: Implement production error tracking
     // Sentry.captureException(error, { extra: { message, context } });
   },
   warn: (message: string, context?: Record<string, any>) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(`[RSS Feed Warning] ${message}`, context);
-    }
+    // Warning logging removed for production
   },
   info: (message: string, context?: Record<string, any>) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.info(`[RSS Feed Info] ${message}`, context);
-    }
+    // Info logging removed for production
   }
 };
 

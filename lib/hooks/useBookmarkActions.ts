@@ -39,7 +39,7 @@ export const useBookmarkActions = (userId: Id<"users"> | null) => {
       const data: BookmarksData = await response.json();
       setSearchResults(data);
     } catch (error) {
-      console.error('Search error:', error);
+
       toast({
         title: "Search failed",
         description: "Unable to search bookmarks. Please try again.",

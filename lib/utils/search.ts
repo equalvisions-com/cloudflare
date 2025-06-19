@@ -53,7 +53,7 @@ export const storeSearchData = (query: string, mediaType?: string): void => {
       sessionStorage.removeItem(SEARCH_STORAGE_KEYS.MEDIA_TYPE);
     }
   } catch (error) {
-    console.warn('Failed to store search data:', error);
+    
   }
 };
 
@@ -75,7 +75,7 @@ export const clearSearchData = (): void => {
       }
     });
   } catch (error) {
-    console.warn('Failed to clear search data:', error);
+    
   }
 };
 

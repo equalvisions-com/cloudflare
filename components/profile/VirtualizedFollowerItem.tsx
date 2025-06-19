@@ -66,7 +66,7 @@ const FollowerFriendButton = memo<{
       };
       updateStatus(newStatus);
     } catch (error) {
-      console.error("Failed to send friend request:", error);
+      
       toast({ 
         title: "Error", 
         description: "Failed to send friend request. Please try again." 
@@ -88,7 +88,7 @@ const FollowerFriendButton = memo<{
       };
       updateStatus(newStatus);
     } catch (error) {
-      console.error("Failed to accept friend request:", error);
+      
       toast({ 
         title: "Error", 
         description: "Failed to accept friend request. Please try again." 
@@ -112,7 +112,7 @@ const FollowerFriendButton = memo<{
       };
       updateStatus(newStatus);
     } catch (error) {
-      console.error("Failed to unfriend:", error);
+      
       toast({ 
         title: "Error", 
         description: "Failed to update friendship status. Please try again." 

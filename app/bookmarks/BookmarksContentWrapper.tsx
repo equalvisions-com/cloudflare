@@ -36,7 +36,6 @@ const BookmarksContentWrapperComponent = () => {
         const data = await getBookmarksData(userId, 0, 30); 
       setInitialData(data as BookmarksData);
       } catch (error) {
-      console.error("Error fetching initial bookmarks:", error);
         setInitialData(null);
       } finally {
       setLoading({ isLoading: false });

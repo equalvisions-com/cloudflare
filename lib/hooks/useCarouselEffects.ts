@@ -278,7 +278,7 @@ export const useCarouselEffects = ({
           updateState({ searchTab: newTab });
         }
       } catch (error) {
-        console.error('Error in search carousel select handler:', error);
+  
       }
     };
     

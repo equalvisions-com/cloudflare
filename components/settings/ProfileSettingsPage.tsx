@@ -96,7 +96,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       // Clear the onboarding cookie
       const cookieResult = await clearOnboardingCookieAction();
       if (!cookieResult.success) {
-        console.error("Failed to clear onboarding cookie during account deletion:", cookieResult.error);
+
         // Optionally, notify the user or handle the error further, 
         // though account deletion is already a significant step.
       }
@@ -111,7 +111,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       // After successful deletion, redirect to home page
       router.push("/");
     } catch (error) {
-      console.error("Failed to delete account:", error);
+
       setIsDeleting(false);
       setShowDeleteConfirm(false);
       
@@ -170,7 +170,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
           // Use the new key for the profile update
           finalProfileImageKey = uploadData.key;
         } catch (error) {
-          console.error("Failed to upload image:", error);
+  
           toast({
             title: "Image Upload Error",
             description: "Failed to upload image. Please try again later or contact support.",
@@ -217,7 +217,7 @@ export function ProfileSettingsPage({ userProfile }: ProfileSettingsPageProps) {
       });
       
     } catch (error) {
-      console.error("Failed to update profile:", error);
+
       
       // Handle specific error types with appropriate toast messages
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -239,7 +239,7 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
         setCacheStatus('invalid');
       }
     } catch (error) {
-      console.error('Error checking RSS cache:', error);
+      
       setCacheStatus('invalid');
     }
   }, [cacheStatus]);
@@ -281,10 +281,10 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           localStorage.setItem('trending_rss_cache', JSON.stringify(data.entries));
           localStorage.setItem('trending_rss_timestamp', Date.now().toString());
         } catch (error) {
-          console.error('Error caching RSS entries:', error);
+  
         }
       } catch (error) {
-        console.error('Error fetching RSS entries:', error);
+
       } finally {
         setIsLoadingRss(false);
       }

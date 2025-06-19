@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Also log to console for development
-    console.error('Error caught by ErrorBoundary:', error, errorInfo);
+
   }
 
   render() {

@@ -147,7 +147,7 @@ const RetweetButtonClientComponent = ({
       // No need to manually update as the useQuery hook will receive the update
     } catch (err) {
       // Revert optimistic update on error
-      console.error('Error updating retweet status:', err);
+
       if (isMountedRef.current) {
         setOptimisticState(null);
         

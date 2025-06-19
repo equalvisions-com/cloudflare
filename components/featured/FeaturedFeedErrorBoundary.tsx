@@ -5,10 +5,10 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 // Simple logger for error boundary
 const logger = {
   error: (message: string, data?: any) => {
-    console.error(`❌ FeaturedFeedErrorBoundary: ${message}`, data);
+  
   },
   info: (message: string, data?: any) => {
-    console.log(`ℹ️ FeaturedFeedErrorBoundary: ${message}`, data);
+    
   }
 };
 

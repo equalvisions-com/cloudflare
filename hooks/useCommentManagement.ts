@@ -64,7 +64,6 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
         setRepliesLoaded(true);
       }
     } catch (error) {
-      // Removed console.error for production readiness
       setRepliesLoaded(false);
     } finally {
       setRepliesLoading(false);
@@ -120,7 +119,7 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
         fetchReplies();
       }
     } catch (error) {
-      // Removed console.error for production readiness
+      // Error handled silently for production
     } finally {
       setIsSubmittingReply(false);
     }
@@ -138,7 +137,7 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
       await deleteCommentMutation({ commentId });
       setIsDeleted(true);
     } catch (error) {
-      // Removed console.error for production readiness
+      // Error handled silently for production
     }
   }, [item.type, item._id, deleteCommentMutation]);
 
@@ -156,7 +155,7 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
           });
         })
         .catch(error => {
-          // Removed console.error for production readiness
+          // Error handled silently for production
         });
     }, [reply._id, deleteCommentMutation]);
   }, [deleteCommentMutation]);
