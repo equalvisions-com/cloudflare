@@ -214,6 +214,27 @@ const generateProfileMetadata = cache(async (username: string): Promise<Metadata
   const displayName = profile.name || normalizedUsername;
   const description = profile.bio || `See what ${displayName} is following and sharing on FocusFix.`;
 
+  // Helper function to add cache-busting parameters for OpenGraph images
+  const getOpenGraphImageUrl = (imageUrl: string) => {
+    if (!imageUrl) return imageUrl;
+    
+    try {
+      const url = new URL(imageUrl);
+      // Add cache-busting parameters to bypass Cloudflare cache
+      url.searchParams.set('cf-cache', 'bypass');
+      url.searchParams.set('og', '1');
+      url.searchParams.set('t', Date.now().toString());
+      return url.toString();
+    } catch {
+      // If URL parsing fails, return original URL
+      return imageUrl;
+    }
+  };
+
+  const profileImageUrl = profile.profileImage 
+    ? getOpenGraphImageUrl(profile.profileImage)
+    : `${siteUrl}/api/og/profile?user=${normalizedUsername}`;
+
   return {
     title: `${displayName} – Profile on FocusFix`,
     description,
@@ -225,12 +246,13 @@ const generateProfileMetadata = cache(async (username: string): Promise<Metadata
       description,
       url: `${siteUrl}/@${normalizedUsername}`,
       type: 'profile',
-      images: profile.profileImage ? [profile.profileImage] : [`${siteUrl}/api/og/profile?user=${normalizedUsername}`],
+      images: [profileImageUrl],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${displayName} on FocusFix`,
       description,
+      images: [profileImageUrl],
     },
     robots: {
       index: true,

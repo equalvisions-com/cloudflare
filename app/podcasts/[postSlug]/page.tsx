@@ -113,6 +113,27 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
       : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
 
+    // Helper function to add cache-busting parameters for OpenGraph images
+    const getOpenGraphImageUrl = (imageUrl: string) => {
+      if (!imageUrl) return imageUrl;
+      
+      try {
+        const url = new URL(imageUrl);
+        // Add cache-busting parameters to bypass Cloudflare cache
+        url.searchParams.set('cf-cache', 'bypass');
+        url.searchParams.set('og', '1');
+        url.searchParams.set('t', Date.now().toString());
+        return url.toString();
+      } catch {
+        // If URL parsing fails, return original URL
+        return imageUrl;
+      }
+    };
+
+    const featuredImageUrl = (post.featuredImg && post.featuredImg.trim()) 
+      ? getOpenGraphImageUrl(post.featuredImg)
+      : `${siteUrl}/og-default-podcast.jpg`;
+
     return {
       title: `${post.title} | Podcast Profile`,
       description,
@@ -135,17 +156,11 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: (post.featuredImg && post.featuredImg.trim()) ? [{
-          url: post.featuredImg,
+        images: [{
+          url: featuredImageUrl,
           width: 1200,
           height: 630,
           alt: `${post.title} podcast cover`,
-          type: 'image/jpeg',
-        }] : [{
-          url: `${siteUrl}/og-default-podcast.jpg`,
-          width: 1200,
-          height: 630,
-          alt: 'FocusFix Podcast',
           type: 'image/jpeg',
         }],
         locale: 'en_US',
@@ -155,7 +170,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
+        images: [featuredImageUrl],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -248,7 +263,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "url": profileUrl,
         "logo": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
-          "url": post.featuredImg,
+          "url": post.featuredImg, // Use original URL for structured data
           "width": 1200,
           "height": 630
         } : undefined,
@@ -281,7 +296,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "inLanguage": "en",
         "image": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
-          "url": post.featuredImg,
+          "url": post.featuredImg, // Use original URL for structured data
           "width": 1200,
           "height": 630
         } : undefined,
