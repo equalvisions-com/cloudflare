@@ -359,7 +359,7 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
             className="w-full rounded-lg"
           />
           
-          <ShareButton className="w-full py-2 rounded-lg" />
+          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
         </div>
       </div>
     </div>

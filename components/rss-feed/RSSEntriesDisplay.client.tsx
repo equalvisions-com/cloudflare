@@ -554,6 +554,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               <ShareButtonClient
                 url={entry.link}
                 title={entry.title}
+                internalUrl={safePostMetadata.mediaType === 'podcast' && postUrl ? postUrl : undefined}
               />
             </NoFocusWrapper>
           </div>

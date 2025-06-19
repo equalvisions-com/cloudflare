@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 interface ShareButtonProps {
   url: string;
   title: string;
+  internalUrl?: string; // Optional internal URL that takes precedence for sharing
 }
 
 export const ShareButtonClientWithErrorBoundary = memo(function ShareButtonClientWithErrorBoundary(props: ShareButtonProps) {
@@ -20,7 +21,7 @@ export const ShareButtonClientWithErrorBoundary = memo(function ShareButtonClien
 });
 
 // Create the component implementation that will be memoized
-const ShareButtonClientComponent = ({ url, title }: ShareButtonProps) => {
+const ShareButtonClientComponent = ({ url, title, internalUrl }: ShareButtonProps) => {
   const { toast } = useToast();
   const [isSharing, setIsSharing] = useState(false);
   
@@ -38,6 +39,9 @@ const ShareButtonClientComponent = ({ url, title }: ShareButtonProps) => {
     };
   }, []);
 
+  // Use internalUrl if provided, otherwise fall back to url
+  const shareUrl = internalUrl || url;
+
   const handleShare = useCallback(async () => {
     if (isSharing) return;
     setIsSharing(true);
@@ -47,7 +51,7 @@ const ShareButtonClientComponent = ({ url, title }: ShareButtonProps) => {
       if (navigator.share) {
         await navigator.share({
           title,
-          url,
+          url: shareUrl,
         });
         if (isMountedRef.current) {
           toast({
@@ -56,7 +60,7 @@ const ShareButtonClientComponent = ({ url, title }: ShareButtonProps) => {
         }
       } else {
         // Fallback to clipboard
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(shareUrl);
         if (isMountedRef.current) {
           toast({
             description: "Link copied to clipboard",
@@ -76,7 +80,7 @@ const ShareButtonClientComponent = ({ url, title }: ShareButtonProps) => {
         setIsSharing(false);
       }
     }
-  }, [url, title, toast, isSharing]);
+  }, [shareUrl, title, toast, isSharing]);
 
   return (
     <Button

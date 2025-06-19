@@ -495,6 +495,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               <ShareButtonClient
                 url={entry.link}
                 title={entry.title}
+                internalUrl={isPodcast && postUrl ? postUrl : undefined}
               />
             </NoFocusWrapper>
           </div>

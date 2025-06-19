@@ -10,13 +10,15 @@ interface ShareButtonProps {
   className?: string;
   shareUrl?: string;
   children?: React.ReactNode;
+  displayName?: string; // Optional display name for the share title
 }
 
 export const ShareButton = React.memo(function ShareButton({ 
   onClick, 
   className, 
   shareUrl, 
-  children 
+  children,
+  displayName
 }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false);
 
@@ -34,7 +36,7 @@ export const ShareButton = React.memo(function ShareButton({
 
     try {
       const url = shareUrl || window.location.href;
-      const shareTitle = "Check out this post";
+      const shareTitle = displayName ? `${displayName} on FocusFix` : "Check out this post on FocusFix";
 
       // Try native share API first (works on mobile and some desktop like macOS)
       if (navigator.share) {
@@ -52,7 +54,7 @@ export const ShareButton = React.memo(function ShareButton({
     } finally {
       setIsSharing(false);
     }
-  }, [shareUrl, isSharing, onClick]);
+  }, [shareUrl, isSharing, onClick, displayName]);
 
   return (
     <Button

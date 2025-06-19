@@ -387,6 +387,13 @@ const BookmarkCard = memo(({
               <ShareButtonClient
                 url={entryDetails.link}
                 title={entryDetails.title}
+                internalUrl={(() => {
+                  const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
+                  if (mediaType === 'podcast' && entryDetails.post_slug) {
+                    return `/podcasts/${entryDetails.post_slug}`;
+                  }
+                  return undefined;
+                })()}
               />
             </NoFocusWrapper>
           </div>

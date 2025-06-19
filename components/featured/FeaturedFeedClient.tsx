@@ -441,6 +441,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               <ShareButtonClient
                 url={entry.link}
                 title={entry.title}
+                internalUrl={postMetadata?.mediaType === 'podcast' && postUrl ? postUrl : undefined}
               />
             </NoFocusWrapper>
           </div>
