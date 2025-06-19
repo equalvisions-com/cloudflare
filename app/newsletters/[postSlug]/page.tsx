@@ -299,7 +299,7 @@ function generateStructuredData(post: NewsletterPost, profileUrl: string, rssDat
 }
 
 // Simplified PostContent component for detailed feed info
-function PostContent({ post, followState, rssData }: NewsletterPostContentProps) {
+function PostContent({ post, followState, rssData, profileUrl }: NewsletterPostContentProps & { profileUrl: string }) {
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
       <div className="flex flex-col w-full" style={{ gap: '16px' }}>
@@ -359,7 +359,7 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
             className="w-full rounded-lg"
           />
           
-          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
+          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} shareUrl={profileUrl} />
         </div>
       </div>
     </div>
@@ -393,7 +393,7 @@ export default async function PostPage({ params }: NewsletterPageProps) {
       <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
         <PostSearchProvider>
           <PostSearchHeader title={post.title} mediaType={post.mediaType} />
-          <PostContent post={post} followState={followState} rssData={rssData} />
+          <PostContent post={post} followState={followState} rssData={rssData} profileUrl={profileUrl} />
           {rssData ? (
             <PostPageClientScope
               mediaType={post.mediaType}
