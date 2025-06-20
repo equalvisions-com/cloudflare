@@ -24,7 +24,6 @@ import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention } from "@/ut
 import { useEntriesData } from '@/lib/hooks/useEntriesData';
 import { EntriesRSSEntry, EntriesDisplayProps, InteractionStates } from '@/lib/types';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
-import { useInView } from 'react-intersection-observer';
 
 // Main component using modern React patterns
 const EntriesDisplayComponent = ({
@@ -57,18 +56,56 @@ const EntriesDisplayComponent = ({
   // Use the shared focus prevention hook
   useFeedFocusPrevention(isVisible && !commentDrawerOpen, '.entries-display-container');
 
-  // Set up intersection observer for infinite scrolling
-  const { ref, inView } = useInView({
-    threshold: 0.1,
-    rootMargin: '200px',
-  });
+  // Create a ref for the intersection observer target
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  
+  // Add ref for tracking if endReached was already called
+  const endReachedCalledRef = useRef(false);
 
-  // Load more entries when intersection observer triggers
+  // Setup intersection observer for load more detection with delay
   useEffect(() => {
-    if (inView && hasMore && !isLoading && isVisible && entries.length > 0) {
-      loadMore();
-    }
-  }, [inView, hasMore, isLoading, isVisible, entries.length, loadMore]);
+    if (!loadMoreRef.current) return;
+    
+    // Wait 1 second before establishing the observer
+    // This prevents any initial load from triggering
+    const timer = setTimeout(() => {
+      // Store the reference to the DOM element to ensure it exists when observer runs
+      const loadMoreElement = loadMoreRef.current;
+      
+      // Skip if element no longer exists
+      if (!loadMoreElement) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry.isIntersecting && hasMore && !isLoading && isVisible && entries.length > 0 && !endReachedCalledRef.current) {
+            endReachedCalledRef.current = true;
+            loadMore();
+          }
+        },
+        { 
+          rootMargin: '200px',
+          threshold: 0.1
+        }
+      );
+      
+      // Safe to observe now that we've checked it exists
+      observer.observe(loadMoreElement);
+      
+      return () => {
+        observer.disconnect();
+      };
+    }, 1000); // 1 second delay to prevent initial page load triggering
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [loadMoreRef, hasMore, isLoading, isVisible, entries.length, loadMore]);
+
+  // Reset endReachedCalled flag when entries length changes
+  useEffect(() => {
+    endReachedCalledRef.current = false;
+  }, [entries.length]);
 
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {
@@ -142,7 +179,7 @@ const EntriesDisplayComponent = ({
       
       {/* Intersection observer target with loading indicator */}
       {hasMore && (
-        <div ref={ref} className="h-52 flex items-center justify-center mb-20">
+        <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
           {isLoading && (
             <NoFocusWrapper className="flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
