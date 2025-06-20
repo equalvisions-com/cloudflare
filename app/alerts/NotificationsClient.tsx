@@ -2,17 +2,13 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useMemo, memo, useCallback, useState, useEffect, useRef, useOptimistic, lazy, Suspense, useTransition, useDeferredValue, startTransition } from "react";
+import { useMemo, memo, useCallback, useState, useEffect, useRef, useOptimistic, useTransition, useDeferredValue, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XIcon, UserIcon, Loader2 } from "lucide-react";
 import Image from 'next/image';
 import { Virtuoso } from 'react-virtuoso';
 
-// Lazy load heavy components for better bundle splitting
-const DropdownMenu = lazy(() => import("@/components/ui/dropdown-menu").then(mod => ({ default: mod.DropdownMenu })));
-const DropdownMenuContent = lazy(() => import("@/components/ui/dropdown-menu").then(mod => ({ default: mod.DropdownMenuContent })));
-const DropdownMenuItem = lazy(() => import("@/components/ui/dropdown-menu").then(mod => ({ default: mod.DropdownMenuItem })));
-const DropdownMenuTrigger = lazy(() => import("@/components/ui/dropdown-menu").then(mod => ({ default: mod.DropdownMenuTrigger })));
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useNotificationStore } from '@/lib/stores/notificationStore';
 import { useNotificationActions } from '@/lib/hooks/useNotificationActions';
 import { useNotificationsVirtualization } from '@/hooks/useNotificationsVirtualization';
@@ -291,37 +287,28 @@ const NotificationItemComponent = memo(({
               </Button>
             </>
           ) : (
-          <Suspense fallback={
-            <Button 
-              variant="outline"
-              className="rounded-full shadow-none font-semibold text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0"
-              disabled
-            >
-              Friends
-            </Button>
-          }>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                  className="rounded-full shadow-none font-semibold text-sm text-muted-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-0"
-                  disabled={isProcessing || isOperationInProgress}
-                  aria-label="Friend actions menu"
+                className="rounded-full shadow-none font-semibold text-sm text-muted-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-0"
+                disabled={isProcessing || isOperationInProgress}
+                aria-label="Friend actions menu"
               >
                 Friends
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem 
-                  onClick={handleRemoveClick}
-                className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                onClick={handleRemoveClick}
+                disabled={isProcessing || isOperationInProgress}
+                className="text-red-500 focus:text-red-500 hover:bg-muted/30 data-[highlighted]:bg-muted/30"
               >
                 <XIcon className="mr-2 h-4 w-4" />
                 Remove friend
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          </Suspense>
         )}
         </div>
       </div>
