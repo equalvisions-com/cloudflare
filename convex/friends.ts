@@ -14,6 +14,9 @@ const FRIEND_RATE_LIMITS = {
   DAILY_WINDOW: 86400000,         // 24 hours in milliseconds
 };
 
+// Admin user ID for "Tom from MySpace" style friend requests
+const ADMIN_USER_ID: Id<"users"> = "jx7dqbxjjznktr85mwant95t6n7gskcw" as Id<"users">;
+
 // Helper function to get the last interaction time with a specific user
 async function getLastUserInteractionTime(
   ctx: MutationCtx | QueryCtx,
@@ -1140,3 +1143,86 @@ export const getFriendsStatusByUsername = query({
     return statusMap;
   },
 });
+
+// Send admin friend request (bypasses rate limiting)
+export const sendAdminFriendRequest = mutation({
+  args: {
+    newUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const { newUserId } = args;
+    
+    // Don't send friend request to admin themselves
+    if (newUserId === ADMIN_USER_ID) {
+      return { success: false, reason: "Cannot send friend request to admin user" };
+    }
+
+    // Check if there's already an active friendship with this user
+    const existingFriendship = await ctx.db
+      .query("friends")
+      .withIndex("by_users", (q: any) => 
+        q.eq("requesterId", ADMIN_USER_ID).eq("requesteeId", newUserId)
+      )
+      .first()
+      .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
+
+    if (existingFriendship) {
+      // If it's cancelled, we can reuse the record
+      if (existingFriendship.status === "cancelled") {
+        await ctx.db.patch(existingFriendship._id, {
+          status: "pending",
+          updatedAt: Date.now(),
+        });
+        return { success: true, reason: "Reactivated cancelled friendship" };
+      }
+      // Otherwise it's active (pending or accepted)
+      return { success: false, reason: "Friend request already exists" };
+    }
+
+    // Check if there's a request from the new user to admin
+    const receivedRequest = await ctx.db
+      .query("friends")
+      .withIndex("by_users", (q: any) => 
+        q.eq("requesterId", newUserId).eq("requesteeId", ADMIN_USER_ID)
+      )
+      .first()
+      .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
+
+    if (receivedRequest) {
+      // If there's a pending request from the new user, accept it
+      if (receivedRequest.status === "pending") {
+        await ctx.db.patch(receivedRequest._id, {
+          status: "accepted",
+          updatedAt: Date.now(),
+        });
+        return { success: true, reason: "Accepted existing friend request" };
+      } else if (receivedRequest.status === "cancelled") {
+        // If it's cancelled, reactivate it by updating the existing record
+        // We need to flip the direction since the requester/requestee are reversed
+        await ctx.db.patch(receivedRequest._id, {
+          requesterId: ADMIN_USER_ID,
+          requesteeId: newUserId,
+          status: "pending",
+          updatedAt: Date.now(),
+        });
+        return { success: true, reason: "Reactivated friendship with flipped direction" };
+      } else if (receivedRequest.status === "accepted") {
+        return { success: false, reason: "Already friends with this user" };
+      }
+    }
+
+    // Create a new friend request from admin to new user
+    // This bypasses all rate limiting since it's the admin
+    await ctx.db.insert("friends", {
+      requesterId: ADMIN_USER_ID,
+      requesteeId: newUserId,
+      status: "pending",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, reason: "Friend request sent successfully" };
+  },
+});
+
+

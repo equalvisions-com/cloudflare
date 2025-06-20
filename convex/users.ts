@@ -999,6 +999,16 @@ export const completeOnboarding = mutation({
     // Update the user
     await ctx.db.patch(userId, updates);
     
+    // Send admin friend request to new user (Tom from MySpace style)
+    try {
+      await ctx.runMutation(api.friends.sendAdminFriendRequest, { 
+        newUserId: userId 
+      });
+    } catch (error) {
+      // Log the error but don't fail onboarding if friend request fails
+      console.error("Failed to send admin friend request during onboarding:", error);
+    }
+    
     return { success: true };
   },
 });
