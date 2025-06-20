@@ -3634,4 +3634,59 @@ export interface UseFollowersListVirtualizationReturn {
 
 // ===================================================================
 // END FOLLOWERS LIST TYPES
-// =================================================================== 
+// ===================================================================
+
+// Enhanced notification types for Convex integration
+export interface ConvexNotificationItem {
+  friendship: {
+    direction: string;
+    _id: Id<"friends">;
+    requesterId: Id<"users">;
+    requesteeId: Id<"users">;
+    type: string;
+    friendshipId: Id<"friends">;
+    friendId: Id<"users">;
+    status: string;
+    createdAt: number;
+    _creationTime: number;
+  };
+  profile: {
+    _id: Id<"users">;
+    userId: Id<"users">;
+    name?: string;
+    username: string;
+    profileImage?: string;
+  };
+}
+
+// Notifications virtualization configuration
+export interface NotificationsVirtualizationConfig {
+  itemHeight: number;
+  overscan: number;
+  scrollSeekConfiguration: {
+    enter: (velocity: number) => boolean;
+    exit: (velocity: number) => boolean;
+  };
+  debounceMs: number;
+}
+
+export interface UseNotificationsVirtualizationProps {
+  notifications: ConvexNotificationItem[];
+  isLoading: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  loadMore: (cursor?: string) => Promise<void>;
+  config?: Partial<NotificationsVirtualizationConfig>;
+}
+
+export interface UseNotificationsVirtualizationReturn {
+  virtuosoRef: React.RefObject<any>;
+  virtuosoProps: any;
+  virtualizedNotifications: ConvexNotificationItem[];
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  isPaginating: boolean;
+  scrollToTop: () => void;
+  scrollToNotification: (notificationId: string) => void;
+  totalCount: number;
+  currentPage: number;
+}

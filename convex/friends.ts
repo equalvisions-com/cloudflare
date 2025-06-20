@@ -779,14 +779,18 @@ export const getFriends = query({
   },
 });
 
-// Get notifications (incoming friend requests and accepted friends) with user info in one query
+// Get notifications (incoming friend requests and accepted friends) with user info in one query - with pagination
 export const getNotifications = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { cursor, limit = 30 } = args;
     const userId = await getAuthUserId(ctx);
     
     if (!userId) {
-      return { user: null, notifications: [] };
+      return { user: null, notifications: [], hasMore: false, nextCursor: null };
     }
     
     // Get user information - optimized to only get necessary fields
@@ -802,25 +806,19 @@ export const getNotifications = query({
       } : null);
     
     if (!user) {
-      return { user: null, notifications: [] };
+      return { user: null, notifications: [], hasMore: false, nextCursor: null };
     }
     
-    // Get all friend requests/acceptances involving this user within the last 30 days
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    // Parse cursor for pagination
+    let startTime = cursor ? parseInt(cursor) : Date.now();
     
-    // Get friend requests received (exclude cancelled)
+    // Get friend requests received (exclude cancelled) with pagination
     const receivedRequests = await ctx.db
       .query("friends")
       .withIndex("by_requestee", (q: any) => q.eq("requesteeId", userId).eq("status", "pending"))
-      .filter(q => {
-        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
-        const timestamp = q.field("updatedAt");
-        return q.or(
-          q.gte(timestamp, thirtyDaysAgo),
-          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
-        );
-      })
-      .collect()
+      .filter(q => q.lt(q.field("_creationTime"), startTime))
+      .order("desc")
+      .take(limit + 1) // Take one extra to check if there are more
       .then(requests => requests.map(req => ({
         _id: req._id,
         requesterId: req.requesterId,
@@ -831,19 +829,13 @@ export const getNotifications = query({
         _creationTime: req._creationTime
       })));
       
-    // Get friend requests accepted where user is the requester
+    // Get friend requests accepted where user is the requester with pagination
     const acceptedSentRequests = await ctx.db
       .query("friends")
       .withIndex("by_requester", (q: any) => q.eq("requesterId", userId).eq("status", "accepted"))
-      .filter(q => {
-        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
-        const timestamp = q.field("updatedAt");
-        return q.or(
-          q.gte(timestamp, thirtyDaysAgo),
-          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
-        );
-      })
-      .collect()
+      .filter(q => q.lt(q.field("_creationTime"), startTime))
+      .order("desc")
+      .take(limit + 1)
       .then(requests => requests.map(req => ({
         _id: req._id,
         requesterId: req.requesterId,
@@ -854,19 +846,13 @@ export const getNotifications = query({
         _creationTime: req._creationTime
       })));
       
-    // Get friend requests accepted where user is the requestee
+    // Get friend requests accepted where user is the requestee with pagination
     const acceptedReceivedRequests = await ctx.db
       .query("friends")
       .withIndex("by_requestee", (q: any) => q.eq("requesteeId", userId).eq("status", "accepted"))
-      .filter(q => {
-        // Use createdAt if updatedAt doesn't exist, and default to _creationTime as backup
-        const timestamp = q.field("updatedAt");
-        return q.or(
-          q.gte(timestamp, thirtyDaysAgo),
-          q.eq(q.field("updatedAt"), undefined)  // Include items without updatedAt field
-        );
-      })
-      .collect()
+      .filter(q => q.lt(q.field("_creationTime"), startTime))
+      .order("desc")
+      .take(limit + 1)
       .then(requests => requests.map(req => ({
         _id: req._id,
         requesterId: req.requesterId,
@@ -885,6 +871,7 @@ export const getNotifications = query({
         friendId: req.requesterId,
         status: req.status,
         createdAt: req.updatedAt || req._creationTime,
+        _creationTime: req._creationTime,
       })),
       ...acceptedSentRequests.map(req => ({
         type: "friend_accepted",
@@ -892,6 +879,7 @@ export const getNotifications = query({
         friendId: req.requesteeId,
         status: req.status,
         createdAt: req.updatedAt || req._creationTime,
+        _creationTime: req._creationTime,
       })),
       ...acceptedReceivedRequests.map(req => ({
         type: "friend_you_accepted",
@@ -899,14 +887,22 @@ export const getNotifications = query({
         friendId: req.requesterId,
         status: req.status,
         createdAt: req.updatedAt || req._creationTime,
+        _creationTime: req._creationTime,
       })),
     ];
     
     // Sort by creation time, newest first
-    allNotifications.sort((a, b) => b.createdAt - a.createdAt);
+    allNotifications.sort((a, b) => b._creationTime - a._creationTime);
+    
+    // Check if we have more results and determine pagination
+    const hasMore = allNotifications.length > limit;
+    const notificationsToReturn = hasMore ? allNotifications.slice(0, limit) : allNotifications;
+    const nextCursor = hasMore && notificationsToReturn.length > 0 
+      ? notificationsToReturn[notificationsToReturn.length - 1]._creationTime.toString()
+      : null;
     
     // Fetch user information for each friend in one go
-    const friendUserIds = allNotifications.map(n => n.friendId);
+    const friendUserIds = notificationsToReturn.map(n => n.friendId);
     
     // Fetch users individually but in parallel, with field filtering
     const userPromises = friendUserIds.map(friendId => 
@@ -933,7 +929,7 @@ export const getNotifications = query({
     });
     
     // Add user details to notifications
-    const notificationsWithDetails = allNotifications
+    const notificationsWithDetails = notificationsToReturn
       .map(friendship => {
         const friendUser = userMap.get(friendship.friendId.toString());
         if (!friendUser) return null;
@@ -959,7 +955,9 @@ export const getNotifications = query({
       
     return {
       user,
-      notifications: notificationsWithDetails
+      notifications: notificationsWithDetails,
+      hasMore,
+      nextCursor
     };
   },
 });

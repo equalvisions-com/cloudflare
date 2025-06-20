@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, memo } from 'react';
-import NotificationsClient from './NotificationsClient';
+import { NotificationsClient } from './NotificationsClient';
 import { Loader2 } from "lucide-react";
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
@@ -64,7 +64,7 @@ NotificationsLoading.displayName = 'NotificationsLoading';
  * Client wrapper component that properly handles client-side rendering
  * without hydration mismatches - optimized for production
  */
-export default function NotificationsClientWrapper() {
+const NotificationsClientWrapper = memo(() => {
   return (
     <>
       <NotificationsHeader />
@@ -73,4 +73,8 @@ export default function NotificationsClientWrapper() {
       </Suspense>
     </>
   );
-} 
+});
+
+NotificationsClientWrapper.displayName = 'NotificationsClientWrapper';
+
+export default NotificationsClientWrapper; 
