@@ -9,42 +9,17 @@ import { useRouter } from "next/navigation";
 import { useOutsideClick, useSearchStorage, useMountedRef } from "@/hooks/useSearchHooks";
 import { getSearchRoute, formatSearchQuery } from "@/lib/utils/search";
 import { SEARCH_CATEGORIES, SEARCH_CONFIG } from "@/lib/constants/search";
-
-interface SidebarSearchProps {
-  className?: string;
-  onSearch?: (query: string) => void;
-  hideClearButton?: boolean;
-}
-
-// Custom hooks are now imported from @/hooks/useSearchHooks
-
-// Search state interface
-interface SearchState {
-  query: string;
-  isOpen: boolean;
-  activeIndex: number;
-}
-
-// Search actions
-type SearchAction =
-  | { type: 'SET_QUERY'; payload: string }
-  | { type: 'SET_OPEN'; payload: boolean }
-  | { type: 'SET_ACTIVE_INDEX'; payload: number }
-  | { type: 'OPEN_WITH_QUERY'; payload: string }
-  | { type: 'CLOSE_AND_RESET' }
-  | { type: 'CLEAR_ALL' }
-  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
-  | { type: 'NAVIGATE_UP'; maxIndex: number };
+import type { SidebarSearchProps, SidebarSearchState, SidebarSearchAction } from "@/lib/types";
 
 // Initial state using constants
-const initialSearchState: SearchState = {
+const initialSearchState: SidebarSearchState = {
   query: '',
   isOpen: false,
   activeIndex: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX,
 };
 
 // Reducer for search state management
-const searchReducer = (state: SearchState, action: SearchAction): SearchState => {
+const searchReducer = (state: SidebarSearchState, action: SidebarSearchAction): SidebarSearchState => {
   switch (action.type) {
     case 'SET_QUERY':
       return {
@@ -155,7 +130,7 @@ const SidebarSearchComponent = ({
         dispatch({ type: 'CLOSE_AND_RESET' });
       }
     }
-  }, [query, onSearch, router]);
+  }, [query, onSearch, router, mountedRef, storeSearch]);
   
   const clearSearch = useCallback(() => {
     if (!mountedRef.current) return;
@@ -165,7 +140,7 @@ const SidebarSearchComponent = ({
     
     // Clear search storage using optimized hook
     clearSearchStorage();
-  }, [onSearch, clearSearchStorage]);
+  }, [onSearch, clearSearchStorage, mountedRef]);
 
   // Handle form submission for general search
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
@@ -178,7 +153,7 @@ const SidebarSearchComponent = ({
       storeSearch(query.trim());
       router.push(SEARCH_CONFIG.DEFAULT_SEARCH_ROUTE);
     }
-  }, [query, router]);
+  }, [query, router, mountedRef, storeSearch]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
@@ -208,7 +183,7 @@ const SidebarSearchComponent = ({
         dispatch({ type: 'CLOSE_AND_RESET' });
         break;
     }
-  }, [isOpen, activeIndex, searchCategories, handleSearch, handleFormSubmit]);
+  }, [isOpen, activeIndex, searchCategories, handleSearch, handleFormSubmit, mountedRef]);
 
   // Note: activeIndex reset is now handled automatically by the reducer when isOpen changes
 
@@ -217,7 +192,7 @@ const SidebarSearchComponent = ({
     if (mountedRef.current) {
       dispatch({ type: 'SET_OPEN', payload: false });
     }
-  }, []);
+  }, [mountedRef]);
   
   useOutsideClick(commandRef, handleOutsideClick, isOpen);
   
@@ -226,7 +201,7 @@ const SidebarSearchComponent = ({
     
     const value = e.target.value;
     dispatch({ type: 'SET_QUERY', payload: value });
-  }, []);
+  }, [mountedRef]);
   
   const handleInputFocus = useCallback(() => {
     if (!mountedRef.current) return;
@@ -234,25 +209,25 @@ const SidebarSearchComponent = ({
     if (query.length >= SEARCH_CONFIG.MIN_QUERY_LENGTH) {
       dispatch({ type: 'SET_OPEN', payload: true });
     }
-  }, [query]);
+  }, [query, mountedRef]);
   
   const handleCategoryClick = useCallback((categoryId: string) => {
     if (!mountedRef.current) return;
     
     handleSearch(categoryId);
-  }, [handleSearch]);
+  }, [handleSearch, mountedRef]);
   
   const handleCategoryMouseEnter = useCallback((index: number) => {
     if (!mountedRef.current) return;
     
     dispatch({ type: 'SET_ACTIVE_INDEX', payload: index });
-  }, []);
+  }, [mountedRef]);
   
   const handleCategoryMouseLeave = useCallback(() => {
     if (!mountedRef.current) return;
     
     dispatch({ type: 'SET_ACTIVE_INDEX', payload: SEARCH_CONFIG.DEFAULT_ACTIVE_INDEX });
-  }, []);
+  }, [mountedRef]);
   
   return (
     <div className={className} ref={commandRef}>

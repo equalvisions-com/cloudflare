@@ -1,13 +1,9 @@
-"use client";
-
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { memo } from "react";
+import type { NotificationsWidgetProps } from "@/lib/types";
 
-interface NotificationsWidgetProps {
-  isAuthenticated?: boolean;
-}
-
-export function NotificationsWidget({ isAuthenticated = false }: NotificationsWidgetProps) {
+export const NotificationsWidget = memo<NotificationsWidgetProps>(({ isAuthenticated = false }) => {
   // Don't show anything if user is authenticated
   if (isAuthenticated) {
     return null;
@@ -25,4 +21,6 @@ export function NotificationsWidget({ isAuthenticated = false }: NotificationsWi
       </Button>
     </div>
   );
-} 
+});
+
+NotificationsWidget.displayName = 'NotificationsWidget'; 

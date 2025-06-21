@@ -83,7 +83,38 @@ export interface XMLParseResult {
   };
 }
 
-// Notification types
+// Widget types
+export interface NotificationsWidgetProps {
+  isAuthenticated?: boolean;
+}
+
+export interface LegalWidgetProps {
+  className?: string;
+}
+
+// Search component types
+export interface SidebarSearchProps {
+  className?: string;
+  onSearch?: (query: string) => void;
+  hideClearButton?: boolean;
+}
+
+export interface SidebarSearchState {
+  query: string;
+  isOpen: boolean;
+  activeIndex: number;
+}
+
+export type SidebarSearchAction =
+  | { type: 'SET_QUERY'; payload: string }
+  | { type: 'SET_OPEN'; payload: boolean }
+  | { type: 'SET_ACTIVE_INDEX'; payload: number }
+  | { type: 'OPEN_WITH_QUERY'; payload: string }
+  | { type: 'CLOSE_AND_RESET' }
+  | { type: 'CLEAR_ALL' }
+  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
+  | { type: 'NAVIGATE_UP'; maxIndex: number };
+
 export interface FriendshipData {
   _id: Id<"friends">;
   requesterId: Id<"users">;
