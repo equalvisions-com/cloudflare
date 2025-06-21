@@ -3828,3 +3828,137 @@ export interface NavItem {
   badgeContent?: number | string;
   prefetch?: boolean;
 }
+
+// ===================================================================
+// USER MENU TYPES - Phase 1: Type System Centralization
+// ===================================================================
+
+// Core User Menu Data Types
+export interface UserMenuUserData {
+  displayName: string;
+  username: string;
+  profileImage?: string;
+  isBoarded: boolean;
+  pendingFriendRequestCount: number;
+}
+
+// User Menu Authentication State
+export interface UserMenuAuthState {
+  isAuthenticated: boolean;
+  userId?: Id<"users"> | null;
+}
+
+// Combined User Menu State
+export interface UserMenuState extends UserMenuUserData, UserMenuAuthState {}
+
+// User Menu Server Component Props
+export interface UserMenuServerProps {
+  // No props needed - fetches data internally
+}
+
+// User Menu Client Wrapper Props (from server to wrapper)
+export interface UserMenuClientWrapperProps {
+  displayName: string;
+  username: string;
+  isBoarded: boolean;
+  profileImage?: string;
+  pendingFriendRequestCount?: number;
+}
+
+// User Menu Client Props (from wrapper to client)
+export interface UserMenuClientProps {
+  initialDisplayName?: string;
+  initialUsername?: string;
+  initialProfileImage?: string;
+  isBoarded?: boolean;
+  pendingFriendRequestCount?: number;
+}
+
+// User Menu Image Component Props
+export interface UserMenuImageProps {
+  src: string;
+  alt: string;
+}
+
+// User Menu State Hook Return Type
+export interface UseUserMenuStateReturn {
+  isAuthenticated: boolean;
+  displayName: string;
+  username: string;
+  profileImage?: string;
+  handleSignIn: () => void;
+  handleSignOut: () => Promise<void>;
+}
+
+// User Menu State Hook Props
+export interface UseUserMenuStateProps {
+  initialDisplayName?: string;
+  initialProfileImage?: string;
+  initialUsername?: string;
+}
+
+// User Menu Error Types
+export enum UserMenuErrorType {
+  SIGN_OUT_ERROR = 'SIGN_OUT_ERROR',
+  SIGN_IN_ERROR = 'SIGN_IN_ERROR',
+  PROFILE_FETCH_ERROR = 'PROFILE_FETCH_ERROR',
+  COOKIE_CLEAR_ERROR = 'COOKIE_CLEAR_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+export interface UserMenuError {
+  type: UserMenuErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
+// User Menu Profile Fetch Result
+export interface UserMenuProfileFetchResult {
+  displayName: string;
+  username: string;
+  isAuthenticated: boolean;
+  isBoarded: boolean;
+  userId: Id<"users"> | null;
+  profileImage?: string;
+  pendingFriendRequestCount: number;
+}
+
+// User Menu Fallback Props
+export interface UserMenuFallbackProps {
+  // No props needed for basic fallback
+}
+
+// Sidebar Context Types (moved from sidebar-context.tsx for centralization)
+export interface SidebarContextType {
+  isAuthenticated: boolean;
+  username: string;
+  displayName: string;
+  isBoarded: boolean;
+  profileImage?: string;
+  userId?: Id<"users"> | null;
+  pendingFriendRequestCount: number;
+  updatePendingFriendRequestCount: (newCount: number) => void;
+}
+
+export interface SidebarProviderProps {
+  children: React.ReactNode;
+  isAuthenticated: boolean;
+  username?: string;
+  displayName?: string;
+  isBoarded?: boolean;
+  profileImage?: string;
+  userId?: Id<"users"> | null;
+  pendingFriendRequestCount?: number;
+}
+
+// Theme Toggle Types (for completeness)
+export interface ThemeToggleProps {
+  // No props needed - uses useTheme hook
+}
+
+// ===================================================================
+// END USER MENU TYPES
+// ===================================================================

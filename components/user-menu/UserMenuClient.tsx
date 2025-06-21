@@ -13,22 +13,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { useUserMenuState } from "./useUserMenuState";
-import { memo, useCallback, useRef, useEffect, Suspense } from "react";
+import { memo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import type { UserMenuClientProps } from "@/lib/types";
 
-// Dynamically import the Image component with Edge compatibility
+// Dynamically import the Image component optimized for Edge runtime
+// Uses Next.js 14+ optimizations for better Edge performance
 const UserMenuImage = dynamic(() => import("./UserMenuImage"), {
   ssr: false,
-  suspense: true
+  loading: () => (
+    <div className="h-9 w-9 rounded-full bg-secondary animate-pulse" />
+  )
 });
-
-interface UserMenuClientProps {
-  initialDisplayName?: string;
-  initialUsername?: string;
-  initialProfileImage?: string;
-  isBoarded?: boolean;
-  pendingFriendRequestCount?: number;
-}
 
 export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
   return (
@@ -46,35 +42,18 @@ const UserMenuClientComponent = ({
   isBoarded,
   pendingFriendRequestCount = 0
 }: UserMenuClientProps) => {
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
   // Get state and handlers from our custom hook
   const { displayName, username, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
     useUserMenuState(initialDisplayName, initialProfileImage, initialUsername);
-    
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
   
-  // Memoize event handlers with useCallback
+  // Memoize event handlers with useCallback - no need for mounted checks
+  // React's built-in cleanup handles component unmounting properly
   const onSignIn = useCallback(() => {
-    if (isMountedRef.current) {
-      handleSignIn();
-    }
+    handleSignIn();
   }, [handleSignIn]);
   
   const onSignOut = useCallback(() => {
-    if (isMountedRef.current) {
-      handleSignOut();
-    }
+    handleSignOut();
   }, [handleSignOut]);
 
   return (
@@ -86,11 +65,7 @@ const UserMenuClientComponent = ({
               <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
             )}
             {profileImage ? (
-              <Suspense fallback={
-                <div className="h-9 w-9 rounded-full bg-secondary animate-pulse"></div>
-              }>
-                <UserMenuImage src={profileImage} alt={displayName || 'User'} />
-              </Suspense>
+              <UserMenuImage src={profileImage} alt={displayName || 'User'} />
             ) : (
               <Button 
                 variant="secondary" 

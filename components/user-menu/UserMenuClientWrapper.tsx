@@ -1,15 +1,7 @@
 "use client";
 
 import { UserMenuClient } from "./UserMenuClient";
-import "../../lib/edge-polyfills";
-
-interface UserMenuClientWrapperProps {
-  displayName: string;
-  username: string;
-  isBoarded: boolean;
-  profileImage?: string;
-  pendingFriendRequestCount?: number;
-}
+import type { UserMenuClientWrapperProps } from "@/lib/types";
 
 /**
  * This wrapper isolates the client component from the server component

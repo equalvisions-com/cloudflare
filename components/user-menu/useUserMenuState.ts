@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { clearOnboardingCookieAction } from "@/app/onboarding/actions";
+import type { UseUserMenuStateReturn, UseUserMenuStateProps } from "@/lib/types";
 
-export function useUserMenuState(initialDisplayName?: string, initialProfileImage?: string, initialUsername?: string) {
+export function useUserMenuState(
+  initialDisplayName?: string, 
+  initialProfileImage?: string, 
+  initialUsername?: string
+): UseUserMenuStateReturn {
   const { signOut } = useAuthActions();
   const router = useRouter();
   const { isAuthenticated: contextAuthenticated } = useConvexAuth();
@@ -13,42 +18,72 @@ export function useUserMenuState(initialDisplayName?: string, initialProfileImag
   // Get values from context if available
   const sidebarContext = useSidebar();
   
-  // Use context values if available, otherwise fall back to props
-  const [displayName, setDisplayName] = useState(
-    sidebarContext.displayName || initialDisplayName || "Guest"
-  );
-  const [username, setUsername] = useState(
-    sidebarContext.username || initialUsername || "Guest"
-  );
-  const [profileImage, setProfileImage] = useState(
-    sidebarContext.profileImage || initialProfileImage
-  );
+  // AbortController for cleanup of async operations
+  const abortControllerRef = useRef<AbortController>();
   
-  // Use authenticated state from context when available
+  // Initialize AbortController on mount and cleanup on unmount
+  useEffect(() => {
+    abortControllerRef.current = new AbortController();
+    
+    return () => {
+      // Cleanup: abort any pending operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+  
+  // Derive values from context/props instead of local state
+  // This eliminates unnecessary re-renders and state synchronization issues
+  const displayName = sidebarContext.displayName || initialDisplayName || "Guest";
+  const username = sidebarContext.username || initialUsername || "Guest";
+  const profileImage = sidebarContext.profileImage || initialProfileImage;
   const isAuthenticated = contextAuthenticated;
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
+    // Check if operation was aborted before proceeding
+    if (abortControllerRef.current?.signal.aborted) {
+      return;
+    }
+    
     try {
       await signOut();
+      
+      // Check again after async operation
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+      
       // Clear the onboarding cookie
       const cookieResult = await clearOnboardingCookieAction();
-      if (!cookieResult.success) {
-  
-        // Optionally, notify the user or handle the error further
+      
+      // Final check before any side effects
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
       }
-      // Optimistically update the UI after sign-out
-      setDisplayName("Guest");
-      setUsername("Guest");
-      setProfileImage(undefined);
+      
+      if (!cookieResult.success) {
+        console.warn("Failed to clear onboarding cookie:", cookieResult.error);
+      }
+      
+      // Note: We no longer need to manually update state since we're using derived values
+      // The context will update automatically when the auth state changes
+      
     } catch (error) {
-
-      // Optionally, trigger a user-friendly notification here
+      // Only handle error if operation wasn't aborted
+      if (!abortControllerRef.current?.signal.aborted) {
+        console.error("Sign out error:", error);
+        // Could dispatch to error boundary or notification system here
+      }
     }
-  };
+  }, [signOut]);
 
-  const handleSignIn = () => {
-    router.push("/signin");
-  };
+  const handleSignIn = useCallback(() => {
+    // Non-async operation, but still check if component is still mounted
+    if (!abortControllerRef.current?.signal.aborted) {
+      router.push("/signin");
+    }
+  }, [router]);
 
   return {
     isAuthenticated,

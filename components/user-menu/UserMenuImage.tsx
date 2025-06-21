@@ -1,18 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import "../../lib/edge-polyfills";
-
-interface UserMenuImageProps {
-  src: string;
-  alt: string;
-}
+import type { UserMenuImageProps } from "@/lib/types";
+import { memo } from "react";
 
 /**
- * Isolated component that uses Next Image
- * This allows us to dynamically load only this part
+ * Optimized user menu image component for Edge runtime
+ * Uses Next.js 14+ Image optimizations with minimal overhead
+ * Memoized for high concurrent user performance
  */
-export default function UserMenuImage({ src, alt }: UserMenuImageProps) {
+const UserMenuImage = memo(function UserMenuImage({ src, alt }: UserMenuImageProps) {
   return (
     <div className="h-9 w-9 overflow-hidden rounded-full">
       <Image 
@@ -21,7 +18,13 @@ export default function UserMenuImage({ src, alt }: UserMenuImageProps) {
         width={36}
         height={36}
         className="h-full w-full object-cover"
+        loading="lazy"
+        sizes="36px"
+        quality={80}
+        unoptimized={false}
       />
     </div>
   );
-} 
+});
+
+export default UserMenuImage; 

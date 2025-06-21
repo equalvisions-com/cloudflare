@@ -4,25 +4,27 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Suspense } from "react";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
-import { cookies } from "next/headers";
+import type { 
+  UserMenuClientWrapperProps, 
+  UserMenuProfileFetchResult,
+  UserMenuFallbackProps 
+} from "@/lib/types";
 
-// Define the prop types that our dynamic component will accept
-interface UserMenuClientProps {
-  displayName: string;
-  username: string;
-  isBoarded: boolean;
-  profileImage?: string;
-  pendingFriendRequestCount?: number;
-}
+// Edge Runtime compatible - optimized for serverless environments
+export const runtime = 'edge';
 
-// Import the client component dynamically to isolate edge runtime issues
-// Force TypeScript to recognize it has the right props
-const UserMenuClient = dynamic<UserMenuClientProps>(() => import('./UserMenuClientWrapper'), {
-  ssr: false
-});
+// Optimized dynamic import for Edge runtime
+// Reduces bundle size and improves cold start performance
+const UserMenuClient = dynamic<UserMenuClientWrapperProps>(
+  () => import('./UserMenuClientWrapper'),
+  {
+    ssr: false,
+    loading: () => <UserMenuFallback />
+  }
+);
 
 // Utility function to fetch the user profile
-export async function getUserProfile() {
+export async function getUserProfile(): Promise<UserMenuProfileFetchResult> {
   let displayName = "Guest";
   let username = "Guest";
   let isAuthenticated = false;

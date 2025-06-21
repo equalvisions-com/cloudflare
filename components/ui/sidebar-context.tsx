@@ -2,17 +2,7 @@
 
 import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
 import { Id } from "@/convex/_generated/dataModel";
-
-interface SidebarContextType {
-  isAuthenticated: boolean;
-  username: string;
-  displayName: string;
-  isBoarded: boolean;
-  profileImage?: string;
-  userId?: Id<"users"> | null;
-  pendingFriendRequestCount: number;
-  updatePendingFriendRequestCount: (newCount: number) => void;
-}
+import type { SidebarContextType, SidebarProviderProps } from "@/lib/types";
 
 const SidebarContext = createContext<SidebarContextType>({
   isAuthenticated: false,
@@ -36,16 +26,7 @@ export function SidebarProvider({
   profileImage,
   userId,
   pendingFriendRequestCount = 0
-}: {
-  children: React.ReactNode;
-  isAuthenticated: boolean;
-  username?: string;
-  displayName?: string;
-  isBoarded?: boolean;
-  profileImage?: string;
-  userId?: Id<"users"> | null;
-  pendingFriendRequestCount?: number;
-}) {
+}: SidebarProviderProps) {
   // State to keep track of the count that can be updated
   const [requestCount, setRequestCount] = useState(pendingFriendRequestCount);
   
