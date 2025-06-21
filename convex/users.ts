@@ -938,10 +938,15 @@ export const completeOnboarding = mutation({
       .query("users")
       .filter(q => q.eq(q.field("_id"), userId))
       .first()
-      .then(user => user ? { _id: user._id, username: user.username } : null);
+      .then(user => user ? { _id: user._id, username: user.username, isBoarded: user.isBoarded } : null);
       
     if (!user) {
       throw new Error("User not found");
+    }
+    
+    // Prevent multiple onboarding completions (and duplicate friend requests)
+    if (user.isBoarded) {
+      throw new Error("User has already completed onboarding");
     }
     
     if (user.username?.toLowerCase() !== username.toLowerCase()) {

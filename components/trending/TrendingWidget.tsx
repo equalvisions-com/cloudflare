@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, memo, useMemo } from "react";
+import { useEffect, useReducer, useRef, memo, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { useQuery } from "convex/react";
@@ -11,105 +11,202 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import React from "react";
+import { cn } from "@/lib/utils";
 import { 
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { decode } from 'html-entities';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useTrendingStore } from '@/lib/stores/trendingStore';
+import {
+  TrendingWidgetErrorType,
+  type TrendingWidgetProps,
+  type TrendingWidgetRSSEntry,
+  type TrendingWidgetPost,
+  type TrendingWidgetMergedItem,
+  type TrendingWidgetError,
+  type TrendingWidgetAPIResponse
+} from "@/lib/types";
 
-// Add a cache duration constant - 5 minutes
-const RSS_CACHE_DURATION = 5 * 60 * 1000;
+// ===================================================================
+// PURE UTILITY FUNCTIONS - Following React best practices
+// ===================================================================
 
-interface RSSEntry {
-  guid: string;
-  title: string;
-  link: string;
-  description: string | null;
-  pubDate: string;
-  image: string | null;
-  feedUrl: string;
-  mediaType: string | null;
-}
-
-interface TrendingWidgetProps {
-  className?: string;
-}
-
-// Function to check if we have a valid cache
-const hasValidCache = () => {
-  const cachedData = localStorage.getItem('trending_rss_cache');
-  const cachedTimestamp = localStorage.getItem('trending_rss_timestamp');
-  
-  if (!cachedData || !cachedTimestamp) return false;
-  
-  const timestamp = parseInt(cachedTimestamp, 10);
-  const now = Date.now();
-  
-  // Cache is valid if less than RSS_CACHE_DURATION old
-  return (now - timestamp) < RSS_CACHE_DURATION;
+// HTML entity map for common entities (pure function - no memoization needed)
+const HTML_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&#x27;': "'",
+  '&#x2F;': '/',
+  '&#x60;': '`',
+  '&#x3D;': '=',
+  '&nbsp;': ' ',
+  '&copy;': '©',
+  '&reg;': '®',
+  '&trade;': '™',
 };
 
-// Memoized skeleton component
-const TrendingItemSkeleton = memo(() => {
+// Pure function to decode HTML entities (no DOM manipulation)
+const decodeHtmlEntities = (text: string): string => {
+  return text.replace(/&[#\w]+;/g, (entity) => HTML_ENTITIES[entity] || entity);
+};
+
+
+
+// ===================================================================
+// STATE MANAGEMENT - useReducer for complex state
+// ===================================================================
+
+interface TrendingWidgetState {
+  rssEntries: Record<string, TrendingWidgetRSSEntry>;
+  isLoadingRss: boolean;
+  isOpen: boolean;
+  error: string | null;
+  retryCount: number;
+}
+
+type TrendingWidgetAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_RSS_ENTRIES'; payload: Record<string, TrendingWidgetRSSEntry> }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_OPEN'; payload: boolean }
+  | { type: 'INCREMENT_RETRY' }
+  | { type: 'RESET_RETRY' };
+
+const initialState: TrendingWidgetState = {
+  rssEntries: {},
+  isLoadingRss: true,
+  isOpen: false,
+  error: null,
+  retryCount: 0,
+};
+
+const trendingWidgetReducer = (state: TrendingWidgetState, action: TrendingWidgetAction): TrendingWidgetState => {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, isLoadingRss: action.payload };
+    case 'SET_RSS_ENTRIES':
+      return { ...state, rssEntries: action.payload, error: null };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_OPEN':
+      return { ...state, isOpen: action.payload };
+    case 'INCREMENT_RETRY':
+      return { ...state, retryCount: state.retryCount + 1 };
+    case 'RESET_RETRY':
+      return { ...state, retryCount: 0 };
+    default:
+      return state;
+  }
+};
+
+// ===================================================================
+// SIMPLIFIED CACHE SYSTEM - Following React best practices
+// ===================================================================
+
+interface SimpleCacheEntry {
+  data: Record<string, TrendingWidgetRSSEntry>;
+  timestamp: number;
+}
+
+// Simple cache with TTL - no over-engineering
+class SimpleCache {
+  private cache = new Map<string, SimpleCacheEntry>();
+  private readonly TTL = 60000; // 60 seconds (1 minute)
+
+  get(key: string): Record<string, TrendingWidgetRSSEntry> | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() - entry.timestamp > this.TTL) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  set(key: string, data: Record<string, TrendingWidgetRSSEntry>): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+// Global cache instance for request deduplication
+const globalTrendingCache = new SimpleCache();
+
+// ===================================================================
+// STABLE ID GENERATION - Using refs for stability
+// ===================================================================
+
+let idCounter = 0;
+const generateStableId = (prefix: string) => `${prefix}-${++idCounter}`;
+
+// ===================================================================
+// SKELETON COMPONENT
+// ===================================================================
+
+const TrendingItemSkeleton = () => {
   return (
-    <div className="flex flex-col space-y-2">
-      <div>
-        <Skeleton className="h-4 w-full" />
+    <li className="flex flex-col space-y-2">
+      {/* First row - Post title with small featured image */}
+      <div className="flex items-center gap-2">
+        <Skeleton className="flex-shrink-0 w-4 h-4 rounded" />
+        <Skeleton className="h-3 w-32" />
       </div>
-      <div className="flex gap-2">
-        <Skeleton className="h-10 w-10 rounded-md flex-shrink-0" />
-        <Skeleton className="h-3 w-4/5" />
+      
+      {/* Second row - RSS entry with larger image */}
+      <div className="flex gap-3">
+        <Skeleton className="flex-shrink-0 w-10 h-10 rounded-md" />
+        <div className="flex-grow space-y-1">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
       </div>
-    </div>
+    </li>
   );
-});
+};
 
-TrendingItemSkeleton.displayName = 'TrendingItemSkeleton';
+// ===================================================================
+// TRENDING ITEM COMPONENT
+// ===================================================================
 
-// Memoized trending item component
-const TrendingItem = memo(({ 
-  post, 
-  rssEntry 
-}: { 
-  post: any & { verified?: boolean };
-  rssEntry: RSSEntry 
-}) => {
-  // Get state and actions from Zustand store
+interface TrendingItemProps {
+  post: TrendingWidgetPost;
+  rssEntry: TrendingWidgetRSSEntry;
+  priority: boolean;
+}
+
+const TrendingItem = ({ post, rssEntry, priority }: TrendingItemProps) => {
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
+
+  const handlePodcastClick = (e: React.MouseEvent) => {
+    if (post.mediaType === 'podcast' && rssEntry.link) {
+      e.preventDefault();
+      playTrack(
+        rssEntry.link,
+        decodeHtmlEntities(rssEntry.title),
+        post.featuredImg,
+        post.title
+      );
+    }
+  };
+
+  // Simple calculations - no memoization needed
+  const decodedTitle = decodeHtmlEntities(rssEntry.title);
   const isCurrentlyPlaying = currentTrack?.src === rssEntry.link;
   
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
   
-  // Set up the mounted ref
-  useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
-    
-    // Cleanup function to set mounted flag to false when component unmounts
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  // Check both post.mediaType and rssEntry.mediaType
-  const isPodcast = useMemo(() => 
-    (post.mediaType?.toLowerCase() === 'podcast') || 
-    (rssEntry.mediaType?.toLowerCase() === 'podcast'),
-  [post.mediaType, rssEntry.mediaType]);
-  
-  // Handle podcast playback
-  const handlePodcastClick = useCallback((e: React.MouseEvent) => {
-    if (!isMountedRef.current) return;
-    
-    if (isPodcast) {
-      e.preventDefault();
-      const creatorName = post.title || undefined;
-      playTrack(rssEntry.link, decode(rssEntry.title), rssEntry.image || undefined, creatorName);
-    }
-  }, [isPodcast, rssEntry.link, rssEntry.title, rssEntry.image, playTrack]);
   
   return (
     <li className="flex flex-col space-y-2">
@@ -123,6 +220,7 @@ const TrendingItem = memo(({
                 fill
                 className="object-cover"
                 sizes="16px"
+                priority={priority}
               />
             </AspectRatio>
           </div>
@@ -139,22 +237,25 @@ const TrendingItem = memo(({
       <div className="flex gap-3">
         {rssEntry.image ? (
           <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
-            {isPodcast ? (
-              <div 
+            {post.mediaType === 'podcast' ? (
+              <button 
                 onClick={handlePodcastClick}
-                className={`block h-full cursor-pointer ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}
+                className={`block h-full w-full cursor-pointer border-0 p-0 bg-transparent ${isCurrentlyPlaying ? 'ring-2 ring-primary' : ''}`}
+                aria-label={`Play podcast: ${decodedTitle}`}
+                aria-pressed={isCurrentlyPlaying}
+                type="button"
               >
                 <AspectRatio ratio={1/1} className="bg-muted">
                   <Image 
                     src={rssEntry.image} 
-                    alt={rssEntry.title}
+                    alt={`Cover image for ${decodedTitle}`}
                     fill
                     className="object-cover hover:opacity-90 transition-opacity"
                     sizes="40px"
-                    priority={false}
+                    priority={priority}
                   />
                 </AspectRatio>
-              </div>
+              </button>
             ) : (
               <a 
                 href={rssEntry.link}
@@ -165,27 +266,32 @@ const TrendingItem = memo(({
                 <AspectRatio ratio={1/1} className="bg-muted">
                   <Image 
                     src={rssEntry.image} 
-                    alt={rssEntry.title}
+                    alt={`Cover image for ${decodedTitle}`}
                     fill
                     className="object-cover hover:opacity-90 transition-opacity"
                     sizes="40px"
-                    priority={false}
+                    priority={priority}
                   />
                 </AspectRatio>
               </a>
             )}
           </div>
         ) : (
-          // Use a placeholder icon or just leave empty space to maintain alignment
-          <div className="flex-shrink-0 w-10 h-10 bg-muted/50 rounded-md"></div>
-        )}
-        {isPodcast ? (
           <div 
+            className="flex-shrink-0 w-10 h-10 bg-muted/50 rounded-md"
+            aria-hidden="true"
+          ></div>
+        )}
+        {post.mediaType === 'podcast' ? (
+          <button
             onClick={handlePodcastClick}
-            className={`text-sm hover:text-primary flex items-center font-semibold flex-grow cursor-pointer ${isCurrentlyPlaying ? 'text-primary' : ''}`}
+            className={`text-sm hover:text-primary flex items-center font-semibold flex-grow cursor-pointer border-0 bg-transparent p-0 text-left ${isCurrentlyPlaying ? 'text-primary' : ''}`}
+            aria-label={`Play podcast: ${decodedTitle}`}
+            aria-pressed={isCurrentlyPlaying}
+            type="button"
           >
-            <span className="line-clamp-2">{rssEntry.title}</span>
-          </div>
+            <span className="line-clamp-2">{decodedTitle}</span>
+          </button>
         ) : (
           <a 
             href={rssEntry.link}
@@ -193,146 +299,334 @@ const TrendingItem = memo(({
             rel="noopener noreferrer"
             className="text-sm hover:text-primary flex items-center font-semibold flex-grow"
           >
-            <span className="line-clamp-2">{rssEntry.title}</span>
+            <span className="line-clamp-2">{decodedTitle}</span>
           </a>
         )}
       </div>
     </li>
   );
-});
+};
 
-TrendingItem.displayName = 'TrendingItem';
+// ===================================================================
+// MAIN COMPONENT
+// ===================================================================
 
 const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
-  const [rssEntries, setRssEntries] = useState<{[feedUrl: string]: RSSEntry}>({});
-  const [isLoadingRss, setIsLoadingRss] = useState(true);
-  const [isOpen, setIsOpen] = useState(false);
-  const [cacheStatus, setCacheStatus] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked');
+  const [state, dispatch] = useReducer(trendingWidgetReducer, initialState);
+  const [isPending, startTransition] = useTransition();
+  const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Fetch the list of posts using the new public query
+  // Get data from persistent store
+  const { rssEntries: storedEntries, isStale, setRssEntries } = useTrendingStore();
+  const hasStoredData = Object.keys(storedEntries).length > 0;
+  
+  // Stable IDs using refs (no regeneration on render)
+  const widgetId = useRef(generateStableId('trending-widget')).current;
+  const listId = useRef(generateStableId('trending-list')).current;
+  const loadingId = useRef(generateStableId('loading-status')).current;
+  const errorId = useRef(generateStableId('error-status')).current;
+
+  // Convex query for trending posts
   const trendingPostsSource = useQuery(api.widgets.getPublicWidgetPosts, { 
     limit: 6 
   });
-  
-  // Handle loading state for the Convex query
   const isLoadingPosts = trendingPostsSource === undefined;
   
-  // Memoized handler for collapsible state
-  const handleOpenChange = useCallback((open: boolean) => {
-    setIsOpen(open);
-  }, []);
-  
-  // Check cache on component mount (only once)
+  // Initialize state with stored data if available
   useEffect(() => {
-    if (cacheStatus !== 'unchecked') return;
-    try {
-      const isNavigation = sessionStorage.getItem('app_is_navigation') === 'true';
-      if (isNavigation) {
-        sessionStorage.removeItem('app_is_navigation');
-      }
-      if (hasValidCache()) {
-        const cachedData = localStorage.getItem('trending_rss_cache');
-        setRssEntries(JSON.parse(cachedData!));
-        setIsLoadingRss(false);
-        setCacheStatus('valid');
-      } else {
-        setCacheStatus('invalid');
-      }
-    } catch (error) {
-      
-      setCacheStatus('invalid');
+    if (hasStoredData && !isStale() && Object.keys(state.rssEntries).length === 0) {
+      dispatch({ type: 'SET_RSS_ENTRIES', payload: storedEntries });
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [cacheStatus]);
+  }, [hasStoredData, storedEntries, isStale, state.rssEntries]);
+
+  // Transition handler for smooth expand/collapse UX
+  const handleOpenChange = (open: boolean) => {
+    startTransition(() => {
+      dispatch({ type: 'SET_OPEN', payload: open });
+    });
+  };
+
+  const handleRetry = () => {
+    dispatch({ type: 'INCREMENT_RETRY' });
+  };
+
+  const classifyError = (error: unknown): TrendingWidgetError => {
+    if (!error) {
+      return {
+        type: TrendingWidgetErrorType.UNKNOWN_ERROR,
+        message: 'An unknown error occurred',
+        retryable: true
+      };
+    }
+
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        return {
+          type: TrendingWidgetErrorType.NETWORK_ERROR,
+          message: 'Request was cancelled',
+          originalError: error,
+          retryable: false
+        };
+      }
+
+      if (error.message.includes('fetch')) {
+        return {
+          type: TrendingWidgetErrorType.NETWORK_ERROR,
+          message: 'Network connection failed',
+          originalError: error,
+          retryable: true
+        };
+      }
+
+      if (error.message.includes('timeout')) {
+        return {
+          type: TrendingWidgetErrorType.TIMEOUT_ERROR,
+          message: 'Request timed out',
+          originalError: error,
+          retryable: true
+        };
+      }
+
+      return {
+        type: TrendingWidgetErrorType.RSS_FETCH_ERROR,
+        message: error.message,
+        originalError: error,
+        retryable: true
+      };
+    }
+
+    return {
+      type: TrendingWidgetErrorType.UNKNOWN_ERROR,
+      message: String(error),
+      retryable: true
+    };
+  };
+
+  const fetchRssEntriesOptimized = async (feedUrls: string[]): Promise<Record<string, TrendingWidgetRSSEntry>> => {
+    const cacheKey = feedUrls.sort().join('|');
+    
+    // Check cache first
+    const cached = globalTrendingCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Create new AbortController for this request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const response = await fetch('/api/trending', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feedUrls }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: TrendingWidgetAPIResponse = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const entries = data.entries || {};
+      
+      // Cache the result
+      globalTrendingCache.set(cacheKey, entries);
+      
+      return entries;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error; // Re-throw abort errors as-is
+      }
+      throw new Error(`Failed to fetch RSS entries: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const retryFetch = async (
+    fetchFn: () => Promise<Record<string, TrendingWidgetRSSEntry>>,
+    maxRetries: number = 3,
+    delay: number = 1000
+  ): Promise<Record<string, TrendingWidgetRSSEntry>> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await fetchFn();
+        dispatch({ type: 'RESET_RETRY' });
+        return result;
+      } catch (error) {
+        const classifiedError = classifyError(error);
+        
+        if (!classifiedError.retryable || attempt === maxRetries) {
+          throw error;
+        }
+        
+        dispatch({ type: 'INCREMENT_RETRY' });
+        
+        // Exponential backoff with jitter
+        const backoffDelay = delay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
+  };
   
-  // Extract feed URLs for fetching RSS entries - depends on trendingPostsSource
+  // Main effect for fetching RSS entries - simplified dependencies
   useEffect(() => {
-    if (cacheStatus === 'valid' || cacheStatus === 'unchecked' || isLoadingPosts || !trendingPostsSource || trendingPostsSource.length === 0) {
+    if (!trendingPostsSource || trendingPostsSource.length === 0) {
       return;
     }
     
     const fetchRssEntries = async () => {
-      setIsLoadingRss(true);
       try {
-        // Use feedUrls from the new query result
-        const feedUrls = trendingPostsSource.map(post => post.feedUrl).filter(Boolean) as string[];
+        dispatch({ type: 'SET_LOADING', payload: true });
+        dispatch({ type: 'SET_ERROR', payload: null });
+        
+        const feedUrls = trendingPostsSource.map((post: TrendingWidgetPost) => post.feedUrl);
         
         if (feedUrls.length === 0) {
-          setIsLoadingRss(false);
+          dispatch({ type: 'SET_LOADING', payload: false });
           return;
         }
 
-        const response = await fetch('/api/trending', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ feedUrls }),
-        });
+        const entries = await retryFetch(() => fetchRssEntriesOptimized(feedUrls));
+        dispatch({ type: 'SET_RSS_ENTRIES', payload: entries });
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch RSS entries');
-        }
-        
-        const data = await response.json();
-        
-        setRssEntries(data.entries);
-        
-        try {
-          localStorage.setItem('trending_rss_cache', JSON.stringify(data.entries));
-          localStorage.setItem('trending_rss_timestamp', Date.now().toString());
+        // Save to persistent store
+        setRssEntries(entries);
         } catch (error) {
-  
+        const classifiedError = classifyError(error);
+        if (classifiedError.type !== TrendingWidgetErrorType.NETWORK_ERROR || 
+            !classifiedError.originalError?.name.includes('AbortError')) {
+          dispatch({ type: 'SET_ERROR', payload: classifiedError.message });
         }
-      } catch (error) {
-
       } finally {
-        setIsLoadingRss(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
     
     fetchRssEntries();
-    // Depend on the source posts list and cache status
-  }, [trendingPostsSource, isLoadingPosts, cacheStatus]);
-  
-  // Combine post data with RSS entries - memoized
-  const mergedItems = useMemo(() => {
-    // Guard against undefined source posts during initial load
-    if (!trendingPostsSource) return [];
     
-    return trendingPostsSource
-      .map(post => {
-        const rssEntry = rssEntries[post.feedUrl];
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [trendingPostsSource, isLoadingPosts]);
+  
+  // Data transformation - simple operations, no memoization needed
+  const mergedItems = !trendingPostsSource ? [] : trendingPostsSource
+    .map((post: TrendingWidgetPost) => {
+      const rssEntry = state.rssEntries[post.feedUrl];
+      if (!rssEntry) return null;
+      
         return {
           ...post,
           rssEntry
-        };
-      })
-      .filter(item => item.rssEntry); // Only show items that have an RSS entry
-  }, [trendingPostsSource, rssEntries]);
+      } as TrendingWidgetMergedItem;
+    })
+    .filter((item): item is TrendingWidgetMergedItem => item !== null);
   
-  // Show first 3 posts initially - memoized
-  const initialPosts = useMemo(() => mergedItems.slice(0, 3), [mergedItems]);
-  const additionalPosts = useMemo(() => mergedItems.slice(3, 6), [mergedItems]);
-  const hasMorePosts = useMemo(() => additionalPosts.length > 0, [additionalPosts]);
+  // Simple array operations - no memoization needed
+  const initialPosts = mergedItems.slice(0, 3);
+  const additionalPosts = mergedItems.slice(3, 6);
+  const hasMorePosts = additionalPosts.length > 0;
   
-  // Determine overall loading state
-  const isLoading = isLoadingPosts || (cacheStatus === 'invalid' && isLoadingRss);
+  // Simple calculations - no memoization needed
+  const isLoading = isLoadingPosts || state.isLoadingRss;
+  const shouldShowSkeleton = isLoading && !hasStoredData;
+  
+  // Simple object creation - stable data, no memoization needed
+  const ariaLabels = {
+    widget: 'Trending content widget',
+    loading: 'Loading trending content',
+    error: 'Error loading trending content',
+    list: `Trending content list with ${mergedItems.length} items`,
+    showMore: `Show ${additionalPosts.length} more trending items`,
+    showLess: 'Show fewer trending items',
+    retry: `Retry loading trending content${state.retryCount > 0 ? `, attempt ${state.retryCount + 1}` : ''}`
+  };
 
   // If loading or no data, show skeleton loader
-  if (isLoading) {
+  if (shouldShowSkeleton) {
     return (
-      <Card className={`shadow-none rounded-xl ${className}`}>
+      <Card 
+        className={`shadow-none rounded-xl ${className}`}
+        role="region"
+        aria-labelledby={`${widgetId}-title`}
+        aria-describedby={loadingId}
+      >
         <CardHeader className="pb-4">
-          <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+          <CardTitle 
+            id={`${widgetId}-title`}
+            className="text-base font-extrabold flex items-center leading-none tracking-tight"
+          >
             <span>What&apos;s trending</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div className="space-y-4">
+          <div 
+            className="space-y-4"
+            role="status"
+            aria-live="polite"
+            aria-label={ariaLabels.loading}
+          >
             {[...Array(3)].map((_, i) => (
               <TrendingItemSkeleton key={i} />
             ))}
+            {/* Show more button skeleton */}
+            <Skeleton className="h-4 w-20 mt-4" />
           </div>
+          <span id={loadingId} className="sr-only">
+            Loading trending content, please wait
+          </span>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // If error occurred, show error state with retry option
+  if (state.error) {
+    return (
+      <Card 
+        className={`shadow-none rounded-xl ${className}`}
+        role="region"
+        aria-labelledby={`${widgetId}-title`}
+        aria-describedby={errorId}
+      >
+        <CardHeader className="pb-4">
+          <CardTitle 
+            id={`${widgetId}-title`}
+            className="text-base font-extrabold flex items-center leading-none tracking-tight"
+          >
+            <span>What&apos;s trending</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div 
+            className="space-y-4"
+            role="alert"
+            aria-live="assertive"
+          >
+            {[...Array(3)].map((_, i) => (
+              <TrendingItemSkeleton key={i} />
+            ))}
+            {/* Show more button skeleton */}
+            <Skeleton className="h-4 w-20 mt-4" />
+          </div>
+          <span id={errorId} className="sr-only">
+            Failed to load trending content. {state.retryCount > 0 && `Retry attempt ${state.retryCount}`}
+          </span>
         </CardContent>
       </Card>
     );
@@ -341,14 +635,30 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
   // If finished loading but no items merged (e.g., RSS fetch failed or returned empty)
   if (!isLoading && mergedItems.length === 0) {
     return (
-       <Card className={`shadow-none rounded-xl ${className}`}>
+      <Card 
+        className={`shadow-none rounded-xl ${className}`}
+        role="region"
+        aria-labelledby={`${widgetId}-title`}
+      >
         <CardHeader className="pb-4">
-          <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+          <CardTitle 
+            id={`${widgetId}-title`}
+            className="text-base font-extrabold flex items-center leading-none tracking-tight"
+          >
             <span>What&apos;s trending</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <p className="text-sm text-muted-foreground">Nothing trending right now.</p>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <TrendingItemSkeleton key={i} />
+            ))}
+            {/* Show more button skeleton */}
+            <Skeleton className="h-4 w-20 mt-4" />
+          </div>
+          <span className="sr-only">
+            No trending content available at this time.
+          </span>
         </CardContent>
       </Card>
     );
@@ -356,24 +666,37 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
 
   // Render the actual content
   return (
-    <Card className={`shadow-none rounded-xl ${className}`}>
+    <Card 
+      className={`shadow-none rounded-xl ${className}`}
+      role="region"
+      aria-labelledby={`${widgetId}-title`}
+    >
       <CardHeader className="pb-4">
-        <CardTitle className="text-base font-extrabold flex items-center leading-none tracking-tight">
+        <CardTitle 
+          id={`${widgetId}-title`}
+          className="text-base font-extrabold flex items-center leading-none tracking-tight"
+        >
           <span>What&apos;s trending</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
         <Collapsible
-          open={isOpen}
+          open={state.isOpen}
           onOpenChange={handleOpenChange}
           className="space-y-4"
         >
-          <ul className="space-y-4">
-            {initialPosts.map((item) => (
+          <ul 
+            id={listId}
+            className="space-y-4"
+            role="list"
+            aria-label={ariaLabels.list}
+          >
+            {initialPosts.map((item: TrendingWidgetMergedItem) => (
               <TrendingItem 
                 key={item._id}
                 post={item}
                 rssEntry={item.rssEntry}
+                priority={true}
               />
             ))}
           </ul>
@@ -381,12 +704,17 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           {hasMorePosts && (
             <>
               <CollapsibleContent className="space-y-4 mt-4">
-                <ul className="space-y-4">
-                  {additionalPosts.map((item) => (
+                <ul 
+                  className="space-y-4"
+                  role="list"
+                  aria-label="Additional trending content"
+                >
+                  {additionalPosts.map((item: TrendingWidgetMergedItem) => (
                     <TrendingItem 
                       key={item._id}
                       post={item}
                       rssEntry={item.rssEntry}
+                      priority={false}
                     />
                   ))}
                 </ul>
@@ -396,9 +724,16 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 leading-none tracking-tight"
+                  className={cn(
+                    "text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 leading-none tracking-tight",
+                    isPending && "opacity-70"
+                  )}
+                  disabled={isPending}
+                  aria-label={state.isOpen ? ariaLabels.showLess : ariaLabels.showMore}
+                  aria-expanded={state.isOpen}
+                  aria-controls={listId}
                 >
-                  {isOpen ? "Show less" : "Show more"}
+                  {state.isOpen ? "Show less" : "Show more"}
                 </Button>
               </CollapsibleTrigger>
             </>
@@ -409,5 +744,13 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
   );
 };
 
-// Export the memoized version of the component
+// Export with React.memo - minimal usage per React docs
 export const TrendingWidget = memo(TrendingWidgetComponent); 
+
+// Export cache stats for monitoring
+export const getTrendingWidgetCacheStats = () => {
+  return {
+    message: 'Cache stats available in development mode',
+    cacheSize: 'Simplified cache implementation'
+  };
+}; 

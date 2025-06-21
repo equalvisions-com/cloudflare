@@ -3690,3 +3690,101 @@ export interface UseNotificationsVirtualizationReturn {
   totalCount: number;
   currentPage: number;
 }
+
+// ===================================================================
+// TRENDING WIDGET TYPES - Phase 1: Type Safety & Error Handling
+// ===================================================================
+
+// Trending Widget RSS Entry Interface
+export interface TrendingWidgetRSSEntry {
+  guid: string;
+  title: string;
+  link: string;
+  description: string | null;
+  pubDate: string;
+  image: string | null;
+  feedUrl: string;
+  mediaType: string | null;
+}
+
+// Trending Widget Post Interface (from Convex getPublicWidgetPosts)
+export interface TrendingWidgetPost {
+  _id: Id<"posts">;
+  title: string;
+  postSlug: string;
+  categorySlug: string;
+  featuredImg?: string;
+  feedUrl: string;
+  mediaType: string;
+  verified: boolean;
+}
+
+// Trending Widget Merged Item Interface
+export interface TrendingWidgetMergedItem extends TrendingWidgetPost {
+  rssEntry: TrendingWidgetRSSEntry;
+}
+
+// Trending Widget Props Interface
+export interface TrendingWidgetProps {
+  className?: string;
+}
+
+// Trending Widget State Interface
+export interface TrendingWidgetState {
+  rssEntries: Record<string, TrendingWidgetRSSEntry>;
+  isLoadingRss: boolean;
+  isOpen: boolean;
+  error: string | null;
+}
+
+// Trending Widget Error Types
+export enum TrendingWidgetErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  RSS_FETCH_ERROR = 'RSS_FETCH_ERROR',
+  PARSE_ERROR = 'PARSE_ERROR',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+// Trending Widget Error Interface
+export interface TrendingWidgetError {
+  type: TrendingWidgetErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+}
+
+// Trending Widget API Response Interface
+export interface TrendingWidgetAPIResponse {
+  entries: Record<string, TrendingWidgetRSSEntry>;
+  error?: string;
+}
+
+// ===================================================================
+// END TRENDING WIDGET TYPES
+// ===================================================================
+
+// ===================================================================
+// FEATURED POSTS WIDGET TYPES
+// ===================================================================
+
+export interface FeaturedPostsWidgetPost {
+  _id: Id<"posts">;
+  title: string;
+  postSlug: string;
+  categorySlug: string;
+  featuredImg: string;
+  feedUrl: string;
+  mediaType: string;
+  verified: boolean;
+}
+
+export interface FeaturedPostsWidgetProps {
+  className?: string;
+}
+
+export interface FeaturedPostItemProps {
+  post: FeaturedPostsWidgetPost;
+  isFollowing: boolean | undefined;
+  priority?: boolean;
+}
