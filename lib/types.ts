@@ -691,13 +691,7 @@ export interface SocialCounts {
 }
 
 // Profile tabs types
-export interface ProfileTabsState {
-  selectedTabIndex: number;
-  likesData: ProfileFeedData | null;
-  likesStatus: 'idle' | 'loading' | 'loaded' | 'error';
-  likesError: Error | null;
-  isPending: boolean;
-}
+// Removed ProfileTabsState - now using local state with useReducer
 
 export interface ProfileFeedData {
   activities: ActivityItem[];
@@ -706,15 +700,67 @@ export interface ProfileFeedData {
   entryDetails: Record<string, EntriesRSSEntry>;
 }
 
-export interface ProfileTabsActions {
-  setSelectedTabIndex: (index: number) => void;
-  setLikesData: (data: ProfileFeedData | null) => void;
-  setLikesStatus: (status: 'idle' | 'loading' | 'loaded' | 'error') => void;
-  setLikesError: (error: Error | null) => void;
-  setIsPending: (pending: boolean) => void;
-  resetLikes: () => void;
-  reset: () => void;
+// ProfileActivityData types - Phase 4 Optimized
+export interface ProfileActivityDataConvexPost {
+  readonly _id: Id<"posts">;
+  readonly title: string;
+  readonly featuredImg: string;
+  readonly mediaType: string;
+  readonly categorySlug: string;
+  readonly postSlug: string;
 }
+
+export interface ProfileActivityDataConvexActivity {
+  type: "comment" | "retweet";
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string;
+}
+
+export interface ProfileActivityDataConvexLike {
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string;
+}
+
+export interface ProfileActivityDataPostMetadata {
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+export interface ProfileActivityDataConvexResult {
+  activities: {
+    activities: ProfileActivityDataConvexActivity[];
+    totalCount: number;
+    hasMore: boolean;
+  };
+  entryDetails: Record<string, ProfileActivityDataPostMetadata>;
+}
+
+export interface ProfileActivityDataConvexLikesResult {
+  activities: {
+    activities: ProfileActivityDataConvexLike[];
+    totalCount: number;
+    hasMore: boolean;
+  };
+  entryDetails: Record<string, ProfileActivityDataPostMetadata>;
+}
+
+// Removed ProfileTabsActions - now using local state with useReducer
 
 // UserProfileTabs component types
 export interface UserProfileTabsProps {
@@ -767,12 +813,7 @@ export interface LikesTabContentProps {
   error: Error | null;
 }
 
-// Custom hook types
-export interface UseProfileTabsProps {
-  userId: Id<"users">;
-  pageSize: number;
-  initialLikesData?: ProfileFeedData | null;
-}
+// Custom hook types - removed UseProfileTabsProps as it's no longer needed
 
 // UserActivityFeed types
 export interface ActivityFeedItem {

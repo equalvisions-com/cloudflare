@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback, useTransition, useReducer } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
-import { useProfileTabs } from "@/hooks/useProfileTabs";
 import { 
   ProfileFeedData, 
   UserProfileTabsProps,
@@ -31,6 +30,54 @@ const DynamicUserLikesFeed = dynamic<UserLikesFeedProps>(
     ssr: false
   }
 );
+
+// Local state management types
+type LikesStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
+interface LikesState {
+  data: ProfileFeedData | null;
+  status: LikesStatus;
+  error: Error | null;
+}
+
+type LikesAction = 
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; payload: ProfileFeedData }
+  | { type: 'FETCH_ERROR'; payload: Error }
+  | { type: 'INITIALIZE'; payload: ProfileFeedData };
+
+// Reducer for likes state management
+function likesReducer(state: LikesState, action: LikesAction): LikesState {
+  switch (action.type) {
+    case 'INITIALIZE':
+      return {
+        data: action.payload,
+        status: 'loaded',
+        error: null
+      };
+    case 'FETCH_START':
+      return {
+        ...state,
+        status: 'loading',
+        error: null
+      };
+    case 'FETCH_SUCCESS':
+      return {
+        data: action.payload,
+        status: 'loaded',
+        error: null
+      };
+    case 'FETCH_ERROR':
+      return {
+        ...state,
+        status: 'error',
+        error: action.payload,
+        data: null
+      };
+    default:
+      return state;
+  }
+}
 
 // Memoized component for the "Activity" tab content
 const ActivityTabContent = React.memo(({ 
@@ -110,19 +157,53 @@ export function UserProfileTabs({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // Use custom hook for business logic and state management
-  const {
-    selectedTabIndex,
-    likesData,
-    likesStatus,
-    likesError,
-    isPending,
-    handleTabChange,
-  } = useProfileTabs({
-    userId,
-    pageSize,
-    initialLikesData,
-  });
+  // Local state management with useState and useReducer
+  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
+  const [isPending, startTransition] = useTransition();
+  
+  // Initialize likes state
+  const initialLikesState: LikesState = {
+    data: initialLikesData || null,
+    status: initialLikesData ? 'loaded' : 'idle',
+    error: null
+  };
+  
+  const [likesState, dispatchLikes] = useReducer(likesReducer, initialLikesState);
+
+  // Memoized fetch function to prevent unnecessary re-creation
+  const fetchLikesData = useCallback(async () => {
+    if (likesState.status !== 'idle') return;
+    
+    dispatchLikes({ type: 'FETCH_START' });
+    
+    try {
+      const response = await fetch(`/api/likes?userId=${userId}&skip=0&limit=${pageSize}`, {
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch likes: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      dispatchLikes({ type: 'FETCH_SUCCESS', payload: data });
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error('Unknown error occurred');
+      dispatchLikes({ type: 'FETCH_ERROR', payload: errorObj });
+    }
+  }, [userId, pageSize, likesState.status]);
+
+  // Optimized tab change handler
+  const handleTabChange = useCallback((index: number) => {
+    // Start fetch BEFORE transition if needed
+    if (index === 1 && likesState.status === 'idle') {
+      fetchLikesData();
+    }
+    
+    startTransition(() => {
+      setSelectedTabIndex(index);
+    });
+  }, [likesState.status, fetchLikesData]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
@@ -148,10 +229,10 @@ export function UserProfileTabs({
       component: () => (
         <LikesTabContent 
           userId={userId}
-          likesData={likesData} 
+          likesData={likesState.data} 
           pageSize={pageSize}
-          isLoading={likesStatus === 'loading'}
-          error={likesError}
+          isLoading={likesState.status === 'loading'}
+          error={likesState.error}
         />
       )
     }
@@ -161,9 +242,9 @@ export function UserProfileTabs({
     name, 
     profileImage, 
     activityData, 
-    likesData, 
-    likesStatus,
-    likesError,
+    likesState.data, 
+    likesState.status,
+    likesState.error,
     pageSize
   ]);
 
@@ -178,6 +259,17 @@ export function UserProfileTabs({
   );
 }
 
-// Use React.memo for the entire component
-export const UserProfileTabsWithErrorBoundary = React.memo(UserProfileTabs);
+// Use React.memo for the entire component with proper comparison
+export const UserProfileTabsWithErrorBoundary = React.memo(UserProfileTabs, (prevProps, nextProps) => {
+  // Custom comparison function for better memoization
+  return (
+    prevProps.userId === nextProps.userId &&
+    prevProps.username === nextProps.username &&
+    prevProps.name === nextProps.name &&
+    prevProps.profileImage === nextProps.profileImage &&
+    prevProps.pageSize === nextProps.pageSize &&
+    prevProps.activityData === nextProps.activityData &&
+    prevProps.likesData === nextProps.likesData
+  );
+});
 UserProfileTabsWithErrorBoundary.displayName = 'UserProfileTabsWithErrorBoundary'; 
