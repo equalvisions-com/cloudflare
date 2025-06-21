@@ -3819,3 +3819,12 @@ export interface FeaturedPostItemProps {
   isFollowing: boolean | undefined;
   priority?: boolean;
 }
+
+// Sidebar component types
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  badgeContent?: number | string;
+  prefetch?: boolean;
+}

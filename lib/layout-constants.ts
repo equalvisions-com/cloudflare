@@ -15,4 +15,17 @@ export const LAYOUT_CONSTANTS = {
   
   // Spacing
   CONTENT_TOP_MARGIN: "mt-6"
-}; 
+};
+
+// Sidebar constants
+export const SIDEBAR_CONSTANTS = {
+  WIDTH: '142.95px',
+  TOP_OFFSET: 'top-6',
+  ACTIVE_STROKE_WIDTH: 3,
+  INACTIVE_STROKE_WIDTH: 2.5,
+  PODCAST_ACTIVE_STROKE_WIDTH: 2.75,
+  BADGE_OFFSET: {
+    TOP: '-6px',
+    RIGHT: '-1px'
+  }
+} as const; 
