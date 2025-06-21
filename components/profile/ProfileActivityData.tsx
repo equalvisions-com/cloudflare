@@ -1,7 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { fetchQuery } from "convex/nextjs";
-import { cache, Suspense } from "react";
+import { cache, Suspense, useCallback, useRef, useEffect } from "react";
 
 // Import the client component
 import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";
@@ -43,6 +43,21 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
   baseDelay: 1000, // Start with 1 second
   maxDelay: 8000,  // Max 8 seconds between retries
   timeoutMs: 10000 // 10 second timeout per attempt
+};
+
+// Request deduplication cache - module level for sharing across component instances
+const requestCache = new Map<string, Promise<ProfileFeedData>>();
+
+// Memory management: Prevent cache from growing too large in edge cases
+const MAX_CACHE_SIZE = 500; // Reasonable limit for concurrent requests
+
+const cleanupRequestCache = () => {
+  if (requestCache.size > MAX_CACHE_SIZE) {
+    // Remove oldest 50% of entries to prevent unbounded growth
+    const entries = Array.from(requestCache.keys());
+    const toDelete = entries.slice(0, Math.floor(entries.length * 0.5));
+    toDelete.forEach(key => requestCache.delete(key));
+  }
 };
 
 function ProfileActivityLoading() {
@@ -247,6 +262,26 @@ async function performBackupEnrichment(
   }
 }
 
+// Request deduplication wrapper for getInitialActivityData
+const getInitialActivityDataWithDedup = async (userId: Id<"users">): Promise<ProfileFeedData> => {
+  const cacheKey = `activity-${userId}`;
+  const existingRequest = requestCache.get(cacheKey);
+  
+  if (existingRequest) {
+    return existingRequest;
+  }
+  
+  // Cleanup cache if needed before adding new entry
+  cleanupRequestCache();
+  
+  const promise = getInitialActivityData(userId).finally(() => {
+    requestCache.delete(cacheKey);
+  });
+  
+  requestCache.set(cacheKey, promise);
+  return promise;
+};
+
 export const getInitialActivityData = cache(async (userId: Id<"users">): Promise<ProfileFeedData> => {
   try {
     const resultPromise = fetchQuery(api.users.getProfileActivityData, { 
@@ -299,6 +334,26 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
     };
   }
 });
+
+// Request deduplication wrapper for getInitialLikesData
+const getInitialLikesDataWithDedup = async (userId: Id<"users">): Promise<ProfileFeedData> => {
+  const cacheKey = `likes-${userId}`;
+  const existingRequest = requestCache.get(cacheKey);
+  
+  if (existingRequest) {
+    return existingRequest;
+  }
+  
+  // Cleanup cache if needed before adding new entry
+  cleanupRequestCache();
+  
+  const promise = getInitialLikesData(userId).finally(() => {
+    requestCache.delete(cacheKey);
+  });
+  
+  requestCache.set(cacheKey, promise);
+  return promise;
+};
 
 export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<ProfileFeedData> => {
   try {
@@ -354,8 +409,8 @@ export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<Pr
 
 async function ProfileActivityDataWithData({ userId, username, name, profileImage }: ProfileActivityDataProps) {
   try {
-    getInitialActivityData(userId);
-    const activityData = await getInitialActivityData(userId);
+    // FIXED: Remove redundant cache call - use deduplication wrapper instead
+    const activityData = await getInitialActivityDataWithDedup(userId);
   
     return (
       <div className="mt-0">
@@ -390,6 +445,7 @@ async function ProfileActivityDataWithData({ userId, username, name, profileImag
  * Edge Runtime compatible server component for profile activity data.
  * 
  * Features:
+ * - Request deduplication to prevent duplicate concurrent requests
  * - Shared data enrichment logic between tabs
  * - Memory-efficient object creation
  * - Retry logic with exponential backoff
