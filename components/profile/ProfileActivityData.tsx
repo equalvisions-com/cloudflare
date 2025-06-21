@@ -45,79 +45,6 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
   timeoutMs: 10000 // 10 second timeout per attempt
 };
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  userId: string;
-}
-
-interface SharedDataCache {
-  entryDetails: Map<string, EntriesRSSEntry>;
-  postMetadata: Map<string, ProfileActivityDataConvexPost>;
-  lastCleanup: number;
-}
-
-// Global cache for sharing enriched data between tabs and users
-const SHARED_CACHE: SharedDataCache = {
-  entryDetails: new Map(),
-  postMetadata: new Map(),
-  lastCleanup: Date.now()
-};
-
-// Cache configuration
-const CACHE_CONFIG = {
-  TTL: 5 * 60 * 1000, // 5 minutes TTL
-  MAX_ENTRIES: 1000,   // Max 1000 cached entries
-  CLEANUP_INTERVAL: 10 * 60 * 1000 // Clean every 10 minutes
-};
-
-function cleanupCache(): void {
-  const now = Date.now();
-  
-  // Only cleanup if interval has passed
-  if (now - SHARED_CACHE.lastCleanup < CACHE_CONFIG.CLEANUP_INTERVAL) {
-    return;
-  }
-  
-  const cutoff = now - CACHE_CONFIG.TTL;
-  let cleanedEntries = 0;
-  let cleanedPosts = 0;
-  
-  // Clean entry details cache
-  for (const [key, entry] of SHARED_CACHE.entryDetails.entries()) {
-    if (!entry || now - cutoff > CACHE_CONFIG.TTL) {
-      SHARED_CACHE.entryDetails.delete(key);
-      cleanedEntries++;
-    }
-  }
-  
-  // Clean post metadata cache
-  for (const [key, post] of SHARED_CACHE.postMetadata.entries()) {
-    if (!post || now - cutoff > CACHE_CONFIG.TTL) {
-      SHARED_CACHE.postMetadata.delete(key);
-      cleanedPosts++;
-    }
-  }
-  
-  // Enforce max size limits
-  if (SHARED_CACHE.entryDetails.size > CACHE_CONFIG.MAX_ENTRIES) {
-    const entriesToDelete = SHARED_CACHE.entryDetails.size - CACHE_CONFIG.MAX_ENTRIES;
-    const entries = Array.from(SHARED_CACHE.entryDetails.keys()).slice(0, entriesToDelete);
-    entries.forEach(key => SHARED_CACHE.entryDetails.delete(key));
-    cleanedEntries += entries.length;
-  }
-  
-  if (SHARED_CACHE.postMetadata.size > CACHE_CONFIG.MAX_ENTRIES) {
-    const postsToDelete = SHARED_CACHE.postMetadata.size - CACHE_CONFIG.MAX_ENTRIES;
-    const posts = Array.from(SHARED_CACHE.postMetadata.keys()).slice(0, postsToDelete);
-    posts.forEach(key => SHARED_CACHE.postMetadata.delete(key));
-    cleanedPosts += posts.length;
-  }
-  
-  SHARED_CACHE.lastCleanup = now;
-}
-
-// Loading fallback component (server-side safe)
 function ProfileActivityLoading() {
   return (
     <div className="flex items-center justify-center py-8">
@@ -194,60 +121,36 @@ async function enrichEntryDetails(
 ): Promise<Record<string, EntriesRSSEntry>> {
   if (guids.length === 0) return {};
   
-  // Clean cache before processing
-  cleanupCache();
-  
   let entryDetails: Record<string, EntriesRSSEntry> = {};
-  const uncachedGuids: string[] = [];
   
-  for (const guid of guids) {
-    const cached = SHARED_CACHE.entryDetails.get(guid);
-    if (cached) {
-      entryDetails[guid] = cached;
-    } else {
-      uncachedGuids.push(guid);
-    }
-  }
-  
-  // Only fetch uncached entries
-  if (uncachedGuids.length > 0) {
-    try {
-      const response = await fetchWithRetry(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guids: uncachedGuids }),
-          cache: 'no-store'
-        },
-        {
-          maxRetries: 2,
-          baseDelay: 1000,
-          maxDelay: 4000,
-          timeoutMs: 8000,
-          ...retryConfig
-        }
-      );
-      
-      if (response) {
-        const data = await response.json();
-        if (data?.entries && Array.isArray(data.entries)) {
-          const newEntries = Object.fromEntries(
-            data.entries.map((entry: EntriesRSSEntry) => [entry.guid, entry])
-          );
-          
-          // Add to main result
-          Object.assign(entryDetails, newEntries);
-          
-          // Cache the new entries
-          for (const [guid, entry] of Object.entries(newEntries)) {
-            SHARED_CACHE.entryDetails.set(guid, entry);
-          }
-        }
+  try {
+    const response = await fetchWithRetry(
+      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/entries/batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guids }),
+        cache: 'no-store'
+      },
+      {
+        maxRetries: 2,
+        baseDelay: 1000,
+        maxDelay: 4000,
+        timeoutMs: 8000,
+        ...retryConfig
       }
-    } catch (error) {
-      // Continue with cached data only
+    );
+    
+    if (response) {
+      const data = await response.json();
+      if (data?.entries && Array.isArray(data.entries)) {
+        entryDetails = Object.fromEntries(
+          data.entries.map((entry: EntriesRSSEntry) => [entry.guid, entry])
+        );
+      }
     }
+  } catch (error) {
+    // Continue with empty data
   }
   
   for (const guid of Object.keys(entryDetails)) {
@@ -268,9 +171,6 @@ async function enrichEntryDetails(
         });
         
         entryDetails[guid] = enrichedEntry;
-        
-        // Update cache with enriched data
-        SHARED_CACHE.entryDetails.set(guid, enrichedEntry);
       }
     }
   }
@@ -320,44 +220,25 @@ async function performBackupEnrichment(
     
     if (feedTitles.length === 0) return;
     
-    // Check cache for post metadata first
-    const cachedPosts = new Map<string, ProfileActivityDataConvexPost>();
-    const uncachedTitles: string[] = [];
+    const posts = await fetchQuery(api.posts.getByTitles, { titles: feedTitles });
     
-    for (const title of feedTitles) {
-      const cached = SHARED_CACHE.postMetadata.get(title);
-      if (cached) {
-        cachedPosts.set(title, cached);
-      } else {
-        uncachedTitles.push(title);
+    if (posts?.length > 0) {
+      const postMap = new Map<string, ProfileActivityDataConvexPost>();
+      for (const post of posts as ProfileActivityDataConvexPost[]) {
+        postMap.set(post.title, post);
       }
-    }
-    
-    // Fetch uncached posts
-    if (uncachedTitles.length > 0) {
-      const posts = await fetchQuery(api.posts.getByTitles, { titles: uncachedTitles });
       
-      if (posts?.length > 0) {
-        for (const post of posts as ProfileActivityDataConvexPost[]) {
-          cachedPosts.set(post.title, post);
-          SHARED_CACHE.postMetadata.set(post.title, post);
-        }
-      }
-    }
-    
-    for (const entry of entriesNeedingEnrichment) {
-      if (entry.feed_title) {
-        const post = cachedPosts.get(entry.feed_title);
-        if (post) {
-          entry.post_title = post.title;
-          entry.post_featured_img = post.featuredImg;
-          entry.post_media_type = post.mediaType;
-          entry.category_slug = post.categorySlug;
-          entry.post_slug = post.postSlug;
-          entry.verified = true;
-          
-          // Update cache
-          SHARED_CACHE.entryDetails.set(entry.guid, entry);
+      for (const entry of entriesNeedingEnrichment) {
+        if (entry.feed_title) {
+          const post = postMap.get(entry.feed_title);
+          if (post) {
+            entry.post_title = post.title;
+            entry.post_featured_img = post.featuredImg;
+            entry.post_media_type = post.mediaType;
+            entry.category_slug = post.categorySlug;
+            entry.post_slug = post.postSlug;
+            entry.verified = true;
+          }
         }
       }
     }
@@ -451,7 +332,7 @@ export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<Pr
     await performBackupEnrichment(entryDetails);
     
     const typedLikes: ActivityItem[] = likes
-      .filter(Boolean)
+        .filter(Boolean)
       .filter((like: ProfileActivityDataConvexLike) => like.entryGuid)
       .map((like: ProfileActivityDataConvexLike) => like as unknown as ActivityItem);
     
@@ -475,7 +356,7 @@ async function ProfileActivityDataWithData({ userId, username, name, profileImag
   try {
     getInitialActivityData(userId);
     const activityData = await getInitialActivityData(userId);
-    
+  
     return (
       <div className="mt-0">
         <UserProfileTabsWithErrorBoundary 
@@ -509,7 +390,6 @@ async function ProfileActivityDataWithData({ userId, username, name, profileImag
  * Edge Runtime compatible server component for profile activity data.
  * 
  * Features:
- * - Intelligent caching with automatic cleanup
  * - Shared data enrichment logic between tabs
  * - Memory-efficient object creation
  * - Retry logic with exponential backoff
