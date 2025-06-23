@@ -1765,35 +1765,37 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
         </div>
       ) : (
         <>
-          <Virtuoso 
-            useWindowScroll
-            data={groupedActivities}
-            overscan={2000}
-            itemContent={itemContentCallback}
-            components={{
-              Footer: () => null
-            }}
-            style={{ 
-              outline: 'none',
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-              WebkitUserSelect: 'none',
-              userSelect: 'none'
-            }}
-            className="outline-none focus:outline-none focus-visible:outline-none"
-            computeItemKey={(_, group) => `${group.entryGuid}-${group.type}`}
-            tabIndex={-1}
-            increaseViewportBy={800}
-            atTopThreshold={100}
-            atBottomThreshold={100}
-            defaultItemHeight={400}
-            totalListHeightChanged={(height) => {
-              // When list height changes, check for short content
-              if (height < window.innerHeight && hasMore && !isLoading) {
-                loadMoreActivities();
-              }
-            }}
-          />
+          <div className="min-h-screen">
+            <Virtuoso 
+              useWindowScroll
+              data={groupedActivities}
+              overscan={2000}
+              itemContent={itemContentCallback}
+              components={{
+                Footer: () => null
+              }}
+              style={{ 
+                outline: 'none',
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                WebkitUserSelect: 'none',
+                userSelect: 'none'
+              }}
+              className="outline-none focus:outline-none focus-visible:outline-none"
+              computeItemKey={(_, group) => `${group.entryGuid}-${group.type}`}
+              tabIndex={-1}
+              increaseViewportBy={800}
+              atTopThreshold={100}
+              atBottomThreshold={100}
+              defaultItemHeight={400}
+              totalListHeightChanged={(height) => {
+                // When list height changes, check for short content
+                if (height < window.innerHeight && hasMore && !isLoading) {
+                  loadMoreActivities();
+                }
+              }}
+            />
+          </div>
           
           {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
           <div 

@@ -13,8 +13,8 @@ export const useFeedTabsMemoryManagement = () => {
   // Track active requests for cleanup
   const activeRequestsRef = useRef<Set<AbortController>>(new Set());
   
-  // Memory-efficient timeout management
-  const timeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  // Memory-efficient timeout management (Edge Runtime compatible)
+  const timeoutsRef = useRef<Set<number>>(new Set());
   
   // Cache for preventing duplicate requests
   const requestCacheRef = useRef<Map<string, Promise<any>>>(new Map());
@@ -35,23 +35,23 @@ export const useFeedTabsMemoryManagement = () => {
   }, []);
 
   /**
-   * Create a managed timeout that auto-cleans up
+   * Create a managed timeout that auto-cleans up (Edge Runtime compatible)
    */
   const createManagedTimeout = useCallback((callback: () => void, delay: number) => {
     const timeoutId = setTimeout(() => {
-      timeoutsRef.current.delete(timeoutId);
+      timeoutsRef.current.delete(timeoutId as unknown as number);
       callback();
-    }, delay);
+    }, delay) as unknown as number;
     
     timeoutsRef.current.add(timeoutId);
     return timeoutId;
   }, []);
 
   /**
-   * Clear a specific managed timeout
+   * Clear a specific managed timeout (Edge Runtime compatible)
    */
-  const clearManagedTimeout = useCallback((timeoutId: NodeJS.Timeout) => {
-    clearTimeout(timeoutId);
+  const clearManagedTimeout = useCallback((timeoutId: number) => {
+    clearTimeout(timeoutId as unknown as NodeJS.Timeout);
     timeoutsRef.current.delete(timeoutId);
   }, []);
 
@@ -121,7 +121,7 @@ export const useFeedTabsMemoryManagement = () => {
     
     // Clear all timeouts
     timeoutsRef.current.forEach(timeoutId => {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId as unknown as NodeJS.Timeout);
     });
     timeoutsRef.current.clear();
     

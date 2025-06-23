@@ -71,11 +71,10 @@ Some logs may contain sensitive information that should not be logged in product
   - Performance impact
 - **Recommendations**: Environment-gate or remove
 
-#### `hooks/useFeedTabsAuth.ts` (2 statements)
-- **Lines 61-78**: Authentication state logging
-- **Issues**: 
-  - Auth state changes logged in production
-- **Recommendations**: Environment-gate sensitive auth logs
+#### ~~`hooks/useFeedTabsAuth.ts`~~ (REMOVED)
+- **Status**: ✅ **DELETED** - Hook removed during Zustand refactoring
+- **Previous Issues**: Auth state changes logged in production
+- **Resolution**: Hook deleted, no longer applicable
 
 ---
 

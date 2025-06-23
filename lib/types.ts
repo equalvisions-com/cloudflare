@@ -1879,76 +1879,7 @@ export interface FeedTabsTabConfig {
   component: React.ComponentType;
 }
 
-// Main feed tabs state interface
-export interface FeedTabsState {
-  // Active tab management
-  activeTabIndex: number;
-  
-  // Data state
-  rssData: FeedTabsRSSData | null;
-  featuredData: FeedTabsFeaturedData | null;
-  
-  // Loading state
-  loading: FeedTabsLoadingState;
-  
-  // Error state
-  errors: FeedTabsErrorState;
-  
-  // Fetch progress
-  fetchProgress: FeedTabsFetchProgress;
-  
-  // Authentication state
-  auth: FeedTabsAuthState;
-  
-  // Configuration
-  pageSize: number;
-  
-  // Initialization flag
-  hasInitialized: boolean;
-}
-
-// Feed tabs actions interface
-export interface FeedTabsActions {
-  // Tab management actions
-  setActiveTabIndex: (index: number) => void;
-  
-  // Data management actions
-  setRSSData: (data: FeedTabsRSSData | null) => void;
-  setFeaturedData: (data: FeedTabsFeaturedData | null) => void;
-  
-  // Loading state actions
-  setRSSLoading: (loading: boolean) => void;
-  setFeaturedLoading: (loading: boolean) => void;
-  
-  // Error management actions
-  setRSSError: (error: string | null) => void;
-  setFeaturedError: (error: string | null) => void;
-  
-  // Fetch progress actions
-  setRSSFetchInProgress: (inProgress: boolean) => void;
-  setFeaturedFetchInProgress: (inProgress: boolean) => void;
-  
-  // Authentication actions
-  setAuthState: (auth: Partial<FeedTabsAuthState>) => void;
-  
-  // Configuration actions
-  setPageSize: (size: number) => void;
-  
-  // Initialization actions
-  setInitialized: (initialized: boolean) => void;
-  
-  // Utility actions
-  reset: () => void;
-  initialize: (initialData: {
-    rssData?: FeedTabsRSSData | null;
-    featuredData?: FeedTabsFeaturedData | null;
-    pageSize?: number;
-    auth?: Partial<FeedTabsAuthState>;
-  }) => void;
-}
-
-// Combined store interface
-export interface FeedTabsStore extends FeedTabsState, FeedTabsActions {}
+// Note: FeedTabsState and FeedTabsActions removed - now using React useState
 
 // Component props interfaces
 export interface FeedTabsContainerProps {
@@ -1967,19 +1898,26 @@ export interface FeedTabsContainerClientWrapperProps {
 export interface UseFeedTabsDataFetchingProps {
   isAuthenticated: boolean;
   router: any; // Next.js router type
+  onRSSDataFetched: (data: FeedTabsRSSData | null) => void;
+  onFeaturedDataFetched: (data: FeedTabsFeaturedData | null) => void;
+  onRSSLoadingChange: (loading: boolean) => void;
+  onFeaturedLoadingChange: (loading: boolean) => void;
+  onRSSError: (error: string | null) => void;
+  onFeaturedError: (error: string | null) => void;
 }
 
-export interface UseFeedTabsManagementProps {
-  isAuthenticated: boolean;
-  router: any; // Next.js router type
-}
-
-export interface UseFeedTabsAuthProps {
-  isAuthenticated: boolean;
-}
+// Note: Removed unused Zustand hook interfaces (UseFeedTabsManagementProps, UseFeedTabsAuthProps, etc.)
 
 export interface UseFeedTabsUIProps {
-  // No props needed - uses store state
+  rssData: FeedTabsRSSData | null;
+  featuredData: FeedTabsFeaturedData | null;
+  isRSSLoading: boolean;
+  isFeaturedLoading: boolean;
+  rssError: string | null;
+  featuredError: string | null;
+  activeTabIndex: number;
+  onRetryRSS: () => void;
+  onRetryFeatured: () => void;
 }
 
 // Custom hooks return interfaces
@@ -1989,25 +1927,7 @@ export interface UseFeedTabsDataFetchingReturn {
   cleanup: () => void;
 }
 
-export interface UseFeedTabsManagementReturn {
-  handleTabChange: (index: number) => void;
-  shouldFetchFeaturedData: () => boolean;
-  shouldFetchRSSData: () => boolean;
-  shouldRedirectToSignIn: () => boolean;
-}
-
-export interface UseFeedTabsAuthReturn {
-  handleAuthChange: () => void;
-  getUserMenuProps: () => {
-    initialDisplayName: string;
-    initialProfileImage: string | null;
-    isBoarded: boolean;
-    pendingFriendRequestCount: number;
-  } | null;
-  shouldShowSignInButton: () => boolean;
-  shouldShowUserMenu: () => boolean;
-  authState: FeedTabsAuthState;
-}
+// Note: Removed unused Zustand hook return interfaces (UseFeedTabsManagementReturn, UseFeedTabsAuthReturn, etc.)
 
 export interface UseFeedTabsUIReturn {
   tabs: FeedTabsTabConfig[];
@@ -2043,16 +1963,13 @@ export interface FeedTabsErrorFallbackProps {
   resetErrorBoundary: () => void;
 }
 
-// Store provider interfaces
-export interface FeedTabsStoreProviderProps {
-  children: React.ReactNode;
-}
+// Note: Store provider interfaces removed - now using React state
 
 // Memory management interfaces
 export interface FeedTabsMemoryManagementReturn {
   cleanup: () => void;
-  createManagedTimeout: (callback: () => void, delay: number) => NodeJS.Timeout;
-  clearManagedTimeout: (timeout: NodeJS.Timeout) => void;
+  createManagedTimeout: (callback: () => void, delay: number) => number;
+  clearManagedTimeout: (timeout: number) => void;
 }
 
 // Performance monitoring interfaces
@@ -2923,7 +2840,7 @@ export interface FriendsListMemoryConfig {
   enableVirtualization: boolean;
 }
 
-// FriendsList Store Types (for future Zustand integration)
+// FriendsList Store Types
 export interface FriendsListStoreState {
   // Global friends cache
   friendsCache: Record<string, FriendsListFriendWithProfile[]>;
@@ -4003,3 +3920,17 @@ export interface ThemeToggleProps {
 // ===================================================================
 // END USER MENU TYPES
 // ===================================================================
+
+// Mobile Search Component Types
+export interface MobileSearchProps {
+  className?: string;
+}
+
+export interface MobileSearchState {
+  isSearching: boolean;
+}
+
+export type MobileSearchAction =
+  | { type: 'TOGGLE_SEARCH' }
+  | { type: 'CLOSE_SEARCH' }
+  | { type: 'OPEN_SEARCH' };

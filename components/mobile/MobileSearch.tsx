@@ -1,72 +1,82 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useCallback, useReducer, useEffect } from "react";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { usePathname } from "next/navigation";
+import type { MobileSearchProps, MobileSearchState, MobileSearchAction } from "@/lib/types";
 
-interface MobileSearchProps {
-  className?: string;
-}
+// Initial state for useReducer
+const initialState: MobileSearchState = {
+  isSearching: false,
+};
 
+// Reducer for state management following React best practices
+const mobileSearchReducer = (
+  state: MobileSearchState, 
+  action: MobileSearchAction
+): MobileSearchState => {
+  switch (action.type) {
+    case 'TOGGLE_SEARCH':
+      return { isSearching: !state.isSearching };
+    case 'CLOSE_SEARCH':
+      return { isSearching: false };
+    case 'OPEN_SEARCH':
+      return { isSearching: true };
+    default:
+      return state;
+  }
+};
+
+// Main component following React composition patterns
 export function MobileSearch({ className }: MobileSearchProps) {
-  const [isSearching, setIsSearching] = useState(false);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const [state, dispatch] = useReducer(mobileSearchReducer, initialState);
   const pathname = usePathname();
+  const previousPathnameRef = useRef<string>(pathname);
 
-  const toggleSearch = () => {
-    setIsSearching(!isSearching);
-  };
-
-  // Handle positioning the X button inside the search input
+  // Handle pathname changes with proper useEffect (React recommended)
   useEffect(() => {
-    if (isSearching && searchContainerRef.current) {
-      // Find the search input within SidebarSearch
-      const searchInput = searchContainerRef.current.querySelector('input');
-      if (searchInput) {
-        // Apply right padding to make room for the X button
-        searchInput.style.paddingRight = '2.5rem';
+    if (previousPathnameRef.current !== pathname) {
+      previousPathnameRef.current = pathname;
+      if (state.isSearching) {
+        dispatch({ type: 'CLOSE_SEARCH' });
       }
     }
-  }, [isSearching]);
+  }, [pathname, state.isSearching]);
 
-  // Close search when pathname changes (navigation occurs)
-  useEffect(() => {
-    // Only run this effect to clear search when pathname changes,
-    // not when isSearching changes
-    const handlePathChange = () => {
-      if (isSearching) {
-        setIsSearching(false);
-      }
-    };
-    
-    // Call immediately for current pathname
-    handlePathChange();
+  // Memoized handlers for performance optimization
+  const handleToggleSearch = useCallback(() => {
+    dispatch({ type: 'TOGGLE_SEARCH' });
+  }, []);
 
-    // isSearching is used inside handlePathChange but we intentionally exclude it
-    // from dependencies because including it would toggle isSearching back to false
-    // immediately after it's set to true, breaking the search functionality
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  const handleCloseSearch = useCallback(() => {
+    dispatch({ type: 'CLOSE_SEARCH' });
+  }, []);
 
-  // Custom handler for SidebarSearch to close MobileSearch on search execution
-  const handleSearch = (query: string) => {
-    if (isSearching) {
-      setIsSearching(false);
+  // Handle search execution with automatic close
+  const handleSearch = useCallback((query: string) => {
+    if (state.isSearching) {
+      dispatch({ type: 'CLOSE_SEARCH' });
     }
-  };
+  }, [state.isSearching]);
 
-  if (isSearching) {
+  // Render search state
+  if (state.isSearching) {
     return (
       <div className="absolute inset-x-0 top-0 z-50 bg-background flex items-center mt-2">
         <div className="flex-1 mx-4 flex items-center">
-          <div className="relative w-full" ref={searchContainerRef}>
-            <SidebarSearch className="w-full" hideClearButton={true} onSearch={handleSearch} />
+          <div className="relative w-full">
+            <SidebarSearch 
+              className="w-full [&>div>input]:pr-12" 
+              hideClearButton={true} 
+              onSearch={handleSearch} 
+            />
             <button
-              onClick={toggleSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+              onClick={handleCloseSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-sm"
               aria-label="Close search"
+              type="button"
             >
               <X className="h-4 w-4 text-muted-foreground" strokeWidth={2.25} />
             </button>
@@ -76,12 +86,15 @@ export function MobileSearch({ className }: MobileSearchProps) {
     );
   }
 
+  // Render trigger button
   return (
     <Button 
       variant="secondary" 
       size="icon" 
       className="rounded-full h-9 w-9 p-0 shadow-none text-muted-foreground" 
-      onClick={toggleSearch}
+      onClick={handleToggleSearch}
+      aria-label="Open search"
+      type="button"
     >
       <Search style={{ width: '18px', height: '18px' }} strokeWidth={2.25} />
       <span className="sr-only">Search</span>

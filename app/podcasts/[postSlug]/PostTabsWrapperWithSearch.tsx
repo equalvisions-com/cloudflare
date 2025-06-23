@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { PostTabsWrapper } from "@/components/postpage/PostTabsWrapper";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
 import { RSSFeedClientWithErrorBoundary } from "@/components/postpage/RSSFeedClient";
@@ -14,6 +14,18 @@ import type {
   SearchEmptyStateComponentProps,
   RSSFeedEntry
 } from "@/lib/types";
+
+// Enhanced Suspense fallback for search operations
+const SearchSuspenseFallback = React.memo(function SearchSuspenseFallback() {
+  return (
+    <div className="w-full space-y-4">
+      <SkeletonFeed count={5} />
+      <div className="text-center text-sm text-muted-foreground">
+        Searching content...
+      </div>
+    </div>
+  );
+});
 
 // Memoized empty state component for better performance
 const SearchEmptyState = React.memo(function SearchEmptyState({
@@ -93,17 +105,19 @@ const SearchRSSFeedClient = React.memo(function SearchRSSFeedClient({
   
   return (
     <div className="w-full">
-      <RSSFeedClientWithErrorBoundary
-        postTitle={postTitle}
-        feedUrl={feedUrl}
-        initialData={transformedData}
-        featuredImg={featuredImg}
-        mediaType={mediaType}
-        verified={verified}
-        customLoadMore={loadMoreSearchResults}
-        isSearchMode={true}
-        externalIsLoading={isLoading}
-      />
+      <Suspense fallback={<SearchSuspenseFallback />}>
+        <RSSFeedClientWithErrorBoundary
+          postTitle={postTitle}
+          feedUrl={feedUrl}
+          initialData={transformedData}
+          featuredImg={featuredImg}
+          mediaType={mediaType}
+          verified={verified}
+          customLoadMore={loadMoreSearchResults}
+          isSearchMode={true}
+          externalIsLoading={isLoading}
+        />
+      </Suspense>
     </div>
   );
 });

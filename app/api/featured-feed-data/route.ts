@@ -62,7 +62,12 @@ export async function GET(request: Request) {
 
     if (!kvBinding) {
       console.error("KVFEATURED binding not found. Ensure it is correctly bound in Cloudflare Pages settings and accessible to the Next.js Edge Function.");
-      return NextResponse.json({ error: "Server configuration error: KV binding missing." }, { status: 500 });
+      // Return empty data instead of error to prevent infinite loops in frontend
+      return NextResponse.json({ 
+        entries: [], 
+        totalEntries: 0, 
+        message: "Featured content temporarily unavailable. KV binding not configured." 
+      } as FeaturedData, { status: 200 });
     }
 
     // The getInitialEntries function expects the KVNamespace directly

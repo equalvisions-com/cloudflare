@@ -1,13 +1,4 @@
 import React, { useMemo, useEffect, useRef } from 'react';
-import {
-  useFeedTabsRSSData,
-  useFeedTabsFeaturedData,
-  useFeedTabsIsRSSLoading,
-  useFeedTabsIsFeaturedLoading,
-  useFeedTabsRSSError,
-  useFeedTabsFeaturedError,
-  useFeedTabsActiveTabIndex
-} from '@/lib/stores/feedTabsStore';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
 import dynamic from 'next/dynamic';
 import type { 
@@ -33,34 +24,30 @@ const FeaturedFeedClientWithErrorBoundary = dynamic(
   }
 );
 
-// FeaturedFeedErrorBoundary removed - using built-in error boundary from FeaturedFeedClientWithErrorBoundary
-
 /**
  * Custom hook for managing UI rendering logic in FeedTabsContainer
  * 
- * Extracts all UI rendering business logic from the component following
- * the established production patterns:
- * - Memoized tab configurations
- * - Error state rendering
- * - Loading state rendering
- * - Dynamic component loading with skeletons
+ * Uses props for state management:
+ * - Accepts state as props from parent component
+ * - Preserves all dynamic import functionality
+ * - Maintains intelligent preloading strategy
+ * - Keeps skeleton loading states
+ * - Error state rendering with retry functionality
  * 
- * @param props - Hook configuration props (currently none needed)
+ * @param props - Hook configuration props with state and callbacks
  * @returns UI rendering functions and configurations
  */
-export const useFeedTabsUI = (
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  props: UseFeedTabsUIProps = {}
-): UseFeedTabsUIReturn => {
-  // Zustand store selectors
-  const rssData = useFeedTabsRSSData();
-  const featuredData = useFeedTabsFeaturedData();
-  const isRSSLoading = useFeedTabsIsRSSLoading();
-  const isFeaturedLoading = useFeedTabsIsFeaturedLoading();
-  const rssError = useFeedTabsRSSError();
-  const featuredError = useFeedTabsFeaturedError();
-  const activeTabIndex = useFeedTabsActiveTabIndex();
-
+export const useFeedTabsUI = ({
+  rssData,
+  featuredData,
+  isRSSLoading,
+  isFeaturedLoading,
+  rssError,
+  featuredError,
+  activeTabIndex,
+  onRetryRSS,
+  onRetryFeatured
+}: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
 
@@ -142,10 +129,7 @@ export const useFeedTabsUI = (
       label: 'Discover',
       component: () => {
         if (featuredError) {
-          return renderErrorState(featuredError, () => {
-            // This will be handled by the parent component
-        
-          });
+          return renderErrorState(featuredError, onRetryFeatured);
         }
         
         if (isFeaturedLoading || featuredData === null) {
@@ -153,11 +137,13 @@ export const useFeedTabsUI = (
         }
         
         return (
-          <FeaturedFeedClientWithErrorBoundary
-            initialData={featuredData as any /* Type adjustment for compatibility */}
-            pageSize={30}
-            isActive={activeTabIndex === 0}
-          />
+          <div className="min-h-screen">
+            <FeaturedFeedClientWithErrorBoundary
+              initialData={featuredData as any /* Type adjustment for compatibility */}
+              pageSize={30}
+              isActive={activeTabIndex === 0}
+            />
+          </div>
         );
       }
     },
@@ -167,10 +153,7 @@ export const useFeedTabsUI = (
       label: 'Following',
       component: () => {
         if (rssError) {
-          return renderErrorState(rssError, () => {
-            // This will be handled by the parent component
-        
-          });
+          return renderErrorState(rssError, onRetryRSS);
         }
         
         if (isRSSLoading || rssData === null) {
@@ -178,10 +161,12 @@ export const useFeedTabsUI = (
         }
         
         return (
-          <RSSEntriesClientWithErrorBoundary 
-            initialData={rssData as any /* Type adjustment for compatibility */} 
-            pageSize={rssData.entries?.length || 30}
-          />
+          <div className="min-h-screen">
+            <RSSEntriesClientWithErrorBoundary 
+              initialData={rssData as any /* Type adjustment for compatibility */} 
+              pageSize={rssData.entries?.length || 30}
+            />
+          </div>
         );
       }
     }
@@ -191,7 +176,10 @@ export const useFeedTabsUI = (
     rssError,
     isRSSLoading,
     featuredError,
-    isFeaturedLoading
+    isFeaturedLoading,
+    activeTabIndex,
+    onRetryRSS,
+    onRetryFeatured
   ]);
 
   /**

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useTransition, useReducer } from 'react';
+import React, { useMemo, useState, useCallback, useTransition, useReducer, useRef } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
@@ -170,7 +170,10 @@ export function UserProfileTabs({
   
   const [likesState, dispatchLikes] = useReducer(likesReducer, initialLikesState);
 
-  // Memoized fetch function to prevent unnecessary re-creation
+  // Enterprise-grade fetch function with error recovery
+  const retryAttemptsRef = useRef(0);
+  const MAX_RETRY_ATTEMPTS = 3;
+  
   const fetchLikesData = useCallback(async () => {
     if (likesState.status !== 'idle') return;
     
@@ -187,9 +190,25 @@ export function UserProfileTabs({
       
       const data = await response.json();
       dispatchLikes({ type: 'FETCH_SUCCESS', payload: data });
+      retryAttemptsRef.current = 0; // Reset on success
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error('Unknown error occurred');
-      dispatchLikes({ type: 'FETCH_ERROR', payload: errorObj });
+      
+      // Enterprise error recovery with exponential backoff
+      if (retryAttemptsRef.current < MAX_RETRY_ATTEMPTS) {
+        retryAttemptsRef.current++;
+        const retryDelay = Math.min(1000 * Math.pow(2, retryAttemptsRef.current - 1), 10000);
+        
+        setTimeout(() => {
+          if (likesState.status === 'loading') {
+            // Reset to idle to allow retry
+            dispatchLikes({ type: 'FETCH_ERROR', payload: new Error('Retrying...') });
+            setTimeout(() => fetchLikesData(), 100);
+          }
+        }, retryDelay);
+      } else {
+        dispatchLikes({ type: 'FETCH_ERROR', payload: errorObj });
+      }
     }
   }, [userId, pageSize, likesState.status]);
 
