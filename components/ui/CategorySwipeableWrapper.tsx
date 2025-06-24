@@ -181,12 +181,7 @@ const CategorySwipeableWrapperComponent = ({
           {/* User Menu on mobile */}
           {isAuthenticated && (
             <div className="flex-shrink-0 md:hidden">
-              <UserMenuClientWithErrorBoundary 
-                initialDisplayName={displayName}
-                initialProfileImage={profileImage}
-                isBoarded={isBoarded}
-                pendingFriendRequestCount={pendingFriendRequestCount}
-              />
+              <UserMenuClientWithErrorBoundary />
             </div>
           )}
           

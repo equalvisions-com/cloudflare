@@ -22,12 +22,7 @@ export const PostHeaderUserMenu = React.memo(function PostHeaderUserMenu() {
   if (!shouldShowUserMenu) return null;
   
   return (
-    <UserMenuClientWithErrorBoundary
-      initialDisplayName={userMenuProps.initialDisplayName}
-      initialProfileImage={userMenuProps.initialProfileImage}
-      isBoarded={userMenuProps.isBoarded}
-      pendingFriendRequestCount={userMenuProps.pendingFriendRequestCount}
-    />
+    <UserMenuClientWithErrorBoundary />
   );
 });
 

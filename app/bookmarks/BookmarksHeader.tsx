@@ -91,12 +91,7 @@ const HeaderNavigation = memo(({
   <>
     <div className="w-10 flex items-start justify-start">
       <div className="md:hidden">
-        <UserMenuClientWithErrorBoundary 
-          initialDisplayName={displayName}
-          initialProfileImage={profileImage}
-          isBoarded={isBoarded}
-          pendingFriendRequestCount={pendingFriendRequestCount}
-        />
+        <UserMenuClientWithErrorBoundary />
       </div>
       <div className="hidden md:block h-[36px]">
         <BackButton />

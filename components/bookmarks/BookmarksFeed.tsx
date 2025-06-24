@@ -245,18 +245,23 @@ const BookmarkCard = memo(({
   
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
 
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
+  // Memoize featured image source (for top-left small image)
+  const featuredImageSrc = useMemo(() => {
     if (!entryDetails) return '/placeholder-image.jpg';
     
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entryDetails.image;
-    const fallbackImage = entryDetails.post_featured_img;
+    // Priority: Post featured image (primary) > Entry image (fallback) > Default
+    const primaryImage = entryDetails.post_featured_img;
+    const fallbackImage = entryDetails.image;
     const defaultImage = '/placeholder-image.jpg';
     
-    // Return the first available image source
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetails?.image, entryDetails?.post_featured_img]);
+  }, [entryDetails?.post_featured_img, entryDetails?.image]);
+
+  // Memoize entry content image source (for card content)
+  const entryImageSrc = useMemo(() => {
+    if (!entryDetails?.image) return '/placeholder-image.jpg';
+    return entryDetails.image;
+  }, [entryDetails?.image]);
 
   // Audio track data
   const audioTrackData = useMemo(() => {
@@ -418,7 +423,7 @@ const BookmarkCard = memo(({
               >
                 <AspectRatio ratio={1}>
                   <Image
-                    src={imageSrc}
+                    src={featuredImageSrc}
                     alt=""
                     fill
                     className="object-cover"
@@ -490,7 +495,7 @@ const BookmarkCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"
@@ -524,7 +529,7 @@ const BookmarkCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"
@@ -678,7 +683,7 @@ const useBookmarksPagination = ({
       const skipValue = state.currentSkip;
       
       // Use the API route to fetch the next page with AbortController
-      const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${skipValue}&limit=${pageSize}`, {
+      const result = await fetch(`/api/bookmarks?skip=${skipValue}&limit=${pageSize}`, {
         signal: abortControllerRef.current.signal
       }).then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

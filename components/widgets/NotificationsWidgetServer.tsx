@@ -1,8 +1,10 @@
-import { getUserProfile } from "@/components/user-menu/UserMenuServer";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { NotificationsWidget } from "./NotificationsWidget";
 
 export async function NotificationsWidgetServer() {
-  const { isAuthenticated } = await getUserProfile();
+  // Check auth status using Convex token
+  const token = await convexAuthNextjsToken().catch(() => null);
+  const isAuthenticated = !!token;
   
   return <NotificationsWidget isAuthenticated={isAuthenticated} />;
 } 

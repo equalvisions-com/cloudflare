@@ -277,16 +277,21 @@ const EntryCardHeader = memo(({
   
   const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
   
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entryDetails.image;
-    const fallbackImage = entryDetails.post_featured_img;
+  // Memoize featured image source (for top-left small image)
+  const featuredImageSrc = useMemo(() => {
+    // Priority: Post featured image (primary) > Entry image (fallback) > Default
+    const primaryImage = entryDetails.post_featured_img;
+    const fallbackImage = entryDetails.image;
     const defaultImage = '/placeholder-image.jpg';
     
-    // Return the first available image source
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetails.image, entryDetails.post_featured_img]);
+  }, [entryDetails.post_featured_img, entryDetails.image]);
+
+  // Memoize entry content image source (for card content)
+  const entryImageSrc = useMemo(() => {
+    if (!entryDetails.image) return '/placeholder-image.jpg';
+    return entryDetails.image;
+  }, [entryDetails.image]);
   
   return (
     <div className="flex items-center gap-4 mb-4">
@@ -302,7 +307,7 @@ const EntryCardHeader = memo(({
           >
             <AspectRatio ratio={1}>
               <Image
-                src={imageSrc}
+                src={featuredImageSrc}
                 alt=""
                 fill
                 className="object-cover"
@@ -420,18 +425,11 @@ const ActivityCard = memo(({
   // Check if this podcast is currently playing - move outside of conditional
   const isCurrentlyPlaying = isPodcast && entryDetails && currentTrack?.src === entryDetails.link;
   
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
-    if (!entryDetails) return '/placeholder-image.jpg';
-    
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entryDetails.image;
-    const fallbackImage = entryDetails.post_featured_img;
-    const defaultImage = '/placeholder-image.jpg';
-    
-    // Return the first available image source
-    return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetails?.image, entryDetails?.post_featured_img]);
+  // Memoize entry content image source (for card content)
+  const entryImageSrc = useMemo(() => {
+    if (!entryDetails?.image) return '/placeholder-image.jpg';
+    return entryDetails.image;
+  }, [entryDetails?.image]);
   
   // Skip rendering if no entry details
   if (!entryDetails) return null;
@@ -470,7 +468,7 @@ const ActivityCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"
@@ -504,7 +502,7 @@ const ActivityCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"

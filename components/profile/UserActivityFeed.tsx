@@ -617,18 +617,23 @@ const ActivityCard = React.memo(({
     }
   }, []);
 
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
+  // Memoize featured image source (for top-left small image)
+  const featuredImageSrc = useMemo(() => {
     if (!entryDetail) return '/placeholder-image.jpg';
     
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entryDetail.image;
-    const fallbackImage = entryDetail.post_featured_img;
+    // Priority: Post featured image (primary) > Entry image (fallback) > Default
+    const primaryImage = entryDetail.post_featured_img;
+    const fallbackImage = entryDetail.image;
     const defaultImage = '/placeholder-image.jpg';
     
-    // Return the first available image source
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetail?.image, entryDetail?.post_featured_img]);
+  }, [entryDetail?.post_featured_img, entryDetail?.image]);
+
+  // Memoize entry content image source (for card content)
+  const entryImageSrc = useMemo(() => {
+    if (!entryDetail?.image) return '/placeholder-image.jpg';
+    return entryDetail.image;
+  }, [entryDetail?.image]);
 
   // If we don't have entry details, show a simplified card
   if (!entryDetail) {
@@ -993,7 +998,7 @@ const ActivityCard = React.memo(({
                         <CardHeader className="p-0">
                           <AspectRatio ratio={2/1}>
                             <Image
-                              src={imageSrc}
+                              src={entryImageSrc}
                               alt=""
                               fill
                               className="object-cover"
@@ -1343,18 +1348,23 @@ const ActivityGroupRenderer = React.memo(({
     }, { once: true });
   }, []);
 
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
+  // Memoize featured image source (for top-left small image)
+  const groupFeaturedImageSrc = useMemo(() => {
     if (!entryDetail) return '/placeholder-image.jpg';
     
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entryDetail.image;
-    const fallbackImage = entryDetail.post_featured_img;
+    // Priority: Post featured image (primary) > Entry image (fallback) > Default
+    const primaryImage = entryDetail.post_featured_img;
+    const fallbackImage = entryDetail.image;
     const defaultImage = '/placeholder-image.jpg';
     
-    // Return the first available image source
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetail?.image, entryDetail?.post_featured_img]);
+  }, [entryDetail?.post_featured_img, entryDetail?.image]);
+
+  // Memoize entry content image source (for card content)
+  const groupEntryImageSrc = useMemo(() => {
+    if (!entryDetail?.image) return '/placeholder-image.jpg';
+    return entryDetail.image;
+  }, [entryDetail?.image]);
 
   return (
     // Use a unique key for the group
@@ -1436,7 +1446,7 @@ const ActivityGroupRenderer = React.memo(({
                   >
                     <AspectRatio ratio={1}>
                       <Image
-                        src={imageSrc}
+                        src={groupFeaturedImageSrc}
                         alt=""
                         fill
                         className="object-cover"
@@ -1524,15 +1534,15 @@ const ActivityGroupRenderer = React.memo(({
                     {entryDetail.image && (
                       <CardHeader className="p-0">
                         <AspectRatio ratio={2/1}>
-                          <Image
-                            src={imageSrc}
-                            alt=""
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 516px) 100vw, 516px"
-                            priority={false}
-                            key={`${entryDetail.guid}-podcast-image`}
-                          />
+                                                      <Image
+                              src={groupEntryImageSrc}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 516px) 100vw, 516px"
+                              priority={false}
+                              key={`${entryDetail.guid}-podcast-image`}
+                            />
                         </AspectRatio>
                       </CardHeader>
                     )}
@@ -1565,7 +1575,7 @@ const ActivityGroupRenderer = React.memo(({
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
                         <Image
-                          src={imageSrc}
+                          src={groupEntryImageSrc}
                           alt=""
                           fill
                           className="object-cover"

@@ -180,7 +180,7 @@ export function UserProfileTabs({
     dispatchLikes({ type: 'FETCH_START' });
     
     try {
-      const response = await fetch(`/api/likes?userId=${userId}&skip=0&limit=${pageSize}`, {
+      const response = await fetch(`/api/likes?skip=0&limit=${pageSize}`, {
         cache: 'no-store'
       });
       

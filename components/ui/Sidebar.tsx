@@ -21,8 +21,8 @@ import {
 import { Settings, LogOut } from "lucide-react";
 import { ThemeToggleWithErrorBoundary } from "@/components/user-menu/ThemeToggle";
 import Image from "next/image";
-import { useUserMenuState } from "@/components/user-menu/useUserMenuState";
-import { useMountedRef, usePendingFriendRequests } from "@/hooks";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useMountedRef } from "@/hooks";
 import { SIDEBAR_CONSTANTS } from "@/lib/layout-constants";
 import type { NavItem } from "@/lib/types";
 
@@ -159,11 +159,8 @@ const SidebarComponent = () => {
   const router = useRouter();
   
   // Single context subscription - minimizes re-renders
-  const { isAuthenticated, username, displayName, profileImage } = useSidebar();
-  const { handleSignOut } = useUserMenuState(displayName, profileImage, username);
-  
-  // Get real-time pending friend request count using custom hook
-  const realtimePendingCount = usePendingFriendRequests();
+  const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount } = useSidebar();
+  const { signOut } = useAuthActions();
   
   // Use custom hook to track component mount status
   const isMountedRef = useMountedRef();
@@ -186,9 +183,13 @@ const SidebarComponent = () => {
   // Custom sign out handler with redirect
   const handleSignOutWithRedirect = useCallback(async () => {
     if (!isMountedRef.current) return;
-    await handleSignOut();
-    router.push('/');
-  }, [handleSignOut, router, isMountedRef]);
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
+  }, [signOut, router, isMountedRef]);
 
   // Memoize navigation items - only recalculates when dependencies change
   const navItems = useMemo<NavItem[]>(() => {
@@ -201,12 +202,12 @@ const SidebarComponent = () => {
     ];
 
     if (isAuthenticated) {
-      items.push({
-        href: "/alerts",
-        label: "Alerts",
-        icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={getStrokeWidth("/alerts", isRouteActive("/alerts"))} />,
-        badgeContent: realtimePendingCount
-      });
+              items.push({
+          href: "/alerts",
+          label: "Alerts",
+          icon: <Bell className="h-5 w-5 shrink-0" strokeWidth={getStrokeWidth("/alerts", isRouteActive("/alerts"))} />,
+          badgeContent: pendingFriendRequestCount
+        });
     }
 
     items.push(
@@ -247,7 +248,7 @@ const SidebarComponent = () => {
     );
 
     return items;
-  }, [isRouteActive, isAuthenticated, username, realtimePendingCount, getStrokeWidth]);
+  }, [isRouteActive, isAuthenticated, username, pendingFriendRequestCount, getStrokeWidth]);
 
   // Memoize navigation items JSX - prevents re-creation on every render
   const navigationItems = useMemo(() => (

@@ -320,16 +320,21 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
     return mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
   }, [entry.post_media_type, entry.mediaType]);
 
-  // Memoize image source with stable fallback to prevent re-renders
-  const imageSrc = useMemo(() => {
-    // Use a stable fallback to prevent unnecessary re-renders
-    const primaryImage = entry.image;
-    const fallbackImage = entry.post_featured_img;
+  // Memoize featured image source (for top-left small image)
+  const featuredImageSrc = useMemo(() => {
+    // Priority: Post featured image (primary) > Entry image (fallback) > Default
+    const primaryImage = entry.post_featured_img;
+    const fallbackImage = entry.image;
     const defaultImage = '/placeholder-image.jpg';
     
-    // Return the first available image source
     return primaryImage || fallbackImage || defaultImage;
-  }, [entry.image, entry.post_featured_img]);
+  }, [entry.post_featured_img, entry.image]);
+
+  // Memoize entry content image source (for card content)
+  const entryImageSrc = useMemo(() => {
+    if (!entry.image) return '/placeholder-image.jpg';
+    return entry.image;
+  }, [entry.image]);
 
   return (
     <article
@@ -354,7 +359,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               <Link href={postUrl}>
                 <AspectRatio ratio={1}>
                   <Image
-                    src={imageSrc}
+                    src={featuredImageSrc}
                     alt=""
                     fill
                     className="object-cover"
@@ -423,7 +428,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"
@@ -466,7 +471,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={imageSrc}
+                        src={entryImageSrc}
                         alt=""
                         fill
                         className="object-cover"

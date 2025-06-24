@@ -13,9 +13,6 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
  * Header component for the notifications page - memoized for performance
  */
 const NotificationsHeader = memo(() => {
-  // Get user profile data from context
-  const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
-  
   return (
     <ErrorBoundary>
     <div className="w-full border-b py-2">
@@ -25,12 +22,7 @@ const NotificationsHeader = memo(() => {
             <BackButton />
           </div>
           <div className="md:hidden">
-            <UserMenuClientWithErrorBoundary 
-              initialDisplayName={displayName}
-              initialProfileImage={profileImage}
-              isBoarded={isBoarded}
-              pendingFriendRequestCount={pendingFriendRequestCount}
-            />
+            <UserMenuClientWithErrorBoundary />
           </div>
         </div>
         <div className="flex-1 text-center">

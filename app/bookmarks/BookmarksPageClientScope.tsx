@@ -283,7 +283,7 @@ const BookmarksPageClientScopeComponent = ({ rightSidebar }: BookmarksPageClient
     
     try {
       // Phase 3: Edge Runtime optimization - Direct API call instead of server action
-      const response = await fetch(`/api/bookmarks?userId=${userId}&skip=0&limit=30`, {
+      const response = await fetch(`/api/bookmarks?skip=0&limit=30`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

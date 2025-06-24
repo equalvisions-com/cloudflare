@@ -47,7 +47,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
+  const { pendingFriendRequestCount } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -157,7 +157,6 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
           ...currentStatus,
           status: "accepted",
         });
-        updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
       }
     } catch (error) {
       
@@ -178,7 +177,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         setIsActionLoading(false);
       }
     }
-  }, [currentStatus, isAuthenticated, acceptRequest, updatePendingFriendRequestCount, pendingFriendRequestCount, toast]);
+  }, [currentStatus, isAuthenticated, acceptRequest, toast]);
 
   // Handle unfriend or cancel request
   const handleUnfriend = useCallback(async () => {
@@ -194,9 +193,6 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
           direction: null,
           friendshipId: null,
         });
-        if (currentStatus.status === "pending" && currentStatus.direction === "received") {
-          updatePendingFriendRequestCount(pendingFriendRequestCount - 1);
-        }
       }
     } catch (error) {
       
@@ -215,7 +211,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
         setIsActionLoading(false);
       }
     }
-  }, [currentStatus, isAuthenticated, deleteFriendship, updatePendingFriendRequestCount, pendingFriendRequestCount, toast]);
+  }, [currentStatus, isAuthenticated, deleteFriendship, toast]);
 
   // Memoize the edit profile handler
   const handleEditProfileClick = useCallback(() => {

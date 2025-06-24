@@ -512,12 +512,7 @@ const ChatPageComponent = () => {
           </div>
           {isBoarded && (
             <div className="md:hidden">
-              <UserMenuClientWithErrorBoundary 
-                initialDisplayName={displayName}
-                initialProfileImage={profileImage}
-                isBoarded={isBoarded}
-                pendingFriendRequestCount={pendingFriendRequestCount}
-              />
+              <UserMenuClientWithErrorBoundary />
             </div>
           )}
         </div>

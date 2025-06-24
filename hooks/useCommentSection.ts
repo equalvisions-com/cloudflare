@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useReducer } from 'react';
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
@@ -8,9 +8,88 @@ import {
   UseCommentSectionReturn, 
   CommentSectionProps, 
   CommentFromAPI, 
-  CommentWithReplies 
+  CommentWithReplies,
+  CommentSectionState
 } from '@/lib/types';
-import { createCommentSectionStore } from '@/lib/stores/commentSectionStore';
+
+// React Reducer Actions
+type CommentSectionAction =
+  | { type: 'SET_IS_OPEN'; payload: boolean }
+  | { type: 'SET_COMMENT'; payload: string }
+  | { type: 'SET_IS_SUBMITTING'; payload: boolean }
+  | { type: 'SET_REPLY_TO_COMMENT'; payload: CommentFromAPI | null }
+  | { type: 'TOGGLE_REPLIES_VISIBILITY'; payload: string }
+  | { type: 'ADD_DELETED_COMMENT'; payload: string }
+  | { type: 'SET_OPTIMISTIC_COUNT'; payload: number | null }
+  | { type: 'SET_OPTIMISTIC_TIMESTAMP'; payload: number | null }
+  | { type: 'SET_METRICS_LOADED'; payload: boolean }
+  | { type: 'RESET' };
+
+// Initial state factory
+const createInitialState = (): CommentSectionState => ({
+  // UI State
+  isOpen: false,
+  comment: '',
+  isSubmitting: false,
+  replyToComment: null,
+  expandedReplies: new Set<string>(),
+  deletedComments: new Set<string>(),
+  
+  // Optimistic Updates
+  optimisticCount: null,
+  optimisticTimestamp: null,
+  
+  // Metrics
+  metricsLoaded: false,
+});
+
+// React Reducer
+const commentSectionReducer = (state: CommentSectionState, action: CommentSectionAction): CommentSectionState => {
+  switch (action.type) {
+    case 'SET_IS_OPEN':
+      return { ...state, isOpen: action.payload };
+      
+    case 'SET_COMMENT':
+      return { ...state, comment: action.payload.slice(0, 500) }; // Enforce 500 char limit
+      
+    case 'SET_IS_SUBMITTING':
+      return { ...state, isSubmitting: action.payload };
+      
+    case 'SET_REPLY_TO_COMMENT':
+      return { ...state, replyToComment: action.payload };
+      
+    case 'TOGGLE_REPLIES_VISIBILITY': {
+      const newExpandedReplies = new Set(state.expandedReplies);
+      if (newExpandedReplies.has(action.payload)) {
+        newExpandedReplies.delete(action.payload);
+      } else {
+        newExpandedReplies.add(action.payload);
+      }
+      return { ...state, expandedReplies: newExpandedReplies };
+    }
+    
+    case 'ADD_DELETED_COMMENT': {
+      const newDeletedComments = new Set(state.deletedComments);
+      newDeletedComments.add(action.payload);
+      return { ...state, deletedComments: newDeletedComments };
+    }
+    
+    case 'SET_OPTIMISTIC_COUNT':
+      return { ...state, optimisticCount: action.payload };
+      
+    case 'SET_OPTIMISTIC_TIMESTAMP':
+      return { ...state, optimisticTimestamp: action.payload };
+      
+    case 'SET_METRICS_LOADED':
+      return { ...state, metricsLoaded: action.payload };
+      
+    case 'RESET':
+      return createInitialState();
+      
+    default:
+      return state;
+  }
+};
 
 export function useCommentSection({
   entryGuid,
@@ -20,11 +99,8 @@ export function useCommentSection({
   setIsOpen: externalSetIsOpen,
   buttonOnly = false,
 }: Omit<CommentSectionProps, 'buttonOnly'> & { buttonOnly?: boolean }): UseCommentSectionReturn {
-  // Create a unique store instance for this component
-  const useStore = useMemo(() => createCommentSectionStore(), []);
-  
-  // Get store state and actions
-  const storeState = useStore();
+  // React state management (replaces Zustand)
+  const [state, dispatch] = useReducer(commentSectionReducer, createInitialState());
   
   // External dependencies
   const { isAuthenticated } = useConvexAuth();
@@ -32,9 +108,33 @@ export function useCommentSection({
   const viewer = useQuery(api.users.viewer);
   const { toast } = useToast();
   
-  // Handle external isOpen state first (needed for conditional queries)
-  const isOpen = externalIsOpen !== undefined ? externalIsOpen : storeState.isOpen;
-  const setIsOpen = externalSetIsOpen !== undefined ? externalSetIsOpen : storeState.setIsOpen;
+  // AbortController for request cleanup (replaces isMountedRef anti-pattern)
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
+  
+  // Setup AbortController on mount and cleanup on unmount
+  useEffect(() => {
+    abortControllerRef.current = new AbortController();
+    
+    return () => {
+      // Cleanup: abort any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      // Cleanup: clear DOM references
+      commentLikeCountRefs.current.clear();
+    };
+  }, []);
+  
+  // Handle external isOpen state
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : state.isOpen;
+  const setIsOpen = useCallback((open: boolean) => {
+    if (externalSetIsOpen) {
+      externalSetIsOpen(open);
+    } else {
+      dispatch({ type: 'SET_IS_OPEN', payload: open });
+    }
+  }, [externalSetIsOpen]);
   
   // Convex queries and mutations - only query comments when drawer is open or not button-only
   const shouldQueryComments = !buttonOnly || isOpen;
@@ -43,45 +143,34 @@ export function useCommentSection({
   const addComment = useMutation(api.comments.addComment);
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   
-  // Refs for cleanup and like count tracking
-  const isMountedRef = useRef(true);
-  const commentLikeCountRefs = useRef(new Map<string, HTMLDivElement>());
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
   // Update metrics loaded state
   useEffect(() => {
-    if (metrics && !storeState.metricsLoaded) {
-      storeState.setMetricsLoaded(true);
+    if (metrics && !state.metricsLoaded) {
+      dispatch({ type: 'SET_METRICS_LOADED', payload: true });
     }
-  }, [metrics, storeState.metricsLoaded, storeState.setMetricsLoaded]);
+  }, [metrics, state.metricsLoaded]);
   
   // Calculate comment count with optimistic updates
   const commentCount = useMemo(() => {
-    return storeState.optimisticCount ?? 
-           (storeState.metricsLoaded ? (metrics?.comments.count ?? initialData.count) : initialData.count);
-  }, [storeState.optimisticCount, storeState.metricsLoaded, metrics, initialData.count]);
+    return state.optimisticCount ?? 
+           (state.metricsLoaded ? (metrics?.comments.count ?? initialData.count) : initialData.count);
+  }, [state.optimisticCount, state.metricsLoaded, metrics, initialData.count]);
   
   // Reset optimistic updates when server data arrives
   useEffect(() => {
-    if (!isMountedRef.current) return;
+    // Check if request was aborted
+    if (abortControllerRef.current?.signal.aborted) return;
     
-    if (metrics && storeState.optimisticCount !== null && storeState.optimisticTimestamp !== null) {
-      const serverCountReflectsOurUpdate = metrics.comments.count >= storeState.optimisticCount;
-      const isOptimisticUpdateStale = Date.now() - storeState.optimisticTimestamp > 5000;
+    if (metrics && state.optimisticCount !== null && state.optimisticTimestamp !== null) {
+      const serverCountReflectsOurUpdate = metrics.comments.count >= state.optimisticCount;
+      const isOptimisticUpdateStale = Date.now() - state.optimisticTimestamp > 5000;
       
       if (serverCountReflectsOurUpdate || isOptimisticUpdateStale) {
-        storeState.setOptimisticCount(null);
-        storeState.setOptimisticTimestamp(null);
+        dispatch({ type: 'SET_OPTIMISTIC_COUNT', payload: null });
+        dispatch({ type: 'SET_OPTIMISTIC_TIMESTAMP', payload: null });
       }
     }
-  }, [metrics, storeState.optimisticCount, storeState.optimisticTimestamp, storeState.setOptimisticCount, storeState.setOptimisticTimestamp]);
+  }, [metrics, state.optimisticCount, state.optimisticTimestamp]);
   
   // Organize comments into hierarchy
   const commentHierarchy = useMemo((): CommentWithReplies[] => {
@@ -119,21 +208,21 @@ export function useCommentSection({
       router.push("/signin");
       return;
     }
-    if (!storeState.comment.trim() || storeState.isSubmitting) return;
+    if (!state.comment.trim() || state.isSubmitting) return;
     
-    storeState.setIsSubmitting(true);
+    dispatch({ type: 'SET_IS_SUBMITTING', payload: true });
     
     // Optimistic update
-    storeState.setOptimisticCount((storeState.optimisticCount ?? commentCount) + 1);
-    storeState.setOptimisticTimestamp(Date.now());
+    dispatch({ type: 'SET_OPTIMISTIC_COUNT', payload: (state.optimisticCount ?? commentCount) + 1 });
+    dispatch({ type: 'SET_OPTIMISTIC_TIMESTAMP', payload: Date.now() });
     
-    const commentContent = storeState.comment.trim();
-    const parentId = storeState.replyToComment?._id;
+    const commentContent = state.comment.trim();
+    const parentId = state.replyToComment?._id;
     
     try {
       // Clear input immediately for better UX
-      storeState.setComment('');
-      storeState.setReplyToComment(null);
+      dispatch({ type: 'SET_COMMENT', payload: '' });
+      dispatch({ type: 'SET_REPLY_TO_COMMENT', payload: null });
       
       await addComment({
         entryGuid,
@@ -143,91 +232,89 @@ export function useCommentSection({
       });
       
     } catch (error) {
-
+      // Check if request was aborted (component unmounted)
+      if (abortControllerRef.current?.signal.aborted) return;
       
-      if (isMountedRef.current) {
-        // Revert optimistic update
-        storeState.setOptimisticCount(null);
-        storeState.setOptimisticTimestamp(null);
-        
-        // Show appropriate error message
-        const errorMessage = (error as Error).message || 'Something went wrong';
-        let toastTitle = "Error Adding Comment";
-        let toastDescription = errorMessage;
-        
-        if (errorMessage.includes("Comment cannot be empty")) {
-          toastTitle = "Validation Error";
-          toastDescription = "Comment cannot be empty. Please enter some text.";
-        } else if (errorMessage.includes("Comment too long")) {
-          toastTitle = "Validation Error";
-          toastDescription = "Your comment is too long. Maximum 500 characters allowed.";
-        } else if (errorMessage.includes("Please wait") && errorMessage.includes("seconds before commenting again")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You're commenting too quickly. Please slow down.";
-        } else if (errorMessage.includes("Too many comments too quickly")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You've posted too many comments quickly. Please slow down.";
-        } else if (errorMessage.includes("Hourly comment limit reached")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You've reached the hourly limit for comments. Please try again later.";
-        }
-        
-        toast({
-          title: toastTitle,
-          description: toastDescription,
-        });
+      // Revert optimistic update
+      dispatch({ type: 'SET_OPTIMISTIC_COUNT', payload: null });
+      dispatch({ type: 'SET_OPTIMISTIC_TIMESTAMP', payload: null });
+      
+      // Show appropriate error message
+      const errorMessage = (error as Error).message || 'Something went wrong';
+      let toastTitle = "Error Adding Comment";
+      let toastDescription = errorMessage;
+      
+      if (errorMessage.includes("Comment cannot be empty")) {
+        toastTitle = "Validation Error";
+        toastDescription = "Comment cannot be empty. Please enter some text.";
+      } else if (errorMessage.includes("Comment too long")) {
+        toastTitle = "Validation Error";
+        toastDescription = "Your comment is too long. Maximum 500 characters allowed.";
+      } else if (errorMessage.includes("Please wait") && errorMessage.includes("seconds before commenting again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're commenting too quickly. Please slow down.";
+      } else if (errorMessage.includes("Too many comments too quickly")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You've posted too many comments quickly. Please slow down.";
+      } else if (errorMessage.includes("Hourly comment limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You've reached the hourly limit for comments. Please try again later.";
       }
+      
+      toast({
+        title: toastTitle,
+        description: toastDescription,
+      });
     } finally {
-      if (isMountedRef.current) {
-        storeState.setIsSubmitting(false);
+      // Check if request was aborted before updating state
+      if (!abortControllerRef.current?.signal.aborted) {
+        dispatch({ type: 'SET_IS_SUBMITTING', payload: false });
       }
     }
   }, [
     isAuthenticated, 
-    storeState.comment, 
-    storeState.isSubmitting, 
-    storeState.replyToComment, 
+    state.comment, 
+    state.isSubmitting, 
+    state.replyToComment, 
     commentCount, 
     entryGuid, 
     feedUrl, 
     addComment, 
     router, 
     toast,
-    storeState.setIsSubmitting,
-    storeState.setOptimisticCount,
-    storeState.setOptimisticTimestamp,
-    storeState.setComment,
-    storeState.setReplyToComment,
-    storeState.optimisticCount
+    state.optimisticCount
   ]);
   
   // Reply handler
   const handleReply = useCallback((comment: CommentFromAPI) => {
-    storeState.setReplyToComment(comment);
-  }, [storeState.setReplyToComment]);
+    dispatch({ type: 'SET_REPLY_TO_COMMENT', payload: comment });
+  }, []);
   
   // Delete comment handler
   const handleDeleteComment = useCallback(async (commentId: Id<"comments">) => {
     try {
       await deleteCommentMutation({ commentId });
       
-      // Mark comment as deleted in store
-      storeState.addDeletedComment(commentId.toString());
+      // Mark comment as deleted
+      dispatch({ type: 'ADD_DELETED_COMMENT', payload: commentId.toString() });
       
     } catch (error) {
-
+      // Silent error handling for production
+      console.error('Failed to delete comment:', error);
     }
-  }, [deleteCommentMutation, storeState.addDeletedComment]);
+  }, [deleteCommentMutation]);
   
   // Toggle replies handler
   const handleToggleReplies = useCallback((commentId: string) => {
-    storeState.toggleRepliesVisibility(commentId);
-  }, [storeState.toggleRepliesVisibility]);
+    dispatch({ type: 'TOGGLE_REPLIES_VISIBILITY', payload: commentId });
+  }, []);
   
-  // Like count ref handler
+  // Like count ref handler with proper cleanup
   const setCommentLikeCountRef = useCallback((commentId: string, el: HTMLDivElement | null) => {
     if (el && commentId) {
       commentLikeCountRefs.current.set(commentId, el);
+    } else if (commentId) {
+      commentLikeCountRefs.current.delete(commentId);
     }
   }, []);
   
@@ -248,19 +335,33 @@ export function useCommentSection({
     }
   }, []);
   
+  // Create actions object that matches the old Zustand interface
+  const actions = useMemo(() => ({
+    setIsOpen,
+    setComment: (comment: string) => dispatch({ type: 'SET_COMMENT', payload: comment }),
+    setIsSubmitting: (submitting: boolean) => dispatch({ type: 'SET_IS_SUBMITTING', payload: submitting }),
+    setReplyToComment: (comment: CommentFromAPI | null) => dispatch({ type: 'SET_REPLY_TO_COMMENT', payload: comment }),
+    toggleRepliesVisibility: (commentId: string) => dispatch({ type: 'TOGGLE_REPLIES_VISIBILITY', payload: commentId }),
+    addDeletedComment: (commentId: string) => dispatch({ type: 'ADD_DELETED_COMMENT', payload: commentId }),
+    setOptimisticCount: (count: number | null) => dispatch({ type: 'SET_OPTIMISTIC_COUNT', payload: count }),
+    setOptimisticTimestamp: (timestamp: number | null) => dispatch({ type: 'SET_OPTIMISTIC_TIMESTAMP', payload: timestamp }),
+    setMetricsLoaded: (loaded: boolean) => dispatch({ type: 'SET_METRICS_LOADED', payload: loaded }),
+    reset: () => dispatch({ type: 'RESET' }),
+    // Legacy methods for compatibility (will be removed in cleanup)
+    submitComment: async () => {},
+    deleteComment: async (commentId: Id<"comments">) => {},
+  }), [setIsOpen]);
+  
   return {
     // State
     state: {
-      ...storeState,
+      ...state,
       isOpen,
       commentCount,
     },
     
     // Actions
-    actions: {
-      ...storeState,
-      setIsOpen,
-    },
+    actions,
     
     // Computed
     commentHierarchy,

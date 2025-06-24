@@ -172,26 +172,31 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userIdStr = searchParams.get("userId");
-    const skip = parseInt(searchParams.get("skip") || "0", 10);
-    const limit = parseInt(searchParams.get("limit") || "30", 10);
-
-    if (!userIdStr) {
+    // Verify user is authenticated
+    const token = await convexAuthNextjsToken();
+    if (!token) {
       return NextResponse.json(
-        { error: "Missing userId parameter" },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
-    // Convert string to Convex ID
-    const userId = userIdStr as Id<"users">;
+    // Get the authenticated user's ID from Convex (single source of truth)
+    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      );
+    }
 
-    // Get auth token for authenticated requests
-    const token = await convexAuthNextjsToken().catch((error) => {
-      console.error("❌ Failed to get auth token:", error);
-      return null;
-    });
+    // Get pagination parameters from query string
+    const searchParams = request.nextUrl.searchParams;
+    const skip = parseInt(searchParams.get("skip") || "0", 10);
+    const limit = parseInt(searchParams.get("limit") || "30", 10);
+
+    // 🔒 SECURE: Always use authenticated user's ID
+    const userId = currentUser._id;
 
     console.log(`📡 Fetching likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
     const startTime = Date.now();
@@ -200,7 +205,7 @@ export async function GET(request: NextRequest) {
     const result = await fetchQuery(
       api.userActivity.getUserLikes,
       { userId, skip, limit },
-      token ? { token } : undefined
+      { token }
     ) as ActivityResponse;
     
     console.log(`✅ Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
@@ -222,7 +227,7 @@ export async function GET(request: NextRequest) {
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
           { entryGuids: guids },
-          token ? { token } : undefined
+          { token }
         );
         
         // Create a map of guid to metrics

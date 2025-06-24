@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { ConvexAuthNextjsServerProvider, convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
-import { UserMenuServer, getUserProfile } from "@/components/user-menu/UserMenuServer";
 import { MobileDock } from "@/components/ui/mobile-dock";
 import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
@@ -15,6 +14,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
 import { LogClientErrors } from './log-client-errors';
 import Script from "next/script";
+import type { RootLayoutProps } from "@/lib/types";
+
+// Edge Runtime for optimal performance at scale
+export const runtime = 'edge';
 
 // Dynamically import audio components with ssr disabled
 const AudioProvider = dynamic(
@@ -45,11 +48,13 @@ export const viewport: Viewport = {
 const inter = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: 'swap', // Optimize font loading
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: 'swap', // Optimize font loading
 });
 
 export const metadata: Metadata = {
@@ -69,6 +74,7 @@ export const metadata: Metadata = {
 };
 
 // Root-level WebSite structured data for sitelinks search-box eligibility
+// Memoized to prevent recreation on each request
 const websiteStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -96,67 +102,9 @@ const websiteStructuredData = {
       "description": "Curated discovery platform for newsletters, podcasts and creators"
     }
   ]
-};
+} as const; // Mark as const for better optimization
 
-// Separate component for user data with Suspense
-const UserData = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
-      <p>Could not load user data. Please try refreshing the page.</p>
-    </div>}>
-      <Suspense fallback={<div className="min-h-screen"></div>}>
-        <UserDataLoader>
-          {children}
-        </UserDataLoader>
-      </Suspense>
-    </ErrorBoundary>
-  );
-};
-
-// Async component that loads user data
-async function UserDataLoader({ children }: { children: React.ReactNode }) {
-  // Add a timeout to prevent infinite loading during cold starts
-  const profilePromise = Promise.race([
-    getUserProfile(),
-    new Promise<any>((resolve) => setTimeout(() => {
-      // Return default values if profile loading times out
-      resolve({
-        displayName: "Guest", 
-        username: "Guest", 
-        isAuthenticated: false, 
-        isBoarded: false, 
-        profileImage: undefined, 
-        userId: null, 
-        pendingFriendRequestCount: 0
-      });
-    }, 5000)) // 5 second timeout
-  ]);
-  
-  const { displayName, username, isAuthenticated, isBoarded, profileImage, userId, pendingFriendRequestCount } = await profilePromise;
-  
-  // If we have user data from Convex, we can trust the isBoarded value
-  // This is the single source of truth
-  
-  return (
-    <SidebarProvider 
-      isAuthenticated={isAuthenticated} 
-      username={username}
-      displayName={displayName}
-      isBoarded={isBoarded}
-      profileImage={profileImage}
-      userId={userId}
-      pendingFriendRequestCount={pendingFriendRequestCount}
-    >
-      {children}
-    </SidebarProvider>
-  );
-}
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <ConvexAuthNextjsServerProvider>
       {/* `suppressHydrationWarning` only affects the html tag,
@@ -164,12 +112,12 @@ export default function RootLayout({
       // class attribute on it */}
       <html lang="en" suppressHydrationWarning>
         <head>
-        <Script
-          id="pianjs"
-          src="https://api.pirsch.io/pa.js"
-          data-code={process.env.NEXT_PUBLIC_PIRSCH_CODE!}
-          strategy="lazyOnload"
-        />
+          <Script
+            id="pianjs"
+            src="https://api.pirsch.io/pa.js"
+            data-code={process.env.NEXT_PUBLIC_PIRSCH_CODE!}
+            strategy="lazyOnload"
+          />
           
           {/* Root-level WebSite structured data for sitelinks search-box eligibility */}
           <script
@@ -185,20 +133,19 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
               <AudioProvider>
-                <UserData>
-                  <ScrollResetter>
-                    <div className="">
-                      <div className="hidden">
-                        <Suspense fallback={null}>
-                          <UserMenuServer />
-                        </Suspense>
+                <SidebarProvider>
+                  <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
+                    <p>Something went wrong. Please refresh the page.</p>
+                  </div>}>
+                    <ScrollResetter>
+                      <div className="">
+                        {children}
                       </div>
-                      {children}
-                    </div>
-                    <PersistentPlayer />
-                    <MobileDock />
-                  </ScrollResetter>
-                </UserData>
+                      <PersistentPlayer />
+                      <MobileDock />
+                    </ScrollResetter>
+                  </ErrorBoundary>
+                </SidebarProvider>
                 <Toaster />
               </AudioProvider>
             </ThemeProvider>

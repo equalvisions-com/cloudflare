@@ -1,53 +1,61 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
+import React, { createContext, useContext, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import type { SidebarContextType, SidebarProviderProps } from "@/lib/types";
+
+interface SidebarContextType {
+  isAuthenticated: boolean;
+  username: string;
+  displayName: string;
+  isBoarded: boolean;
+  profileImage?: string;
+  userId: Id<"users"> | null;
+  pendingFriendRequestCount: number;
+  isLoading: boolean;
+}
 
 const SidebarContext = createContext<SidebarContextType>({
   isAuthenticated: false,
-  username: "Guest",
-  displayName: "Guest",
+  username: "",
+  displayName: "",
   isBoarded: false,
   profileImage: undefined,
   userId: null,
   pendingFriendRequestCount: 0,
-  updatePendingFriendRequestCount: () => {}
+  isLoading: true,
 });
 
 export const useSidebar = () => useContext(SidebarContext);
 
-export function SidebarProvider({
-  children,
-  isAuthenticated,
-  username = "Guest",
-  displayName = "Guest",
-  isBoarded = false,
-  profileImage,
-  userId,
-  pendingFriendRequestCount = 0
-}: SidebarProviderProps) {
-  // State to keep track of the count that can be updated
-  const [requestCount, setRequestCount] = useState(pendingFriendRequestCount);
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  // ✅ Single source of truth: Convex reactive queries
+  const { isAuthenticated, isLoading } = useConvexAuth();
   
-  // Function to update the count
-  const updatePendingFriendRequestCount = useCallback((newCount: number) => {
-    setRequestCount(newCount);
-  }, []);
+  // ✅ Reactive viewer query for user data
+  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
+  
+  // ✅ Reactive pending friend requests count
+  const pendingFriendRequestCount = useQuery(
+    api.friends.getMyPendingFriendRequestCount, 
+    isAuthenticated ? {} : "skip"
+  ) ?? 0;
 
-  // Memoize the context value to prevent unnecessary re-renders
+  // ✅ Derive all state from Convex queries
   const contextValue = useMemo(
     () => ({ 
-      isAuthenticated, 
-      username, 
-      displayName, 
-      isBoarded, 
-      profileImage,
-      userId,
-      pendingFriendRequestCount: requestCount,
-      updatePendingFriendRequestCount
+      isAuthenticated,
+      username: viewer?.username || "",
+      displayName: viewer?.name || viewer?.username || "",
+      isBoarded: viewer?.isBoarded ?? false,
+      profileImage: viewer?.profileImage,
+      userId: viewer?._id || null,
+      pendingFriendRequestCount,
+      isLoading: isLoading || (isAuthenticated && !viewer),
     }),
-    [isAuthenticated, username, displayName, isBoarded, profileImage, userId, requestCount, updatePendingFriendRequestCount]
+    [isAuthenticated, isLoading, viewer, pendingFriendRequestCount]
   );
 
   return (

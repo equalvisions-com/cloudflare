@@ -190,12 +190,7 @@ export function FeedTabsContainer({
       <div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
         <div>
           {authUIConfig.shouldShowUserMenu && authUIConfig.userMenuProps && (
-            <UserMenuClientWithErrorBoundary 
-              initialDisplayName={authUIConfig.userMenuProps.initialDisplayName}
-              isBoarded={authUIConfig.userMenuProps.isBoarded}
-              initialProfileImage={authUIConfig.userMenuProps.initialProfileImage}
-              pendingFriendRequestCount={authUIConfig.userMenuProps.pendingFriendRequestCount}
-            />
+            <UserMenuClientWithErrorBoundary />
           )}
         </div>
         <div className="flex justify-end items-center gap-2">

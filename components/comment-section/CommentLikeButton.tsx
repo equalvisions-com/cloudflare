@@ -42,8 +42,8 @@ const CommentLikeButtonComponent = ({
   const [optimisticTimestamp, setOptimisticTimestamp] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Add a ref to track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
+  // AbortController for request cleanup (replaces isMountedRef anti-pattern)
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Add authentication and router hooks
   const { isAuthenticated } = useConvexAuth();
@@ -51,12 +51,14 @@ const CommentLikeButtonComponent = ({
   const { toast } = useToast();
   
   useEffect(() => {
-    // Set mounted flag to true
-    isMountedRef.current = true;
+    // Setup AbortController on mount
+    abortControllerRef.current = new AbortController();
     
-    // Cleanup function to set mounted flag to false when component unmounts
+    // Cleanup function to abort requests when component unmounts
     return () => {
-      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
   
@@ -87,7 +89,8 @@ const CommentLikeButtonComponent = ({
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
-    if (!isMountedRef.current) return;
+    // Check if request was aborted
+    if (abortControllerRef.current?.signal.aborted) return;
     
     if (likeStatus && (optimisticIsLiked !== null || optimisticCount !== null) && optimisticTimestamp !== null) {
       // Only clear optimistic state if:
@@ -132,39 +135,41 @@ const CommentLikeButtonComponent = ({
       // Successful submission - no need to do anything as Convex will update the UI
     } catch (error) {
 
+      // Check if request was aborted (component unmounted)
+      if (abortControllerRef.current?.signal.aborted) return;
+      
       // Revert optimistic update on error
-      if (isMountedRef.current) {
-        setOptimisticIsLiked(null);
-        setOptimisticCount(null);
-        setOptimisticTimestamp(null);
+      setOptimisticIsLiked(null);
+      setOptimisticCount(null);
+      setOptimisticTimestamp(null);
 
-        const errorMessage = (error as Error).message || 'Something went wrong';
-        let toastTitle = "Error";
-        let toastDescription = "Could not update like status. Please try again."; // Generic default
+      const errorMessage = (error as Error).message || 'Something went wrong';
+      let toastTitle = "Error";
+      let toastDescription = "Could not update like status. Please try again."; // Generic default
 
-        if (errorMessage.includes("Please wait before toggling again")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You're liking comments too quickly. Please slow down.";
-        } else if (errorMessage.includes("Too many comment likes too quickly")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You're liking comments too quickly. Please slow down.";
-        } else if (errorMessage.includes("Hourly comment like limit reached")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "Hourly limit for liking comments reached. Try again later.";
-        } else if (errorMessage.includes("Comment not found")) {
-          // Keep generic message for this, as it might be a sync issue
-          toastTitle = "Error";
-          toastDescription = "Could not find the comment to like. It might have been deleted.";
-        }
-        // No specific toast for "Not authenticated" as user is redirected.
-
-        toast({
-          title: toastTitle,
-          description: toastDescription,
-        });
+      if (errorMessage.includes("Please wait before toggling again")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're liking comments too quickly. Please slow down.";
+      } else if (errorMessage.includes("Too many comment likes too quickly")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "You're liking comments too quickly. Please slow down.";
+      } else if (errorMessage.includes("Hourly comment like limit reached")) {
+        toastTitle = "Rate Limit Exceeded";
+        toastDescription = "Hourly limit for liking comments reached. Try again later.";
+      } else if (errorMessage.includes("Comment not found")) {
+        // Keep generic message for this, as it might be a sync issue
+        toastTitle = "Error";
+        toastDescription = "Could not find the comment to like. It might have been deleted.";
       }
+      // No specific toast for "Not authenticated" as user is redirected.
+
+      toast({
+        title: toastTitle,
+        description: toastDescription,
+      });
     } finally {
-      if (isMountedRef.current) {
+      // Check if request was aborted before updating state
+      if (!abortControllerRef.current?.signal.aborted) {
         setIsSubmitting(false);
       }
     }

@@ -68,7 +68,7 @@ export const BookmarksProvider = React.memo(({ children, userId }: BookmarksProv
 
       try {
         const response = await fetch(
-          `/api/bookmarks/search?userId=${userId}&query=${encodeURIComponent(query)}`,
+          `/api/bookmarks/search?query=${encodeURIComponent(query)}`,
           { signal: abortControllerRef.current.signal }
         );
 

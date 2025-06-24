@@ -12,10 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
-import { useUserMenuState } from "./useUserMenuState";
 import { memo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import type { UserMenuClientProps } from "@/lib/types";
+import { useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useRouter } from "next/navigation";
+import { api } from "@/convex/_generated/api";
 
 // Dynamically import the Image component optimized for Edge runtime
 // Uses Next.js 14+ optimizations for better Edge performance
@@ -26,35 +29,55 @@ const UserMenuImage = dynamic(() => import("./UserMenuImage"), {
   )
 });
 
-export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary(props: UserMenuClientProps) {
+export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
   return (
     <ErrorBoundary>
-      <UserMenuClient {...props} />
+      <UserMenuClient />
     </ErrorBoundary>
   );
 });
 
-// Create the component implementation that will be memoized
-const UserMenuClientComponent = ({ 
-  initialDisplayName, 
-  initialUsername,
-  initialProfileImage, 
-  isBoarded,
-  pendingFriendRequestCount = 0
-}: UserMenuClientProps) => {
-  // Get state and handlers from our custom hook
-  const { displayName, username, profileImage, isAuthenticated, handleSignIn, handleSignOut } =
-    useUserMenuState(initialDisplayName, initialProfileImage, initialUsername);
+// Pure client reactive component - single source of truth via Convex queries
+const UserMenuClientComponent = () => {
   
-  // Memoize event handlers with useCallback - no need for mounted checks
-  // React's built-in cleanup handles component unmounting properly
+  // ✅ Convex best practice: Use reactive queries as single source of truth
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signOut } = useAuthActions();
+  const router = useRouter();
+  
+  // ✅ Single source of truth: Convex reactive viewer query
+  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
+  
+  // ✅ Single source of truth: Reactive pending friend requests
+  const pendingFriendRequestCount = useQuery(
+    api.friends.getMyPendingFriendRequestCount, 
+    isAuthenticated ? {} : "skip"
+  ) ?? 0;
+
+  // ✅ Derive all state from Convex queries - no server props needed
+  const displayName = viewer?.name || viewer?.username || "";
+  const username = viewer?.username || "";
+  const profileImage = viewer?.profileImage;
+  
+  // Memoized event handlers
   const onSignIn = useCallback(() => {
-    handleSignIn();
-  }, [handleSignIn]);
+    router.push("/signin");
+  }, [router]);
   
-  const onSignOut = useCallback(() => {
-    handleSignOut();
-  }, [handleSignOut]);
+  const onSignOut = useCallback(async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
+  }, [signOut]);
+
+  // Show loading state during auth resolution
+  if (isLoading) {
+    return (
+      <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
+    );
+  }
 
   return (
     <div className="flex items-center gap-2 text-sm font-medium">

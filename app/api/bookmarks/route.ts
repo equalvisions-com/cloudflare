@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getBookmarksData } from '@/app/actions/bookmarkActions';
 import { Id } from '@/convex/_generated/dataModel';
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
+import { fetchQuery } from 'convex/nextjs';
+import { api } from '@/convex/_generated/api';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
@@ -17,21 +19,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get('userId');
-    const skip = parseInt(searchParams.get('skip') || '0', 10);
-    const limit = parseInt(searchParams.get('limit') || '30', 10);
-
-    if (!userId) {
+    // Get the authenticated user's ID from Convex (single source of truth)
+    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
+    if (!currentUser) {
       return NextResponse.json(
-        { error: 'Missing userId parameter' },
-        { status: 400 }
+        { error: 'User not found' },
+        { status: 401 }
       );
     }
 
-    // Fetch bookmarks data
-    const data = await getBookmarksData(userId as unknown as Id<"users">, skip, limit);
+    // Get pagination parameters from query string
+    const searchParams = request.nextUrl.searchParams;
+    const skip = parseInt(searchParams.get('skip') || '0', 10);
+    const limit = parseInt(searchParams.get('limit') || '30', 10);
+
+    // 🔒 SECURE: Always use authenticated user's ID (no userId parameter needed)
+    const data = await getBookmarksData(currentUser._id, skip, limit);
 
     return NextResponse.json(data);
   } catch (error) {

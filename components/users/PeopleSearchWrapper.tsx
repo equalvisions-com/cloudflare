@@ -59,12 +59,7 @@ const SearchForm = memo<{
     <form onSubmit={onSubmit} className="relative flex items-center gap-3.5">
           {isAuthenticated && (
             <div className="flex-shrink-0 md:hidden">
-              <UserMenuClientWithErrorBoundary
-            initialDisplayName={displayName || undefined}
-            initialProfileImage={profileImage || undefined}
-                isBoarded={isBoarded}
-                pendingFriendRequestCount={pendingFriendRequestCount}
-              />
+              <UserMenuClientWithErrorBoundary />
             </div>
           )}
           <div className={cn(

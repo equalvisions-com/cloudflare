@@ -15,7 +15,7 @@ import { useNotificationStore } from '@/lib/stores/notificationStore';
  */
 export function useNotificationActions() {
   const { toast } = useToast();
-  const { pendingFriendRequestCount, updatePendingFriendRequestCount } = useSidebar();
+  const { pendingFriendRequestCount } = useSidebar();
   const { setAccepting, setDeclining } = useNotificationStore();
   
   // Mutations
@@ -31,7 +31,6 @@ export function useNotificationActions() {
       toast({
         description: "Friend request accepted",
       });
-      updatePendingFriendRequestCount(Math.max(0, pendingFriendRequestCount - 1));
     } catch (error) {
 
       toast({
@@ -41,7 +40,7 @@ export function useNotificationActions() {
     } finally {
       setAccepting(friendshipId, false);
     }
-  }, [acceptRequest, toast, updatePendingFriendRequestCount, pendingFriendRequestCount, setAccepting]);
+  }, [acceptRequest, toast, setAccepting]);
   
   // Decline friend request action
   const handleDeclineRequest = useCallback(async (friendshipId: Id<"friends">) => {
@@ -52,7 +51,6 @@ export function useNotificationActions() {
       toast({
         description: "Friend request declined",
       });
-      updatePendingFriendRequestCount(Math.max(0, pendingFriendRequestCount - 1));
     } catch (error) {
 
       toast({
@@ -62,7 +60,7 @@ export function useNotificationActions() {
     } finally {
       setDeclining(friendshipId, false);
     }
-  }, [deleteFriendship, toast, updatePendingFriendRequestCount, pendingFriendRequestCount, setDeclining]);
+  }, [deleteFriendship, toast, setDeclining]);
   
   // Remove friend action
   const handleRemoveFriend = useCallback(async (friendshipId: Id<"friends">) => {

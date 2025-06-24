@@ -2096,10 +2096,6 @@ export interface CommentSectionActions {
   toggleRepliesVisibility: (commentId: string) => void;
   addDeletedComment: (commentId: string) => void;
   
-  // Comment Actions
-  submitComment: () => Promise<void>;
-  deleteComment: (commentId: Id<"comments">) => Promise<void>;
-  
   // Optimistic Updates
   setOptimisticCount: (count: number | null) => void;
   setOptimisticTimestamp: (timestamp: number | null) => void;
@@ -2109,9 +2105,11 @@ export interface CommentSectionActions {
   
   // Utility
   reset: () => void;
+  
+  // Legacy methods for compatibility (deprecated - will be removed)
+  submitComment: () => Promise<void>;
+  deleteComment: (commentId: Id<"comments">) => Promise<void>;
 }
-
-export interface CommentSectionStore extends CommentSectionState, CommentSectionActions {}
 
 export interface CommentSectionProps {
   entryGuid: string;
@@ -3813,28 +3811,11 @@ export interface UserMenuAuthState {
 // Combined User Menu State
 export interface UserMenuState extends UserMenuUserData, UserMenuAuthState {}
 
-// User Menu Server Component Props
-export interface UserMenuServerProps {
-  // No props needed - fetches data internally
-}
+// User Menu Server Component Props - REMOVED (no longer using server components for auth)
 
-// User Menu Client Wrapper Props (from server to wrapper)
-export interface UserMenuClientWrapperProps {
-  displayName: string;
-  username: string;
-  isBoarded: boolean;
-  profileImage?: string;
-  pendingFriendRequestCount?: number;
-}
+// User Menu Client Wrapper Props - REMOVED (no longer needed with pure client reactive)
 
-// User Menu Client Props (from wrapper to client)
-export interface UserMenuClientProps {
-  initialDisplayName?: string;
-  initialUsername?: string;
-  initialProfileImage?: string;
-  isBoarded?: boolean;
-  pendingFriendRequestCount?: number;
-}
+// User Menu Client Props - SIMPLIFIED (no longer needs initial props with pure reactive)
 
 // User Menu Image Component Props
 export interface UserMenuImageProps {
@@ -4029,4 +4010,44 @@ export interface BookmarksFeedErrorBoundaryProps {
 
 // ===================================================================
 // END BOOKMARKS FEED TYPES
+// ===================================================================
+
+// ===================================================================
+// ROOT LAYOUT TYPES - Phase 1: Type Safety & Performance Optimization
+// ===================================================================
+
+// Root Layout Props Interface
+export interface RootLayoutProps {
+  children: React.ReactNode;
+}
+
+// Layout Performance Metrics Interface
+// Layout Performance Metrics - REMOVED (no longer tracking server query performance)
+
+// Layout Error Types
+export enum LayoutErrorType {
+  USER_PROFILE_ERROR = 'USER_PROFILE_ERROR',
+  FRIEND_REQUESTS_ERROR = 'FRIEND_REQUESTS_ERROR',
+  AUTH_TOKEN_ERROR = 'AUTH_TOKEN_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+export interface LayoutError {
+  type: LayoutErrorType;
+  message: string;
+  originalError?: Error;
+  retryable: boolean;
+  context?: Record<string, unknown>;
+}
+
+// Enhanced UserMenu Profile Fetch Result with Caching
+export interface CachedUserMenuProfileFetchResult extends UserMenuProfileFetchResult {
+  cacheKey: string;
+  cachedAt: number;
+  ttl: number;
+}
+
+// ===================================================================
+// END ROOT LAYOUT TYPES
 // ===================================================================

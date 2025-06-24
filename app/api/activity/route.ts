@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { api } from "@/convex/_generated/api";
+import { executeRead } from "@/lib/database";
 import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -56,32 +57,37 @@ interface ActivityResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userIdStr = searchParams.get("userId");
-    const skip = parseInt(searchParams.get("skip") || "0", 10);
-    const limit = parseInt(searchParams.get("limit") || "30", 10);
-
-    if (!userIdStr) {
+    // Verify user is authenticated
+    const token = await convexAuthNextjsToken();
+    if (!token) {
       return NextResponse.json(
-        { error: "Missing userId parameter" },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
-    // Convert string to Convex ID
-    const userId = userIdStr as Id<"users">;
+    // Get the authenticated user's ID from Convex (single source of truth)
+    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      );
+    }
 
-    // Get auth token for authenticated requests
-    const token = await convexAuthNextjsToken().catch((error) => {
-      console.error("Failed to get auth token:", error);
-      return null;
-    });
+    // Get pagination parameters from query string
+    const searchParams = request.nextUrl.searchParams;
+    const skip = parseInt(searchParams.get("skip") || "0", 10);
+    const limit = parseInt(searchParams.get("limit") || "30", 10);
+
+    // 🔒 SECURE: Always use authenticated user's ID
+    const userId = currentUser._id;
 
     // Fetch paginated activity data from Convex
     const result = await fetchQuery(
       api.userActivity.getUserActivityFeed,
       { userId, skip, limit },
-      token ? { token } : undefined
+      { token }
     ) as ActivityResponse;
 
     // Extract GUIDs from activities to fetch entry details
@@ -128,7 +134,7 @@ export async function GET(request: NextRequest) {
               const posts = await fetchQuery(
                 api.posts.getByTitles, 
                 { titles: feedTitles },
-                token ? { token } : undefined
+                { token }
               );
               
               console.log(`✅ API: Fetched ${posts.length} posts from Convex`);
@@ -175,7 +181,7 @@ export async function GET(request: NextRequest) {
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
           { entryGuids: guids },
-          token ? { token } : undefined
+          { token }
         );
         
         // Create a map of guid to metrics

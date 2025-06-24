@@ -98,7 +98,7 @@ export function useActivityLoading({
 
     try {
       // Use the API route to fetch the next page
-      const result = await fetch(`${apiEndpoint}?userId=${userId}&skip=${currentSkipValue}&limit=${pageSize}`);
+      const result = await fetch(`${apiEndpoint}?skip=${currentSkipValue}&limit=${pageSize}`);
 
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
@@ -124,7 +124,7 @@ export function useActivityLoading({
     } catch (error) {
       loadMoreFailure();
     }
-  }, [isActive, userId, apiEndpoint, pageSize, currentSkipRef, hasMoreRef, isLoadingRef, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [isActive, apiEndpoint, pageSize, currentSkipRef, hasMoreRef, isLoadingRef, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
 
   // Use the shared delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {

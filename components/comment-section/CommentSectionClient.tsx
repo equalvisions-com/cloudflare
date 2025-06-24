@@ -7,11 +7,9 @@ import { MessageCircle, X, ChevronDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger
+  DrawerTitle
 } from "@/components/ui/drawer";
 import { 
   DropdownMenu, 
