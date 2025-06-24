@@ -24,9 +24,7 @@ import { api } from "@/convex/_generated/api";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import useSWR from 'swr';
 import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
-import { NoFocusWrapper } from "@/utils/NoFocusButton";
-import { NoFocusLinkWrapper } from "@/utils/NoFocusLink";
-import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 import { RSSEntriesDisplayStoreProvider } from "./RSSEntriesDisplayStoreProvider";
 import {
@@ -733,45 +731,14 @@ function EntriesContentComponent({
     }
   }, [hasMore, isPending, loadMore]);
   
-  // Setup intersection observer for load more detection
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    // Wait 3 seconds before establishing the observer
-    // This prevents any initial load from triggering
-    const timer = setTimeout(() => {
-      // Store the reference to the DOM element to ensure it exists when observer runs
-      const loadMoreElement = loadMoreRef.current;
-      
-      // Skip if element no longer exists
-      if (!loadMoreElement) return;
-      
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
-            endReachedCalledRef.current = true;
-            loadMore();
-          }
-        },
-        { 
-          rootMargin: '1000px',
-          threshold: 0.1
-        }
-      );
-      
-      // Safe to observe now that we've checked it exists
-      observer.observe(loadMoreElement);
-      
-      return () => {
-        observer.disconnect();
-      };
-    }, 1000); // 1 second delay to prevent initial page load triggering
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [loadMoreRef, hasMore, isPending, loadMore]);
+  // Use universal delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: hasMore && !isPending,
+    isLoading: isPending,
+    hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
+  });
   
   // Store a reference to the first instance - will only log on initial creation
   const hasLoggedInitialCreateRef = useRef(false);

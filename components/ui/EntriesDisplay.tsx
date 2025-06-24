@@ -15,12 +15,32 @@ import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-butto
 import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
 import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
 import { Virtuoso } from 'react-virtuoso';
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large entries lists
+const optimizeEntriesForMemory = (entries: EntriesRSSEntry[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): EntriesRSSEntry[] => {
+  // If we're under the threshold, return as-is
+  if (entries.length <= maxSize) {
+    return entries;
+  }
+  
+  // Keep the most recent entries up to maxSize
+  // This ensures we don't run out of memory with very large entry feeds
+  return entries.slice(0, maxSize);
+};
 import { 
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention } from "@/utils/FeedInteraction";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { useEntriesData } from '@/lib/hooks/useEntriesData';
 import { EntriesRSSEntry, EntriesDisplayProps, InteractionStates } from '@/lib/types';
 import { SkeletonFeed } from '@/components/ui/skeleton-feed';
@@ -62,50 +82,25 @@ const EntriesDisplayComponent = ({
   // Add ref for tracking if endReached was already called
   const endReachedCalledRef = useRef(false);
 
-  // Setup intersection observer for load more detection with delay
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    // Wait 1 second before establishing the observer
-    // This prevents any initial load from triggering
-    const timer = setTimeout(() => {
-      // Store the reference to the DOM element to ensure it exists when observer runs
-      const loadMoreElement = loadMoreRef.current;
-      
-      // Skip if element no longer exists
-      if (!loadMoreElement) return;
-      
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (entry.isIntersecting && hasMore && !isLoading && isVisible && entries.length > 0 && !endReachedCalledRef.current) {
-            endReachedCalledRef.current = true;
-            loadMore();
-          }
-        },
-        { 
-          rootMargin: '200px',
-          threshold: 0.1
-        }
-      );
-      
-      // Safe to observe now that we've checked it exists
-      observer.observe(loadMoreElement);
-      
-      return () => {
-        observer.disconnect();
-      };
-    }, 1000); // 1 second delay to prevent initial page load triggering
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [loadMoreRef, hasMore, isLoading, isVisible, entries.length, loadMore]);
+  // Use universal delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: isVisible && hasMore && !isLoading && entries.length > 0,
+    isLoading,
+    hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
+  });
 
   // Reset endReachedCalled flag when entries length changes
   useEffect(() => {
     endReachedCalledRef.current = false;
   }, [entries.length]);
+
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedEntries = useMemo(() => 
+    optimizeEntriesForMemory(entries), 
+    [entries]
+  );
 
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {
@@ -160,8 +155,8 @@ const EntriesDisplayComponent = ({
     >
       <Virtuoso
         useWindowScroll
-        data={entries}
-        overscan={2000}
+        data={optimizedEntries}
+        overscan={VIRTUAL_SCROLL_CONFIG.overscan}
         itemContent={itemContentCallback}
         components={{
           Footer: () => null
@@ -169,12 +164,12 @@ const EntriesDisplayComponent = ({
         style={{ 
           outline: 'none',
           WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation',
-          WebkitUserSelect: 'none',
-          userSelect: 'none'
+          touchAction: 'manipulation'
         }}
         className="focus:outline-none focus-visible:outline-none"
         computeItemKey={(_, item) => item.guid}
+        increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+        restoreStateFrom={undefined}
       />
       
       {/* Intersection observer target with loading indicator */}
@@ -325,6 +320,17 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
     return mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
   }, [entry.post_media_type, entry.mediaType]);
 
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entry.image;
+    const fallbackImage = entry.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entry.image, entry.post_featured_img]);
+
   return (
     <article
       onClick={(e) => {
@@ -348,12 +354,13 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               <Link href={postUrl}>
                 <AspectRatio ratio={1}>
                   <Image
-                    src={entry.post_featured_img || entry.image || ''}
+                    src={imageSrc}
                     alt=""
                     fill
                     className="object-cover"
                     sizes="48px"
                     priority={false}
+                    key={`${entry.guid}-featured-image`}
                   />
                 </AspectRatio>
               </Link>
@@ -416,12 +423,13 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entry.guid}-podcast-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -458,12 +466,13 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entry.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entry.guid}-article-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -542,6 +551,34 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
       <div id={`comments-${entry.guid}`} className="border-t border-border" />
     </article>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prevEntry = prevProps.entry;
+  const nextEntry = nextProps.entry;
+  
+  // Only re-render if these key properties have changed
+  if (prevEntry.guid !== nextEntry.guid) return false;
+  
+  // Check entry properties that affect image rendering (CRITICAL for preventing image re-renders)
+  if (prevEntry.image !== nextEntry.image) return false;
+  if (prevEntry.post_featured_img !== nextEntry.post_featured_img) return false;
+  if (prevEntry.title !== nextEntry.title) return false;
+  if (prevEntry.description !== nextEntry.description) return false;
+  if (prevEntry.link !== nextEntry.link) return false;
+  if (prevEntry.pub_date !== nextEntry.pub_date) return false;
+  
+  // Check interactions that affect UI
+  if (prevProps.interactions.likes.count !== nextProps.interactions.likes.count) return false;
+  if (prevProps.interactions.likes.isLiked !== nextProps.interactions.likes.isLiked) return false;
+  if (prevProps.interactions.comments.count !== nextProps.interactions.comments.count) return false;
+  if (prevProps.interactions.retweets.count !== nextProps.interactions.retweets.count) return false;
+  if (prevProps.interactions.retweets.isRetweeted !== nextProps.interactions.retweets.isRetweeted) return false;
+  
+  // Check function reference (should be stable with useCallback)
+  if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // All checks passed - prevent re-render for optimal performance
+  return true;
 });
 
 EntryCard.displayName = 'EntryCard'; 

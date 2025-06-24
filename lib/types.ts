@@ -215,15 +215,19 @@ export interface BookmarksData {
   entryMetrics: Record<string, BookmarkInteractionStates>;
 }
 
-export interface BookmarkLoadingState {
-  isLoading: boolean;
+// Bookmarks Context Types
+export interface BookmarksContextType {
+  // Search state
+  searchQuery: string;
+  searchResults: BookmarksData | null;
   isSearching: boolean;
+  
+  // Actions
+  handleSearch: (query: string) => Promise<void>;
+  handleClearSearch: () => void;
 }
 
-export interface BookmarkSearchState {
-  query: string;
-  results: BookmarksData | null;
-}
+
 
 // Chat types
 export type ActiveButton = "none" | "newsletters" | "podcasts" | "articles";
@@ -3934,3 +3938,95 @@ export type MobileSearchAction =
   | { type: 'TOGGLE_SEARCH' }
   | { type: 'CLOSE_SEARCH' }
   | { type: 'OPEN_SEARCH' };
+
+// ===================================================================
+// BOOKMARKS FEED TYPES - Phase 1: Component State Management
+// ===================================================================
+
+// BookmarksFeed State Management Types
+export interface BookmarksFeedState {
+  bookmarks: BookmarkItem[];
+  entryDetails: Record<string, BookmarkRSSEntry>;
+  entryMetrics: Record<string, BookmarkInteractionStates>;
+  hasMore: boolean;
+  isLoading: boolean;
+  currentSkip: number;
+  isInitialLoad: boolean;
+  error: string | null;
+  commentDrawer: {
+    isOpen: boolean;
+    selectedEntry: {
+      entryGuid: string;
+      feedUrl: string;
+      initialData?: { count: number };
+    } | null;
+  };
+}
+
+// BookmarksFeed Action Types for useReducer
+export type BookmarksFeedAction = 
+  | { type: 'INITIALIZE'; payload: BookmarksData }
+  | { type: 'LOAD_MORE_START' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { 
+      bookmarks: BookmarkItem[];
+      entryDetails: Record<string, BookmarkRSSEntry>;
+      entryMetrics: Record<string, BookmarkInteractionStates>;
+      hasMore: boolean;
+      newSkip: number;
+    } }
+  | { type: 'LOAD_MORE_ERROR'; payload: string }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'OPEN_COMMENT_DRAWER'; payload: { entryGuid: string; feedUrl: string; initialData?: { count: number } } }
+  | { type: 'CLOSE_COMMENT_DRAWER' }
+  | { type: 'RESET_ERROR' };
+
+// BookmarksFeed Component Props Interface
+export interface BookmarksFeedProps {
+  userId: Id<"users">;
+  initialData: BookmarksData | null;
+  pageSize?: number;
+  isSearchResults?: boolean;
+  isActive?: boolean;
+}
+
+// BookmarksFeed Custom Hook Props
+export interface UseBookmarksPaginationProps {
+  state: BookmarksFeedState;
+  dispatch: React.Dispatch<BookmarksFeedAction>;
+  userId: Id<"users">;
+  pageSize: number;
+  isSearchResults: boolean;
+}
+
+// BookmarksFeed Custom Hook Return Type
+export interface UseBookmarksPaginationReturn {
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreBookmarks: () => Promise<void>;
+}
+
+// BookmarkCard Component Props
+export interface BookmarkCardProps {
+  bookmark: BookmarkItem;
+  entryDetails?: BookmarkRSSEntry;
+  interactions?: BookmarkInteractionStates;
+  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+}
+
+// MediaTypeBadge Component Props
+export interface MediaTypeBadgeProps {
+  mediaType?: string;
+}
+
+// EntryCardContent Component Props
+export interface EntryCardContentProps {
+  entry: BookmarkRSSEntry;
+}
+
+// BookmarksFeedErrorBoundary Component Props
+export interface BookmarksFeedErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+// ===================================================================
+// END BOOKMARKS FEED TYPES
+// ===================================================================

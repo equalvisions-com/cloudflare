@@ -170,7 +170,7 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
   }, [isActive, containerSelector]); // Both dependencies are important
 }
 
-// Setup intersection observer with standard 3-second delay
+// Setup intersection observer with standard 1-second delay
 export function useDelayedIntersectionObserver(
   ref: React.RefObject<HTMLElement>,
   callback: () => void,
@@ -185,7 +185,7 @@ export function useDelayedIntersectionObserver(
 ) {
   // IMPROVED: Increased rootMargin from 300px to 800px to trigger loading much earlier
   // This prevents the user from seeing the bottom of the content before new items load
-  const { enabled, isLoading, hasMore, delay = 3000, rootMargin = '800px', threshold = 0.1 } = options;
+  const { enabled, isLoading, hasMore, delay = 1000, rootMargin = '800px', threshold = 0.1 } = options;
   
   // CRITICAL FIX: Move endReachedCalledRef outside the effect so it persists across observer recreations
   const endReachedCalledRef = React.useRef(false);
@@ -252,7 +252,7 @@ export function useDelayedIntersectionObserver(
       return () => {
         observer.disconnect();
       };
-    }, delay); // 3 second delay to prevent initial page load triggering
+    }, delay); // Universal 1-second delay to prevent initial page load triggering
     
     return () => {
       clearTimeout(timer);

@@ -5,11 +5,12 @@ import { Logger } from 'next-axiom';
 
 interface Props {
   children: ReactNode;
-  fallback?: ReactNode;
+  fallback?: ReactNode | ((props: { error: Error; retry: () => void }) => ReactNode);
 }
 
 interface State {
   hasError: boolean;
+  error: Error | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -17,13 +18,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
     // Initialize Axiom logger for client-side error boundary
     this.log = typeof window !== 'undefined' ? new Logger() : { error: () => {} } as any;
   }
 
-  static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -39,11 +40,18 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Also log to console for development
-
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
+  retry = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
-    if (this.state.hasError) {
+    if (this.state.hasError && this.state.error) {
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback({ error: this.state.error, retry: this.retry });
+      }
       return this.props.fallback || <p>Something went wrong. Please refresh.</p>;
     }
 

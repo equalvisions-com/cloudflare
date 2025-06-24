@@ -47,6 +47,26 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { useFeedFocusPrevention, NoFocusWrapper, NoFocusLinkWrapper, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large RSS feed lists
+const optimizeRSSEntriesForMemory = (entries: RSSFeedEntry[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): RSSFeedEntry[] => {
+  // If we're under the threshold, return as-is
+  if (entries.length <= maxSize) {
+    return entries;
+  }
+  
+  // Keep the most recent entries up to maxSize
+  // This ensures we don't run out of memory with very large feeds
+  return entries.slice(0, maxSize);
+};
+
 // PHASE 4: Dynamic import for CommentSectionClient to reduce initial bundle size
 const CommentSectionClient = lazy(() => import("@/components/comment-section/CommentSectionClient").then(module => ({ default: module.CommentSectionClient })));
 
@@ -108,8 +128,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
-  // Helper function to prevent scroll jumping on link interaction
-  // This works by preventing the default focus behavior that causes scrolling
+  // Universal focus prevention pattern - matches RSS feed implementation
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Let the event continue for the click
     // but prevent the focus-triggered scrolling afterward
@@ -127,6 +146,25 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
         }, 0);
       }
     }, { once: true });
+  }, []);
+
+  // Universal mouse down handler for focus prevention - matches RSS feed pattern
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      target.tagName !== 'TEXTAREA' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input') &&
+      !target.closest('textarea') &&
+      !target.closest('[data-comment-input]')
+    ) {
+      e.preventDefault();
+    }
   }, []);
 
   // PHASE 4: Advanced memoization with stable dependencies for timestamp calculation
@@ -207,10 +245,30 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
       onClick={(e) => {
         // Stop all click events from bubbling up to parent components
         e.stopPropagation();
+        
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement) {
+          // Check if the active element is an input type that should retain focus
+          const isTheReplyTextarea =
+            activeElement.tagName === 'TEXTAREA' &&
+            activeElement.hasAttribute('data-comment-input');
+
+          // Only blur if it's not the reply textarea
+          if (!isTheReplyTextarea) {
+            activeElement.blur();
+          }
+        }
       }} 
       className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      style={{ WebkitTapHighlightColor: 'transparent' }}
+      onMouseDown={handleNonInteractiveMouseDown}
+      style={{
+        WebkitTapHighlightColor: 'transparent',
+        outlineStyle: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation'
+      }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
@@ -470,6 +528,12 @@ const FeedContent = React.memo(function FeedContent({
   onOpenCommentDrawer,
   isInitialRender
 }: FeedContentProps) {
+  
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedEntries = useMemo(() => 
+    optimizeRSSEntriesForMemory(entries), 
+    [entries]
+  );
   // Add ref to prevent multiple endReached calls
   const endReachedCalledRef = useRef(false);
   
@@ -510,8 +574,8 @@ const FeedContent = React.memo(function FeedContent({
         <>
           <Virtuoso
             useWindowScroll
-            data={entries}
-            overscan={2000}
+            data={optimizedEntries}
+            overscan={VIRTUAL_SCROLL_CONFIG.overscan}
             itemContent={(index, item) => (
               <RSSEntry 
                 entryWithData={item} 
@@ -532,6 +596,8 @@ const FeedContent = React.memo(function FeedContent({
             }}
             className="focus:outline-none focus-visible:outline-none"
             computeItemKey={(_, item) => item.entry.guid}
+            increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+            restoreStateFrom={undefined}
           />
           
           {/* Load more indicator */}

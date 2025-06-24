@@ -4,56 +4,12 @@ import { executeRead } from "@/lib/database";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-
-// Type for bookmarks from Convex
-export type BookmarkItem = {
-  _id: string;
-  entryGuid: string;
-  feedUrl: string;
-  title: string;
-  link: string;
-  pubDate: string;
-  bookmarkedAt: number;
-};
-
-// Type for RSS entries from PlanetScale
-export type RSSEntry = {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  // Post metadata from Convex
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean;
-};
-
-// Type for entry metrics from Convex
-export type EntryMetrics = {
-  likes: { count: number; isLiked: boolean };
-  comments: { count: number };
-  retweets: { count: number; isRetweeted: boolean };
-  bookmarks: { isBookmarked: boolean };
-};
-
-// Type for the complete bookmarks data response
-export type BookmarksData = {
-  bookmarks: BookmarkItem[];
-  totalCount: number;
-  hasMore: boolean;
-  entryDetails: Record<string, RSSEntry>;
-  entryMetrics: Record<string, EntryMetrics>;
-};
+import { 
+  BookmarkItem, 
+  BookmarkRSSEntry, 
+  BookmarkInteractionStates, 
+  BookmarksData 
+} from "@/lib/types";
 
 /**
  * Fetch bookmarks with full entry details and post metadata
@@ -81,7 +37,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
     const guids = bookmarksResult.bookmarks.map(bookmark => bookmark.entryGuid);
     
     // Step 2: Fetch entry details from PlanetScale
-    let entryDetails: Record<string, RSSEntry> = {};
+    let entryDetails: Record<string, BookmarkRSSEntry> = {};
     if (guids.length > 0) {
       try {
         // Create placeholders for the SQL query
@@ -111,7 +67,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
             feed_title: row.feed_title,
             feed_url: row.feed_url,
             mediaType: row.mediaType
-          }])
+          } as BookmarkRSSEntry])
         );
       } catch (error) {
         // Error handled silently for production
@@ -162,7 +118,7 @@ export async function getBookmarksData(userId: Id<"users">, skip: number = 0, li
     }
     
     // Step 4: Get interaction metrics for entries
-    let entryMetrics: Record<string, EntryMetrics> = {};
+    let entryMetrics: Record<string, BookmarkInteractionStates> = {};
     try {
       if (guids.length > 0) {
         const metrics = await fetchQuery(api.entries.batchGetEntriesMetrics, { entryGuids: guids });

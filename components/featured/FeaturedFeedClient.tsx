@@ -20,9 +20,7 @@ import { Podcast, Mail, Loader2, ArrowDown, MoveUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import { NoFocusWrapper } from "@/utils/NoFocusButton";
-import { NoFocusLinkWrapper } from "@/utils/NoFocusLink";
-import { useFeedFocusPrevention } from "@/utils/FeedInteraction";
+import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 import { FeaturedFeedStoreProvider } from "./FeaturedFeedStoreProvider";
 import {
@@ -133,19 +131,43 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
-  // Helper function to prevent scroll jumping on link interaction
+  // Universal focus prevention pattern - matches RSS feed implementation
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Let the event continue for the click
+    // but prevent the focus-triggered scrolling afterward
     const target = e.currentTarget as HTMLElement;
     
+    // Use a one-time event listener that removes itself after execution
     target.addEventListener('focusin', (focusEvent) => {
       focusEvent.preventDefault();
+      // Immediately blur to prevent scroll adjustments
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement) {
         setTimeout(() => {
+          // Use setTimeout to allow the click to complete first
           activeElement.blur();
         }, 0);
       }
     }, { once: true });
+  }, []);
+
+  // Universal mouse down handler for focus prevention - matches RSS feed pattern
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      target.tagName !== 'TEXTAREA' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input') &&
+      !target.closest('textarea') &&
+      !target.closest('[data-comment-input]')
+    ) {
+      e.preventDefault();
+    }
   }, []);
 
   // Memoized timestamp computation with caching
@@ -233,11 +255,32 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
   return (
     <article 
       onClick={(e) => {
+        // Stop all click events from bubbling up to parent components
         e.stopPropagation();
+        
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement) {
+          // Check if the active element is an input type that should retain focus
+          const isTheReplyTextarea =
+            activeElement.tagName === 'TEXTAREA' &&
+            activeElement.hasAttribute('data-comment-input');
+
+          // Only blur if it's not the reply textarea
+          if (!isTheReplyTextarea) {
+            activeElement.blur();
+          }
+        }
       }} 
       className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      style={{ WebkitTapHighlightColor: 'transparent' }}
+      onMouseDown={handleNonInteractiveMouseDown}
+      style={{
+        WebkitTapHighlightColor: 'transparent',
+        outlineStyle: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation'
+      }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
@@ -543,39 +586,14 @@ function FeaturedContentComponent({
     }
   }, [hasMore, isPending, loadMore]);
   
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    const timer = setTimeout(() => {
-      const loadMoreElement = loadMoreRef.current;
-      
-      if (!loadMoreElement) return;
-      
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (entry.isIntersecting && hasMore && !isPending && !endReachedCalledRef.current) {
-            endReachedCalledRef.current = true;
-            loadMore();
-          }
-        },
-        { 
-          rootMargin: '1000px',
-          threshold: 0.1
-        }
-      );
-      
-      observer.observe(loadMoreElement);
-      
-      return () => {
-        observer.disconnect();
-      };
-    }, 1000);
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [loadMoreRef, hasMore, isPending, loadMore]);
+  // Use universal delayed intersection observer hook
+  useDelayedIntersectionObserver(loadMoreRef, loadMore, {
+    enabled: hasMore && !isPending,
+    isLoading: isPending,
+    hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
+  });
   
   const hasLoggedInitialCreateRef = useRef(false);
   

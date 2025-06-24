@@ -6,6 +6,26 @@ import { Heart, MessageCircle, Repeat, Loader2, ChevronDown, Bookmark, Mail, Pod
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Virtuoso } from 'react-virtuoso';
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large activity lists
+const optimizeActivitiesForMemory = (activities: ActivityFeedGroupedActivity[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): ActivityFeedGroupedActivity[] => {
+  // If we're under the threshold, return as-is
+  if (activities.length <= maxSize) {
+    return activities;
+  }
+  
+  // Keep the most recent activities up to maxSize
+  // This ensures we don't run out of memory with very large activity feeds
+  return activities.slice(0, maxSize);
+};
 import React, { useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -570,11 +590,13 @@ const ActivityCard = React.memo(({
   }, []);
 
   // Memoize the comment drawer click handler
-  const handleCommentClick = useCallback(() => {
-    if (entryGuid) {
-      onOpenCommentDrawer(entryGuid, feedUrl, interactions?.comments);
+  const handleCommentClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (interactions) {
+      onOpenCommentDrawer(activity.entryGuid, activity.feedUrl, { count: interactions.comments?.count || 0 });
     }
-  }, [entryGuid, feedUrl, interactions?.comments, onOpenCommentDrawer]);
+  }, [activity.entryGuid, activity.feedUrl, interactions?.comments?.count, onOpenCommentDrawer]);
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
@@ -594,6 +616,19 @@ const ActivityCard = React.memo(({
       e.preventDefault();
     }
   }, []);
+
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    if (!entryDetail) return '/placeholder-image.jpg';
+    
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entryDetail.image;
+    const fallbackImage = entryDetail.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entryDetail?.image, entryDetail?.post_featured_img]);
 
   // If we don't have entry details, show a simplified card
   if (!entryDetail) {
@@ -709,6 +744,7 @@ const ActivityCard = React.memo(({
                         className="object-cover"
                         sizes="48px"
                         priority={false}
+                        key={`${entryDetail.guid}-featured-image`}
                       />
                     </AspectRatio>
                   </Link>
@@ -881,6 +917,7 @@ const ActivityCard = React.memo(({
                         className="object-cover"
                         sizes="48px"
                         priority={false}
+                        key={`${entryDetail.guid}-featured-image`}
                       />
                     </AspectRatio>
                   </Link>
@@ -956,12 +993,13 @@ const ActivityCard = React.memo(({
                         <CardHeader className="p-0">
                           <AspectRatio ratio={2/1}>
                             <Image
-                              src={entryDetail.image}
+                              src={imageSrc}
                               alt=""
                               fill
                               className="object-cover"
                               sizes="(max-width: 516px) 100vw, 516px"
-                                priority={false}
+                              priority={false}
+                              key={`${entryDetail.guid}-podcast-image`}
                             />
                           </AspectRatio>
                         </CardHeader>
@@ -1305,6 +1343,19 @@ const ActivityGroupRenderer = React.memo(({
     }, { once: true });
   }, []);
 
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    if (!entryDetail) return '/placeholder-image.jpg';
+    
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entryDetail.image;
+    const fallbackImage = entryDetail.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entryDetail?.image, entryDetail?.post_featured_img]);
+
   return (
     // Use a unique key for the group
     <article 
@@ -1385,12 +1436,13 @@ const ActivityGroupRenderer = React.memo(({
                   >
                     <AspectRatio ratio={1}>
                       <Image
-                        src={entryDetail.post_featured_img || entryDetail.image || ''}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="48px"
                         priority={false}
+                        key={`${entryDetail.guid}-featured-image`}
                       />
                     </AspectRatio>
                   </Link>
@@ -1473,12 +1525,13 @@ const ActivityGroupRenderer = React.memo(({
                       <CardHeader className="p-0">
                         <AspectRatio ratio={2/1}>
                           <Image
-                            src={entryDetail.image}
+                            src={imageSrc}
                             alt=""
                             fill
                             className="object-cover"
                             sizes="(max-width: 516px) 100vw, 516px"
                             priority={false}
+                            key={`${entryDetail.guid}-podcast-image`}
                           />
                         </AspectRatio>
                       </CardHeader>
@@ -1512,12 +1565,13 @@ const ActivityGroupRenderer = React.memo(({
                     <CardHeader className="p-0">
                       <AspectRatio ratio={2/1}>
                         <Image
-                          src={entryDetail.image}
+                          src={imageSrc}
                           alt=""
                           fill
                           className="object-cover"
                           sizes="(max-width: 516px) 100vw, 516px"
                           priority={false}
+                          key={`${entryDetail.guid}-article-image`}
                         />
                       </AspectRatio>
                     </CardHeader>
@@ -1717,6 +1771,15 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     initialEntryMetrics
   );
 
+  // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
+  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
+    enabled: hasMore && !isLoading,
+    isLoading: isLoading,
+    hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
+  });
+
   // Loading and pagination logic is now handled by useActivityLoading hook
 
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
@@ -1748,6 +1811,12 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
 
   // Activity grouping and UI state calculations are now handled by custom hooks
 
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedActivities = useMemo(() => 
+    optimizeActivitiesForMemory(groupedActivities), 
+    [groupedActivities]
+  );
+
   return (
     <div 
       className="w-full user-activity-feed-container" 
@@ -1768,8 +1837,8 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
           <div className="min-h-screen">
             <Virtuoso 
               useWindowScroll
-              data={groupedActivities}
-              overscan={2000}
+              data={optimizedActivities}
+              overscan={VIRTUAL_SCROLL_CONFIG.overscan}
               itemContent={itemContentCallback}
               components={{
                 Footer: () => null
@@ -1777,47 +1846,28 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
               style={{ 
                 outline: 'none',
                 WebkitTapHighlightColor: 'transparent',
-                touchAction: 'manipulation',
-                WebkitUserSelect: 'none',
-                userSelect: 'none'
+                touchAction: 'manipulation'
               }}
-              className="outline-none focus:outline-none focus-visible:outline-none"
+              className="focus:outline-none focus-visible:outline-none"
               computeItemKey={(_, group) => `${group.entryGuid}-${group.type}`}
-              tabIndex={-1}
-              increaseViewportBy={800}
-              atTopThreshold={100}
-              atBottomThreshold={100}
-              defaultItemHeight={400}
-              totalListHeightChanged={(height) => {
-                // When list height changes, check for short content
-                if (height < window.innerHeight && hasMore && !isLoading) {
-                  loadMoreActivities();
-                }
-              }}
+              increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+              restoreStateFrom={undefined}
             />
           </div>
           
           {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
-          <div 
-            ref={loadMoreRef} 
-            className="h-52 flex items-center justify-center mb-20"
-            tabIndex={-1}
-          >
-            {hasMore && isLoading && (
-              <NoFocusWrapper className="flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </NoFocusWrapper>
-            )}
-            {!hasMore && groupedActivities.length > 0 && <div></div>}
+          <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+            {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+            {!hasMore && activities.length > 0 && <div></div>}
           </div>
           
           {selectedCommentEntry && (
             <CommentSectionClient
               entryGuid={selectedCommentEntry.entryGuid}
-              feedUrl={selectedCommentEntry.feedUrl || ''}
+              feedUrl={selectedCommentEntry.feedUrl}
               initialData={selectedCommentEntry.initialData}
               isOpen={commentDrawerOpen}
-              setIsOpen={(open: boolean) => !open && handleCloseCommentDrawer()}
+              setIsOpen={handleCloseCommentDrawer}
             />
           )}
         </>

@@ -61,7 +61,9 @@ export default async function BookmarksPage() {
       useCardStyle={true}
       containerClass={LAYOUT_CONSTANTS.CONTAINER_CLASS}
     >
-      <BookmarksPageClientScope rightSidebar={rightSidebar} />
+      <Suspense>
+        <BookmarksPageClientScope rightSidebar={rightSidebar} />
+      </Suspense>
     </StandardSidebarLayout>
   );
 }

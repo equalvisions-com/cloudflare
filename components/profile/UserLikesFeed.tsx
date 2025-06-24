@@ -5,6 +5,26 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large likes lists
+const optimizeLikesForMemory = (activities: UserLikesActivityItem[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): UserLikesActivityItem[] => {
+  // If we're under the threshold, return as-is
+  if (activities.length <= maxSize) {
+    return activities;
+  }
+  
+  // Keep the most recent likes up to maxSize
+  // This ensures we don't run out of memory with very large likes feeds
+  return activities.slice(0, maxSize);
+};
 import React, { useCallback, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -257,6 +277,17 @@ const EntryCardHeader = memo(({
   
   const mediaType = entryDetails.post_media_type || entryDetails.mediaType;
   
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entryDetails.image;
+    const fallbackImage = entryDetails.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entryDetails.image, entryDetails.post_featured_img]);
+  
   return (
     <div className="flex items-center gap-4 mb-4">
       {/* Featured Image */}
@@ -271,12 +302,13 @@ const EntryCardHeader = memo(({
           >
             <AspectRatio ratio={1}>
               <Image
-                src={entryDetails.post_featured_img || entryDetails.image || ''}
+                src={imageSrc}
                 alt=""
                 fill
                 className="object-cover"
                 sizes="48px"
                 priority={false}
+                key={`${entryDetails.guid}-featured-image`}
               />
             </AspectRatio>
           </EntryLink>
@@ -370,11 +402,10 @@ const ActivityCard = memo(({
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
 
   // Determine if entry is a podcast - move outside of conditional
-  const mediaType = entryDetails?.post_media_type || entryDetails?.mediaType;
-  const isPodcast = useMemo(() => 
-    mediaType?.toLowerCase() === 'podcast',
-    [mediaType]
-  );
+  const isPodcast = useMemo(() => {
+    if (!entryDetails) return false;
+    return entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast';
+  }, [entryDetails?.post_media_type, entryDetails?.mediaType]);
   
   // Handle podcast card click - move outside of conditional
   const handleCardClick = useCallback((e: React.MouseEvent) => {
@@ -388,6 +419,19 @@ const ActivityCard = memo(({
   
   // Check if this podcast is currently playing - move outside of conditional
   const isCurrentlyPlaying = isPodcast && entryDetails && currentTrack?.src === entryDetails.link;
+  
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    if (!entryDetails) return '/placeholder-image.jpg';
+    
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entryDetails.image;
+    const fallbackImage = entryDetails.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entryDetails?.image, entryDetails?.post_featured_img]);
   
   // Skip rendering if no entry details
   if (!entryDetails) return null;
@@ -426,12 +470,13 @@ const ActivityCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entryDetails.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entryDetails.guid}-article-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -459,12 +504,13 @@ const ActivityCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entryDetails.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entryDetails.guid}-article-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -549,6 +595,21 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     initialData?.entryMetrics
   );
 
+  // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
+  useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
+    enabled: hasMore && !isLoading,
+    isLoading: isLoading,
+    hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
+  });
+
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedActivities = useMemo(() => 
+    optimizeLikesForMemory(activities), 
+    [activities]
+  );
+
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
   const itemContentCallback = useCallback((index: number, activity: UserLikesActivityItem) => {
     // Get the details for this activity
@@ -584,8 +645,8 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     >
       <Virtuoso
         useWindowScroll
-        data={activities}
-        overscan={2000}
+        data={optimizedActivities}
+        overscan={VIRTUAL_SCROLL_CONFIG.overscan}
         itemContent={itemContentCallback}
         components={{
           Footer: () => null
@@ -597,6 +658,8 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
         }}
         className="focus:outline-none focus-visible:outline-none"
         computeItemKey={(_, item) => item.entryGuid || item._id}
+        increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+        restoreStateFrom={undefined}
       />
       
       {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}

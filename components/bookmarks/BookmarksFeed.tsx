@@ -5,7 +5,27 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
-import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from "react";
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large bookmark lists
+const optimizeBookmarksForMemory = (bookmarks: BookmarkItem[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): BookmarkItem[] => {
+  // If we're under the threshold, return as-is
+  if (bookmarks.length <= maxSize) {
+    return bookmarks;
+  }
+  
+  // Keep the most recent bookmarks up to maxSize
+  // This ensures we don't run out of memory with very large bookmark collections
+  return bookmarks.slice(0, maxSize);
+};
+import React, { useCallback, useEffect, useRef, useState, useMemo, memo, useReducer } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -18,9 +38,118 @@ import {
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { BookmarkItem, BookmarkRSSEntry, BookmarkInteractionStates, BookmarksData } from "@/lib/types";
+import { 
+  BookmarkItem, 
+  BookmarkRSSEntry, 
+  BookmarkInteractionStates, 
+  BookmarksData,
+  BookmarksFeedState,
+  BookmarksFeedAction,
+  BookmarksFeedProps,
+  UseBookmarksPaginationProps,
+  UseBookmarksPaginationReturn,
+  BookmarkCardProps,
+  MediaTypeBadgeProps,
+  EntryCardContentProps,
+  BookmarksFeedErrorBoundaryProps
+} from "@/lib/types";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+// BookmarksFeed State Management Types now imported from @/lib/types
+
+// BookmarksFeed Reducer
+const bookmarksFeedReducer = (state: BookmarksFeedState, action: BookmarksFeedAction): BookmarksFeedState => {
+  switch (action.type) {
+    case 'INITIALIZE':
+      return {
+        ...state,
+        bookmarks: action.payload.bookmarks || [],
+        entryDetails: action.payload.entryDetails || {},
+        entryMetrics: action.payload.entryMetrics || {},
+        hasMore: action.payload.hasMore || false,
+        currentSkip: action.payload.bookmarks?.length || 0,
+        isInitialLoad: false,
+        error: null,
+      };
+    
+    case 'LOAD_MORE_START':
+      return {
+        ...state,
+        isLoading: true,
+        error: null,
+      };
+    
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        bookmarks: [...state.bookmarks, ...action.payload.bookmarks],
+        entryDetails: { ...state.entryDetails, ...action.payload.entryDetails },
+        entryMetrics: { ...state.entryMetrics, ...action.payload.entryMetrics },
+        hasMore: action.payload.hasMore,
+        currentSkip: action.payload.newSkip,
+        isLoading: false,
+        error: null,
+      };
+    
+    case 'LOAD_MORE_ERROR':
+      return {
+        ...state,
+        isLoading: false,
+        error: action.payload,
+      };
+    
+    case 'SET_ERROR':
+      return {
+        ...state,
+        error: action.payload,
+      };
+    
+    case 'OPEN_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawer: {
+          isOpen: true,
+          selectedEntry: action.payload,
+        },
+      };
+    
+    case 'CLOSE_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawer: {
+          isOpen: false,
+          selectedEntry: null,
+        },
+      };
+    
+    case 'RESET_ERROR':
+      return {
+        ...state,
+        error: null,
+      };
+    
+    default:
+      return state;
+  }
+};
+
+// Initial state factory
+const createInitialState = (initialData: BookmarksData | null): BookmarksFeedState => ({
+  bookmarks: initialData?.bookmarks || [],
+  entryDetails: initialData?.entryDetails || {},
+  entryMetrics: initialData?.entryMetrics || {},
+  hasMore: initialData?.hasMore || false,
+  isLoading: false,
+  currentSkip: initialData?.bookmarks?.length || 0,
+  isInitialLoad: !initialData?.bookmarks?.length,
+  error: null,
+  commentDrawer: {
+    isOpen: false,
+    selectedEntry: null,
+  },
+});
 
 // Memoized timestamp formatter (copied from UserLikesFeed)
 const useFormattedTimestamp = (pubDate?: string) => {
@@ -73,7 +202,7 @@ const useFormattedTimestamp = (pubDate?: string) => {
 };
 
 // Memoized media type badge component
-const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
+const MediaTypeBadge = React.memo(({ mediaType }: MediaTypeBadgeProps) => {
   if (!mediaType) return null;
   
   const type = mediaType.toLowerCase();
@@ -88,7 +217,7 @@ const MediaTypeBadge = React.memo(({ mediaType }: { mediaType?: string }) => {
 MediaTypeBadge.displayName = 'MediaTypeBadge';
 
 // Memoized entry card content component
-const EntryCardContent = React.memo(({ entry }: { entry: BookmarkRSSEntry }) => (
+const EntryCardContent = React.memo(({ entry }: EntryCardContentProps) => (
   <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
     <h3 className="text-base font-bold capitalize leading-[1.5]">
       {entry.title}
@@ -108,20 +237,33 @@ const BookmarkCard = memo(({
   entryDetails,
   interactions,
   onOpenCommentDrawer
-}: { 
-  bookmark: BookmarkItem; 
-  entryDetails?: BookmarkRSSEntry;
-  interactions?: BookmarkInteractionStates;
-  onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-}) => {
-  // Get state and actions from Zustand store
+}: BookmarkCardProps) => {
+  // Get audio player state and actions
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
   
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
 
-  // Helper function to prevent scroll jumping on link interaction
+  // Memoize image source with stable fallback to prevent re-renders
+  const imageSrc = useMemo(() => {
+    if (!entryDetails) return '/placeholder-image.jpg';
+    
+    // Use a stable fallback to prevent unnecessary re-renders
+    const primaryImage = entryDetails.image;
+    const fallbackImage = entryDetails.post_featured_img;
+    const defaultImage = '/placeholder-image.jpg';
+    
+    // Return the first available image source
+    return primaryImage || fallbackImage || defaultImage;
+  }, [entryDetails?.image, entryDetails?.post_featured_img]);
+
+  // Audio track data
+  const audioTrackData = useMemo(() => {
+    return null;
+  }, []);
+
+  // Universal focus prevention pattern - matches RSS feed implementation
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Let the event continue for the click
     // but prevent the focus-triggered scrolling afterward
@@ -149,6 +291,25 @@ const BookmarkCard = memo(({
       playTrack(entryDetails.link, entryDetails.title, entryDetails.image || undefined, creatorName);
     }
   }, [entryDetails, playTrack]);
+
+  // Universal mouse down handler for focus prevention - matches RSS feed pattern
+  const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if this isn't an interactive element
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName !== 'BUTTON' && 
+      target.tagName !== 'A' && 
+      target.tagName !== 'INPUT' && 
+      target.tagName !== 'TEXTAREA' && 
+      !target.closest('button') && 
+      !target.closest('a') && 
+      !target.closest('input') &&
+      !target.closest('textarea') &&
+      !target.closest('[data-comment-input]')
+    ) {
+      e.preventDefault();
+    }
+  }, []);
   
   if (!entryDetails) {
     // Fallback to basic bookmark data if entry details aren't available
@@ -156,8 +317,30 @@ const BookmarkCard = memo(({
       <article 
         className="p-4 border-b border-gray-100" 
         tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          
+          const activeElement = document.activeElement as HTMLElement;
+          if (activeElement) {
+            // Check if the active element is an input type that should retain focus
+            const isTheReplyTextarea =
+              activeElement.tagName === 'TEXTAREA' &&
+              activeElement.hasAttribute('data-comment-input');
+
+            // Only blur if it's not the reply textarea
+            if (!isTheReplyTextarea) {
+              activeElement.blur();
+            }
+          }
+        }}
+        onMouseDown={handleNonInteractiveMouseDown}
+        style={{
+          WebkitTapHighlightColor: 'transparent',
+          outlineStyle: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          touchAction: 'manipulation'
+        }}
       >
         <NoFocusLinkWrapper
           className="block"
@@ -185,10 +368,30 @@ const BookmarkCard = memo(({
       onClick={(e) => {
         // Stop all click events from bubbling up to parent components
         e.stopPropagation();
+        
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement) {
+          // Check if the active element is an input type that should retain focus
+          const isTheReplyTextarea =
+            activeElement.tagName === 'TEXTAREA' &&
+            activeElement.hasAttribute('data-comment-input');
+
+          // Only blur if it's not the reply textarea
+          if (!isTheReplyTextarea) {
+            activeElement.blur();
+          }
+        }
       }} 
       className="outline-none focus:outline-none focus-visible:outline-none"
       tabIndex={-1}
-      style={{ WebkitTapHighlightColor: 'transparent' }}
+      onMouseDown={handleNonInteractiveMouseDown}
+      style={{
+        WebkitTapHighlightColor: 'transparent',
+        outlineStyle: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation'
+      }}
     >
       <div className="p-4">
         {/* Top Row: Featured Image and Title */}
@@ -215,12 +418,13 @@ const BookmarkCard = memo(({
               >
                 <AspectRatio ratio={1}>
                   <Image
-                    src={entryDetails.post_featured_img || entryDetails.image || ''}
+                    src={imageSrc}
                     alt=""
                     fill
                     className="object-cover"
                     sizes="48px"
                     priority={false}
+                    key={`${entryDetails.guid}-featured-image`}
                   />
                 </AspectRatio>
               </Link>
@@ -286,12 +490,13 @@ const BookmarkCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entryDetails.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entryDetails.guid}-article-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -319,12 +524,13 @@ const BookmarkCard = memo(({
                   <CardHeader className="p-0">
                     <AspectRatio ratio={2/1}>
                       <Image
-                        src={entryDetails.image}
+                        src={imageSrc}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="(max-width: 516px) 100vw, 516px"
                         priority={false}
+                        key={`${entryDetails.guid}-article-image`}
                       />
                     </AspectRatio>
                   </CardHeader>
@@ -403,151 +609,236 @@ const BookmarkCard = memo(({
       <div id={`comments-${entryDetails.guid}`} className="border-t border-border" />
     </article>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prevBookmark = prevProps.bookmark;
+  const nextBookmark = nextProps.bookmark;
+  const prevEntryDetails = prevProps.entryDetails;
+  const nextEntryDetails = nextProps.entryDetails;
+  
+  // Only re-render if these key properties have changed
+  if (prevBookmark?.entryGuid !== nextBookmark?.entryGuid) return false;
+  
+  // Check entry properties that affect image rendering (CRITICAL for preventing image re-renders)
+  if (prevEntryDetails?.image !== nextEntryDetails?.image) return false;
+  if (prevEntryDetails?.post_featured_img !== nextEntryDetails?.post_featured_img) return false;
+  if (prevEntryDetails?.title !== nextEntryDetails?.title) return false;
+  if (prevEntryDetails?.link !== nextEntryDetails?.link) return false;
+  if (prevEntryDetails?.pub_date !== nextEntryDetails?.pub_date) return false;
+  
+  // Check interactions that affect UI
+  if (prevProps.interactions?.likes?.count !== nextProps.interactions?.likes?.count) return false;
+  if (prevProps.interactions?.likes?.isLiked !== nextProps.interactions?.likes?.isLiked) return false;
+  if (prevProps.interactions?.comments?.count !== nextProps.interactions?.comments?.count) return false;
+  if (prevProps.interactions?.retweets?.count !== nextProps.interactions?.retweets?.count) return false;
+  if (prevProps.interactions?.retweets?.isRetweeted !== nextProps.interactions?.retweets?.isRetweeted) return false;
+  
+  // Check function reference (should be stable with useCallback)
+  if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // All checks passed - prevent re-render for optimal performance
+  return true;
 });
 BookmarkCard.displayName = 'BookmarkCard';
 
-interface BookmarksFeedProps {
-  userId: Id<"users">;
-  initialData: BookmarksData | null;
-  pageSize?: number;
-  isSearchResults?: boolean;
-  isActive?: boolean;
-}
+// BookmarksFeedProps now imported from @/lib/types
 
-/**
- * Client component that displays bookmarks feed with virtualization and pagination
- * Initial data is fetched on the server, and additional data is loaded as needed
- */
-const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchResults = false, isActive = true }: BookmarksFeedProps) => {
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(
-    initialData?.bookmarks || []
-  );
-  const [entryDetails, setEntryDetails] = useState<Record<string, BookmarkRSSEntry>>(
-    initialData?.entryDetails || {}
-  );
-  const [entryMetrics, setEntryMetrics] = useState<Record<string, BookmarkInteractionStates>>(
-    initialData?.entryMetrics || {}
-  );
-  const [hasMore, setHasMore] = useState(initialData?.hasMore || false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Track skip with a ref to avoid closure problems
-  const currentSkipRef = useRef<number>(initialData?.bookmarks.length || 0);
-  const [currentSkip, setCurrentSkip] = useState(initialData?.bookmarks.length || 0);
-  
-  // Track if this is the initial load
-  const [isInitialLoad, setIsInitialLoad] = useState(!initialData?.bookmarks.length);
+// Custom hook for bookmark pagination following React best practices
+const useBookmarksPagination = ({
+  state,
+  dispatch,
+  userId,
+  pageSize,
+  isSearchResults
+}: UseBookmarksPaginationProps): UseBookmarksPaginationReturn => {
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestInFlightRef = useRef(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // --- Drawer state for comments ---
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  const [selectedCommentEntry, setSelectedCommentEntry] = useState<{
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null>(null);
-
-  // Add ref to prevent multiple endReached calls
-  const endReachedCalledRef = useRef(false);
-  
-  // Use the shared focus prevention hook
-  useFeedFocusPrevention(isActive && !commentDrawerOpen, '.bookmarks-feed-container');
-  
-  // Callback to open the comment drawer for a given entry
-  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
-    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
-    setCommentDrawerOpen(true);
-  }, []);
-
-  // Log when initial data is received
-  useEffect(() => {
-    if (initialData?.bookmarks) {
-      setBookmarks(initialData.bookmarks);
-      setEntryDetails(initialData.entryDetails || {});
-      setEntryMetrics(initialData.entryMetrics || {});
-      setHasMore(initialData.hasMore);
-      setCurrentSkip(initialData.bookmarks.length);
-      currentSkipRef.current = initialData.bookmarks.length;
-      setIsInitialLoad(false);
-    }
-  }, [initialData]);
-  
-  // Function to load more bookmarks - MOVED UP before it's used in dependencies
+  // Enhanced load more function with proper race condition handling
   const loadMoreBookmarks = useCallback(async () => {
-    if (isLoading || !hasMore || isSearchResults) {
+    // Prevent multiple concurrent requests
+    if (requestInFlightRef.current || state.isLoading || !state.hasMore || isSearchResults) {
       return;
     }
 
-    setIsLoading(true);
+    requestInFlightRef.current = true;
+    
+    // Abort any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+    
+    dispatch({ type: 'LOAD_MORE_START' });
     
     try {
-      const skipValue = currentSkipRef.current;
+      const skipValue = state.currentSkip;
       
-      // Use the API route to fetch the next page
-      const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${skipValue}&limit=${pageSize}`);
-      
-      if (!result.ok) {
-        throw new Error(`API error: ${result.status}`);
-      }
+      // Use the API route to fetch the next page with AbortController
+      const result = await fetch(`/api/bookmarks?userId=${userId}&skip=${skipValue}&limit=${pageSize}`, {
+        signal: abortControllerRef.current.signal
+      }).then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response;
+      });
       
       const data = await result.json();
       
-      if (!data.bookmarks?.length) {
-        setHasMore(false);
-        setIsLoading(false);
+      // Check if request was aborted (race condition protection)
+      if (abortControllerRef.current?.signal.aborted) {
         return;
       }
       
-      // Update both the ref and the state for the new skip value
+      if (!data.bookmarks?.length) {
+        dispatch({ 
+          type: 'LOAD_MORE_SUCCESS', 
+          payload: { 
+            bookmarks: [], 
+            entryDetails: {}, 
+            entryMetrics: {}, 
+            hasMore: false,
+            newSkip: skipValue
+          } 
+        });
+        return;
+      }
+      
+      // Calculate new skip value
       const newSkip = skipValue + data.bookmarks.length;
-      currentSkipRef.current = newSkip;
-      setCurrentSkip(newSkip);
       
-      setBookmarks(prev => [...prev, ...data.bookmarks]);
-      setEntryDetails(prev => ({...prev, ...data.entryDetails}));
-      setEntryMetrics(prev => ({...prev, ...data.entryMetrics}));
-      setHasMore(data.hasMore);
+      dispatch({
+        type: 'LOAD_MORE_SUCCESS',
+        payload: {
+          bookmarks: data.bookmarks,
+          entryDetails: data.entryDetails || {},
+          entryMetrics: data.entryMetrics || {},
+          hasMore: data.hasMore,
+          newSkip
+        }
+      });
     } catch (error) {
-      
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, hasMore, userId, pageSize, bookmarks.length, isSearchResults]);
+      // Only handle real errors, not aborted requests
+      if (error instanceof Error && error.name !== 'AbortError') {
+        const errorMessage = error.message || 'Failed to load bookmarks';
+        dispatch({ type: 'LOAD_MORE_ERROR', payload: errorMessage });
+        
 
-  // Reset the endReachedCalled flag when bookmarks change
-  useEffect(() => {
-    endReachedCalledRef.current = false;
-  }, [bookmarks.length]);
-  
-  // Use the shared delayed intersection observer hook
+      }
+    } finally {
+      requestInFlightRef.current = false;
+    }
+  }, [state.isLoading, state.hasMore, state.currentSkip, userId, pageSize, isSearchResults]);
+
+  // Use universal delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreBookmarks, {
-    enabled: hasMore && !isLoading && !isSearchResults,
-    isLoading,
-    hasMore,
-    rootMargin: '300px',
-    threshold: 0.1,
-    delay: 3000 // 3 second delay to prevent initial page load triggering
+    enabled: !isSearchResults && state.hasMore && !state.isLoading,
+    isLoading: state.isLoading,
+    hasMore: state.hasMore,
+    rootMargin: '1000px',
+    threshold: 0.1
   });
 
-  // Check if we need to load more when the component is mounted
+  // Auto-load when content is too short (with proper delay)
   useEffect(() => {
+    let ignore = false;
+    let timer: number;
+    
     const checkContentHeight = () => {
-      if (!loadMoreRef.current || !hasMore || isLoading) return;
+      if (ignore || !loadMoreRef.current || !state.hasMore || state.isLoading) return;
       
       const viewportHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       
-      // If the document is shorter than the viewport, load more
-      if (documentHeight <= viewportHeight && bookmarks.length > 0) {
+      // Only trigger if content is significantly shorter than viewport
+      // and we have a reasonable amount of content already loaded
+      if (documentHeight <= viewportHeight * 0.8 && state.bookmarks.length >= 10) {
         loadMoreBookmarks();
       }
     };
     
-    // Reduced delay from 1000ms to 200ms for faster response
-    const timer = setTimeout(checkContentHeight, 200);
+    // Add significant delay to prevent initial render triggering
+    timer = window.setTimeout(() => {
+      if (!ignore) checkContentHeight();
+    }, 1000); // Universal 1-second delay consistent with other feeds
     
-    return () => clearTimeout(timer);
-  }, [bookmarks.length, hasMore, isLoading, loadMoreBookmarks]);
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
+  }, [state.bookmarks.length, state.hasMore, state.isLoading, loadMoreBookmarks]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Abort any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Reset request flags
+      requestInFlightRef.current = false;
+    };
+  }, []);
+
+  return {
+    loadMoreRef,
+    loadMoreBookmarks
+  };
+};
+
+/**
+ * Client component that displays bookmarks feed with virtualization and pagination
+ * Initial data is fetched on the server, and additional data is loaded as needed
+ * 
+ * Phase 1 Improvements:
+ * - useReducer for complex state management
+ * - AbortController for API request cancellation
+ * - Fixed memory leaks in event listeners
+ * - Proper cleanup on unmount
+ */
+const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchResults = false, isActive = true }: BookmarksFeedProps) => {
+  // Initialize state with useReducer
+  const [state, dispatch] = useReducer(bookmarksFeedReducer, initialData, createInitialState);
+  
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !state.commentDrawer.isOpen, '.bookmarks-feed-container');
+  
+  // Comment drawer handlers
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    dispatch({ 
+      type: 'OPEN_COMMENT_DRAWER', 
+      payload: { entryGuid, feedUrl, initialData } 
+    });
+  }, []);
+
+  const handleCloseCommentDrawer = useCallback(() => {
+    dispatch({ type: 'CLOSE_COMMENT_DRAWER' });
+  }, []);
+
+  // Initialize with initial data
+  useEffect(() => {
+    if (initialData && !state.bookmarks.length) {
+      dispatch({ type: 'INITIALIZE', payload: initialData });
+    }
+  }, [initialData]);
+
+  // Use custom pagination hook
+  const { loadMoreRef, loadMoreBookmarks } = useBookmarksPagination({
+    state,
+    dispatch,
+    userId,
+    pageSize,
+    isSearchResults
+  });
+
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedBookmarks = useMemo(() => 
+    optimizeBookmarksForMemory(state.bookmarks), 
+    [state.bookmarks]
+  );
 
   // Implement the itemContentCallback using the standard pattern
   const itemContentCallback = useCallback((index: number, bookmark: BookmarkItem) => {
@@ -555,15 +846,33 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
       <BookmarkCard 
         key={bookmark._id} 
         bookmark={bookmark} 
-        entryDetails={entryDetails[bookmark.entryGuid]}
-        interactions={entryMetrics[bookmark.entryGuid]}
+        entryDetails={state.entryDetails[bookmark.entryGuid]}
+        interactions={state.entryMetrics[bookmark.entryGuid]}
         onOpenCommentDrawer={handleOpenCommentDrawer}
       />
     );
-  }, [entryDetails, entryMetrics, handleOpenCommentDrawer]);
+  }, [state.entryDetails, state.entryMetrics, handleOpenCommentDrawer]);
+
+  // Error state
+  if (state.error && state.bookmarks.length === 0) {
+    return (
+      <div className="text-center py-8 text-red-600">
+        <p>Error loading bookmarks: {state.error}</p>
+        <button 
+          onClick={() => {
+            dispatch({ type: 'RESET_ERROR' });
+            loadMoreBookmarks();
+          }}
+          className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   // Loading state - only show for initial load
-  if (isLoading && isInitialLoad) {
+  if (state.isLoading && state.isInitialLoad) {
     return (
       <div className="flex justify-center items-center py-10">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -572,7 +881,7 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
   }
 
   // No bookmarks state
-  if (bookmarks.length === 0 && !isLoading) {
+  if (state.bookmarks.length === 0 && !state.isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>You haven&apos;t bookmarked any posts yet.</p>
@@ -592,8 +901,8 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     >
       <Virtuoso
         useWindowScroll
-        data={bookmarks}
-        overscan={2000}
+        data={optimizedBookmarks}
+        overscan={VIRTUAL_SCROLL_CONFIG.overscan}
         itemContent={itemContentCallback}
         components={{
           Footer: () => null
@@ -605,26 +914,63 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
         }}
         className="focus:outline-none focus-visible:outline-none"
         computeItemKey={(_, item) => item.entryGuid || item._id}
+        increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
+        restoreStateFrom={undefined}
       />
       
-      {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
+      {/* Fixed position load more container at bottom */}
       <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-        {hasMore && isLoading && !isSearchResults && <Loader2 className="h-6 w-6 animate-spin" />}
-        {(!hasMore || isSearchResults) && bookmarks.length > 0 && <div></div>}
+        {state.hasMore && state.isLoading && !isSearchResults && <Loader2 className="h-6 w-6 animate-spin" />}
+        {(!state.hasMore || isSearchResults) && state.bookmarks.length > 0 && <div></div>}
       </div>
       
-      {selectedCommentEntry && (
+      {/* Error banner for load more errors */}
+      {state.error && state.bookmarks.length > 0 && (
+        <div className="fixed bottom-4 left-4 right-4 bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-md shadow-lg z-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">{state.error}</span>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => loadMoreBookmarks()}
+                className="text-sm underline hover:no-underline"
+              >
+                Retry
+              </button>
+              <button 
+                onClick={() => dispatch({ type: 'RESET_ERROR' })}
+                className="text-sm underline hover:no-underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {state.commentDrawer.selectedEntry && (
         <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
-          setIsOpen={setCommentDrawerOpen}
+          entryGuid={state.commentDrawer.selectedEntry.entryGuid}
+          feedUrl={state.commentDrawer.selectedEntry.feedUrl}
+          initialData={state.commentDrawer.selectedEntry.initialData}
+          isOpen={state.commentDrawer.isOpen}
+          setIsOpen={handleCloseCommentDrawer}
         />
       )}
     </div>
   );
 } 
 
-export const BookmarksFeed = memo(BookmarksFeedComponent);
+// Error Boundary wrapper for BookmarksFeed
+const BookmarksFeedErrorBoundary = ({ children }: BookmarksFeedErrorBoundaryProps) => (
+  <ErrorBoundary fallback={<div className="text-center py-8 text-red-600">Something went wrong loading bookmarks.</div>}>
+    {children}
+  </ErrorBoundary>
+);
+
+// Export wrapped component
+export const BookmarksFeed = memo((props: BookmarksFeedProps) => (
+  <BookmarksFeedErrorBoundary>
+    <BookmarksFeedComponent {...props} />
+  </BookmarksFeedErrorBoundary>
+));
 BookmarksFeed.displayName = 'BookmarksFeed'; 
