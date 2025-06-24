@@ -15,6 +15,8 @@ import { AxiomWebVitals } from 'next-axiom';
 import { LogClientErrors } from './log-client-errors';
 import Script from "next/script";
 import type { RootLayoutProps } from "@/lib/types";
+import { cookies } from "next/headers";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
 // Edge Runtime for optimal performance at scale
 export const runtime = 'edge';
@@ -104,13 +106,38 @@ const websiteStructuredData = {
   ]
 } as const; // Mark as const for better optimization
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  // ✅ INSTANT AUTH HINTS: Get immediate hints from server-side cookies (no queries needed)
+  const cookieStore = cookies();
+  const onboardedCookie = cookieStore.get('user_onboarded');
+  
+  // Check if Convex auth token exists (Convex sets this automatically)
+  const hasConvexAuth = await convexAuthNextjsToken().catch(() => null);
+  
+  // ✅ MATCH MIDDLEWARE LOGIC: Auth + No onboarding cookie = redirect to onboarding
+  // This means we should only show authenticated nav if BOTH conditions are met
+  const isAuthenticated = !!hasConvexAuth;
+  const isOnboarded = onboardedCookie?.value === 'true';
+  
+  // Create auth hints for client-side components that match middleware behavior
+  const authHints = {
+    // Only consider fully authenticated if they have auth AND onboarding cookie
+    // This prevents showing authenticated nav to users who should be redirected
+    isAuthenticated: isAuthenticated && isOnboarded,
+    isOnboarded: isOnboarded
+  };
+
   return (
     <ConvexAuthNextjsServerProvider>
       {/* `suppressHydrationWarning` only affects the html tag,
       // and is needed by `ThemeProvider` which sets the theme
       // class attribute on it */}
-      <html lang="en" suppressHydrationWarning>
+      <html 
+        lang="en" 
+        suppressHydrationWarning
+        data-user-authenticated={authHints.isAuthenticated ? '1' : '0'}
+        data-user-onboarded={authHints.isOnboarded ? '1' : '0'}
+      >
         <head>
           <Script
             id="pianjs"
@@ -126,6 +153,25 @@ export default function RootLayout({ children }: RootLayoutProps) {
               __html: JSON.stringify(websiteStructuredData, null, 2)
             }}
           />
+          
+          <Script
+            id="theme-script"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+              try {
+                const theme = localStorage.getItem('theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
+                }
+              } catch {}
+            `,
+            }}
+          />
+          
+          {/* ✅ AUTH HINTS: Pass server-side auth state to client without queries */}
+          <meta name="x-user-authenticated" content={authHints.isAuthenticated ? '1' : '0'} />
+          <meta name="x-user-onboarded" content={authHints.isOnboarded ? '1' : '0'} />
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}

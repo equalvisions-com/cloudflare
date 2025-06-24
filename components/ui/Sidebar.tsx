@@ -69,6 +69,22 @@ const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
 ));
 NavLink.displayName = 'NavLink';
 
+// Skeleton component for user menu while loading
+const UserMenuSkeleton = memo(() => (
+  <div className="flex flex-col gap-3 mt-[-3px]" style={{ width: SIDEBAR_CONSTANTS.WIDTH }}>
+    <div className="flex items-start gap-2 rounded-lg py-2 px-3">
+      <div className="relative">
+        <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+      </div>
+      <div className="mt-[-3px] flex-1">
+        <div className="h-4 bg-muted rounded animate-pulse mb-1" style={{ width: '60%' }} />
+        <div className="h-3 bg-muted rounded animate-pulse" style={{ width: '40%' }} />
+      </div>
+    </div>
+  </div>
+));
+UserMenuSkeleton.displayName = 'UserMenuSkeleton';
+
 // Memoized UserMenu component - isolated from navigation re-renders
 const UserMenu = memo(({ 
   displayName, 
@@ -159,7 +175,7 @@ const SidebarComponent = () => {
   const router = useRouter();
   
   // Single context subscription - minimizes re-renders
-  const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount } = useSidebar();
+  const { isAuthenticated, username, displayName, profileImage, pendingFriendRequestCount, isLoading } = useSidebar();
   const { signOut } = useAuthActions();
   
   // Use custom hook to track component mount status
@@ -268,12 +284,16 @@ const SidebarComponent = () => {
     <NavigationWrapper>
       {navigationItems}
       {isAuthenticated && (
-        <UserMenu
-          displayName={displayName}
-          profileImage={profileImage}
-          username={username}
-          onSignOut={handleSignOutWithRedirect}
-        />
+        isLoading || !displayName || !username ? (
+          <UserMenuSkeleton />
+        ) : (
+          <UserMenu
+            displayName={displayName}
+            profileImage={profileImage}
+            username={username}
+            onSignOut={handleSignOutWithRedirect}
+          />
+        )
       )}
     </NavigationWrapper>
   );

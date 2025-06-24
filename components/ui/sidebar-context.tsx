@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useMemo, useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -28,14 +28,29 @@ export function useSidebar() {
 }
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  // ✅ Single source of truth: Convex reactive queries
+  // ✅ INSTANT AUTH HINTS: Get immediate hints from server-side middleware headers
+  const [authHints, setAuthHints] = useState<{
+    isAuthenticated?: boolean;
+    isOnboarded?: boolean;
+  }>({});
+  
+  useEffect(() => {
+    // ✅ SIMPLE: Get auth hints from HTML data attributes (set by server-side layout)
+    if (typeof window !== 'undefined') {
+      const isAuthenticatedHint = document.documentElement.getAttribute('data-user-authenticated') === '1';
+      const isOnboardedHint = document.documentElement.getAttribute('data-user-onboarded') === '1';
+      
+      setAuthHints({
+        isAuthenticated: isAuthenticatedHint,
+        isOnboarded: isOnboardedHint
+      });
+    }
+  }, []);
+  
+  // ✅ Convex reactive queries (only when we need real data)
   const { isAuthenticated, isLoading } = useConvexAuth();
   
-  // ✅ ULTRA OPTIMIZED: Single combined query for user data + friend requests
-  // Reduced from 3 separate queries to just 2 parallel database operations:
-  // 1. User data lookup (primary key)  
-  // 2. Friend requests count (single index query with OR filter)
-  // Now perfectly synchronized with UserMenuClient using identical optimized query
+  // ✅ CONDITIONAL QUERY: Only query when authenticated (eliminates unnecessary queries for guests)
   const authData = useQuery(
     api.users.getAuthUserWithNotifications, 
     isAuthenticated ? {} : "skip"
@@ -45,20 +60,31 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const viewer = authData?.user || null;
   const pendingFriendRequestCount = authData?.pendingFriendRequestCount || 0;
 
-  // ✅ Derive all state from combined query with improved loading detection
+  // ✅ FLASH-FREE STATE: Use hints until real data loads, then switch to real data
+  // Note: Hints follow middleware logic - authenticated users without onboarding cookies
+  // are redirected to /onboarding, so hints only show authenticated nav for fully onboarded users
+  const effectiveIsAuthenticated = authHints.isAuthenticated !== undefined 
+    ? (isLoading ? authHints.isAuthenticated : isAuthenticated)
+    : isAuthenticated;
+    
+  const effectiveIsOnboarded = authHints.isOnboarded !== undefined
+    ? (isLoading || !authData ? authHints.isOnboarded : (viewer?.isBoarded ?? false))
+    : (viewer?.isBoarded ?? false);
+
+  // ✅ Derive all state with zero loading flashes
   const contextValue = useMemo(
     () => ({ 
-      isAuthenticated,
+      isAuthenticated: effectiveIsAuthenticated,
       username: viewer?.username || "",
       displayName: viewer?.name || viewer?.username || "",
-      isBoarded: viewer?.isBoarded ?? false,
+      isBoarded: effectiveIsOnboarded,
       profileImage: viewer?.profileImage,
       userId: viewer?._id || null,
       pendingFriendRequestCount,
-      // ✅ Better loading state: Consider both auth loading and data loading
-      isLoading: isLoading || (isAuthenticated && authData === undefined),
+      // ✅ ZERO LOADING: Never show loading when we have hints
+      isLoading: authHints.isAuthenticated === undefined && isLoading,
     }),
-    [isAuthenticated, isLoading, viewer, pendingFriendRequestCount, authData]
+    [effectiveIsAuthenticated, effectiveIsOnboarded, viewer, pendingFriendRequestCount, authData, authHints, isLoading]
   );
 
   return (

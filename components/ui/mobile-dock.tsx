@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback, useRef, useEffect } from "react";
+import { memo, useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -49,24 +49,48 @@ const NavItem = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) 
 
 NavItem.displayName = "NavItem";
 
-// The main component with enhanced memoization
+// The main component with enhanced memoization and zero-flash auth hints
 const MobileDockComponent = ({ className }: MobileDockProps) => {
   const pathname = usePathname();
-  const { username, isAuthenticated } = useSidebar();
+  const { username, isAuthenticated, isLoading } = useSidebar();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
+  
+  // ✅ INSTANT AUTH HINTS: Get immediate hints from HTML data attributes
+  const [authHints, setAuthHints] = useState<{
+    isAuthenticated?: boolean;
+    isOnboarded?: boolean;
+  }>({});
   
   // Set up the mounted ref
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
     
+    // ✅ SIMPLE: Get auth hints from HTML data attributes (set by server-side layout)
+    if (typeof window !== 'undefined') {
+      const isAuthenticatedHint = document.documentElement.getAttribute('data-user-authenticated') === '1';
+      const isOnboardedHint = document.documentElement.getAttribute('data-user-onboarded') === '1';
+      
+      setAuthHints({
+        isAuthenticated: isAuthenticatedHint,
+        isOnboarded: isOnboardedHint
+      });
+    }
+    
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  // ✅ FLASH-FREE STATE: Use hints until real data loads, then switch to real data
+  // Note: Hints follow middleware logic - authenticated users without onboarding cookies
+  // are redirected to /onboarding, so hints only show authenticated nav for fully onboarded users
+  const effectiveIsAuthenticated = authHints.isAuthenticated !== undefined 
+    ? (isLoading ? authHints.isAuthenticated : isAuthenticated)
+    : isAuthenticated;
   
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
@@ -77,20 +101,20 @@ const MobileDockComponent = ({ className }: MobileDockProps) => {
       { href: "/chat", icon: MessageCircle, label: "AI Chat" },
     ];
     
-    // Add bookmarks only if authenticated
-    if (isAuthenticated) {
+    // ✅ ZERO FLASH: Add bookmarks only if authenticated (using effective state)
+    if (effectiveIsAuthenticated) {
       items.push({ href: "/bookmarks", icon: Bookmark, label: "Bookmarks" });
     }
     
-    // Add profile link based on authentication status
+    // ✅ ZERO FLASH: Add profile link based on effective authentication state
     items.push(
-      isAuthenticated 
+      effectiveIsAuthenticated 
         ? { href: `/@${username}`, icon: User, label: "Profile", prefetch: false }
         : { href: "/signin", icon: User, label: "Sign In" }
     );
     
     return items;
-  }, [username, isAuthenticated]);
+  }, [username, effectiveIsAuthenticated]);
 
   // Memoize the isActive check function
   const checkIsActive = useCallback((href: string) => {
