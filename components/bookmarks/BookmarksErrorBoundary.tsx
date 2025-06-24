@@ -14,7 +14,7 @@ export const BookmarksErrorBoundary: React.FC<BookmarksErrorBoundaryProps> = ({ 
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <h3 className="text-lg font-semibold mb-2">Something went wrong with bookmarks</h3>
           <p className="text-muted-foreground mb-4">
-            We're having trouble loading your bookmarks. Please try refreshing the page.
+            We&apos;re having trouble loading your bookmarks. Please try refreshing the page.
           </p>
           <button 
             onClick={() => window.location.reload()} 
