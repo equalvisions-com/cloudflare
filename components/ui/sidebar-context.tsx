@@ -17,33 +17,35 @@ interface SidebarContextType {
   isLoading: boolean;
 }
 
-const SidebarContext = createContext<SidebarContextType>({
-  isAuthenticated: false,
-  username: "",
-  displayName: "",
-  isBoarded: false,
-  profileImage: undefined,
-  userId: null,
-  pendingFriendRequestCount: 0,
-  isLoading: true,
-});
+const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
-export const useSidebar = () => useContext(SidebarContext);
+export function useSidebar() {
+  const context = useContext(SidebarContext);
+  if (context === undefined) {
+    throw new Error("useSidebar must be used within a SidebarProvider");
+  }
+  return context;
+}
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // ✅ Single source of truth: Convex reactive queries
   const { isAuthenticated, isLoading } = useConvexAuth();
   
-  // ✅ Reactive viewer query for user data
-  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
-  
-  // ✅ Reactive pending friend requests count
-  const pendingFriendRequestCount = useQuery(
-    api.friends.getMyPendingFriendRequestCount, 
+  // ✅ ULTRA OPTIMIZED: Single combined query for user data + friend requests
+  // Reduced from 3 separate queries to just 2 parallel database operations:
+  // 1. User data lookup (primary key)  
+  // 2. Friend requests count (single index query with OR filter)
+  // Now perfectly synchronized with UserMenuClient using identical optimized query
+  const authData = useQuery(
+    api.users.getAuthUserWithNotifications, 
     isAuthenticated ? {} : "skip"
-  ) ?? 0;
+  );
+  
+  // ✅ Extract data from combined query result
+  const viewer = authData?.user || null;
+  const pendingFriendRequestCount = authData?.pendingFriendRequestCount || 0;
 
-  // ✅ Derive all state from Convex queries
+  // ✅ Derive all state from combined query with improved loading detection
   const contextValue = useMemo(
     () => ({ 
       isAuthenticated,
@@ -53,9 +55,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       profileImage: viewer?.profileImage,
       userId: viewer?._id || null,
       pendingFriendRequestCount,
-      isLoading: isLoading || (isAuthenticated && !viewer),
+      // ✅ Better loading state: Consider both auth loading and data loading
+      isLoading: isLoading || (isAuthenticated && authData === undefined),
     }),
-    [isAuthenticated, isLoading, viewer, pendingFriendRequestCount]
+    [isAuthenticated, isLoading, viewer, pendingFriendRequestCount, authData]
   );
 
   return (

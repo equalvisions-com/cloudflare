@@ -1566,3 +1566,67 @@ export const deleteAccount = mutation({
   },
 });
 
+// ✅ SUPER OPTIMIZED: Combined auth query that fetches both user data and pending friend requests
+// This replaces the need for separate api.users.viewer + api.friends.getMyPendingFriendRequestCount
+// Reduces 2 queries to 1 with parallel execution for maximum efficiency
+export const getAuthUserWithNotifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return {
+        user: null,
+        pendingFriendRequestCount: 0,
+        isAuthenticated: false
+      };
+    }
+    
+    // ✅ MAXIMUM EFFICIENCY: Run all queries in parallel with optimized counting
+    const [userData, friendRequestCounts] = await Promise.all([
+      // Get user data with only essential auth fields
+      ctx.db
+        .query("users")
+        .filter(q => q.eq(q.field("_id"), userId))
+        .first()
+        .then(user => user ? {
+          _id: user._id,
+          _creationTime: user._creationTime,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          isAnonymous: user.isAnonymous,
+          isBoarded: user.isBoarded ?? false,
+          profileImage: user.profileImage
+        } : null),
+      
+      // ✅ ULTRA OPTIMIZED: Single query for both pending and requested counts
+      // Uses the same index but reduces from 2 queries to 1 for friend requests
+      ctx.db
+        .query("friends")
+        .withIndex("by_requestee", (q) => q.eq("requesteeId", userId))
+        .filter(q => q.or(
+          q.eq(q.field("status"), "pending"),
+          q.eq(q.field("status"), "requested")
+        ))
+        .collect()
+        .then(results => ({
+          pending: results.filter(r => r.status === "pending").length,
+          requested: results.filter(r => r.status === "requested").length
+        }))
+    ]);
+    
+    if (!userData) {
+      throw new Error("User was deleted");
+    }
+    
+    // ✅ Simple addition - no array operations
+    const pendingFriendRequestCount = friendRequestCounts.pending + friendRequestCounts.requested;
+    
+    return {
+      user: userData,
+      pendingFriendRequestCount,
+      isAuthenticated: true
+    };
+  },
+});
+

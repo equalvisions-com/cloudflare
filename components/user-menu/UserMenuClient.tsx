@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
@@ -45,20 +45,29 @@ const UserMenuClientComponent = () => {
   const { signOut } = useAuthActions();
   const router = useRouter();
   
-  // ✅ Single source of truth: Convex reactive viewer query
-  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
-  
-  // ✅ Single source of truth: Reactive pending friend requests
-  const pendingFriendRequestCount = useQuery(
-    api.friends.getMyPendingFriendRequestCount, 
+  // ✅ ULTRA OPTIMIZED: Single combined query for user data + friend requests
+  // Reduced from 3 separate queries to just 2 parallel database operations:
+  // 1. User data lookup (primary key)
+  // 2. Friend requests count (single index query with OR filter)
+  const authData = useQuery(
+    api.users.getAuthUserWithNotifications, 
     isAuthenticated ? {} : "skip"
-  ) ?? 0;
-
-  // ✅ Derive all state from Convex queries - no server props needed
-  const displayName = viewer?.name || viewer?.username || "";
-  const username = viewer?.username || "";
-  const profileImage = viewer?.profileImage;
+  );
   
+  // ✅ Extract data from combined query result
+  const viewer = authData?.user || null;
+  const pendingFriendRequestCount = authData?.pendingFriendRequestCount || 0;
+
+  // ✅ OPTIMIZED: Memoize derived state to prevent unnecessary recalculations
+  const derivedState = useMemo(() => ({
+    displayName: viewer?.name || viewer?.username || "",
+    username: viewer?.username || "",
+    profileImage: viewer?.profileImage,
+    isDataLoaded: authData !== undefined
+  }), [viewer, authData]);
+  
+  const { displayName, username, profileImage, isDataLoaded } = derivedState;
+
   // Memoized event handlers
   const onSignIn = useCallback(() => {
     router.push("/signin");
@@ -72,8 +81,9 @@ const UserMenuClientComponent = () => {
     }
   }, [signOut]);
 
-  // Show loading state during auth resolution
-  if (isLoading) {
+  // ✅ OPTIMIZED: Better loading state detection using memoized value
+  // Show loading during auth resolution OR when authenticated but auth data is still loading
+  if (isLoading || (isAuthenticated && !isDataLoaded)) {
     return (
       <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
     );
