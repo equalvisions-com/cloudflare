@@ -13,21 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
-
-// Dynamically import the Image component optimized for Edge runtime
-// Uses Next.js 14+ optimizations for better Edge performance
-const UserMenuImage = dynamic(() => import("./UserMenuImage"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-9 w-9 rounded-full bg-secondary animate-pulse" />
-  )
-});
+import UserMenuImage from "./UserMenuImage";
 
 export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
   return (
