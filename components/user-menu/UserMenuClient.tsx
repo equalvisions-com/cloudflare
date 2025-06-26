@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
-import { memo, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -20,13 +20,13 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import UserMenuImage from "./UserMenuImage";
 
-export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
+export function UserMenuClientWithErrorBoundary() {
   return (
     <ErrorBoundary>
       <UserMenuClient />
     </ErrorBoundary>
   );
-});
+}
 
 // Pure client reactive component - single source of truth via Convex queries
 const UserMenuClientComponent = () => {
@@ -163,5 +163,5 @@ const UserMenuClientComponent = () => {
   );
 };
 
-// Export the memoized version of the component
-export const UserMenuClient = memo(UserMenuClientComponent);
+// Export the component directly (no memoization needed)
+export const UserMenuClient = UserMenuClientComponent;
