@@ -73,10 +73,21 @@ const UserMenuClientComponent = () => {
   }, [signOut]);
 
   // ✅ OPTIMIZED: Better loading state detection using memoized value
-  // Show loading during auth resolution OR when authenticated but auth data is still loading
-  if (isLoading || (isAuthenticated && !isDataLoaded)) {
+  // Only show loading when we genuinely don't have data yet, not during navigation transitions
+  // when the data is already cached (prevents profile image flicker during client navigation)
+  const shouldShowLoading = useMemo(() => {
+    // If we have cached authData, never show loading (prevents navigation flicker)
+    if (authData !== undefined) {
+      return false;
+    }
+    
+    // Only show loading when auth is still resolving AND we don't have cached data
+    return isLoading || (isAuthenticated && !isDataLoaded);
+  }, [isLoading, isAuthenticated, isDataLoaded, authData]);
+
+  if (shouldShowLoading) {
     return (
-      <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
+      <div className="h-9 w-9 rounded-full bg-secondary animate-pulse" />
     );
   }
 
