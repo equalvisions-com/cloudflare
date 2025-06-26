@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -20,13 +20,13 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import UserMenuImage from "./UserMenuImage";
 
-export function UserMenuClientWithErrorBoundary() {
+export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
   return (
     <ErrorBoundary>
       <UserMenuClient />
     </ErrorBoundary>
   );
-}
+});
 
 // Pure client reactive component - single source of truth via Convex queries
 const UserMenuClientComponent = () => {
@@ -100,7 +100,11 @@ const UserMenuClientComponent = () => {
               <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
             )}
             {profileImage ? (
-              <UserMenuImage src={profileImage} alt={displayName || 'User'} />
+              <UserMenuImage 
+                key={`user-menu-${profileImage}`}
+                src={profileImage} 
+                alt={displayName || 'User'} 
+              />
             ) : (
               <Button 
                 variant="secondary" 
@@ -163,5 +167,5 @@ const UserMenuClientComponent = () => {
   );
 };
 
-// Export the component directly (no memoization needed)
-export const UserMenuClient = UserMenuClientComponent;
+// Export the memoized version of the component
+export const UserMenuClient = memo(UserMenuClientComponent);
