@@ -138,6 +138,7 @@ export const useFeedTabsUI = ({
           <FeaturedFeedClientWithErrorBoundary
             initialData={featuredData as any /* Type adjustment for compatibility */}
             pageSize={30}
+            storeKey="discover-tab-store"
           />
         </div>
       ),
