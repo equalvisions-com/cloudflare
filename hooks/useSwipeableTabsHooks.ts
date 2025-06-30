@@ -138,6 +138,11 @@ export const useTabEventHandlers = (
           isInstantJumpRef.current = false;
         }
         
+        // Reset scroll position to top when tab changes (both click and swipe)
+        if (typeof globalThis.window !== 'undefined') {
+          globalThis.window.scrollTo(0, 0);
+        }
+        
         onSelectedTabChange(index);
         handleTabChangeWithDebounce(index);
       }

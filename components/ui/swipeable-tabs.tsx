@@ -360,6 +360,11 @@ const SwipeableTabsComponent = ({
         // Signal that the next 'select' event is from an instant jump
         isInstantJumpRef.current = true; 
 
+        // Reset scroll position to top when switching tabs
+        if (typeof window !== 'undefined') {
+          window.scrollTo(0, 0);
+        }
+
         // Jump instantly
         emblaApi.scrollTo(index, true);
       });
