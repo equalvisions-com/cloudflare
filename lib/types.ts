@@ -4051,3 +4051,23 @@ export interface CachedUserMenuProfileFetchResult extends UserMenuProfileFetchRe
 // ===================================================================
 // END ROOT LAYOUT TYPES
 // ===================================================================
+
+// ===================================================================
+// SWIPEABLE TABS TYPES
+// ===================================================================
+
+export interface SwipeableTabsProps {
+  tabs: {
+    id: string;
+    label: string;
+    component: React.ComponentType;
+  }[];
+  defaultTabIndex?: number;
+  className?: string;
+  animationDuration?: number;
+  onTabChange?: (index: number) => void;
+}
+
+// ===================================================================
+// END SWIPEABLE TABS TYPES
+// ===================================================================

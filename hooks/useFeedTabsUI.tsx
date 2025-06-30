@@ -16,14 +16,6 @@ const RSSEntriesClientWithErrorBoundary = dynamic(
   }
 );
 
-const RSSEntriesClient = dynamic(
-  () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClient),
-  { 
-    ssr: false,
-    loading: () => <SkeletonFeed count={5} />
-  }
-);
-
 const FeaturedFeedClientWithErrorBoundary = dynamic(
   () => import("@/components/featured/FeaturedFeedClient").then(mod => mod.FeaturedFeedClientWithErrorBoundary),
   {
@@ -128,39 +120,7 @@ export const useFeedTabsUI = ({
   const renderLoadingState = () => <SkeletonFeed count={5} />;
 
   /**
-   * Memoized persistent tab components - created once and reused
-   * Note: isActive prop is handled by SwipeableTabs visibility, not component recreation
-   */
-  const persistentComponents = useMemo(() => {
-    return {
-      discover: (
-        <div className="min-h-screen">
-          <FeaturedFeedClientWithErrorBoundary
-            initialData={featuredData as any /* Type adjustment for compatibility */}
-            pageSize={30}
-            storeKey="discover-tab-store"
-          />
-        </div>
-      ),
-      following: (
-        <div className="min-h-screen" key="following-tab-persistent">
-          <RSSEntriesClientWithErrorBoundary 
-            initialData={rssData as any /* Type adjustment for compatibility */} 
-            pageSize={rssData?.entries?.length || 30}
-            isActive={true}
-            storeKey="following-tab-store"
-          />
-        </div>
-      )
-    };
-  }, [
-    rssData,
-    featuredData
-    // Removed activeTabIndex - let SwipeableTabs handle visibility
-  ]);
-
-  /**
-   * Memoized tabs configuration - stable component references
+   * Memoized tabs configuration
    */
   const tabs: FeedTabsTabConfig[] = useMemo(() => [
     // Discover tab - first in order
@@ -176,7 +136,15 @@ export const useFeedTabsUI = ({
           return renderLoadingState();
         }
         
-        return persistentComponents.discover;
+        return (
+          <div className="min-h-screen">
+            <FeaturedFeedClientWithErrorBoundary
+              initialData={featuredData as any /* Type adjustment for compatibility */}
+              pageSize={30}
+              isActive={activeTabIndex === 0}
+            />
+          </div>
+        );
       }
     },
     // Following tab - shows RSS feed content
@@ -192,19 +160,26 @@ export const useFeedTabsUI = ({
           return renderLoadingState();
         }
         
-        return persistentComponents.following;
+        return (
+          <div className="min-h-screen">
+            <RSSEntriesClientWithErrorBoundary 
+              initialData={rssData as any /* Type adjustment for compatibility */} 
+              pageSize={rssData.entries?.length || 30}
+            />
+          </div>
+        );
       }
     }
   ], [
+    rssData,
+    featuredData,
     rssError,
     isRSSLoading,
     featuredError,
     isFeaturedLoading,
+    activeTabIndex,
     onRetryRSS,
-    onRetryFeatured,
-    persistentComponents,
-    renderErrorState,
-    renderLoadingState
+    onRetryFeatured
   ]);
 
   /**

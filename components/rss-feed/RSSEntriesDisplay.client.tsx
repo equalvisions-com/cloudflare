@@ -1355,12 +1355,11 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
 });
 RSSEntriesClient.displayName = 'RSSEntriesClient';
 
-export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesDisplayClientProps & { storeKey?: string }) {
-  const { storeKey, ...clientProps } = props;
+export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesDisplayClientProps) {
   return (
     <ErrorBoundary>
-      <RSSEntriesDisplayStoreProvider storeKey={storeKey}>
-      <RSSEntriesClient {...clientProps} />
+      <RSSEntriesDisplayStoreProvider>
+      <RSSEntriesClient {...props} />
       </RSSEntriesDisplayStoreProvider>
     </ErrorBoundary>
   );

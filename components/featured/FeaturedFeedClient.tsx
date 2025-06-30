@@ -880,12 +880,11 @@ export const FeaturedFeedClient = memo(FeaturedFeedClientComponent, (prevProps, 
 FeaturedFeedClient.displayName = 'FeaturedFeedClient';
 
 // Export with store provider wrapper
-export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps & { storeKey?: string }) {
-  const { storeKey, ...clientProps } = props;
+export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
   return (
     <ErrorBoundary>
-      <FeaturedFeedStoreProvider storeKey={storeKey}>
-        <FeaturedFeedClient {...clientProps} />
+      <FeaturedFeedStoreProvider>
+        <FeaturedFeedClient {...props} />
       </FeaturedFeedStoreProvider>
     </ErrorBoundary>
   );

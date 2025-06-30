@@ -292,17 +292,6 @@
   display: none !important;
 }
 
-/* Freeze all animations during scroll restoration */
-.freeze-animations,
-.freeze-animations *,
-.freeze-animations .embla__container,
-.freeze-animations .embla-slide {
-  transition: none !important;
-  animation: none !important;
-  transform: none !important;
-  will-change: auto !important;
-}
-
 .embla-slide:not(.opacity-0) {
   transition: opacity 50ms;
   opacity: 1;
