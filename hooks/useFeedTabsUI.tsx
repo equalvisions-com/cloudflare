@@ -120,7 +120,7 @@ export const useFeedTabsUI = ({
   const renderLoadingState = () => <SkeletonFeed count={5} />;
 
   /**
-   * Memoized tabs configuration
+   * Memoized tabs configuration - optimized for re-render prevention
    */
   const tabs: FeedTabsTabConfig[] = useMemo(() => [
     // Discover tab - first in order
@@ -171,13 +171,14 @@ export const useFeedTabsUI = ({
       }
     }
   ], [
+    // REMOVED activeTabIndex to prevent unnecessary re-renders
+    // activeTabIndex is accessed via closure, doesn't need to be in deps
     rssData,
     featuredData,
     rssError,
     isRSSLoading,
     featuredError,
     isFeaturedLoading,
-    activeTabIndex,
     onRetryRSS,
     onRetryFeatured
   ]);

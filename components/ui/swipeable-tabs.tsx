@@ -334,6 +334,25 @@ const SwipeableTabsComponent = ({
     dispatch({ type: 'SET_SELECTED_TAB', payload: index });
   }, [dispatch]);
 
+  // CRITICAL: Sync internal state with parent's defaultTabIndex changes
+  const prevDefaultTabIndexRef = useRef(defaultTabIndex);
+  useEffect(() => {
+    // Only sync when parent's defaultTabIndex actually changes (controlled component behavior)
+    if (prevDefaultTabIndexRef.current !== defaultTabIndex) {
+      prevDefaultTabIndexRef.current = defaultTabIndex;
+      
+      // Update internal state to match parent
+      if (selectedTab !== defaultTabIndex) {
+        dispatch({ type: 'SET_SELECTED_TAB', payload: defaultTabIndex });
+        
+        // Also update Embla to match
+        if (emblaApi) {
+          emblaApi.scrollTo(defaultTabIndex, true);
+        }
+      }
+    }
+  }, [defaultTabIndex, selectedTab, emblaApi, dispatch]);
+
   // Use custom hooks
   useEmblaSetup(emblaApi, defaultTabIndex, isMobile, handleSelectedTabChange);
   
@@ -523,5 +542,36 @@ const SwipeableTabsComponent = ({
   );
 };
 
-// Export memoized component
-export const SwipeableTabs = memo(SwipeableTabsComponent); 
+// Export memoized component with custom comparison
+export const SwipeableTabs = memo(SwipeableTabsComponent, (prevProps, nextProps) => {
+  // Custom comparison to prevent re-renders
+  if (
+    prevProps.defaultTabIndex !== nextProps.defaultTabIndex ||
+    prevProps.className !== nextProps.className ||
+    prevProps.animationDuration !== nextProps.animationDuration ||
+    prevProps.onTabChange !== nextProps.onTabChange
+  ) {
+    return false;
+  }
+
+  // Deep comparison for tabs array
+  if (prevProps.tabs.length !== nextProps.tabs.length) {
+    return false;
+  }
+
+  // Compare tab structure and content
+  for (let i = 0; i < prevProps.tabs.length; i++) {
+    const prevTab = prevProps.tabs[i];
+    const nextTab = nextProps.tabs[i];
+    
+    if (
+      prevTab.id !== nextTab.id ||
+      prevTab.label !== nextTab.label ||
+      prevTab.component !== nextTab.component
+    ) {
+      return false;
+    }
+  }
+
+  return true; // Props are equal, skip re-render
+}); 

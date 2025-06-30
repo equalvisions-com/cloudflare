@@ -94,6 +94,21 @@ export function FeedTabsContainer({
   const cleanupRef = useRef(cleanup);
   cleanupRef.current = cleanup;
   
+  // Stable retry handlers to prevent re-renders
+  const handleRetryRSS = useCallback(() => {
+    // Reset error and retry attempt counter
+    setErrors(prev => ({ ...prev, rss: null }));
+    retryAttemptsRef.current.rss = 0;
+    fetchRSSData();
+  }, [fetchRSSData]);
+
+  const handleRetryFeatured = useCallback(() => {
+    // Reset error and retry attempt counter  
+    setErrors(prev => ({ ...prev, featured: null }));
+    retryAttemptsRef.current.featured = 0;
+    fetchFeaturedData();
+  }, [fetchFeaturedData]);
+
   // Custom hook for UI rendering - now accepts props instead of using store
   const { tabs } = useFeedTabsUI({
     rssData,
@@ -103,18 +118,8 @@ export function FeedTabsContainer({
     rssError: errors.rss,
     featuredError: errors.featured,
     activeTabIndex,
-    onRetryRSS: () => {
-      // Reset error and retry attempt counter
-      setErrors(prev => ({ ...prev, rss: null }));
-      retryAttemptsRef.current.rss = 0;
-      fetchRSSData();
-    },
-    onRetryFeatured: () => {
-      // Reset error and retry attempt counter  
-      setErrors(prev => ({ ...prev, featured: null }));
-      retryAttemptsRef.current.featured = 0;
-      fetchFeaturedData();
-    }
+    onRetryRSS: handleRetryRSS,
+    onRetryFeatured: handleRetryFeatured
   });
   
   // Tab change handler with authentication checks
