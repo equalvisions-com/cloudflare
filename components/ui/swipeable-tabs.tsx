@@ -336,38 +336,6 @@ const SwipeableTabsComponent = ({
 
   // CRITICAL: Sync internal state with parent's defaultTabIndex changes
   const prevDefaultTabIndexRef = useRef(defaultTabIndex);
-  const isRestoringFromBfcacheRef = useRef(false);
-  
-  // Detect bfcache restoration
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        // Page is being restored from bfcache
-        isRestoringFromBfcacheRef.current = true;
-        
-        // Force immediate sync without animation to prevent blink
-        if (selectedTab !== defaultTabIndex) {
-          dispatch({ type: 'SET_SELECTED_TAB', payload: defaultTabIndex });
-          
-          if (emblaApi) {
-            // Skip animation for bfcache restore
-            emblaApi.scrollTo(defaultTabIndex, true);
-          }
-        }
-        
-        // Reset bfcache flag after a brief delay
-        setTimeout(() => {
-          isRestoringFromBfcacheRef.current = false;
-        }, 100);
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pageshow', handlePageShow);
-      return () => window.removeEventListener('pageshow', handlePageShow);
-    }
-  }, [selectedTab, defaultTabIndex, emblaApi, dispatch]);
-  
   useEffect(() => {
     // Only sync when parent's defaultTabIndex actually changes (controlled component behavior)
     if (prevDefaultTabIndexRef.current !== defaultTabIndex) {
@@ -377,9 +345,9 @@ const SwipeableTabsComponent = ({
       if (selectedTab !== defaultTabIndex) {
         dispatch({ type: 'SET_SELECTED_TAB', payload: defaultTabIndex });
         
-        // Also update Embla to match - skip animation if restoring from bfcache
+        // Also update Embla to match
         if (emblaApi) {
-          emblaApi.scrollTo(defaultTabIndex, isRestoringFromBfcacheRef.current);
+          emblaApi.scrollTo(defaultTabIndex, true);
         }
       }
     }

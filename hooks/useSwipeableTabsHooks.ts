@@ -179,32 +179,12 @@ export const useEdgeSafeResizeObserver = (
   const observerRef = useRef<ResizeObserver | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isMountedRef = useRef(true);
-  const isRestoringFromBfcacheRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
-  }, []);
-
-  // Handle bfcache restoration
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        isRestoringFromBfcacheRef.current = true;
-        
-        // Skip height recalculations during bfcache restore
-        setTimeout(() => {
-          isRestoringFromBfcacheRef.current = false;
-        }, 100);
-      }
-    };
-    
-    if (typeof globalThis.window !== 'undefined') {
-      globalThis.window.addEventListener('pageshow', handlePageShow);
-      return () => globalThis.window.removeEventListener('pageshow', handlePageShow);
-    }
   }, []);
 
   useEffect(() => {
@@ -219,13 +199,13 @@ export const useEdgeSafeResizeObserver = (
     emblaApi.on('select', onTransitionStart);
 
     const resizeObserver = new globalThis.ResizeObserver(() => {
-      if (!isMountedRef.current || isRestoringFromBfcacheRef.current) return;
+      if (!isMountedRef.current) return;
       
       if (timeoutRef.current) clearTimeoutSafe(timeoutRef.current);
       
       timeoutRef.current = createTimeout(() => {
         globalThis.requestAnimationFrame(() => {
-          if (!isMountedRef.current || !emblaApi || isRestoringFromBfcacheRef.current) return;
+          if (!isMountedRef.current || !emblaApi) return;
           emblaApi.reInit();
         });
       }, 100);

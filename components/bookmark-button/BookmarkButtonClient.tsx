@@ -172,6 +172,7 @@ const BookmarkButtonClientComponent = ({
       size="sm"
       className="px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleClick}
+      aria-label={isBookmarked ? `Remove bookmark for ${title}` : `Bookmark ${title}`}
     >
       <Bookmark 
         className={`h-4 w-4 text-muted-foreground stroke-[2.5] transition-colors duration-200 ${isBookmarked ? 'fill-current text-red-500' : ''}`}

@@ -89,6 +89,7 @@ const ShareButtonClientComponent = ({ url, title, internalUrl }: ShareButtonProp
       className="gap-2 px-0 hover:bg-transparent items-center justify-center w-full"
       onClick={handleShare}
       disabled={isSharing}
+      aria-label={`Share ${title}`}
     >
       <Share className="h-4 w-4 text-muted-foreground stroke-[2.5]" />
     </Button>
