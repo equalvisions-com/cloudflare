@@ -47,6 +47,7 @@ export function FeedTabsContainer({
     featured: null as string | null
   });
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [isRestoringFromBfcache, setIsRestoringFromBfcache] = useState(false);
   
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
@@ -145,6 +146,26 @@ export function FeedTabsContainer({
     }
   }, [isAuthenticated, activeTabIndex]);
   
+  // Handle bfcache restoration to prevent blinks
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // Page is being restored from bfcache
+        setIsRestoringFromBfcache(true);
+        
+        // Reset bfcache flag after state stabilizes
+        setTimeout(() => {
+          setIsRestoringFromBfcache(false);
+        }, 50);
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pageshow', handlePageShow);
+      return () => window.removeEventListener('pageshow', handlePageShow);
+    }
+  }, []);
+
   // Initialize component state on mount
   useEffect(() => {
     if (!hasInitialized) {
@@ -191,7 +212,7 @@ export function FeedTabsContainer({
   }), [isAuthenticated, displayName, isBoarded, profileImage, pendingFriendRequestCount]);
 
   return (
-    <div className="w-full">
+    <div className={`w-full ${isRestoringFromBfcache ? 'opacity-100 transition-none' : ''}`}>
       <div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
         <div>
           {authUIConfig.shouldShowUserMenu && authUIConfig.userMenuProps && (
