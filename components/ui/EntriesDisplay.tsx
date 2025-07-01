@@ -8,6 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { decode } from 'html-entities';
 import { Podcast, Mail } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
@@ -210,6 +211,12 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
 
+  // Memoized decoded content (must be defined early since it's used in callbacks)
+  const decodedContent = useMemo(() => ({
+    title: decode(entry.title || ''),
+    description: decode(entry.description || '')
+  }), [entry.title, entry.description]);
+
   // Helper function to prevent scroll jumping on link interaction
   const handleLinkInteraction = useCallback((e: MouseEvent | TouchEvent) => {
     // Let the event continue for the click
@@ -293,12 +300,12 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
       e.preventDefault();
       e.stopPropagation();
       const creatorName = entry.post_title || entry.feed_title || undefined;
-      playTrack(entry.link, entry.title, entry.image || undefined, creatorName);
+      playTrack(entry.link, decodedContent.title, entry.image || undefined, creatorName);
     } else {
       e.stopPropagation();
       handleLinkInteraction(e);
     }
-  }, [entry.post_media_type, entry.mediaType, entry.link, entry.title, entry.image, entry.post_title, entry.feed_title, playTrack, handleLinkInteraction]);
+  }, [entry.post_media_type, entry.mediaType, entry.link, decodedContent.title, entry.image, entry.post_title, entry.feed_title, playTrack, handleLinkInteraction]);
   
   // Memoize the comment handler
   const handleCommentClick = useCallback((e: MouseEvent) => {
@@ -385,14 +392,14 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                     >
                       <Link href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                          {entry.post_title || entry.title}
+                          {entry.post_title || decodedContent.title}
                           {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
                       </Link>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
-                      {entry.post_title || entry.title}
+                      {entry.post_title || decodedContent.title}
                       {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h3>
                   )}
@@ -441,11 +448,11 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                 )}
                 <CardContent className="border-t pt-[11px] pl-4 pr-4 pb-[12px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {entry.title}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {entry.description}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
@@ -484,11 +491,11 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                 )}
                 <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
                   <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {entry.title}
+                    {decodedContent.title}
                   </h3>
-                  {entry.description && (
+                  {decodedContent.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {entry.description}
+                      {decodedContent.description}
                     </p>
                   )}
                 </CardContent>
@@ -503,7 +510,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
             <LikeButtonClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
-              title={entry.title}
+              title={decodedContent.title}
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={interactions.likes}
@@ -525,7 +532,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
             <RetweetButtonClientWithErrorBoundary
               entryGuid={entry.guid}
               feedUrl={entry.feed_url || ''}
-              title={entry.title}
+              title={decodedContent.title}
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={interactions.retweets}
@@ -536,7 +543,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               <BookmarkButtonClient
                 entryGuid={entry.guid}
                 feedUrl={entry.feed_url || ''}
-                title={entry.title}
+                title={decodedContent.title}
                 pubDate={entry.pub_date}
                 link={entry.link}
                 initialData={{ isBookmarked: false }}
@@ -545,7 +552,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
             <NoFocusWrapper className="flex items-center">
               <ShareButtonClient
                 url={entry.link}
-                title={entry.title}
+                title={decodedContent.title}
                 internalUrl={isPodcast && postUrl ? postUrl : undefined}
               />
             </NoFocusWrapper>
