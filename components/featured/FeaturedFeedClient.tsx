@@ -125,7 +125,7 @@ interface FeaturedEntryProps {
 }
 
 // Memoized FeaturedEntry component with optimized comparison
-const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean }) => {
+const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false, articleIndex, totalArticles }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean, articleIndex?: number, totalArticles?: number }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
@@ -252,9 +252,17 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
     }
   }, [postMetadata?.mediaType, entry.link, decodedContent.title, imageSrc, postMetadata?.title, playTrack]);
 
+  // Generate unique IDs for ARIA labeling
+  const titleId = `entry-title-${entry.guid}`;
+  const contentId = `entry-content-${entry.guid}`;
+
   return (
     <article 
       role="article"
+      aria-labelledby={titleId}
+      aria-describedby={contentId}
+      aria-posinset={articleIndex}
+      aria-setsize={totalArticles || -1}
       onClick={(e) => {
         // Stop all click events from bubbling up to parent components
         e.stopPropagation();
@@ -322,14 +330,14 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
                       onTouchStart={handleLinkInteraction}
                     >
                       <PrefetchAnchor href={postUrl}>
-                        <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                        <h2 id={titleId} className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {postMetadata.title}
                           {isVerified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h2>
                       </PrefetchAnchor>
                     </NoFocusLinkWrapper>
                   ) : (
-                    <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                    <h2 id={titleId} className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {postMetadata.title}
                       {isVerified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                     </h2>
@@ -355,7 +363,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
         
         {/* Content */}
         {postMetadata?.mediaType === 'podcast' ? (
-          <div>
+          <div id={contentId}>
             <div 
               onClick={(e) => {
                 handleLinkInteraction(e);
@@ -395,48 +403,50 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
             </div>
           </div>
         ) : (
-          <NoFocusLinkWrapper
-            className="block hover:opacity-80 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLinkInteraction(e);
-            }}
-            onTouchStart={handleLinkInteraction}
-          >
-            <a
-              href={entry.link}
-              target="_blank"
+          <div id={contentId}>
+            <NoFocusLinkWrapper
+              className="block hover:opacity-80 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLinkInteraction(e);
+              }}
+              onTouchStart={handleLinkInteraction}
             >
-              <Card className="rounded-xl border overflow-hidden shadow-none">
-                {imageSrc && (
-                  <CardHeader className="p-0">
-                    <AspectRatio ratio={2/1}>
-                      <Image
-                        key={`${entry.guid}-article-image`}
-                        src={imageSrc}
-                        alt={`${decodedContent.title} article image`}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 516px) 100vw, 516px"
-                        priority={isPriority}
-                        unoptimized={false}
-                      />
-                    </AspectRatio>
-                  </CardHeader>
-                )}
-                <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
-                  <h3 className="text-base font-bold capitalize leading-[1.5]">
-                    {decodedContent.title}
-                  </h3>
-                  {decodedContent.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
-                      {decodedContent.description}
-                    </p>
+              <a
+                href={entry.link}
+                target="_blank"
+              >
+                <Card className="rounded-xl border overflow-hidden shadow-none">
+                  {imageSrc && (
+                    <CardHeader className="p-0">
+                      <AspectRatio ratio={2/1}>
+                        <Image
+                          key={`${entry.guid}-article-image`}
+                          src={imageSrc}
+                          alt={`${decodedContent.title} article image`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 516px) 100vw, 516px"
+                          priority={isPriority}
+                          unoptimized={false}
+                        />
+                      </AspectRatio>
+                    </CardHeader>
                   )}
-                </CardContent>
-              </Card>
-            </a>
-          </NoFocusLinkWrapper>
+                  <CardContent className="pl-4 pr-4 pb-[12px] border-t pt-[11px]">
+                    <h3 className="text-base font-bold capitalize leading-[1.5]">
+                      {decodedContent.title}
+                    </h3>
+                    {decodedContent.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-[5px] leading-[1.5]">
+                        {decodedContent.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </a>
+            </NoFocusLinkWrapper>
+          </div>
         )}
         
         {/* Horizontal Interaction Buttons */}
@@ -534,6 +544,10 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
   // Check isPriority prop
   if (prevProps.isPriority !== nextProps.isPriority) return false;
   
+  // Check new ARIA props
+  if (prevProps.articleIndex !== nextProps.articleIndex) return false;
+  if (prevProps.totalArticles !== nextProps.totalArticles) return false;
+  
   return true;
 });
 FeaturedEntry.displayName = 'FeaturedEntry';
@@ -579,9 +593,11 @@ function FeaturedContentComponent({
         entryWithData={item} 
         onOpenCommentDrawer={onOpenCommentDrawer}
         isPriority={index < 2} // First two entries get priority loading
+        articleIndex={index + 1} // ARIA position starts from 1
+        totalArticles={paginatedEntries.length}
       />
     );
-  }, [onOpenCommentDrawer]);
+  }, [onOpenCommentDrawer, paginatedEntries.length]);
   
   const handleEndReached = useCallback(() => {
     if (hasMore && !isPending && !endReachedCalledRef.current) {
@@ -656,7 +672,7 @@ function FeaturedContentComponent({
   return (
     <section 
       className="space-y-0 featured-feed-container" 
-      role="feed"
+      role="region"
       aria-label="Featured feed entries"
       aria-busy={isPending ? 'true' : 'false'}
       style={{ 
