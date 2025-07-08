@@ -114,7 +114,7 @@ const BookmarksHeaderComponent = () => {
   const [localSearchValue, setLocalSearchValue] = useState("");
   
   // Performance optimization: Request deduplication
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout>(undefined);
   const isMountedRef = useRef(true);
   const lastSearchQueryRef = useRef<string>("");
 
@@ -210,46 +210,46 @@ const BookmarksHeaderComponent = () => {
   }, [toggleSearchVisibility]);
 
   return (
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        {isSearchInputVisible ? (
-          // 3. Enterprise-Level Error Boundaries for search section
-          <ErrorBoundary fallback={SearchErrorFallback}>
-            <SearchInput
-              value={localSearchValue}
-              onChange={handleLocalSearchChange}
-              onKeyDown={handleSearchSubmit}
-              onClose={handleCloseSearch}
-              isSearching={isSearching}
-            />
-          </ErrorBoundary>
-        ) : (
-          // 3. Enterprise-Level Error Boundaries for navigation section
-          <ErrorBoundary 
-            fallback={({ retry }) => (
-              <div className="flex items-center justify-between w-full">
-                <div className="w-10" />
-                <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
-                  Bookmarks
-                </div>
-                <button 
-                  onClick={retry}
-                  className="w-10 flex justify-end text-sm text-muted-foreground"
-                >
-                  Retry
-                </button>
+    <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      {isSearchInputVisible ? (
+        // 3. Enterprise-Level Error Boundaries for search section
+        (<ErrorBoundary fallback={SearchErrorFallback}>
+          <SearchInput
+            value={localSearchValue}
+            onChange={handleLocalSearchChange}
+            onKeyDown={handleSearchSubmit}
+            onClose={handleCloseSearch}
+            isSearching={isSearching}
+          />
+        </ErrorBoundary>)
+      ) : (
+        // 3. Enterprise-Level Error Boundaries for navigation section
+        (<ErrorBoundary 
+          fallback={({ retry }) => (
+            <div className="flex items-center justify-between w-full">
+              <div className="w-10" />
+              <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
+                Bookmarks
               </div>
-            )}
-          >
-            <HeaderNavigation
-              displayName={displayName}
-              profileImage={profileImage}
-              isBoarded={isBoarded}
-              pendingFriendRequestCount={pendingFriendRequestCount}
-              onSearchToggle={toggleSearchVisibility}
-            />
-          </ErrorBoundary>
-        )}
-      </div>
+              <button 
+                onClick={retry}
+                className="w-10 flex justify-end text-sm text-muted-foreground"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+        >
+          <HeaderNavigation
+            displayName={displayName}
+            profileImage={profileImage}
+            isBoarded={isBoarded}
+            pendingFriendRequestCount={pendingFriendRequestCount}
+            onSearchToggle={toggleSearchVisibility}
+          />
+        </ErrorBoundary>)
+      )}
+    </div>
   );
 };
 

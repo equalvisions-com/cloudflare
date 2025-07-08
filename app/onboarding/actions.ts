@@ -38,7 +38,7 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
     // 3. Check for already onboarded status (handles race condition with multiple tabs)
     if (convexResult && typeof convexResult === 'object' && 'status' in convexResult && convexResult.status === "ALREADY_ONBOARDED") {
       // Set cookie to ensure consistency and redirect to home
-      cookies().set('user_onboarded', 'true', {
+      (await cookies()).set('user_onboarded', 'true', {
         path: '/',
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -55,7 +55,7 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
     }
     
     // 4. Set the cookie after database update succeeds
-    cookies().set('user_onboarded', 'true', {
+    (await cookies()).set('user_onboarded', 'true', {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -91,7 +91,7 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
 export async function clearOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
   "use server";
   try {
-    cookies().delete('user_onboarded');
+    (await cookies()).delete('user_onboarded');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: "Failed to clear onboarding cookie" };

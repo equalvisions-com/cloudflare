@@ -225,10 +225,10 @@ const BookmarksPageClientScopeComponent = ({ rightSidebar }: BookmarksPageClient
   const [state, dispatch] = useReducer(bookmarksReducer, initialBookmarksState);
   
   // Memory leak prevention with refs
-  const abortControllerRef = useRef<AbortController>();
+  const abortControllerRef = useRef<AbortController>(undefined);
   const isMountedRef = useRef(true);
   const lastRequestIdRef = useRef<string>("");
-  const retryTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   // Memory leak prevention: cleanup on unmount
   useEffect(() => {

@@ -217,7 +217,7 @@ ResetButton.displayName = 'ResetButton';
 
 // Memoized textarea component
 interface ChatTextareaProps {
-  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   placeholder: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;

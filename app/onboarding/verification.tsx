@@ -25,7 +25,7 @@ export async function setOnboardedCookieAndRedirect(): Promise<void> {
   
   try {
     // Set the cookie to true
-    cookies().set('user_onboarded', 'true', {
+    (await cookies()).set('user_onboarded', 'true', {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -61,7 +61,7 @@ async function fetchProfileWithTimeout(token: string, timeoutMs = 5000): Promise
 export default async function VerifyOnboardingStatus() {
   // We always check with Convex first as the source of truth
   // Get the current cookie value for comparison later
-  const onboardedCookie = cookies().get('user_onboarded');
+  const onboardedCookie = (await cookies()).get('user_onboarded');
   
   try {
     // Make sure to catch any token errors
@@ -94,7 +94,7 @@ export default async function VerifyOnboardingStatus() {
     // If all retries failed, redirect to signin
     if (!profile) {
       // Clear any existing cookies to force re-authentication
-      cookies().set('user_onboarded', '', { maxAge: 0, path: '/' });
+      (await cookies()).set('user_onboarded', '', { maxAge: 0, path: '/' });
       redirect('/signin');
     }
     
@@ -115,7 +115,7 @@ export default async function VerifyOnboardingStatus() {
       // Check if cookie incorrectly says they're onboarded
       if (onboardedCookie?.value === 'true') {
         // Remove the incorrect cookie
-        cookies().set('user_onboarded', '', {
+        (await cookies()).set('user_onboarded', '', {
           path: '/',
           maxAge: 0, // Expire immediately
         });

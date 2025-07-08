@@ -177,7 +177,7 @@ export const useEdgeSafeResizeObserver = (
 ) => {
   const { createTimeout, clearTimeoutSafe } = useEdgeSafeTimeouts();
   const observerRef = useRef<ResizeObserver | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isMountedRef = useRef(true);
 
   useEffect(() => {

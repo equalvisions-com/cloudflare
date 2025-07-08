@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense, type JSX } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";

@@ -604,7 +604,7 @@ RSSEntry.displayName = 'RSSEntry';
 interface EntriesContentProps {
   paginatedEntries: RSSEntriesDisplayEntry[];
   hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   isPending: boolean;
   loadMore: () => void;
   entryMetrics: Record<string, RSSEntriesDisplayEntry['initialData']> | null;
@@ -965,7 +965,7 @@ const RSSEntriesClientComponent = ({
   const hasMoreRef = useRef(true);
   const totalEntriesRef = useRef(0);
   const postTitlesRef = useRef<string[]>([]);
-  const preRefreshNewestEntryDateRef = useRef<string | undefined>();
+  const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
   const feedMetadataCache = useRef<Record<string, RSSEntriesDisplayEntry['postMetadata']>>({});
 
   // Custom hooks for business logic

@@ -1352,7 +1352,7 @@ export interface RSSEntryProps {
 export interface FeedContentProps {
   entries: RSSFeedEntry[];
   hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   isPending: boolean;
   loadMore: () => Promise<void>;
   featuredImg?: string;
@@ -1644,7 +1644,7 @@ export interface RSSEntriesDisplayEntryProps {
 export interface RSSEntriesDisplayContentProps {
   paginatedEntries: RSSEntriesDisplayEntry[];
   hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   isPending: boolean;
   loadMore: () => void;
   entryMetrics: Record<string, RSSEntriesDisplayEntry['initialData']> | null;
@@ -2471,7 +2471,7 @@ export interface UseProfileImageUploadProps {
 }
 
 export interface UseProfileImageUploadReturn {
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   uploadImageToR2: (file: File) => Promise<string>;
   resetFileInput: () => void;
@@ -3674,7 +3674,7 @@ export interface UseNotificationsVirtualizationReturn {
   virtuosoRef: React.RefObject<any>;
   virtuosoProps: any;
   virtualizedNotifications: ConvexNotificationItem[];
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   isPaginating: boolean;
   scrollToTop: () => void;
   scrollToNotification: (notificationId: string) => void;
@@ -3981,7 +3981,7 @@ export interface UseBookmarksPaginationProps {
 
 // BookmarksFeed Custom Hook Return Type
 export interface UseBookmarksPaginationReturn {
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   loadMoreBookmarks: () => Promise<void>;
 }
 

@@ -99,7 +99,8 @@ const getPostData = cache(async (postSlug: string): Promise<NewsletterPost | nul
 });
 
 // Generate metadata using cached post data
-export async function generateMetadata({ params }: NewsletterPageProps): Promise<Metadata> {
+export async function generateMetadata(props: NewsletterPageProps): Promise<Metadata> {
+  const params = await props.params;
   try {
     const { postSlug } = params;
     const post = await getPostData(postSlug);
@@ -367,16 +368,17 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
 }
 
 // Main page component with optimized data fetching
-export default async function PostPage({ params }: NewsletterPageProps) {
+export default async function PostPage(props: NewsletterPageProps) {
+  const params = await props.params;
   const { postSlug } = params;
   const pageData = await getPageData(postSlug);
-  
+
   if (!pageData) notFound();
   const { post, rssData, followState, relatedFollowStates } = pageData;
 
   const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/newsletters/${post.postSlug}`;
-  
+
   // Generate consolidated structured data
   const structuredData = generateStructuredData(post, profileUrl, rssData);
 

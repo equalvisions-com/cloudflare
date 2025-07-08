@@ -127,7 +127,9 @@ const Comment = memo<CommentProps>(({
               </div>
               
               <div 
-                ref={(el) => onSetCommentLikeCountRef(comment._id.toString(), el)}
+                ref={el => {
+                  onSetCommentLikeCountRef(comment._id.toString(), el);
+                }}
                 className="leading-none font-semibold text-muted-foreground text-xs hidden"
               >
                 <span>0 Likes</span>
@@ -188,7 +190,6 @@ const Comment = memo<CommentProps>(({
           </div>
         </div>
       </div>
-      
       {hasReplies && areRepliesExpanded && (
         <div style={{ paddingLeft: '44px' }}>
           {(comment as CommentWithReplies).replies.map(reply => (

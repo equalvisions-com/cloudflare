@@ -6,7 +6,7 @@ import { storeSearchData, clearSearchData, isSessionStorageAvailable } from "@/l
  * Reusable across components that need dropdown/modal behavior
  */
 export const useOutsideClick = (
-  ref: React.RefObject<HTMLElement>, 
+  ref: React.RefObject<HTMLElement | null>, 
   callback: () => void,
   isActive: boolean = true
 ) => {

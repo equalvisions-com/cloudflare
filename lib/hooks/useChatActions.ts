@@ -56,7 +56,7 @@ export const useChatActions = () => {
   }, [setActiveTouchButton]);
 
   // Selection state management
-  const saveSelectionState = useCallback((textareaRef: React.RefObject<HTMLTextAreaElement>) => {
+  const saveSelectionState = useCallback((textareaRef: React.RefObject<HTMLTextAreaElement | null>) => {
     if (textareaRef.current) {
       selectionStateRef.current = {
         start: textareaRef.current.selectionStart,
@@ -65,7 +65,7 @@ export const useChatActions = () => {
     }
   }, []);
 
-  const restoreSelectionState = useCallback((textareaRef: React.RefObject<HTMLTextAreaElement>) => {
+  const restoreSelectionState = useCallback((textareaRef: React.RefObject<HTMLTextAreaElement | null>) => {
     if (textareaRef.current && selectionStateRef.current.start !== null && selectionStateRef.current.end !== null) {
       textareaRef.current.setSelectionRange(
         selectionStateRef.current.start,
@@ -77,8 +77,8 @@ export const useChatActions = () => {
   // Input container click handler
   const handleInputContainerClick = useCallback((
     e: React.MouseEvent<HTMLDivElement>,
-    inputContainerRef: React.RefObject<HTMLDivElement>,
-    textareaRef: React.RefObject<HTMLTextAreaElement>
+    inputContainerRef: React.RefObject<HTMLDivElement | null>,
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>
   ) => {
     if (
       e.target === e.currentTarget ||
@@ -120,7 +120,7 @@ export const useChatActions = () => {
   // Input change handler
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLTextAreaElement>,
-    textareaRef: React.RefObject<HTMLTextAreaElement>,
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>,
     originalHandler: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   ) => {
     const newValue = e.target.value;
@@ -159,7 +159,7 @@ export const useChatActions = () => {
   const resetChat = useCallback((
     messages: any[],
     setMessages: (messages: any[]) => void,
-    textareaRef: React.RefObject<HTMLTextAreaElement>
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>
   ) => {
     if (messages.length > 0) {
       safeVibrate(100);
@@ -180,7 +180,7 @@ export const useChatActions = () => {
   const handleTopicClick = useCallback((
     title: string,
     subtopic: string,
-    textareaRef: React.RefObject<HTMLTextAreaElement>,
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>,
     handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   ) => {
     if (textareaRef.current) {

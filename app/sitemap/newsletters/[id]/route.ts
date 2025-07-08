@@ -7,17 +7,15 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50_000
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const siteUrl = process.env.SITE_URL ?? 'https://focusfix.app'
   const pageId = parseInt(params.id)
-  
+
   if (isNaN(pageId) || pageId < 0) {
     return new Response('Invalid page ID', { status: 400 })
   }
-  
+
   try {
     // Get newsletter posts for this specific page
     const newsletters = await fetchQuery(api.sitemap.getPostsByPage, {

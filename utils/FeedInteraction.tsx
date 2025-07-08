@@ -172,7 +172,7 @@ export function useFeedFocusPrevention(isActive = true, containerSelector = '.fe
 
 // Setup intersection observer with standard 1-second delay
 export function useDelayedIntersectionObserver(
-  ref: React.RefObject<HTMLElement>,
+  ref: React.RefObject<HTMLElement | null>,
   callback: () => void,
   options: {
     enabled: boolean;

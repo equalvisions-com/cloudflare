@@ -556,7 +556,7 @@ FeaturedEntry.displayName = 'FeaturedEntry';
 interface FeaturedContentProps {
   paginatedEntries: FeaturedFeedEntryWithData[];
   hasMore: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
   isPending: boolean;
   loadMore: () => void;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;

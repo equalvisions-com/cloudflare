@@ -8,7 +8,6 @@ import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import dynamic from "next/dynamic";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
@@ -17,26 +16,10 @@ import Script from "next/script";
 import type { RootLayoutProps } from "@/lib/types";
 import { cookies } from "next/headers";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { ClientOnlyComponents } from "@/components/ClientOnlyComponents";
 
 // Edge Runtime for optimal performance at scale
 export const runtime = 'edge';
-
-// Dynamically import audio components with ssr disabled
-const AudioProvider = dynamic(
-  () => import("@/components/audio-player/AudioContext").then(mod => mod.AudioProvider),
-  { ssr: false }
-) as React.ComponentType<{ children: React.ReactNode }>;
-
-const PersistentPlayer = dynamic(
-  () => import("@/components/audio-player/PersistentPlayer").then(mod => mod.PersistentPlayer),
-  { ssr: false }
-);
-
-// Dynamically import floating chat button with ssr disabled
-const FloatingChatButton = dynamic(
-  () => import("@/components/FloatingChatButton"),
-  { ssr: false }
-);
 
 // Define viewport export for Next.js App Router
 export const viewport: Viewport = {
@@ -106,7 +89,7 @@ const websiteStructuredData = {
 
 export default async function RootLayout({ children }: RootLayoutProps) {
   // ✅ INSTANT AUTH HINTS: Get immediate hints from server-side cookies (no queries needed)
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const onboardedCookie = cookieStore.get('user_onboarded');
   
   // Check if Convex auth token exists (Convex sets this automatically)
@@ -176,7 +159,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
-              <AudioProvider>
+              <ClientOnlyComponents>
                 <SidebarProvider>
                   <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
                     <p>Something went wrong. Please refresh the page.</p>
@@ -185,16 +168,14 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                       <div className="">
                         {children}
                       </div>
-                      <PersistentPlayer />
                       <MobileDock />
                     </ScrollResetter>
                   </ErrorBoundary>
                 </SidebarProvider>
                 <Toaster />
-              </AudioProvider>
+              </ClientOnlyComponents>
             </ThemeProvider>
           </ConvexClientProvider>
-          <FloatingChatButton />
           <LogClientErrors />
           <AxiomWebVitals />
         </body>
