@@ -136,7 +136,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         url: profileUrl,
         siteName: "FocusFix",
         images: (post.featuredImg && post.featuredImg.trim()) ? [{
-          url: post.featuredImg,
+          url: new URL(post.featuredImg, siteUrl as string).href,
           width: 1200,
           height: 630,
           alt: `${post.title} newsletter cover`,
@@ -155,7 +155,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         card: 'summary_large_image',
         title: `${post.title} | Profile`,
         description,
-        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-newsletter.jpg`],
+        images: (post.featuredImg && post.featuredImg.trim()) ? [new URL(post.featuredImg, siteUrl as string).href] : [`${siteUrl}/og-default-newsletter.jpg`],
         creator: '@focusfix',
         site: '@focusfix',
       },

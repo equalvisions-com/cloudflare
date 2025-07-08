@@ -136,7 +136,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         url: profileUrl,
         siteName: "FocusFix",
         images: (post.featuredImg && post.featuredImg.trim()) ? [{
-          url: post.featuredImg,
+          url: new URL(post.featuredImg, siteUrl as string).href,
           width: 1200,
           height: 630,
           alt: `${post.title} podcast cover`,
@@ -155,7 +155,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
+        images: (post.featuredImg && post.featuredImg.trim()) ? [new URL(post.featuredImg, siteUrl as string).href] : [`${siteUrl}/og-default-podcast.jpg`],
         creator: '@focusfix',
         site: '@focusfix',
       },
