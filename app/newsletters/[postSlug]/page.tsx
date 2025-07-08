@@ -126,11 +126,12 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
     console.log('=== END DEBUG ===');
 
     return {
-      title: `${post.title} | Profile`,
+      title: `${post.title} | Newsletter Profile`,
       description,
       authors: [{ name: post.title }],
       creator: post.title,
       publisher: "FocusFix",
+      metadataBase: siteUrl ? new URL(siteUrl) : undefined,
       robots: {
         index: true,
         follow: true,

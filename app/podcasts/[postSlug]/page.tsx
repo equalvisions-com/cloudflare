@@ -130,6 +130,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       authors: [{ name: post.title }],
       creator: post.title,
       publisher: "FocusFix",
+      metadataBase: siteUrl ? new URL(siteUrl) : undefined,
       robots: {
         index: true,
         follow: true,
