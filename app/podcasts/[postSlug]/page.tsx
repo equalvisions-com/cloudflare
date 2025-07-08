@@ -114,8 +114,15 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
       : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
 
+    // Debug logging to see what's happening with URLs
+    console.log('=== METADATA DEBUG ===');
+    console.log('Original post.featuredImg:', post.featuredImg);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    
     // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
     const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
+    console.log('After getOriginalImageUrl:', openGraphImageUrl);
+    console.log('=== END DEBUG ===');
 
     return {
       title: `${post.title} | Podcast Profile`,
