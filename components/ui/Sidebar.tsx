@@ -131,10 +131,10 @@ const UserMenu = memo(({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="ml-4">
         <DropdownMenuItem asChild>
-          <a href="/settings" className="cursor-pointer flex items-center">
+          <Link href="/settings" className="cursor-pointer flex items-center">
             <Settings className="mr-1 h-4 w-4" />
             Settings
-          </a>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut} className="flex items-center">

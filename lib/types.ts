@@ -2349,6 +2349,12 @@ export interface AudioPlayerState {
   
   // Error state
   error: string | null;
+  
+  // Network resilience state
+  lastKnownGoodTrack: AudioTrack | null;
+  lastKnownDuration: number;
+  lastKnownPosition: number;
+  networkRetryCount: number;
 }
 
 // Audio Player Actions Interface
@@ -2370,6 +2376,12 @@ export interface AudioPlayerActions {
   setVolume: (volume: number) => void;
   setPlaying: (playing: boolean) => void;
   setError: (error: string | null) => void;
+  
+  // Network resilience actions
+  backupCurrentState: () => void;
+  restoreFromBackup: () => void;
+  incrementRetryCount: () => void;
+  resetRetryCount: () => void;
   
   // Utility
   reset: () => void;

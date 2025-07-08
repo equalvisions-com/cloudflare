@@ -7,13 +7,14 @@ import {
   useAudioPlayerSeek,
   useAudioPlayerDuration,
   useAudioPlayerTogglePlayPause,
-  useAudioPlayerHandleSeek
+  useAudioPlayerHandleSeek,
+  useAudioPlayerStore
 } from '@/lib/stores/audioPlayerStore';
 
 interface UseMediaSessionProps {
   onSeekBackward?: () => void;
   onSeekForward?: () => void;
-  seekOffset?: number; // seconds to seek forward/backward
+  seekOffset?: number; // seconds to seek forward/backward (default: 30)
 }
 
 /**
@@ -28,7 +29,7 @@ interface UseMediaSessionProps {
 export const useMediaSession = ({ 
   onSeekBackward, 
   onSeekForward, 
-  seekOffset = 10 
+  seekOffset = 30 
 }: UseMediaSessionProps = {}) => {
   // Get state from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -119,41 +120,45 @@ export const useMediaSession = ({
   }, []);
 
   /**
-   * Update Media Session metadata with improved iOS compatibility
+   * Update Media Session metadata with improved iOS compatibility and network resilience
    */
   const updateMetadata = useCallback(() => {
     if (!('mediaSession' in navigator)) return;
 
     try {
-      if (currentTrack) {
-        const artistName = getArtistName(currentTrack);
-        const imageType = currentTrack.image ? getImageType(currentTrack.image) : 'image/jpeg';
+      // Use backup track if current track is missing but backup exists
+      const { lastKnownGoodTrack } = useAudioPlayerStore.getState();
+      const trackToUse = currentTrack || lastKnownGoodTrack;
+      
+      if (trackToUse) {
+        const artistName = getArtistName(trackToUse);
+        const imageType = trackToUse.image ? getImageType(trackToUse.image) : 'image/jpeg';
         
         // Create artwork array with multiple sizes for better iOS compatibility
-        const artwork = currentTrack.image ? [
+        const artwork = trackToUse.image ? [
           { 
-            src: currentTrack.image, 
+            src: trackToUse.image, 
             sizes: '512x512', 
             type: imageType 
           },
           { 
-            src: currentTrack.image, 
+            src: trackToUse.image, 
             sizes: '256x256', 
             type: imageType 
           },
           { 
-            src: currentTrack.image, 
+            src: trackToUse.image, 
             sizes: '128x128', 
             type: imageType 
           },
           { 
-            src: currentTrack.image, 
+            src: trackToUse.image, 
             sizes: '96x96', 
             type: imageType 
           }
         ] : [];
 
-        const formattedTitle = toTitleCase(currentTrack.title);
+        const formattedTitle = toTitleCase(trackToUse.title);
 
         navigator.mediaSession.metadata = new MediaMetadata({
           title: formattedTitle,
@@ -165,7 +170,23 @@ export const useMediaSession = ({
         navigator.mediaSession.metadata = null;
       }
     } catch (error) {
-      // Silently handle metadata update errors
+      console.warn('Failed to set MediaSession metadata:', error);
+      // Fallback: try setting minimal metadata without artwork
+      try {
+        const { lastKnownGoodTrack } = useAudioPlayerStore.getState();
+        const trackToUse = currentTrack || lastKnownGoodTrack;
+        
+        if (trackToUse) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: toTitleCase(trackToUse.title),
+            artist: getArtistName(trackToUse),
+            album: 'Podcast',
+            artwork: [] // Empty artwork array to prevent errors
+          });
+        }
+      } catch (fallbackError) {
+        console.error('Failed to set fallback MediaSession metadata:', fallbackError);
+      }
     }
   }, [currentTrack, getArtistName, getImageType, toTitleCase]);
 
@@ -184,22 +205,37 @@ export const useMediaSession = ({
   }, [isPlaying]);
 
   /**
-   * Update Media Session position state
+   * Update Media Session position state with network resilience
    */
   const updatePositionState = useCallback(() => {
     if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) return;
 
-    if (duration > 0) {
+    // Use backup duration if current duration is missing
+    const { lastKnownDuration, lastKnownPosition } = useAudioPlayerStore.getState();
+    const durationToUse = duration > 0 ? duration : lastKnownDuration;
+    const seekToUse = seek > 0 ? seek : lastKnownPosition;
+
+    if (durationToUse > 0) {
       try {
         const positionState = {
-          duration: duration,
+          duration: durationToUse,
           playbackRate: 1.0,
-          position: Math.min(seek, duration) // Ensure position doesn't exceed duration
+          position: Math.min(seekToUse, durationToUse) // Ensure position doesn't exceed duration
         };
         
         navigator.mediaSession.setPositionState(positionState);
       } catch (error) {
-        // Silently handle position state update errors
+        console.warn('Failed to set MediaSession position state:', error);
+        // Try again with simplified state
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: durationToUse,
+            playbackRate: 1.0,
+            position: 0 // Safe fallback position
+          });
+        } catch (fallbackError) {
+          console.error('Failed to set fallback MediaSession position state:', fallbackError);
+        }
       }
     }
   }, [duration, seek]);
