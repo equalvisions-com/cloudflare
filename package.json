@@ -9,7 +9,8 @@
     "predev": "convex dev --until-success && node setup.mjs --once && convex dashboard",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "install:force": "npm install --legacy-peer-deps"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.14",
@@ -90,7 +91,11 @@
   },
   "overrides": {
     "@types/react": "19.1.8",
-    "@types/react-dom": "19.1.6"
+    "@types/react-dom": "19.1.6",
+    "@convex-dev/r2": {
+      "react": "^19.1.0",
+      "react-dom": "^19.1.0"
+    }
   },
   "engines": {
     "node": ">=20.0.0"
