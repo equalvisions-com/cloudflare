@@ -11,6 +11,8 @@ interface ShareButtonProps {
   shareUrl?: string;
   children?: React.ReactNode;
   displayName?: string; // Optional display name for the share title
+  shareText?: string;
+  imageUrl?: string;
 }
 
 export const ShareButton = React.memo(function ShareButton({ 
@@ -18,7 +20,9 @@ export const ShareButton = React.memo(function ShareButton({
   className, 
   shareUrl, 
   children,
-  displayName
+  displayName,
+  shareText,
+  imageUrl
 }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false);
 
@@ -37,24 +41,43 @@ export const ShareButton = React.memo(function ShareButton({
     try {
       const url = shareUrl || window.location.href;
       const shareTitle = displayName ? `${displayName} on FocusFix` : "Check out this post on FocusFix";
+      
+      const shareData: ShareData = {
+        title: shareTitle,
+        url: url,
+        text: shareText
+      };
 
-      // Try native share API first (works on mobile and some desktop like macOS)
+      if (imageUrl) {
+        try {
+          const response = await fetch(imageUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const fileExtension = blob.type.split('/')[1] || 'png';
+            const fileName = `image.${fileExtension}`;
+            const file = new File([blob], fileName, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              shareData.files = [file];
+            }
+          }
+        } catch (error) {
+          console.error("Could not fetch image for sharing:", error);
+          // Fail silently, share will proceed without the image
+        }
+      }
+
       if (navigator.share) {
-        await navigator.share({
-          title: shareTitle,
-          url: url,
-        });
+        await navigator.share(shareData);
       } else {
-        // Fallback to clipboard
         await navigator.clipboard.writeText(url);
       }
     } catch (error) {
       // Silently handle errors
-      
     } finally {
       setIsSharing(false);
     }
-  }, [shareUrl, isSharing, onClick, displayName]);
+  }, [shareUrl, isSharing, onClick, displayName, shareText, imageUrl]);
 
   return (
     <Button

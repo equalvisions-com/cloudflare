@@ -316,6 +316,10 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
 
 // Simplified PostContent component for detailed feed info
 function PostContent({ post, followState, rssData }: PostContentProps) {
+  const imageUrl = post.featuredImg 
+    ? cloudflareLoader({ src: post.featuredImg, width: 1200, quality: 85 })
+    : undefined;
+
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
       <div className="flex flex-col w-full" style={{ gap: '16px' }}>
@@ -375,7 +379,12 @@ function PostContent({ post, followState, rssData }: PostContentProps) {
             className="w-full rounded-lg"
           />
           
-          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
+          <ShareButton 
+            className="w-full py-2 rounded-lg" 
+            displayName={post.title} 
+            shareText={post.body}
+            imageUrl={imageUrl}
+          />
         </div>
       </div>
     </div>
