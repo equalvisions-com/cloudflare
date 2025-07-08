@@ -14,7 +14,7 @@ import {
 interface UseMediaSessionProps {
   onSeekBackward?: () => void;
   onSeekForward?: () => void;
-  seekOffset?: number; // seconds to seek forward/backward (default: 30)
+  seekOffset?: number; // seconds to seek forward/backward (default: 10 - iOS Safari hardcoded)
 }
 
 /**
@@ -29,7 +29,7 @@ interface UseMediaSessionProps {
 export const useMediaSession = ({ 
   onSeekBackward, 
   onSeekForward, 
-  seekOffset = 30 
+  seekOffset = 10 
 }: UseMediaSessionProps = {}) => {
   // Get state from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -213,8 +213,10 @@ export const useMediaSession = ({
     // Use backup duration if current duration is missing
     const { lastKnownDuration, lastKnownPosition } = useAudioPlayerStore.getState();
     const durationToUse = duration > 0 ? duration : lastKnownDuration;
-    const seekToUse = seek > 0 ? seek : lastKnownPosition;
+    const seekToUse = seek >= 0 ? seek : lastKnownPosition; // Allow seek = 0
 
+    // Always set position state if we have any duration (current or backup)
+    // This prevents iOS from switching to prev/next buttons during track transitions
     if (durationToUse > 0) {
       try {
         const positionState = {
@@ -236,6 +238,18 @@ export const useMediaSession = ({
         } catch (fallbackError) {
           console.error('Failed to set fallback MediaSession position state:', fallbackError);
         }
+      }
+    } else {
+      // Even without duration, set a minimal position state to maintain seek buttons
+      // This prevents switching to prev/next buttons during initial loading
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: 1, // Minimal duration to enable seek buttons
+          playbackRate: 1.0,
+          position: 0
+        });
+      } catch (error) {
+        console.warn('Failed to set minimal MediaSession position state:', error);
       }
     }
   }, [duration, seek]);

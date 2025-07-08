@@ -129,8 +129,9 @@ export const useAudioLifecycle = ({
           resetRetryCount(); // Reset retry count on successful load
           
           // Auto-play if the store indicates this track should be playing
-          // This handles track switching where the new track should auto-play
-          if (isPlaying && howlerRef.current && !howlerRef.current.playing()) {
+          // Get fresh state from store to avoid stale closure values
+          const currentState = useAudioPlayerStore.getState();
+          if (currentState.isPlaying && howlerRef.current && !howlerRef.current.playing()) {
             howlerRef.current.play();
           }
           

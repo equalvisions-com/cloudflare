@@ -87,7 +87,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     onSeekForward: () => {
       // Optional: Add custom seek forward logic  
     },
-    seekOffset: 30 // 30 seconds forward/backward
+    seekOffset: 10 // 10 seconds forward/backward (iOS Safari hardcoded limit)
   });
 
   // Adapter function to match the old API
