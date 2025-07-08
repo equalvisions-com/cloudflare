@@ -52,3 +52,59 @@ export default function cloudflareLoader({ src, width, quality }: LoaderProps) {
   /** 4. Return the single, final Cloudflare-resize URL. */
   return `/cdn-cgi/image/${opts}/${src}`;
 }
+
+/**
+ * Generate Open Graph optimized image URL using Cloudflare Image Resizing
+ * Specifically for social media previews (1200x630 optimal dimensions)
+ */
+export function generateOpenGraphImageUrl(src: string, siteUrl: string): string {
+  // In development, return the source as-is
+  if (process.env.NODE_ENV === 'development') {
+    return src;
+  }
+
+  // If it's already a Cloudflare-transformed URL, unwrap it first
+  if (src.includes('/cdn-cgi/image/')) {
+    const u = new URL(src);
+    u.pathname = u.pathname.replace(/^\/cdn-cgi\/image\/[^/]+/, '');
+    src = u.toString();
+  }
+
+  // Open Graph optimized settings
+  const opts = [
+    'width=1200',
+    'height=630',
+    'quality=90',
+    'format=auto',
+    'fit=cover',  // Cover ensures good aspect ratio for OG
+    'metadata=none'
+  ].join(',');
+
+  // Return absolute URL with Cloudflare transformation
+  return `${siteUrl}/cdn-cgi/image/${opts}/${src}`;
+}
+
+/**
+ * Extract the original image URL from potentially Cloudflare-transformed URLs
+ * This ensures Open Graph metadata always uses the original external URLs
+ */
+export function getOriginalImageUrl(src: string | undefined): string | undefined {
+  if (!src) return undefined;
+
+  // If it's already a Cloudflare-transformed URL, extract the original
+  if (src.includes('/cdn-cgi/image/')) {
+    // Pattern: /cdn-cgi/image/width=516,quality=85.../https://external-url.com/image.jpg
+    const match = src.match(/\/cdn-cgi\/image\/[^/]+\/(.+)$/);
+    if (match) {
+      return match[1]; // Return the original URL part
+    }
+  }
+
+  // If it's already an external URL, return as-is
+  if (src.startsWith('http')) {
+    return src;
+  }
+
+  // If it's a relative URL, it shouldn't be transformed by our loader anyway
+  return src;
+}

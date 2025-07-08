@@ -15,6 +15,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
+import { getOriginalImageUrl } from "@/lib/cloudflare-loader";
 import type { 
   NewsletterPageProps, 
   NewsletterPageData, 
@@ -113,6 +114,9 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
       ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
       : `Read ${post.title} newsletter articles. ${post.category} content with ${post.followerCount} followers.`;
 
+    // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
+    const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
+
     return {
       title: `${post.title} | Profile`,
       description,
@@ -135,8 +139,8 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: post.featuredImg ? [{
-          url: post.featuredImg,
+        images: openGraphImageUrl ? [{
+          url: openGraphImageUrl,
           width: 1200,
           height: 630,
           alt: `${post.title} newsletter cover`,
@@ -148,7 +152,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         card: 'summary_large_image',
         title: `${post.title} | Profile`,
         description,
-        images: post.featuredImg ? [post.featuredImg] : [],
+        images: openGraphImageUrl ? [openGraphImageUrl] : [],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -182,7 +186,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
 }
 
 // Helper function to generate consolidated structured data
-function generateStructuredData(post: NewsletterPost, profileUrl: string, rssData: any) {
+function generateStructuredData(post: NewsletterPost, profileUrl: string, rssData: any, openGraphImageUrl?: string) {
   const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
@@ -239,9 +243,9 @@ function generateStructuredData(post: NewsletterPost, profileUrl: string, rssDat
         "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
-        "logo": post.featuredImg ? {
+        "logo": openGraphImageUrl ? {
           "@type": "ImageObject",
-          "url": post.featuredImg,
+          "url": openGraphImageUrl,
           "width": 1200,
           "height": 630
         } : undefined,
@@ -370,8 +374,11 @@ export default async function PostPage({ params }: NewsletterPageProps) {
   const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/newsletters/${post.postSlug}`;
   
+  // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
+  const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
+  
   // Generate consolidated structured data
-  const structuredData = generateStructuredData(post, profileUrl, rssData);
+  const structuredData = generateStructuredData(post, profileUrl, rssData, openGraphImageUrl);
 
   return (
     <>
