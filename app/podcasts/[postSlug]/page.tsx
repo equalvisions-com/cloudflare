@@ -15,6 +15,7 @@ import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import cloudflareLoader from "@/lib/cloudflare-loader";
 import type { 
   PostPageProps, 
   PostPageData, 
@@ -107,6 +108,9 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
     const siteUrl = process.env.SITE_URL;
     const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
+    const ogImageUrl = post.featuredImg 
+      ? new URL(cloudflareLoader({ src: post.featuredImg, width: 1200, quality: 85 }), siteUrl).href
+      : undefined;
     
     // Enhanced description
     const description = post.body 
@@ -135,19 +139,12 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: (post.featuredImg && post.featuredImg.trim()) ? [{
-          url: new URL(post.featuredImg, siteUrl as string).href,
+        images: ogImageUrl ? [{
+          url: ogImageUrl,
           width: 1200,
           height: 630,
           alt: `${post.title} podcast cover`,
-          type: 'image/jpeg',
-        }] : [{
-          url: `${siteUrl}/og-default-podcast.jpg`,
-          width: 1200,
-          height: 630,
-          alt: 'FocusFix Podcast',
-          type: 'image/jpeg',
-        }],
+        }] : undefined,
         locale: 'en_US',
         type: 'website',
       },
@@ -155,7 +152,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: (post.featuredImg && post.featuredImg.trim()) ? [new URL(post.featuredImg, siteUrl as string).href] : [`${siteUrl}/og-default-podcast.jpg`],
+        images: ogImageUrl ? [ogImageUrl] : undefined,
         creator: '@focusfix',
         site: '@focusfix',
       },
