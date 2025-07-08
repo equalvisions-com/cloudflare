@@ -14,18 +14,6 @@ export const unregisterSeekCallback = () => {
   seekCallback = null;
 };
 
-// Production resource limits
-const RESOURCE_LIMITS = {
-  MAX_RETRY_COUNT: 3,
-  MAX_TRACK_HISTORY: 10, // Prevent memory leaks from track history
-  SEEK_UPDATE_INTERVAL: 100, // ms
-  BACKUP_INTERVAL: 5000, // ms
-  MIN_TRACK_SWITCH_DELAY: 1000, // Prevent rapid track switching abuse
-} as const;
-
-// Simple rate limiting for track switching
-let lastTrackSwitchTime = 0;
-
 // Initial state factory function for better organization
 const createInitialState = () => ({
   // Playback state
@@ -41,12 +29,6 @@ const createInitialState = () => ({
   
   // Error state
   error: null as string | null,
-  
-  // Network resilience state
-  lastKnownGoodTrack: null as AudioTrack | null,
-  lastKnownDuration: 0,
-  lastKnownPosition: 0,
-  networkRetryCount: 0,
 });
 
 export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
@@ -57,13 +39,6 @@ export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
   playTrack: (src: string, title: string, image?: string, creator?: string) => {
     const { currentTrack, isPlaying } = get();
     const newTrack: AudioTrack = { src, title, image, creator };
-    
-    // Simple rate limiting to prevent abuse
-    const now = Date.now();
-    if (currentTrack && currentTrack.src !== src && now - lastTrackSwitchTime < RESOURCE_LIMITS.MIN_TRACK_SWITCH_DELAY) {
-      return; // Ignore rapid track switches
-    }
-    lastTrackSwitchTime = now;
     
     // Check if this is the same track that's already loaded
     if (currentTrack && currentTrack.src === src) {
@@ -78,12 +53,9 @@ export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
     // Different track - load new track and reset position
     set({ 
       currentTrack: newTrack,
-      lastKnownGoodTrack: newTrack, // Backup the complete track info
       isLoading: true,
       isPlaying: true, // Always auto-play when switching tracks
       seek: 0, // Reset seek position for new track
-      lastKnownPosition: 0,
-      networkRetryCount: 0,
       error: null 
     });
   },
@@ -166,39 +138,6 @@ export const useAudioPlayerStore = create<AudioPlayerStore>((set, get) => ({
     set({ error });
   },
 
-  // Network resilience actions
-  backupCurrentState: () => {
-    const { currentTrack, duration, seek } = get();
-    if (currentTrack) {
-      set({ 
-        lastKnownGoodTrack: currentTrack,
-        lastKnownDuration: duration,
-        lastKnownPosition: seek 
-      });
-    }
-  },
-
-  restoreFromBackup: () => {
-    const { lastKnownGoodTrack, lastKnownDuration, lastKnownPosition } = get();
-    if (lastKnownGoodTrack) {
-      set({ 
-        currentTrack: lastKnownGoodTrack,
-        duration: lastKnownDuration,
-        seek: lastKnownPosition,
-        error: null
-      });
-    }
-  },
-
-  incrementRetryCount: () => {
-    const { networkRetryCount } = get();
-    set({ networkRetryCount: networkRetryCount + 1 });
-  },
-
-  resetRetryCount: () => {
-    set({ networkRetryCount: 0 });
-  },
-
   // Utility actions
   reset: () => {
     set(createInitialState());
@@ -228,10 +167,4 @@ export const useAudioPlayerSetSeek = () => useAudioPlayerStore((state) => state.
 export const useAudioPlayerSetVolume = () => useAudioPlayerStore((state) => state.setVolume);
 export const useAudioPlayerSetPlaying = () => useAudioPlayerStore((state) => state.setPlaying);
 export const useAudioPlayerSetError = () => useAudioPlayerStore((state) => state.setError);
-export const useAudioPlayerBackupCurrentState = () => useAudioPlayerStore((state) => state.backupCurrentState);
-export const useAudioPlayerRestoreFromBackup = () => useAudioPlayerStore((state) => state.restoreFromBackup);
-export const useAudioPlayerIncrementRetryCount = () => useAudioPlayerStore((state) => state.incrementRetryCount);
-export const useAudioPlayerResetRetryCount = () => useAudioPlayerStore((state) => state.resetRetryCount);
-export const useAudioPlayerNetworkRetryCount = () => useAudioPlayerStore((state) => state.networkRetryCount);
-export const useAudioPlayerLastKnownGoodTrack = () => useAudioPlayerStore((state) => state.lastKnownGoodTrack);
 export const useAudioPlayerReset = () => useAudioPlayerStore((state) => state.reset); 

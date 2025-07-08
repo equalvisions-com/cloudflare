@@ -117,11 +117,7 @@ const AudioPlayerComponent = ({ src, title }: AudioPlayerProps) => {
   }
 
   return (
-    <div 
-      className="w-full max-w-md rounded-lg border bg-card p-4 shadow-sm"
-      role="region"
-      aria-label={`Audio player: ${title ? toTitleCase(title) : 'Audio Track'}`}
-    >
+    <div className="w-full max-w-md rounded-lg border bg-card p-4 shadow-sm">
       {title && (
         <div className="mb-4 text-sm font-medium text-muted-foreground">
           {toTitleCase(title)}

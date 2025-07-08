@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Howl } from 'howler';
 import { 
   useAudioPlayerSetLoading,
@@ -8,7 +8,6 @@ import {
   useAudioPlayerSetError,
   useAudioPlayerIsPlaying,
   useAudioPlayerIsLoading,
-  useAudioPlayerStore,
   registerSeekCallback,
   unregisterSeekCallback
 } from '@/lib/stores/audioPlayerStore';
@@ -38,6 +37,9 @@ export const useAudioLifecycle = ({
   const howlerRef = useRef<Howl | null>(null);
   const seekIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentSrcRef = useRef<string>('');
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  const baseRetryDelay = 1000; // 1 second
   
   // Get individual actions to prevent object recreation
   const setLoading = useAudioPlayerSetLoading();
@@ -96,7 +98,7 @@ export const useAudioLifecycle = ({
   }, [setSeek]);
 
   /**
-   * Initialize Howler instance with proper error handling and network resilience
+   * Initialize Howler instance with proper error handling
    */
   const initializeHowler = useCallback((audioSrc: string) => {
     // SSR safety check
@@ -113,33 +115,24 @@ export const useAudioLifecycle = ({
     // Update current src reference
     currentSrcRef.current = audioSrc;
 
-    // Get network resilience methods from store
-    const { backupCurrentState, restoreFromBackup, incrementRetryCount, resetRetryCount, networkRetryCount } = useAudioPlayerStore.getState();
-
     try {
       howlerRef.current = new Howl({
         src: [audioSrc],
         html5: true,
-        preload: false, // Don't preload - load on demand only
         onload: () => {
-          // Backup state when successfully loaded
-          backupCurrentState();
           setLoading(false);
           setDuration(howlerRef.current?.duration() || 0);
-          resetRetryCount(); // Reset retry count on successful load
+          setRetryCount(0); // Reset retry count on successful load
           
           // Auto-play if the store indicates this track should be playing
-          // Get fresh state from store to avoid stale closure values
-          const currentState = useAudioPlayerStore.getState();
-          if (currentState.isPlaying && howlerRef.current && !howlerRef.current.playing()) {
+          // This handles track switching where the new track should auto-play
+          if (isPlaying && howlerRef.current && !howlerRef.current.playing()) {
             howlerRef.current.play();
           }
           
           onLoad?.();
         },
         onplay: () => {
-          // Backup state when playback starts successfully
-          backupCurrentState();
           setPlaying(true);
           // Update seek position immediately when playback starts
           updateSeekPosition();
@@ -160,58 +153,43 @@ export const useAudioLifecycle = ({
           onEnd?.();
         },
         onloaderror: (id, error) => {
-          console.error('Audio load error:', error);
-          incrementRetryCount();
-          
-          // Try to restore from backup if available and retry count is low
-          const currentRetryCount = useAudioPlayerStore.getState().networkRetryCount;
-          if (currentRetryCount < 3) {
-            console.log('Attempting to restore from backup state...');
-            restoreFromBackup();
-            // Retry after a brief delay with exponential backoff
-            setTimeout(() => {
-              const currentTrack = useAudioPlayerStore.getState().currentTrack;
-              if (currentTrack?.src) {
-                initializeHowler(currentTrack.src);
-              }
-            }, 1000 * (currentRetryCount + 1));
-          } else {
-            const errorMessage = `Failed to load audio after ${currentRetryCount} retries: ${error}`;
-            setError(errorMessage);
-            setLoading(false);
-            onError?.(new Error(errorMessage));
-          }
+          // Silently fail on load error.
+          setError(null);
+          setLoading(false);
+          setPlaying(false);
+          onError?.(new Error(`Failed to load audio: ${error}`));
         },
         onplayerror: (id, error) => {
-          console.error('Audio play error:', error);
-          incrementRetryCount();
-          
-          // Try to restore from backup if available and retry count is low
-          const currentRetryCount = useAudioPlayerStore.getState().networkRetryCount;
-          if (currentRetryCount < 3) {
-            console.log('Attempting to restore from backup state...');
-            restoreFromBackup();
-            // Brief pause before retry
+          // Don't set the main error state here to avoid user-facing messages.
+          // The retry logic will handle it.
+          setPlaying(false);
+
+          if (retryCount < maxRetries) {
+            setLoading(true);
+            const retryDelay = baseRetryDelay * Math.pow(2, retryCount);
             setTimeout(() => {
+              setRetryCount(prev => prev + 1);
               if (howlerRef.current) {
-                howlerRef.current.play();
+                howlerRef.current.load();
               }
-            }, 500 * (currentRetryCount + 1));
+            }, retryDelay);
           } else {
-            const errorMessage = `Playback error after ${currentRetryCount} retries: ${error}`;
-            setError(errorMessage);
-            setPlaying(false);
-            onError?.(new Error(errorMessage));
+            // Silently fail after max retries.
+            // Player will appear paused. User can try again.
+            setError(null);
+            setLoading(false);
           }
+          onError?.(new Error(`Playback error: ${error}`));
         }
       });
     } catch (error) {
-      const errorMessage = `Failed to create Howl instance: ${error}`;
-      setError(errorMessage);
+      // Silently fail on instance creation error.
+      setError(null);
       setLoading(false);
-      onError?.(new Error(errorMessage));
+      setPlaying(false);
+      onError?.(new Error(`Failed to create Howl instance: ${error}`));
     }
-  }, [cleanupHowler, setLoading, setDuration, setPlaying, setSeek, setError, isPlaying, onLoad, onPlay, onPause, onStop, onEnd, onError]);
+  }, [cleanupHowler, setLoading, setDuration, setPlaying, setSeek, setError, isPlaying, onLoad, onPlay, onPause, onStop, onEnd, onError, retryCount]);
 
   /**
    * Update seek position from Howler
@@ -253,7 +231,7 @@ export const useAudioLifecycle = ({
         cleanupHowler();
       }
     };
-  }, [src]); // Simplified dependencies to prevent infinite loop
+  }, [src]);
 
   // Sync Howler playback with Zustand store state
   useEffect(() => {
@@ -270,7 +248,7 @@ export const useAudioLifecycle = ({
     }
   }, [isPlaying, playAudio, pauseAudio]);
 
-  // Set up seek position updates and periodic state backup - runs when playing state changes
+  // Set up seek position updates - runs when playing state changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -282,17 +260,8 @@ export const useAudioLifecycle = ({
     
     // Only set up interval when we're playing AND Howler is loaded (not loading)
     if (isPlaying && howlerRef.current && !isLoading) {
-      let backupCounter = 0;
       seekIntervalRef.current = setInterval(() => {
         updateSeekPosition();
-        
-        // Backup state every 5 seconds (every 50 updates at 100ms interval)
-        backupCounter++;
-        if (backupCounter >= 50) {
-          const { backupCurrentState } = useAudioPlayerStore.getState();
-          backupCurrentState();
-          backupCounter = 0;
-        }
       }, 100); // Update more frequently for smoother progress
     }
     
