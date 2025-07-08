@@ -967,9 +967,9 @@ export interface UserLikesRSSEntry {
 
 // Post page types for podcast/newsletter post-slug pages
 export interface PostPageProps {
-  params: {
+  params: Promise<{
     postSlug: string;
-  };
+  }>;
 }
 
 export interface PostWithFollowerCount {
@@ -1132,9 +1132,9 @@ export interface PostPageRSSItem {
 
 // Newsletter page types (centralized from app/newsletters/[postSlug]/)
 export interface NewsletterPageProps {
-  params: {
+  params: Promise<{
     postSlug: string;
-  };
+  }>;
 }
 
 export interface NewsletterPost extends Doc<"posts"> {
