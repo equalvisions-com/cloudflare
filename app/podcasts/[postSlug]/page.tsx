@@ -15,7 +15,6 @@ import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import cloudflareLoader from "@/lib/cloudflare-loader";
 import type { 
   PostPageProps, 
   PostPageData, 
@@ -108,9 +107,6 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
     const siteUrl = process.env.SITE_URL;
     const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
-    const ogImageUrl = post.featuredImg 
-      ? new URL(cloudflareLoader({ src: post.featuredImg, width: 1200, quality: 85 }), siteUrl).href
-      : undefined;
     
     // Enhanced description
     const description = post.body 
@@ -139,12 +135,12 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: ogImageUrl ? [{
-          url: ogImageUrl,
+        images: post.featuredImg ? [{
+          url: post.featuredImg,
           width: 1200,
           height: 630,
           alt: `${post.title} podcast cover`,
-        }] : undefined,
+        }] : [],
         locale: 'en_US',
         type: 'website',
       },
@@ -152,7 +148,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: ogImageUrl ? [ogImageUrl] : undefined,
+        images: post.featuredImg ? [post.featuredImg] : [],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -243,7 +239,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
-        "logo": (post.featuredImg && post.featuredImg.trim()) ? {
+        "logo": post.featuredImg ? {
           "@type": "ImageObject",
           "url": post.featuredImg,
           "width": 1200,
@@ -276,7 +272,7 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "url": profileUrl,
         "description": description,
         "inLanguage": "en",
-        "image": (post.featuredImg && post.featuredImg.trim()) ? {
+        "image": post.featuredImg ? {
           "@type": "ImageObject",
           "url": post.featuredImg,
           "width": 1200,
@@ -316,10 +312,6 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
 
 // Simplified PostContent component for detailed feed info
 function PostContent({ post, followState, rssData }: PostContentProps) {
-  const imageUrl = post.featuredImg 
-    ? cloudflareLoader({ src: post.featuredImg, width: 1200, quality: 85 })
-    : undefined;
-
   return (
     <div className="max-w-4xl mx-auto p-4 border-b">
       <div className="flex flex-col w-full" style={{ gap: '16px' }}>
@@ -379,12 +371,7 @@ function PostContent({ post, followState, rssData }: PostContentProps) {
             className="w-full rounded-lg"
           />
           
-          <ShareButton 
-            className="w-full py-2 rounded-lg" 
-            displayName={post.title} 
-            shareText={post.body}
-            imageUrl={imageUrl}
-          />
+          <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
         </div>
       </div>
     </div>
