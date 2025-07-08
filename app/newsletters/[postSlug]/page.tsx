@@ -119,6 +119,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
     console.log('Original post.featuredImg:', post.featuredImg);
     console.log('NODE_ENV:', process.env.NODE_ENV);
     
+    
     // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
     const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
     console.log('After getOriginalImageUrl:', openGraphImageUrl);
