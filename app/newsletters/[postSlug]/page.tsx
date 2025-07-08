@@ -15,7 +15,6 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
-import { getOriginalImageUrl } from "@/lib/cloudflare-loader";
 import type { 
   NewsletterPageProps, 
   NewsletterPageData, 
@@ -114,24 +113,12 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
       ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
       : `Read ${post.title} newsletter articles. ${post.category} content with ${post.followerCount} followers.`;
 
-    // Debug logging to see what's happening with URLs
-    console.log('=== METADATA DEBUG (NEWSLETTERS) ===');
-    console.log('Original post.featuredImg:', post.featuredImg);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    
-    
-    // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
-    const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
-    console.log('After getOriginalImageUrl:', openGraphImageUrl);
-    console.log('=== END DEBUG ===');
-
     return {
-      title: `${post.title} | Newsletter Profile`,
+      title: `${post.title} | Profile`,
       description,
       authors: [{ name: post.title }],
       creator: post.title,
       publisher: "FocusFix",
-      metadataBase: siteUrl ? new URL(siteUrl) : undefined,
       robots: {
         index: true,
         follow: true,
@@ -148,12 +135,19 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: openGraphImageUrl ? [{
-          url: openGraphImageUrl,
+        images: (post.featuredImg && post.featuredImg.trim()) ? [{
+          url: post.featuredImg,
           width: 1200,
           height: 630,
           alt: `${post.title} newsletter cover`,
-        }] : [],
+          type: 'image/jpeg',
+        }] : [{
+          url: `${siteUrl}/og-default-newsletter.jpg`,
+          width: 1200,
+          height: 630,
+          alt: 'FocusFix Newsletter',
+          type: 'image/jpeg',
+        }],
         locale: 'en_US',
         type: 'website',
       },
@@ -161,7 +155,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
         card: 'summary_large_image',
         title: `${post.title} | Profile`,
         description,
-        images: openGraphImageUrl ? [openGraphImageUrl] : [],
+        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-newsletter.jpg`],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -195,7 +189,7 @@ export async function generateMetadata({ params }: NewsletterPageProps): Promise
 }
 
 // Helper function to generate consolidated structured data
-function generateStructuredData(post: NewsletterPost, profileUrl: string, rssData: any, openGraphImageUrl?: string) {
+function generateStructuredData(post: NewsletterPost, profileUrl: string, rssData: any) {
   const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
@@ -252,9 +246,9 @@ function generateStructuredData(post: NewsletterPost, profileUrl: string, rssDat
         "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
-        "logo": openGraphImageUrl ? {
+        "logo": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
-          "url": openGraphImageUrl,
+          "url": post.featuredImg,
           "width": 1200,
           "height": 630
         } : undefined,
@@ -383,11 +377,8 @@ export default async function PostPage({ params }: NewsletterPageProps) {
   const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/newsletters/${post.postSlug}`;
   
-  // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
-  const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
-  
   // Generate consolidated structured data
-  const structuredData = generateStructuredData(post, profileUrl, rssData, openGraphImageUrl);
+  const structuredData = generateStructuredData(post, profileUrl, rssData);
 
   return (
     <>

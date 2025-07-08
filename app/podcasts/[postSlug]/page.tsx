@@ -15,7 +15,6 @@ import { PostPageClientScope } from "./PostPageClientScope";
 import { PostSearchHeader } from "./PostHeaderClient";
 import { PostSearchProvider } from "./PostSearchContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import { getOriginalImageUrl } from "@/lib/cloudflare-loader";
 import type { 
   PostPageProps, 
   PostPageData, 
@@ -114,23 +113,12 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
       : `Listen to ${post.title} podcast episodes. ${post.category} content with ${post.followerCount} followers.`;
 
-    // Debug logging to see what's happening with URLs
-    console.log('=== METADATA DEBUG ===');
-    console.log('Original post.featuredImg:', post.featuredImg);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    
-    // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
-    const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
-    console.log('After getOriginalImageUrl:', openGraphImageUrl);
-    console.log('=== END DEBUG ===');
-
     return {
       title: `${post.title} | Podcast Profile`,
       description,
       authors: [{ name: post.title }],
       creator: post.title,
       publisher: "FocusFix",
-      metadataBase: siteUrl ? new URL(siteUrl) : undefined,
       robots: {
         index: true,
         follow: true,
@@ -147,12 +135,19 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         description,
         url: profileUrl,
         siteName: "FocusFix",
-        images: openGraphImageUrl ? [{
-          url: openGraphImageUrl,
+        images: (post.featuredImg && post.featuredImg.trim()) ? [{
+          url: post.featuredImg,
           width: 1200,
           height: 630,
           alt: `${post.title} podcast cover`,
-        }] : [],
+          type: 'image/jpeg',
+        }] : [{
+          url: `${siteUrl}/og-default-podcast.jpg`,
+          width: 1200,
+          height: 630,
+          alt: 'FocusFix Podcast',
+          type: 'image/jpeg',
+        }],
         locale: 'en_US',
         type: 'website',
       },
@@ -160,7 +155,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
         card: 'summary_large_image',
         title: `${post.title} | Podcast Profile`,
         description,
-        images: openGraphImageUrl ? [openGraphImageUrl] : [],
+        images: (post.featuredImg && post.featuredImg.trim()) ? [post.featuredImg] : [`${siteUrl}/og-default-podcast.jpg`],
         creator: '@focusfix',
         site: '@focusfix',
       },
@@ -194,7 +189,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 }
 
 // Helper function to generate consolidated structured data
-function generateStructuredData(post: PostWithFollowerCount, profileUrl: string, rssData: any, openGraphImageUrl?: string) {
+function generateStructuredData(post: PostWithFollowerCount, profileUrl: string, rssData: any) {
   const siteUrl = process.env.SITE_URL;
   const description = post.body 
     ? `${post.body.replace(/<[^>]*>/g, '').substring(0, 155)}...`
@@ -251,9 +246,9 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "@id": `${profileUrl}#publisher`,
         "name": post.title,
         "url": profileUrl,
-        "logo": openGraphImageUrl ? {
+        "logo": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
-          "url": openGraphImageUrl,
+          "url": post.featuredImg,
           "width": 1200,
           "height": 630
         } : undefined,
@@ -284,9 +279,9 @@ function generateStructuredData(post: PostWithFollowerCount, profileUrl: string,
         "url": profileUrl,
         "description": description,
         "inLanguage": "en",
-        "image": openGraphImageUrl ? {
+        "image": (post.featuredImg && post.featuredImg.trim()) ? {
           "@type": "ImageObject",
-          "url": openGraphImageUrl,
+          "url": post.featuredImg,
           "width": 1200,
           "height": 630
         } : undefined,
@@ -401,11 +396,8 @@ export default async function PostPage({ params }: PostPageProps) {
   const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
   
-  // Ensure Open Graph uses original external URL (bypass Cloudflare transformation)
-  const openGraphImageUrl = getOriginalImageUrl(post.featuredImg);
-  
   // Generate consolidated structured data
-  const structuredData = generateStructuredData(post, profileUrl, rssData, openGraphImageUrl);
+  const structuredData = generateStructuredData(post, profileUrl, rssData);
 
   return (
     <>
