@@ -91,12 +91,21 @@ export function generateOpenGraphImageUrl(src: string, siteUrl: string): string 
 export function getOriginalImageUrl(src: string | undefined): string | undefined {
   if (!src) return undefined;
 
-  // If it's already a Cloudflare-transformed URL, extract the original
+  // If it's a Cloudflare-transformed URL, extract the original
   if (src.includes('/cdn-cgi/image/')) {
-    // Pattern: /cdn-cgi/image/width=516,quality=85.../https://external-url.com/image.jpg
-    const match = src.match(/\/cdn-cgi\/image\/[^/]+\/(.+)$/);
+    // Pattern: https://domain.com/cdn-cgi/image/params/original-url
+    // We need to extract everything after the last /cdn-cgi/image/[params]/
+    const match = src.match(/^(https?:\/\/[^\/]+)\/cdn-cgi\/image\/[^\/]+\/(.+)$/);
     if (match) {
-      return match[1]; // Return the original URL part
+      const [, domain, originalPath] = match;
+      
+      // If the originalPath starts with http, it's a complete URL
+      if (originalPath.startsWith('http')) {
+        return originalPath;
+      }
+      
+      // Otherwise, it's a relative path that needs the domain
+      return `${domain}/${originalPath}`;
     }
   }
 
