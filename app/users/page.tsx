@@ -10,7 +10,6 @@ const PeopleSearchWrapper = dynamicImport(
   () => import("@/components/users/PeopleSearchWrapper").then(mod => ({ default: mod.PeopleSearchWrapper })),
   {
     loading: () => <UsersSearchSkeleton />,
-    ssr: false, // Disable SSR for better performance on client-side interactions
   }
 );
 

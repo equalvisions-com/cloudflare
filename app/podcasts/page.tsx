@@ -14,7 +14,6 @@ const PodcastsWrapper = dynamicImport(
   () => import("@/components/podcasts/PodcastsWrapper").then(mod => ({ default: mod.PodcastsWrapper })),
   {
     loading: () => <PodcastsPageSkeleton />,
-    ssr: false, // Disable SSR for better client-side performance
   }
 );
 

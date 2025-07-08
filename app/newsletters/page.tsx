@@ -14,7 +14,6 @@ const NewslettersWrapper = dynamicImport(
   () => import("@/components/newsletters/NewslettersWrapper").then(mod => ({ default: mod.NewslettersWrapper })),
   {
     loading: () => <NewslettersPageSkeleton />,
-    ssr: false, // Disable SSR for better client-side performance
   }
 );
 
