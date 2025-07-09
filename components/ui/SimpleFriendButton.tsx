@@ -9,31 +9,11 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
-
-type FriendshipStatus = {
-  exists: boolean;
-  status: string | null;
-  direction: string | null;
-  friendshipId: Id<"friends"> | null;
-};
-
-interface ProfileData {
-  name?: string | null;
-  bio?: string | null;
-  profileImage?: string | null;
-  username: string;
-}
-
-interface SimpleFriendButtonProps {
-  username: string;
-  userId: Id<"users">;
-  profileData: ProfileData;
-  initialFriendshipStatus?: FriendshipStatus | null;
-  className?: string;
-  loadingClassName?: string;
-  pendingClassName?: string;
-  friendsClassName?: string;
-}
+import { 
+  SimpleFriendButtonFriendshipStatus, 
+  SimpleFriendButtonProfileData, 
+  SimpleFriendButtonProps 
+} from "@/lib/types";
 
 const SimpleFriendButtonComponent = ({ 
   username, 
@@ -47,7 +27,7 @@ const SimpleFriendButtonComponent = ({
 }: SimpleFriendButtonProps) => {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-  const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
+  const [currentStatus, setCurrentStatus] = useState<SimpleFriendButtonFriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const { toast } = useToast();
   
@@ -91,6 +71,15 @@ const SimpleFriendButtonComponent = ({
       setCurrentStatus(friendshipStatus);
     }
   }, [friendshipStatus]);
+
+  // 🔥 REACTIVE FIX: Update local state when initialFriendshipStatus prop changes
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    if (initialFriendshipStatus) {
+      setCurrentStatus(initialFriendshipStatus);
+    }
+  }, [initialFriendshipStatus]);
 
   // Handle add friend action
   const handleAddFriend = useCallback(async () => {

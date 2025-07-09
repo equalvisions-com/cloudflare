@@ -12,14 +12,8 @@ import { SimpleFriendButton } from '@/components/ui/SimpleFriendButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { Virtuoso } from 'react-virtuoso';
-import { UserProfile } from '@/lib/types';
+import { UserProfile, PeopleDisplayProps } from '@/lib/types';
 import { UsersListSkeleton } from '@/components/users/UsersSkeleton';
-
-interface PeopleDisplayProps {
-  initialUsers?: UserProfile[];
-  className?: string;
-  searchQuery?: string;
-}
 
 // Memoized no users state component
 const NoUsersState = memo<{ 
@@ -123,6 +117,13 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
   const [isInitialLoad, setIsInitialLoad] = useState(initialUsers.length === 0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  
+  // 🔥 CLIENT-SIDE DEDUPLICATION: Track shown user IDs to prevent duplicates
+  const [shownUserIds, setShownUserIds] = useState<Set<string>>(new Set());
+  
+  // Trigger for refreshing random users
+  const [randomRefreshTrigger, setRandomRefreshTrigger] = useState(0);
+  
   const { isAuthenticated } = useConvexAuth();
   
   // Add a ref to track if component is mounted to prevent state updates after unmount
@@ -142,10 +143,40 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     };
   }, []);
 
+  // Query for random users when not searching (with refresh capability)
+  const randomUsersQuery1 = useQuery(
+    api.users.getRandomUsers,
+    !searchQuery && randomRefreshTrigger === 0 ? { limit: 75 } : "skip" // Larger batch for 30 users after deduplication
+  );
+  
+  const randomUsersQuery2 = useQuery(
+    api.users.getRandomUsers,
+    !searchQuery && randomRefreshTrigger === 1 ? { limit: 75 } : "skip" // Larger batch for 30 users after deduplication
+  );
+  
+  const randomUsersQuery3 = useQuery(
+    api.users.getRandomUsers,
+    !searchQuery && randomRefreshTrigger === 2 ? { limit: 75 } : "skip" // Larger batch for 30 users after deduplication
+  );
+  
+  // Get the active random users result
+  const randomUsersResult = randomRefreshTrigger === 0 ? randomUsersQuery1 :
+                           randomRefreshTrigger === 1 ? randomUsersQuery2 :
+                           randomRefreshTrigger === 2 ? randomUsersQuery3 :
+                           randomUsersQuery1; // fallback
+
+  // Effect to trigger random user refresh when needed
+  useEffect(() => {
+    if (!searchQuery && randomRefreshTrigger > 0) {
+      // This will cause the randomUsersResult to re-run
+      // The trigger is just to force a refresh of the random query
+    }
+  }, [randomRefreshTrigger, searchQuery]);
+
   // Memoize query parameters to prevent unnecessary re-renders
   const queryParams = useMemo(() => {
     if (!searchQuery) return "skip";
-    return { query: searchQuery, cursor: nextCursor, limit: 10 };
+    return { query: searchQuery, cursor: nextCursor, limit: 30 };
   }, [searchQuery, nextCursor]);
 
   // Query for users - search results
@@ -154,62 +185,214 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     queryParams
   );
 
+  // 🔥 REACTIVE FIX FOR SEARCH: Get friendship statuses for all users in state
+  // This is needed because search results are paginated, so the main query only has current page
+  const searchUserIds = useMemo(() => 
+    searchQuery ? users.map(user => user.userId).filter(Boolean) : [],
+    [searchQuery, users]
+  );
+
+  const searchFriendshipStatuses = useQuery(
+    api.friends.getBatchFriendshipStatuses,
+    isAuthenticated && searchQuery && searchUserIds.length > 0 ? { userIds: searchUserIds } : "skip"
+  );
+
+  // 🔥 REACTIVE FIX FOR RANDOM USERS: Get friendship statuses for all users when not searching
+  const randomUserIds = useMemo(() => 
+    !searchQuery ? users.map(user => user.userId).filter(Boolean) : [],
+    [searchQuery, users]
+  );
+
+  const randomFriendshipStatuses = useQuery(
+    api.friends.getBatchFriendshipStatuses,
+    isAuthenticated && !searchQuery && randomUserIds.length > 0 ? { userIds: randomUserIds } : "skip"
+  );
+
+  // Update search users with reactive friendship statuses
+  useEffect(() => {
+    if (!isMountedRef.current || !searchQuery || !searchFriendshipStatuses) return;
+    
+    setUsers(prevUsers => 
+      prevUsers.map(user => {
+        const friendshipStatus = searchFriendshipStatuses.find(
+          (status: any) => status.userId === user.userId
+        );
+        
+        if (friendshipStatus && 
+            (!user.friendshipStatus || 
+             user.friendshipStatus.status !== friendshipStatus.status)) {
+          return {
+            ...user,
+            friendshipStatus: {
+              exists: friendshipStatus.exists,
+              status: friendshipStatus.status,
+              direction: friendshipStatus.direction,
+              friendshipId: friendshipStatus.friendshipId
+            }
+          };
+        }
+        
+        return user;
+      })
+    );
+  }, [searchFriendshipStatuses, searchQuery]);
+
+  // Update random users with reactive friendship statuses
+  useEffect(() => {
+    if (!isMountedRef.current || searchQuery || !randomFriendshipStatuses) return;
+    
+    setUsers(prevUsers => 
+      prevUsers.map(user => {
+        const friendshipStatus = randomFriendshipStatuses.find(
+          (status: any) => status.userId === user.userId
+        );
+        
+        if (friendshipStatus && 
+            (!user.friendshipStatus || 
+             user.friendshipStatus.status !== friendshipStatus.status)) {
+          return {
+            ...user,
+            friendshipStatus: {
+              exists: friendshipStatus.exists,
+              status: friendshipStatus.status,
+              direction: friendshipStatus.direction,
+              friendshipId: friendshipStatus.friendshipId
+            }
+          };
+        }
+        
+        return user;
+      })
+    );
+  }, [randomFriendshipStatuses, searchQuery]);
+
+  // Handle initial users (for random users display)
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    
+    // Handle random users (not searching)
+    if (!searchQuery && randomUsersResult?.users) {
+      if (isInitialLoad) {
+        // Initial load - set users and track IDs
+        const newUsers = randomUsersResult.users
+          .filter(user => !shownUserIds.has(user.userId))
+          .slice(0, 30); // Take first 30 for consistent page size
+        
+        setUsers(newUsers);
+        setShownUserIds(prev => {
+          const newSet = new Set(prev);
+          newUsers.forEach(user => newSet.add(user.userId));
+          return newSet;
+        });
+        setIsInitialLoad(false);
+        setIsLoading(false);
+      } else if (isLoading) {
+        // Loading more random users - deduplicate and append
+        const allNewUsers = randomUsersResult.users.filter(user => 
+          !shownUserIds.has(user.userId)
+        );
+        
+        // Take first 30 for consistent page size
+        const newUsers = allNewUsers.slice(0, 30);
+        
+        if (newUsers.length > 0) {
+          setUsers(prev => [...prev, ...newUsers]);
+          setShownUserIds(prev => {
+            const newSet = new Set(prev);
+            newUsers.forEach(user => newSet.add(user.userId));
+            return newSet;
+          });
+        }
+        
+        // 🔥 CONSISTENT PAGE SIZES: Check if we got enough new users
+        if (newUsers.length < 20) {
+          // If we're getting very few new users, we're running out
+          setHasMore(false);
+        }
+        
+        setIsLoading(false);
+      }
+    }
+    
+    // Handle search users (existing logic)
+    if (searchQuery && initialUsers.length > 0) {
+      setUsers(initialUsers);
+      setIsInitialLoad(false);
+    }
+  }, [randomUsersResult, initialUsers, searchQuery, isInitialLoad, isLoading, shownUserIds]);
+
   // Reset state when search query changes
   useEffect(() => {
     if (!isMountedRef.current) return;
     
     if (searchQuery) {
+      // Switching to search mode
       setUsers([]);
       setNextCursor(undefined);
       setIsInitialLoad(true);
       setHasMore(true);
+      setShownUserIds(new Set()); // Reset deduplication for search
+    } else {
+      // Switching back to random mode
+      setUsers([]);
+      setNextCursor(undefined);
+      setIsInitialLoad(true);
+      setHasMore(true);
+      // Keep shownUserIds to continue deduplication in random mode
     }
   }, [searchQuery]);
 
-  // Load users when results come in
+  // Load users when results come in (initial load)
   useEffect(() => {
     if (!isMountedRef.current) return;
     
-    if (usersResult && isInitialLoad && searchQuery) {
-      if (usersResult.users && usersResult.users.length > 0) {
-        setUsers(usersResult.users);
-        setNextCursor(usersResult.nextCursor || undefined);
-        setHasMore(!!usersResult.hasMore);
+    if (usersResult && searchQuery) {
+      if (isInitialLoad) {
+        // Initial load - set the users directly
+        if (usersResult.users && usersResult.users.length > 0) {
+          setUsers(usersResult.users);
+          setNextCursor(usersResult.nextCursor || undefined);
+          setHasMore(!!usersResult.hasMore);
+        }
+        setIsInitialLoad(false);
+        setIsLoading(false);
+      } else if (isLoading) {
+        // Loading more - append to existing users
+        if (usersResult.users && usersResult.users.length > 0) {
+          setUsers(prev => [...prev, ...usersResult.users]);
+          setNextCursor(usersResult.nextCursor || undefined);
+          setHasMore(!!usersResult.hasMore);
+        } else {
+          setHasMore(false);
+        }
+        setIsLoading(false);
       }
-      setIsInitialLoad(false);
-      setIsLoading(false);
+      // Note: Reactive updates are now handled by the separate getBatchFriendshipStatuses query
     }
-  }, [usersResult, isInitialLoad, searchQuery]);
+  }, [usersResult, isInitialLoad, searchQuery, isLoading]);
 
   // Function to load more users
   const loadMore = useCallback(() => {
-    if (!hasMore || isLoading || !nextCursor || !searchQuery || !isMountedRef.current) return;
-    setIsLoading(true);
+    if (!hasMore || isLoading || !isMountedRef.current) return;
+    
+    if (searchQuery) {
+      // Search pagination (existing logic)
+      if (!nextCursor) return;
+      setIsLoading(true);
+    } else {
+      // Random users - cycle through different queries to get fresh results
+      setIsLoading(true);
+      setRandomRefreshTrigger(prev => (prev + 1) % 3); // Cycle 0, 1, 2, 0, 1, 2...
+    }
   }, [hasMore, isLoading, nextCursor, searchQuery]);
 
-  // Load more users when needed
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    if (usersResult && isLoading && !isInitialLoad && searchQuery) {
-      if (usersResult.users && usersResult.users.length > 0) {
-        setUsers(prev => [...prev, ...usersResult.users]);
-        setNextCursor(usersResult.nextCursor || undefined);
-        setHasMore(!!usersResult.hasMore);
-      } else {
-        setHasMore(false);
-      }
-      setIsLoading(false);
-    }
-  }, [usersResult, isLoading, isInitialLoad, searchQuery]);
-  
   // Handle end reached for Virtuoso
   const handleEndReached = useCallback(() => {
     if (hasMore && !isLoading) {
       loadMore();
     }
   }, [hasMore, isLoading, loadMore]);
-  
+
   // Memoized Footer component for Virtuoso
   const Footer = useCallback(() => (
     <div ref={loadMoreRef} className="py-4 text-center">

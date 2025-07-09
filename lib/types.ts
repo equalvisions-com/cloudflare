@@ -4084,3 +4084,44 @@ export interface SwipeableTabsProps {
 // ===================================================================
 // END SWIPEABLE TABS TYPES
 // ===================================================================
+
+// ===================================================================
+// PEOPLE DISPLAY TYPES - Phase 1: Centralized Component Types
+// ===================================================================
+
+// PeopleDisplay Component Props Interface
+export interface PeopleDisplayProps {
+  initialUsers?: UserProfile[];
+  className?: string;
+  searchQuery?: string;
+}
+
+// SimpleFriendButton Component Types
+export type SimpleFriendButtonFriendshipStatus = {
+  exists: boolean;
+  status: string | null;
+  direction: string | null;
+  friendshipId: Id<"friends"> | null;
+};
+
+export interface SimpleFriendButtonProfileData {
+  name?: string | null;
+  bio?: string | null;
+  profileImage?: string | null;
+  username: string;
+}
+
+export interface SimpleFriendButtonProps {
+  username: string;
+  userId: Id<"users">;
+  profileData: SimpleFriendButtonProfileData;
+  initialFriendshipStatus?: SimpleFriendButtonFriendshipStatus | null;
+  className?: string;
+  loadingClassName?: string;
+  pendingClassName?: string;
+  friendsClassName?: string;
+}
+
+// ===================================================================
+// END PEOPLE DISPLAY TYPES
+// ===================================================================

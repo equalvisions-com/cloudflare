@@ -198,19 +198,109 @@ export const getFriendshipStatusByUsername = query({
       throw new Error("User not found");
     }
 
-    const profileUserId = user._id;
-
     // Don't allow self-friending
-    if (profileUserId === userId) {
+    if (user._id === userId) {
       return {
-        exists: false,
+        exists: true,
         status: "self",
         direction: null,
         friendshipId: null,
       };
     }
 
-    return checkFriendshipStatus(ctx, userId, profileUserId);
+    return checkFriendshipStatus(ctx, userId, user._id);
+  },
+});
+
+// Get batch friendship statuses for multiple users (reactive) - SCALABLE VERSION
+export const getBatchFriendshipStatuses = query({
+  args: {
+    userIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const { userIds } = args;
+
+    // Get current authenticated user
+    const currentUserId = await getAuthUserId(ctx);
+    if (currentUserId === null) {
+      // Return empty statuses for unauthenticated users
+      return userIds.map(userId => ({
+        userId,
+        exists: false,
+        status: null,
+        direction: null,
+        friendshipId: null,
+      }));
+    }
+
+    // 🔥 SCALABLE APPROACH: Use indexed queries for efficient batching
+    // Instead of loading ALL friendships, only get the specific ones we need
+    
+    // Get friendships where current user is the requester
+    const sentFriendships = await ctx.db
+      .query("friends")
+      .withIndex("by_requester", q => q.eq("requesterId", currentUserId))
+      .filter(q => q.neq(q.field("status"), "cancelled"))
+      .collect()
+      .then(friendships => friendships.filter(f => userIds.includes(f.requesteeId)));
+
+    // Get friendships where current user is the requestee  
+    const receivedFriendships = await ctx.db
+      .query("friends")
+      .withIndex("by_requestee", q => q.eq("requesteeId", currentUserId))
+      .filter(q => q.neq(q.field("status"), "cancelled"))
+      .collect()
+      .then(friendships => friendships.filter(f => userIds.includes(f.requesterId)));
+
+    // Create a map of userId to friendship status for fast lookup
+    const friendshipMap = new Map();
+    
+    // Process sent friendships
+    sentFriendships.forEach(friendship => {
+      friendshipMap.set(friendship.requesteeId, {
+        exists: true,
+        status: friendship.status,
+        direction: "sent",
+        friendshipId: friendship._id
+      });
+    });
+
+    // Process received friendships
+    receivedFriendships.forEach(friendship => {
+      friendshipMap.set(friendship.requesterId, {
+        exists: true,
+        status: friendship.status,
+        direction: "received",
+        friendshipId: friendship._id
+      });
+    });
+
+    // Return status for each requested user
+    return userIds.map(userId => {
+      // Handle self
+      if (userId === currentUserId) {
+        return {
+          userId,
+          exists: true,
+          status: "self",
+          direction: null,
+          friendshipId: null,
+        };
+      }
+
+      // Get from map or create default
+      const friendshipStatus = friendshipMap.get(userId) || {
+        exists: false,
+        status: null,
+        direction: null,
+        friendshipId: null,
+      };
+
+      return {
+        userId,
+        ...friendshipStatus,
+      };
+    });
   },
 });
 
@@ -1222,107 +1312,6 @@ export const sendAdminFriendRequest = mutation({
     });
 
     return { success: true, reason: "Friend request sent successfully" };
-  },
-});
-
-// Get friendship status between current user and multiple other users (batch query)
-export const getBatchFriendshipStatuses = query({
-  args: {
-    userIds: v.array(v.id("users")),
-    currentUserId: v.optional(v.id("users")),
-  },
-  handler: async (ctx, args) => {
-    const { userIds, currentUserId } = args;
-    
-    // If no currentUserId is provided, try to get it from auth
-    let userId = currentUserId;
-    if (!userId) {
-      const authUserId = await getAuthUserId(ctx);
-      if (authUserId === null) {
-        // Return empty statuses for all users if not authenticated
-        const result: Record<string, any> = {};
-        userIds.forEach(id => {
-                  result[id] = {
-          exists: false,
-          status: "not_logged_in",
-          direction: null,
-          friendshipId: undefined,
-        };
-        });
-        return result;
-      }
-      userId = authUserId;
-    }
-
-    // Get all friendships involving the current user and any of the target users
-    const friendships = await ctx.db
-      .query("friends")
-      .filter(q => 
-        q.or(
-          // Current user sent requests to target users
-          q.and(
-            q.eq(q.field("requesterId"), userId),
-            q.or(...userIds.map(id => q.eq(q.field("requesteeId"), id)))
-          ),
-          // Target users sent requests to current user
-          q.and(
-            q.or(...userIds.map(id => q.eq(q.field("requesterId"), id))),
-            q.eq(q.field("requesteeId"), userId)
-          )
-        )
-      )
-      .filter(q => q.neq(q.field("status"), "cancelled"))
-      .collect();
-
-    // Build the result map
-    const result: Record<string, any> = {};
-    
-    // Initialize all users as no friendship
-    userIds.forEach(id => {
-      // Don't allow self-friending
-      if (id === userId) {
-        result[id] = {
-          exists: false,
-          status: "self",
-          direction: null,
-          friendshipId: undefined,
-        };
-      } else {
-        result[id] = {
-          exists: false,
-          status: null,
-          direction: null,
-          friendshipId: undefined,
-        };
-      }
-    });
-
-    // Update with actual friendship data
-    friendships.forEach(friendship => {
-      let targetUserId: string;
-      let direction: string;
-      
-      if (friendship.requesterId === userId) {
-        // Current user sent the request
-        targetUserId = friendship.requesteeId;
-        direction = "sent";
-      } else {
-        // Current user received the request
-        targetUserId = friendship.requesterId;
-        direction = "received";
-      }
-      
-      if (userIds.includes(targetUserId as Id<"users">)) {
-        result[targetUserId] = {
-          exists: true,
-          status: friendship.status,
-          direction,
-          friendshipId: friendship._id,
-        };
-      }
-    });
-
-    return result;
   },
 });
 

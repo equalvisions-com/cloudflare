@@ -1150,73 +1150,17 @@ export const searchUsersOptimized = query({
     const resultUsers = paginatedUsers.slice(0, limit);
     const nextCursor = hasMore && resultUsers.length > 0 ? resultUsers[resultUsers.length - 1]._id : null;
     
-    // Process users to get friendship status and format result
-    const formattedUsers = await Promise.all(
-      resultUsers.map(async (user) => {
-        // Get friendship status if authenticated
-        let friendshipStatus = null;
-        if (currentUserId && currentUserId.toString() !== user._id.toString()) {
-          // Only query the specific friendship instead of getting all friendships
-          const friendship = await ctx.db
-            .query("friends")
-            .withIndex("by_users")
-            .filter(q =>
-              q.or(
-                q.and(
-                  q.eq(q.field("requesterId"), currentUserId),
-                  q.eq(q.field("requesteeId"), user._id)
-                ),
-                q.and(
-                  q.eq(q.field("requesterId"), user._id),
-                  q.eq(q.field("requesteeId"), currentUserId)
-                )
-              )
-            )
-            .first()
-            .then(friendship => friendship ? {
-              _id: friendship._id,
-              status: friendship.status,
-              requesterId: friendship.requesterId,
-              requesteeId: friendship.requesteeId
-            } : null);
-
-          if (friendship) {
-            const isSender = friendship.requesterId.toString() === currentUserId.toString();
-            friendshipStatus = {
-              exists: true,
-              status: friendship.status,
-              direction: isSender ? "sent" : "received",
-              friendshipId: friendship._id
-            };
-          } else {
-            friendshipStatus = {
-              exists: false,
-              status: null,
-              direction: null,
-              friendshipId: null
-            };
-          }
-        } else if (currentUserId && currentUserId.toString() === user._id.toString()) {
-          friendshipStatus = {
-            exists: true, 
-            status: "self",
-            direction: null,
-            friendshipId: null
-          };
-        }
-        
-        // Return only essential fields needed for the UI
-        return {
-          userId: user._id,
-          username: user.username || "Guest",
-          name: user.name,
-          bio: user.bio || "",
-          profileImage: user.profileImage,
-          isAuthenticated: !!currentUserId,
-          friendshipStatus
-        };
-      })
-    );
+    // 🔥 SIMPLIFIED: No friendship data in main query - let component handle it reactively
+    // This makes the query lightweight and only reactive to user data changes
+    const formattedUsers = resultUsers.map(user => ({
+      userId: user._id,
+      username: user.username || "Guest",
+      name: user.name,
+      bio: user.bio || "",
+      profileImage: user.profileImage,
+      isAuthenticated: !!currentUserId,
+      friendshipStatus: null // Always null - component will populate this
+    }));
     
     return {
       users: formattedUsers,
@@ -1241,137 +1185,68 @@ export const getRandomUsers = query({
       // Not authenticated, continue as guest
     }
     
-    // Get only necessary fields from users - avoid exposing sensitive information
+    // 🔥 OPTIMIZED APPROACH: Use a single efficient query with reasonable sampling
+    // For true randomness at scale, we'd need a pre-computed random order or sampling service
+    // This approach balances performance with reasonable randomness
+    
+    // Get a larger sample than needed, but not the entire table
+    const sampleMultiplier = 3; // Get 3x more than needed for filtering
+    const sampleSize = Math.min(limit * sampleMultiplier, 100); // Cap at 100 for performance
+    
     const users = await ctx.db
       .query("users")
-      .collect()
-      .then(allUsers => allUsers.map(user => ({
-        _id: user._id,
-        username: user.username,
-        name: user.name,
-        bio: user.bio,
-        profileImage: user.profileImage,
-        isAnonymous: user.isAnonymous,
-        isBoarded: user.isBoarded
-      })));
-
-    // Skip if we don't have users
-    if (users.length === 0) {
-      return { users: [], hasMore: false, nextCursor: null };
-    }
+      .order("desc") // Consistent ordering
+      .take(sampleSize);
     
-    // Filter out users without usernames and anonymous users
+    // Filter for valid users
     const validUsers = users.filter(user => {
       return user.username && !user.isAnonymous && user.isBoarded === true;
     });
     
-    // Shuffle the users array (Fisher-Yates algorithm)
-    for (let i = validUsers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [validUsers[i], validUsers[j]] = [validUsers[j], validUsers[i]];
-    }
-    
-    // Get the limited number of users
-    const randomUsers = validUsers.slice(0, limit);
-    
-    // If not authenticated, return without friendship status
-    if (!currentUserId) {
-      const formattedUsers = randomUsers.map(user => ({
-        userId: user._id,
-        username: user.username || "Guest",
-        name: user.name,
-        bio: user.bio || "",
-        profileImage: user.profileImage,
-        isAuthenticated: false,
-        friendshipStatus: null
-      }));
+    // If we don't have enough valid users, get more
+    let allValidUsers = validUsers;
+    if (validUsers.length < limit && sampleSize < 200) {
+      // Get a larger sample if needed
+      const additionalUsers = await ctx.db
+        .query("users")
+        .order("asc") // Different order for variety
+        .take(100);
       
-      return {
-        users: formattedUsers,
-        hasMore: false,
-        nextCursor: null
-      };
-    }
-    
-    // Get all friendship data in one batch query for efficiency
-    const userIds = randomUsers.map(user => user._id);
-    
-    // Query all relevant friendships where current user is involved with any of the random users
-    const friendships = await ctx.db
-      .query("friends")
-      .filter(q => 
-        q.or(
-          q.and(
-            q.eq(q.field("requesterId"), currentUserId),
-            q.or(...userIds.map(id => q.eq(q.field("requesteeId"), id)))
-          ),
-          q.and(
-            q.or(...userIds.map(id => q.eq(q.field("requesterId"), id))),
-            q.eq(q.field("requesteeId"), currentUserId)
-          )
-        )
-      )
-      .collect()
-      .then(friendships => friendships.map(friendship => ({
-        _id: friendship._id,
-        requesterId: friendship.requesterId,
-        requesteeId: friendship.requesteeId,
-        status: friendship.status
-      })));
-    
-    // Create a map of userId to friendship status for fast lookup
-    const friendshipMap = new Map();
-    
-    friendships.forEach(friendship => {
-      const isSender = friendship.requesterId.toString() === currentUserId.toString();
-      const targetId = isSender ? friendship.requesteeId.toString() : friendship.requesterId.toString();
-      
-      friendshipMap.set(targetId, {
-        exists: true,
-        status: friendship.status,
-        direction: isSender ? "sent" : "received",
-        friendshipId: friendship._id
+      const additionalValid = additionalUsers.filter(user => {
+        return user.username && 
+               !user.isAnonymous && 
+               user.isBoarded === true &&
+               !validUsers.some(existing => existing._id === user._id); // Avoid duplicates
       });
-    });
+      
+      allValidUsers = [...validUsers, ...additionalValid];
+    }
     
-    // Process users to get friendship status and format result
-    const formattedUsers = randomUsers.map(user => {
-      // Skip self
-      if (user._id.toString() === currentUserId.toString()) {
-        return {
-          userId: user._id,
-          username: user.username || "Guest",
-          name: user.name,
-          bio: user.bio || "",
-          profileImage: user.profileImage,
-          isAuthenticated: true,
-          friendshipStatus: {
-            exists: true, 
-            status: "self",
-            direction: null,
-            friendshipId: null
-          }
-        };
-      }
-      
-      // Get from map or create default
-      const friendshipStatus = friendshipMap.get(user._id.toString()) || {
-        exists: false,
-        status: null,
-        direction: null,
-        friendshipId: null
-      };
-      
-      return {
-        userId: user._id,
-        username: user.username || "Guest",
-        name: user.name,
-        bio: user.bio || "",
-        profileImage: user.profileImage,
-        isAuthenticated: true,
-        friendshipStatus
-      };
-    });
+    // Shuffle for randomness
+    for (let i = allValidUsers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allValidUsers[i], allValidUsers[j]] = [allValidUsers[j], allValidUsers[i]];
+    }
+    
+    // Get the final limited set
+    const randomUsers = allValidUsers.slice(0, limit);
+    
+    // Skip if we don't have users
+    if (randomUsers.length === 0) {
+      return { users: [], hasMore: false, nextCursor: null };
+    }
+    
+    // 🔥 SIMPLIFIED: No friendship data in main query - let component handle it reactively
+    // This makes the query lightweight and only reactive to user data changes
+    const formattedUsers = randomUsers.map(user => ({
+      userId: user._id,
+      username: user.username || "Guest",
+      name: user.name,
+      bio: user.bio || "",
+      profileImage: user.profileImage,
+      isAuthenticated: !!currentUserId,
+      friendshipStatus: null // Always null - component will populate this
+    }));
     
     return {
       users: formattedUsers,
