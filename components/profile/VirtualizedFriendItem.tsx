@@ -43,22 +43,12 @@ const FriendListButton = memo<{
   // Get current user info to check if this is the user's own profile
   const currentUser = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
   
-  // Check if this is the current user's own profile
-  const isCurrentUser = currentUser?._id === userId;
-
-  // Use currentStatus directly instead of syncing to local state
-  const displayStatus = currentStatus;
-
-  // Don't show friend button for current user's own profile
-  if (isCurrentUser) {
-    return null;
-  }
-
-  // Mutations for friend actions
+  // Mutations for friend actions - MUST be called before any conditional returns
   const sendRequest = useMutation(api.friends.sendFriendRequest);
   const acceptRequest = useMutation(api.friends.acceptFriendRequest);
   const deleteFriendship = useMutation(api.friends.deleteFriendship);
 
+  // All useCallback hooks must be called before any conditional returns
   const updateStatus = useCallback((newStatus: string, newFriendshipId?: Id<"friends">) => {
     // Convert null to undefined for friendshipId
     const safeExistingId: Id<"friends"> | undefined = friendshipId === null ? undefined : (friendshipId as Id<"friends">);
@@ -129,6 +119,17 @@ const FriendListButton = memo<{
       setIsLoading(false);
     }
   }, [friendshipId, deleteFriendship, updateStatus, toast]);
+
+  // Check if this is the current user's own profile - AFTER all hooks
+  const isCurrentUser = currentUser?._id === userId;
+
+  // Use currentStatus directly instead of syncing to local state
+  const displayStatus = currentStatus;
+
+  // Don't show friend button for current user's own profile
+  if (isCurrentUser) {
+    return null;
+  }
 
   // Loading state
   if (isLoading) {
