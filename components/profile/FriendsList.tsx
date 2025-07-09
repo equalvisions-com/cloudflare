@@ -18,7 +18,9 @@ import type {
   FriendsListInitialData,
   ProfileSocialData,
   ViewerFriendshipStatus,
+  BatchFriendshipStatusResponse,
 } from "@/lib/types";
+import { transformBatchFriendshipStatusToRecord } from "@/lib/types";
 import { Id } from "@/convex/_generated/dataModel";
 import { useFriendsListData } from '@/hooks/useFriendsListData';
 import { useFriendsListActions } from '@/hooks/useFriendsListActions';
@@ -215,22 +217,10 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   // Update viewer friendship statuses when query returns
   useEffect(() => {
     if (viewerFriendshipStatuses && state.isInitialized) {
-      // Transform array response to Record<string, ViewerFriendshipStatus>
-      const statusesRecord: Record<string, ViewerFriendshipStatus> = {};
-      viewerFriendshipStatuses.forEach((status: {
-        userId: Id<"users">;
-        exists: boolean;
-        status: string | null;
-        direction: string | null;
-        friendshipId: Id<"friends"> | null;
-      }) => {
-        statusesRecord[status.userId] = {
-          exists: status.exists,
-          status: status.status,
-          direction: status.direction,
-          friendshipId: status.friendshipId || undefined,
-        };
-      });
+      // Transform BatchFriendshipStatusResponse to Record<string, ViewerFriendshipStatus>
+      const statusesRecord = transformBatchFriendshipStatusToRecord(
+        viewerFriendshipStatuses as BatchFriendshipStatusResponse
+      );
 
       dispatch({
         type: 'SET_VIEWER_FRIENDSHIP_STATUSES',

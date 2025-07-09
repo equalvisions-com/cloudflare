@@ -12,7 +12,12 @@ import { SimpleFriendButton } from '@/components/ui/SimpleFriendButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
 import { Virtuoso } from 'react-virtuoso';
-import { UserProfile, PeopleDisplayProps } from '@/lib/types';
+import { 
+  UserProfile, 
+  PeopleDisplayProps, 
+  BatchFriendshipStatusResponse,
+  transformBatchFriendshipStatusToRecord 
+} from '@/lib/types';
 import { UsersListSkeleton } from '@/components/users/UsersSkeleton';
 
 // Memoized no users state component
@@ -214,8 +219,8 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     
     setUsers(prevUsers => 
       prevUsers.map(user => {
-        const friendshipStatus = searchFriendshipStatuses.find(
-          (status: any) => status.userId === user.userId
+        const friendshipStatus = (searchFriendshipStatuses as BatchFriendshipStatusResponse).find(
+          (status) => status.userId === user.userId
         );
         
         if (friendshipStatus && 
@@ -243,8 +248,8 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     
     setUsers(prevUsers => 
       prevUsers.map(user => {
-        const friendshipStatus = randomFriendshipStatuses.find(
-          (status: any) => status.userId === user.userId
+        const friendshipStatus = (randomFriendshipStatuses as BatchFriendshipStatusResponse).find(
+          (status) => status.userId === user.userId
         );
         
         if (friendshipStatus && 

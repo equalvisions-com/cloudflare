@@ -2622,6 +2622,33 @@ export interface ViewerFriendshipStatus {
   friendshipId: Id<"friends"> | undefined;
 }
 
+// Batch friendship status response from Convex getBatchFriendshipStatuses
+export interface BatchFriendshipStatusItem {
+  userId: Id<"users">;
+  exists: boolean;
+  status: string | null;
+  direction: string | null;
+  friendshipId: Id<"friends"> | null;
+}
+
+export type BatchFriendshipStatusResponse = BatchFriendshipStatusItem[];
+
+// Utility function to transform BatchFriendshipStatusResponse to Record format
+export function transformBatchFriendshipStatusToRecord(
+  batchResponse: BatchFriendshipStatusResponse
+): Record<string, ViewerFriendshipStatus> {
+  const statusesRecord: Record<string, ViewerFriendshipStatus> = {};
+  batchResponse.forEach((status) => {
+    statusesRecord[status.userId] = {
+      exists: status.exists,
+      status: status.status,
+      direction: status.direction,
+      friendshipId: status.friendshipId || undefined,
+    };
+  });
+  return statusesRecord;
+}
+
 // Core FriendsList Data Types (moved from component)
 export interface FriendsListFriendshipData {
   _id: Id<"friends">;
