@@ -215,10 +215,26 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
   // Update viewer friendship statuses when query returns
   useEffect(() => {
     if (viewerFriendshipStatuses && state.isInitialized) {
+      // Transform array response to Record<string, ViewerFriendshipStatus>
+      const statusesRecord: Record<string, ViewerFriendshipStatus> = {};
+      viewerFriendshipStatuses.forEach((status: {
+        userId: Id<"users">;
+        exists: boolean;
+        status: string | null;
+        direction: string | null;
+        friendshipId: Id<"friends"> | null;
+      }) => {
+        statusesRecord[status.userId] = {
+          exists: status.exists,
+          status: status.status,
+          direction: status.direction,
+          friendshipId: status.friendshipId || undefined,
+        };
+      });
 
       dispatch({
         type: 'SET_VIEWER_FRIENDSHIP_STATUSES',
-        payload: viewerFriendshipStatuses,
+        payload: statusesRecord,
       });
     }
   }, [viewerFriendshipStatuses, state.isInitialized, dispatch]);
