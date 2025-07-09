@@ -316,7 +316,7 @@ export function FollowerCount({
 
   // Only memoize the components object since it's passed to Virtuoso
   const virtuosoComponents = useMemo(() => {
-    const components: any = {
+    const components: Record<string, React.ComponentType> = {
       EmptyPlaceholder: EmptyPlaceholderComponent,
     };
     

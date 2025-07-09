@@ -2614,6 +2614,14 @@ export interface PerformanceConfig {
 // FRIENDS LIST TYPES - Production Ready State Management
 // ===================================================================
 
+// Viewer's friendship status with a specific user
+export interface ViewerFriendshipStatus {
+  exists: boolean;
+  status: string | null;
+  direction: string | null;
+  friendshipId: Id<"friends"> | undefined;
+}
+
 // Core FriendsList Data Types (moved from component)
 export interface FriendsListFriendshipData {
   _id: Id<"friends">;
@@ -2649,6 +2657,9 @@ export interface FriendsListState {
   friends: FriendsListFriendWithProfile[];
   count: number;
   
+  // Viewer's friendship status with each friend
+  viewerFriendshipStatuses: Record<string, ViewerFriendshipStatus>;
+  
   // Pagination State
   cursor: string | null;
   hasMore: boolean;
@@ -2674,7 +2685,9 @@ export type FriendsListAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'RESET_STATE' }
   | { type: 'UPDATE_FRIEND_STATUS'; payload: { friendshipId: Id<"friends">; newStatus: string } }
-  | { type: 'REMOVE_FRIEND'; payload: Id<"friends"> };
+  | { type: 'REMOVE_FRIEND'; payload: Id<"friends"> }
+  | { type: 'SET_VIEWER_FRIENDSHIP_STATUSES'; payload: Record<string, ViewerFriendshipStatus> }
+  | { type: 'UPDATE_VIEWER_FRIENDSHIP_STATUS'; payload: { userId: Id<"users">; status: ViewerFriendshipStatus } };
 
 // FriendsList Props Interface
 export interface FriendsListProps {
@@ -3433,7 +3446,7 @@ export interface FollowersListState {
   hasMore: boolean;
   
   // Friendship Status State
-  friendshipStates: Record<string, any>;
+  friendshipStates: Record<string, ViewerFriendshipStatus>;
   
   // Error State
   error: string | null;
@@ -3448,14 +3461,14 @@ export type FollowersListAction =
   | { type: 'CLOSE_DRAWER' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_COUNT'; payload: number }
-  | { type: 'INITIALIZE_FOLLOWERS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, any> } }
+  | { type: 'INITIALIZE_FOLLOWERS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, ViewerFriendshipStatus> } }
   | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, any> } }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { followers: FollowersListUserData[]; cursor: string | null; hasMore: boolean; friendshipStates?: Record<string, ViewerFriendshipStatus> } }
   | { type: 'LOAD_MORE_ERROR'; payload: string }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'RESET_STATE' }
-  | { type: 'UPDATE_FRIEND_STATUS'; payload: { userId: Id<"users">; friendshipStatus: any } }
-  | { type: 'UPDATE_FRIENDSHIP_STATE'; payload: { userId: Id<"users">; friendshipStatus: any } }
+  | { type: 'UPDATE_FRIEND_STATUS'; payload: { userId: Id<"users">; friendshipStatus: ViewerFriendshipStatus } }
+  | { type: 'UPDATE_FRIENDSHIP_STATE'; payload: { userId: Id<"users">; friendshipStatus: ViewerFriendshipStatus } }
   | { type: 'REMOVE_FOLLOWER'; payload: Id<"users"> };
 
 export interface FollowersListProps {
@@ -3511,7 +3524,7 @@ export interface UseFollowersListDataReturn {
   // Actions
   loadMoreFollowers: () => Promise<void>;
   refreshFollowers: () => Promise<void>;
-  updateFollowerFriendStatus: (userId: Id<"users">, friendshipStatus: any) => void;
+  updateFollowerFriendStatus: (userId: Id<"users">, friendshipStatus: ViewerFriendshipStatus) => void;
   removeFollower: (userId: Id<"users">) => void;
   
   // Utilities

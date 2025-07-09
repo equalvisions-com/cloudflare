@@ -11,7 +11,7 @@ import { api } from "@/convex/_generated/api";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
-import type { FollowersListUserData } from "@/lib/types";
+import type { FollowersListUserData, ViewerFriendshipStatus } from "@/lib/types";
 
 interface VirtualizedFollowerItemProps {
   follower: FollowersListUserData;
@@ -19,8 +19,8 @@ interface VirtualizedFollowerItemProps {
   isFirst?: boolean;
   isLast?: boolean;
   isAuthenticated?: boolean;
-  initialFriendshipStatus?: any; // Friendship status from optimized query
-  onFriendshipStatusChange?: (userId: Id<"users">, newStatus: any) => void; // Callback for status changes
+  initialFriendshipStatus?: ViewerFriendshipStatus; // Friendship status from optimized query
+  onFriendshipStatusChange?: (userId: Id<"users">, newStatus: ViewerFriendshipStatus) => void; // Callback for status changes
 }
 
 // Custom friendship button component for followers
@@ -29,23 +29,24 @@ const FollowerFriendButton = memo<{
   username: string;
   displayName: string;
   profileImage?: string;
-  initialStatus: any;
-  onStatusChange?: (userId: Id<"users">, newStatus: any) => void;
+  initialStatus: ViewerFriendshipStatus | undefined;
+  onStatusChange?: (userId: Id<"users">, newStatus: ViewerFriendshipStatus) => void;
   className?: string;
 }>(({ userId, username, displayName, profileImage, initialStatus, onStatusChange, className }) => {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
   const { toast } = useToast();
-  const [currentStatus, setCurrentStatus] = useState(initialStatus);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Use initialStatus directly instead of local state (React best practice)
+  const currentStatus = initialStatus;
 
   // Mutations for friend actions
   const sendRequest = useMutation(api.friends.sendFriendRequest);
   const acceptRequest = useMutation(api.friends.acceptFriendRequest);
   const deleteFriendship = useMutation(api.friends.deleteFriendship);
 
-  const updateStatus = useCallback((newStatus: any) => {
-    setCurrentStatus(newStatus);
+  const updateStatus = useCallback((newStatus: ViewerFriendshipStatus) => {
     onStatusChange?.(userId, newStatus);
   }, [userId, onStatusChange]);
 
@@ -58,11 +59,11 @@ const FollowerFriendButton = memo<{
     setIsLoading(true);
     try {
       const result = await sendRequest({ requesteeId: userId });
-      const newStatus = {
+      const newStatus: ViewerFriendshipStatus = {
         exists: true,
         status: "pending" as const,
         direction: "sent" as const,
-        friendshipId: result,
+        friendshipId: result || undefined,
       };
       updateStatus(newStatus);
     } catch (error) {
@@ -104,11 +105,11 @@ const FollowerFriendButton = memo<{
     setIsLoading(true);
     try {
       await deleteFriendship({ friendshipId: currentStatus.friendshipId });
-      const newStatus = {
+      const newStatus: ViewerFriendshipStatus = {
         exists: false,
         status: null,
         direction: null,
-        friendshipId: null,
+        friendshipId: undefined,
       };
       updateStatus(newStatus);
     } catch (error) {

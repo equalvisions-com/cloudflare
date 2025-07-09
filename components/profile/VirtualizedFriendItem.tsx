@@ -1,11 +1,11 @@
-import React, { memo, useCallback, useState, useMemo } from 'react';
+import React, { memo, useCallback, useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { ProfileImage } from '@/components/profile/ProfileImage';
 import { Button } from '@/components/ui/button';
-import type { FriendsListFriendWithProfile } from '@/lib/types';
+import type { FriendsListFriendWithProfile, ViewerFriendshipStatus } from '@/lib/types';
 import { Id } from '@/convex/_generated/dataModel';
 import { Check, X, Clock, Loader2 } from 'lucide-react';
-import { useMutation, useConvexAuth } from "convex/react";
+import { useMutation, useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
@@ -20,34 +20,59 @@ interface VirtualizedFriendItemProps {
   onDeclineRequest?: (friendshipId: Id<"friends">) => Promise<void>;
   isOperationPending?: (operationKey: string) => boolean;
   onFriendshipStatusChange?: (friendshipId: Id<"friends">, newStatus: string) => void;
+  viewerFriendshipStatus?: ViewerFriendshipStatus; // Viewer's friendship status with this friend
+  onViewerFriendshipStatusChange?: (userId: Id<"users">, status: ViewerFriendshipStatus) => void;
 }
 
 // Custom friendship button component for friends list
 const FriendListButton = memo<{
-  friendshipId: Id<"friends">;
+  friendshipId: Id<"friends"> | undefined;
   userId: Id<"users">;
   username: string;
   displayName: string;
-  currentStatus: string;
-  direction: string;
-  onStatusChange?: (friendshipId: Id<"friends">, newStatus: string) => void;
+  currentStatus: string | null;
+  direction: string | null;
+  onStatusChange?: (userId: Id<"users">, status: ViewerFriendshipStatus) => void;
   className?: string;
 }>(({ friendshipId, userId, username, displayName, currentStatus, direction, onStatusChange, className }) => {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
   const { toast } = useToast();
-  const [localStatus, setLocalStatus] = useState(currentStatus);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Get current user info to check if this is the user's own profile
+  const currentUser = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
+  
+  // Check if this is the current user's own profile
+  const isCurrentUser = currentUser?._id === userId;
+
+  // Use currentStatus directly instead of syncing to local state
+  const displayStatus = currentStatus;
+
+  // Don't show friend button for current user's own profile
+  if (isCurrentUser) {
+    return null;
+  }
 
   // Mutations for friend actions
   const sendRequest = useMutation(api.friends.sendFriendRequest);
   const acceptRequest = useMutation(api.friends.acceptFriendRequest);
   const deleteFriendship = useMutation(api.friends.deleteFriendship);
 
-  const updateStatus = useCallback((newStatus: string) => {
-    setLocalStatus(newStatus);
-    onStatusChange?.(friendshipId, newStatus);
-  }, [friendshipId, onStatusChange]);
+  const updateStatus = useCallback((newStatus: string, newFriendshipId?: Id<"friends">) => {
+    // Convert null to undefined for friendshipId
+    const safeExistingId: Id<"friends"> | undefined = friendshipId === null ? undefined : (friendshipId as Id<"friends">);
+    
+    // Update with new friendship status
+    const statusUpdate = {
+      exists: newStatus !== "cancelled" && newStatus !== null,
+      status: newStatus === "cancelled" ? null : newStatus,
+      direction: newStatus === "pending" ? "sent" : (newStatus === "accepted" ? "accepted" : null),
+      friendshipId: newFriendshipId || safeExistingId,
+    };
+    
+    onStatusChange?.(userId, statusUpdate);
+  }, [friendshipId, userId, onStatusChange]);
 
   const handleAddFriend = useCallback(async () => {
     if (!isAuthenticated) {
@@ -57,8 +82,10 @@ const FriendListButton = memo<{
     
     setIsLoading(true);
     try {
-      await sendRequest({ requesteeId: userId });
-      updateStatus("pending");
+      const newFriendshipId = await sendRequest({ requesteeId: userId });
+      if (newFriendshipId) {
+        updateStatus("pending", newFriendshipId);
+      }
     } catch (error) {
       toast({ 
         title: "Error", 
@@ -70,6 +97,8 @@ const FriendListButton = memo<{
   }, [isAuthenticated, router, userId, sendRequest, updateStatus, toast]);
 
   const handleAcceptFriend = useCallback(async () => {
+    if (!friendshipId) return;
+    
     setIsLoading(true);
     try {
       await acceptRequest({ friendshipId });
@@ -85,6 +114,8 @@ const FriendListButton = memo<{
   }, [friendshipId, acceptRequest, updateStatus, toast]);
 
   const handleUnfriend = useCallback(async () => {
+    if (!friendshipId) return;
+    
     setIsLoading(true);
     try {
       await deleteFriendship({ friendshipId });
@@ -128,8 +159,8 @@ const FriendListButton = memo<{
   }
 
   // Determine the button state based on friendship status
-  if (localStatus === "pending") {
-    if (direction === "outgoing") {
+  if (displayStatus === "pending") {
+    if (direction === "sent") {
       // Pending request sent by current user
       return (
         <Button 
@@ -154,7 +185,7 @@ const FriendListButton = memo<{
         </Button>
       );
     }
-  } else if (localStatus === "accepted") {
+  } else if (displayStatus === "accepted") {
     // Already friends - show friends status with unfriend option
     return (
       <Button 
@@ -193,6 +224,8 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
   onDeclineRequest,
   isOperationPending,
   onFriendshipStatusChange,
+  viewerFriendshipStatus,
+  onViewerFriendshipStatusChange,
 }) => {
   // Loading states for actions (fallback to local state if no isOperationPending provided)
   const [isAccepting, setIsAccepting] = useState(false);
@@ -301,6 +334,8 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
     friendUsername,
   } = computedValues;
 
+
+
   return (
     <div 
       className="flex items-center justify-between gap-3 p-4 border-b border-border min-h-[80px] hover:bg-muted/30 transition-colors duration-200"
@@ -337,13 +372,13 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
       {/* Action Button Section */}
       <div className="flex-shrink-0" role="group" aria-label="Friend actions">
         <FriendListButton
-          friendshipId={friend.friendship._id}
+          friendshipId={viewerFriendshipStatus?.friendshipId ? viewerFriendshipStatus.friendshipId : undefined}
           userId={friend.profile.userId}
           username={friendUsername}
           displayName={friendName}
-          currentStatus={friend.friendship.status}
-          direction={friend.friendship.direction}
-          onStatusChange={onFriendshipStatusChange}
+          currentStatus={viewerFriendshipStatus?.status || null}
+          direction={viewerFriendshipStatus?.direction || null}
+          onStatusChange={onViewerFriendshipStatusChange}
           className="w-[100px] rounded-full opacity-100 hover:opacity-100 font-semibold shadow-none transition-all duration-200 text-sm"
           aria-label={`Manage friendship with ${friendName}`}
         />

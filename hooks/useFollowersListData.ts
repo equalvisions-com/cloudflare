@@ -8,6 +8,7 @@ import type {
   FollowersListUserData,
   UseFollowersListDataProps,
   FollowersListError,
+  ViewerFriendshipStatus,
 } from '@/lib/types';
 import { FollowersListErrorType } from '@/lib/types';
 
@@ -33,12 +34,17 @@ export function useFollowersListData({
     } : "skip"
   );
 
-  // Reactive query for real-time friendship status updates
+  // Reactive query for real-time friendship status updates (only for visible followers)
+  const visibleFollowerIds = useMemo(() => 
+    state.followers.slice(0, 30).map(f => f.userId), 
+    [state.followers]
+  );
+  
   const followersFriendshipQuery = useQuery(
     api.following.getFollowersFriendshipStates,
-    state.isOpen && state.isInitialized ? { 
+    state.isOpen && state.isInitialized && visibleFollowerIds.length > 0 ? { 
       postId,
-      userIds: state.followers.map(f => f.userId)
+      userIds: visibleFollowerIds
     } : "skip"
   );
 
@@ -130,9 +136,9 @@ export function useFollowersListData({
 
   // Enhanced Convex call with retry logic for pagination
   const makeConvexCall = useCallback(async (
-    queryArgs: any,
+    queryArgs: { postId: Id<"posts">; limit?: number; cursor?: string },
     retryCount = 0
-  ): Promise<{ followers: FollowersListUserData[]; hasMore: boolean; cursor: string | null; friendshipStates: Record<string, any> }> => {
+  ): Promise<{ followers: FollowersListUserData[]; hasMore: boolean; cursor: string | null; friendshipStates: Record<string, ViewerFriendshipStatus> }> => {
     const maxRetries = 3;
     const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
 
@@ -294,7 +300,7 @@ export function useFollowersListData({
   // Update follower friendship status
   const updateFollowerFriendStatus = useCallback((
     userId: Id<"users">, 
-    friendshipStatus: any
+    friendshipStatus: ViewerFriendshipStatus
   ): void => {
     dispatch({
       type: 'UPDATE_FRIEND_STATUS',
@@ -305,7 +311,7 @@ export function useFollowersListData({
   // Update friendship status in the friendshipStates map
   const updateFriendshipStatus = useCallback((
     userId: Id<"users">,
-    newFriendshipStatus: any
+    newFriendshipStatus: ViewerFriendshipStatus
   ): void => {
     dispatch({
       type: 'UPDATE_FRIENDSHIP_STATE',

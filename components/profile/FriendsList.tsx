@@ -17,6 +17,7 @@ import type {
   FriendsListFriendWithProfile,
   FriendsListInitialData,
   ProfileSocialData,
+  ViewerFriendshipStatus,
 } from "@/lib/types";
 import { Id } from "@/convex/_generated/dataModel";
 import { useFriendsListData } from '@/hooks/useFriendsListData';
@@ -28,6 +29,8 @@ import FriendsListErrorBoundary, { MinimalFriendsListErrorFallback } from './Fri
 import { convertProfileSocialDataToFriendsListData } from "@/lib/types";
 import { DrawerLoadingSkeleton } from './FriendsListSkeleton';
 import { FriendsListEmptyState } from './FriendsListEmptyState';
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 // Create initial state from props
 const createInitialState = (
@@ -42,6 +45,7 @@ const createInitialState = (
     isLoading: false,
     friends: [], // Always start empty to show skeleton
     count: initialCount,
+    viewerFriendshipStatuses: {}, // Initialize empty viewer statuses
     cursor: null, // Will be set when data loads
     hasMore: false, // Will be set when data loads
     error: null,
@@ -135,6 +139,22 @@ const friendsListReducer = (state: FriendsListState, action: FriendsListAction):
         count: Math.max(0, state.count - 1),
       };
     
+    case 'SET_VIEWER_FRIENDSHIP_STATUSES':
+
+      return {
+        ...state,
+        viewerFriendshipStatuses: action.payload,
+      };
+    
+    case 'UPDATE_VIEWER_FRIENDSHIP_STATUS':
+      return {
+        ...state,
+        viewerFriendshipStatuses: {
+          ...state.viewerFriendshipStatuses,
+          [action.payload.userId]: action.payload.status,
+        },
+      };
+    
     default:
       return state;
   }
@@ -175,14 +195,48 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
     },
   });
   
+  // Batch query for viewer's friendship status with all friends
+  const friendUserIds = useMemo(() => 
+    state.friends.map(friend => friend.profile.userId), 
+    [state.friends]
+  );
+  
+  const queryArgs = state.isInitialized && friendUserIds.length > 0 ? { 
+    userIds: friendUserIds 
+  } : "skip";
+  
+
+  
+  const viewerFriendshipStatuses = useQuery(
+    api.friends.getBatchFriendshipStatuses,
+    queryArgs
+  );
+  
+  // Update viewer friendship statuses when query returns
+  useEffect(() => {
+    if (viewerFriendshipStatuses && state.isInitialized) {
+
+      dispatch({
+        type: 'SET_VIEWER_FRIENDSHIP_STATUSES',
+        payload: viewerFriendshipStatuses,
+      });
+    }
+  }, [viewerFriendshipStatuses, state.isInitialized, dispatch]);
+  
   // Simple calculations - no memoization needed
   const friendCount = state.count;
   const hasError = !!friendsData.error;
   const isEmpty = !friendsData.isLoading && state.isInitialized && state.friends.length === 0;
-  const shouldShowLoadingSpinner = (state.isLoading || friendsData.isLoading) && !state.isInitialized;
+  
+  // Check if we have viewer friendship statuses for all friends
+  const hasViewerStatuses = state.isInitialized && friendUserIds.length > 0 
+    ? friendUserIds.every(userId => state.viewerFriendshipStatuses[userId] !== undefined)
+    : true; // If no friends, we don't need statuses
+  
+  const shouldShowLoadingSpinner = (state.isLoading || friendsData.isLoading) && (!state.isInitialized || !hasViewerStatuses);
   const shouldShowErrorState = !!friendsData.error;
-  const shouldShowEmptyState = !friendsData.isLoading && !state.isLoading && state.isInitialized && state.friends.length === 0;
-  const shouldShowVirtualizedList = state.isInitialized && state.friends.length > 0 && !friendsData.error;
+  const shouldShowEmptyState = !friendsData.isLoading && !state.isLoading && state.isInitialized && state.friends.length === 0 && hasViewerStatuses;
+  const shouldShowVirtualizedList = state.isInitialized && state.friends.length > 0 && !friendsData.error && hasViewerStatuses;
 
   // Simple calculations - no memoization needed (React best practice)
   const accessibilityAnnouncement = friendCount === 0 
@@ -251,6 +305,14 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
       payload: { friendshipId, newStatus },
     });
   };
+  
+  // Handle viewer friendship status changes
+  const handleViewerFriendshipStatusChange = (userId: Id<"users">, status: ViewerFriendshipStatus) => {
+    dispatch({
+      type: 'UPDATE_VIEWER_FRIENDSHIP_STATUS',
+      payload: { userId, status },
+    });
+  };
 
   // Simple item renderer - dependencies are stable, no memoization needed
   const itemContent = (index: number, friend: FriendsListFriendWithProfile) => {
@@ -268,6 +330,9 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
       );
     }
 
+    // Get viewer's friendship status with this friend
+    const viewerStatus = state.viewerFriendshipStatuses[friend.profile.userId];
+
     return (
       <MemoizedVirtualizedFriendItem
         key={friend.friendship._id}
@@ -276,6 +341,8 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         isFirst={index === 0}
         isLast={index === state.friends.length - 1}
         onFriendshipStatusChange={handleFriendshipStatusChange}
+        viewerFriendshipStatus={viewerStatus}
+        onViewerFriendshipStatusChange={handleViewerFriendshipStatusChange}
       />
     );
   };
@@ -303,7 +370,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
 
   // Only memoize the components object since it's passed to Virtuoso
   const virtuosoComponents = useMemo(() => {
-    const components: any = {
+    const components: Record<string, React.ComponentType> = {
       EmptyPlaceholder: EmptyPlaceholderComponent,
     };
     
@@ -366,7 +433,8 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
       />
     );
   } else {
-    drawerContent = <EmptyPlaceholderComponent />;
+    // Fallback to skeleton if none of the conditions are met (prevents flash of empty state)
+    drawerContent = <DrawerLoadingSkeleton />;
   }
 
   return (

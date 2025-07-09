@@ -382,7 +382,7 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
 
   // Only memoize when footer state actually changes (for Virtuoso performance)
   const virtuosoComponents = useMemo(() => {
-    const components: any = {
+    const components: Record<string, React.ComponentType> = {
       EmptyPlaceholder: EmptyPlaceholderComponent,
     };
     

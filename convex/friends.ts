@@ -1225,4 +1225,105 @@ export const sendAdminFriendRequest = mutation({
   },
 });
 
+// Get friendship status between current user and multiple other users (batch query)
+export const getBatchFriendshipStatuses = query({
+  args: {
+    userIds: v.array(v.id("users")),
+    currentUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const { userIds, currentUserId } = args;
+    
+    // If no currentUserId is provided, try to get it from auth
+    let userId = currentUserId;
+    if (!userId) {
+      const authUserId = await getAuthUserId(ctx);
+      if (authUserId === null) {
+        // Return empty statuses for all users if not authenticated
+        const result: Record<string, any> = {};
+        userIds.forEach(id => {
+                  result[id] = {
+          exists: false,
+          status: "not_logged_in",
+          direction: null,
+          friendshipId: undefined,
+        };
+        });
+        return result;
+      }
+      userId = authUserId;
+    }
+
+    // Get all friendships involving the current user and any of the target users
+    const friendships = await ctx.db
+      .query("friends")
+      .filter(q => 
+        q.or(
+          // Current user sent requests to target users
+          q.and(
+            q.eq(q.field("requesterId"), userId),
+            q.or(...userIds.map(id => q.eq(q.field("requesteeId"), id)))
+          ),
+          // Target users sent requests to current user
+          q.and(
+            q.or(...userIds.map(id => q.eq(q.field("requesterId"), id))),
+            q.eq(q.field("requesteeId"), userId)
+          )
+        )
+      )
+      .filter(q => q.neq(q.field("status"), "cancelled"))
+      .collect();
+
+    // Build the result map
+    const result: Record<string, any> = {};
+    
+    // Initialize all users as no friendship
+    userIds.forEach(id => {
+      // Don't allow self-friending
+      if (id === userId) {
+        result[id] = {
+          exists: false,
+          status: "self",
+          direction: null,
+          friendshipId: undefined,
+        };
+      } else {
+        result[id] = {
+          exists: false,
+          status: null,
+          direction: null,
+          friendshipId: undefined,
+        };
+      }
+    });
+
+    // Update with actual friendship data
+    friendships.forEach(friendship => {
+      let targetUserId: string;
+      let direction: string;
+      
+      if (friendship.requesterId === userId) {
+        // Current user sent the request
+        targetUserId = friendship.requesteeId;
+        direction = "sent";
+      } else {
+        // Current user received the request
+        targetUserId = friendship.requesterId;
+        direction = "received";
+      }
+      
+      if (userIds.includes(targetUserId as Id<"users">)) {
+        result[targetUserId] = {
+          exists: true,
+          status: friendship.status,
+          direction,
+          friendshipId: friendship._id,
+        };
+      }
+    });
+
+    return result;
+  },
+});
+
 
