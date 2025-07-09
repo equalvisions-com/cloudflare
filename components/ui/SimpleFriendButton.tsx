@@ -56,7 +56,10 @@ const SimpleFriendButtonComponent = ({
   const isFriendshipLoading = friendshipStatus === undefined && shouldFetchStatus;
 
   // Determine if component is in any loading state
-  const isLoading = isActionLoading || isFriendshipLoading || isAuthLoading;
+  // Don't show loading if we have initialFriendshipStatus (similar to FriendsList pattern)
+  const isLoading = isActionLoading || 
+                   (isFriendshipLoading && !initialFriendshipStatus) || 
+                   (isAuthLoading && !initialFriendshipStatus);
 
   // Mutations for friend actions
   const sendRequest = useMutation(api.friends.sendFriendRequest);

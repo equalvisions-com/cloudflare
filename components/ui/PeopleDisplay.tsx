@@ -281,7 +281,17 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
         // Initial load - set users and track IDs
         const newUsers = randomUsersResult.users
           .filter(user => !shownUserIds.has(user.userId))
-          .slice(0, 30); // Take first 30 for consistent page size
+          .slice(0, 30) // Take first 30 for consistent page size
+          .map(user => ({
+            ...user,
+            // Ensure every user has a friendshipStatus to prevent SimpleFriendButton loading
+            friendshipStatus: user.friendshipStatus || {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            }
+          }));
         
         setUsers(newUsers);
         setShownUserIds(prev => {
@@ -298,7 +308,16 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
         );
         
         // Take first 30 for consistent page size
-        const newUsers = allNewUsers.slice(0, 30);
+        const newUsers = allNewUsers.slice(0, 30).map(user => ({
+          ...user,
+          // Ensure every user has a friendshipStatus to prevent SimpleFriendButton loading
+          friendshipStatus: user.friendshipStatus || {
+            exists: false,
+            status: null,
+            direction: null,
+            friendshipId: null
+          }
+        }));
         
         if (newUsers.length > 0) {
           setUsers(prev => [...prev, ...newUsers]);
@@ -321,7 +340,17 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     
     // Handle search users (existing logic)
     if (searchQuery && initialUsers.length > 0) {
-      setUsers(initialUsers);
+      const usersWithStatus = initialUsers.map(user => ({
+        ...user,
+        // Ensure every user has a friendshipStatus to prevent SimpleFriendButton loading
+        friendshipStatus: user.friendshipStatus || {
+          exists: false,
+          status: null,
+          direction: null,
+          friendshipId: null
+        }
+      }));
+      setUsers(usersWithStatus);
       setIsInitialLoad(false);
     }
   }, [randomUsersResult, initialUsers, searchQuery, isInitialLoad, isLoading, shownUserIds]);
@@ -355,7 +384,17 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
       if (isInitialLoad) {
         // Initial load - set the users directly
         if (usersResult.users && usersResult.users.length > 0) {
-          setUsers(usersResult.users);
+          const usersWithStatus = usersResult.users.map(user => ({
+            ...user,
+            // Ensure every user has a friendshipStatus to prevent SimpleFriendButton loading
+            friendshipStatus: user.friendshipStatus || {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            }
+          }));
+          setUsers(usersWithStatus);
           setNextCursor(usersResult.nextCursor || undefined);
           setHasMore(!!usersResult.hasMore);
         }
@@ -364,7 +403,17 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
       } else if (isLoading) {
         // Loading more - append to existing users
         if (usersResult.users && usersResult.users.length > 0) {
-          setUsers(prev => [...prev, ...usersResult.users]);
+          const usersWithStatus = usersResult.users.map(user => ({
+            ...user,
+            // Ensure every user has a friendshipStatus to prevent SimpleFriendButton loading
+            friendshipStatus: user.friendshipStatus || {
+              exists: false,
+              status: null,
+              direction: null,
+              friendshipId: null
+            }
+          }));
+          setUsers(prev => [...prev, ...usersWithStatus]);
           setNextCursor(usersResult.nextCursor || undefined);
           setHasMore(!!usersResult.hasMore);
         } else {
@@ -418,8 +467,33 @@ const PeopleDisplayComponent = memo<PeopleDisplayProps>(({
     <UserCard key={user.userId} user={user} />
   ), []);
   
-  // Initial loading state for search queries - show skeleton instead of loader
-  if (isInitialLoad && searchQuery && (!usersResult || !usersResult.users)) {
+  // Check if we have friendship statuses for all users (similar to FriendsList pattern)
+  const userIds = useMemo(() => users.map(user => user.userId), [users]);
+  
+  const hasFriendshipStatuses = useMemo(() => {
+    if (!isAuthenticated || users.length === 0) return true; // No auth or no users = no statuses needed
+    
+    if (searchQuery) {
+      // For search: check if we have friendship statuses for all users
+      return searchFriendshipStatuses !== undefined && 
+             userIds.every(userId => 
+               (searchFriendshipStatuses as BatchFriendshipStatusResponse)?.some(status => status.userId === userId)
+             );
+    } else {
+      // For random users: check if we have friendship statuses for all users
+      return randomFriendshipStatuses !== undefined && 
+             userIds.every(userId => 
+               (randomFriendshipStatuses as BatchFriendshipStatusResponse)?.some(status => status.userId === userId)
+             );
+    }
+  }, [isAuthenticated, users.length, searchQuery, searchFriendshipStatuses, randomFriendshipStatuses, userIds]);
+
+  // Show skeleton until we have both users AND their friendship statuses
+  const shouldShowSkeleton = isInitialLoad || 
+                             (users.length > 0 && !hasFriendshipStatuses) ||
+                             (searchQuery && (!usersResult || !usersResult.users));
+
+  if (shouldShowSkeleton) {
     return <UsersListSkeleton count={6} />;
   }
 
