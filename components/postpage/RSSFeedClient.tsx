@@ -29,8 +29,8 @@ import {
   useRSSFeedIsLoading
 } from '@/lib/stores/rssFeedStore';
 import { useRSSFeedPaginationHook } from '@/hooks/useRSSFeedPagination';
-import { useRSSFeedMetrics } from '@/hooks/useRSSFeedMetrics';
 import { useRSSFeedUI } from '@/hooks/useRSSFeedUI';
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
@@ -118,15 +118,20 @@ const arePropsEqual = (prevProps: RSSEntryProps, nextProps: RSSEntryProps) => {
       (prevProps.entryWithData.initialData.retweets?.count === nextProps.entryWithData.initialData.retweets?.count &&
        prevProps.entryWithData.initialData.retweets?.isRetweeted === nextProps.entryWithData.initialData.retweets?.isRetweeted)) &&
     ((!prevProps.entryWithData.initialData.bookmarks && !nextProps.entryWithData.initialData.bookmarks) ||
-      (prevProps.entryWithData.initialData.bookmarks?.isBookmarked === nextProps.entryWithData.initialData.bookmarks?.isBookmarked))
+      (prevProps.entryWithData.initialData.bookmarks?.isBookmarked === nextProps.entryWithData.initialData.bookmarks?.isBookmarked)) &&
+    // Check metrics prop for batch metrics reactivity
+    prevProps.metrics === nextProps.metrics
   );
 };
 
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer }: RSSEntryProps): JSX.Element => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer, metrics }: RSSEntryProps & { metrics?: { likes: { count: number; isLiked: boolean }; comments: { count: number }; retweets?: { count: number; isRetweeted: boolean }; bookmarks?: { isBookmarked: boolean }; } | null }): JSX.Element => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
+
+  // Use batch metrics if available, otherwise fall back to individual metrics
+  const finalInteractions = metrics || initialData;
 
   // Universal focus prevention pattern - matches RSS feed implementation
   const handleLinkInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -228,8 +233,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
 
   // Memoize the comment handler
   const handleOpenCommentDrawer = useCallback(() => {
-    onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData.comments);
-  }, [entry.guid, entry.feedUrl, initialData.comments, onOpenCommentDrawer]);
+    onOpenCommentDrawer(entry.guid, entry.feedUrl, finalInteractions.comments);
+  }, [entry.guid, entry.feedUrl, finalInteractions.comments, onOpenCommentDrawer]);
 
   // Memoize the formatted date to prevent recalculation
   const formattedDate = useMemo(() => {
@@ -401,7 +406,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
         )}
         
         {/* Horizontal Interaction Buttons */}
-        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mt-4 h-[16px]" onClick={(e) => e.stopPropagation()}>
           <NoFocusWrapper className="flex items-center">
             <LikeButtonClient
               entryGuid={entry.guid}
@@ -409,7 +414,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               title={entry.title}
               pubDate={entry.pubDate}
               link={entry.link}
-              initialData={initialData.likes}
+              initialData={finalInteractions.likes}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -422,8 +428,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
-              initialData={initialData.comments}
+              initialData={finalInteractions.comments}
               buttonOnly={true}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -433,7 +440,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               title={entry.title}
               pubDate={entry.pubDate}
               link={entry.link}
-              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
+              initialData={finalInteractions.retweets || { isRetweeted: false, count: 0 }}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -444,7 +452,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
                 title={entry.title}
                 pubDate={entry.pubDate}
                 link={entry.link}
-                initialData={initialData.bookmarks || { isBookmarked: false }}
+                initialData={finalInteractions.bookmarks || { isBookmarked: false }}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -526,14 +534,16 @@ const FeedContent = React.memo(function FeedContent({
   mediaType,
   verified,
   onOpenCommentDrawer,
-  isInitialRender
-}: FeedContentProps) {
+  isInitialRender,
+  getMetrics
+}: FeedContentProps & { getMetrics?: (entryGuid: string) => { likes: { count: number; isLiked: boolean }; comments: { count: number }; retweets?: { count: number; isRetweeted: boolean }; bookmarks?: { isBookmarked: boolean }; } | null }) {
   
-  // Apply memory optimization to prevent excessive memory usage
-  const optimizedEntries = useMemo(() => 
-    optimizeRSSEntriesForMemory(entries), 
-    [entries]
-  );
+  // CRITICAL FIX: Remove double optimization - entries are already optimized in parent component
+  // const optimizedEntries = useMemo(() => 
+  //   optimizeRSSEntriesForMemory(entries), 
+  //   [entries]
+  // );
+  
   // Add ref to prevent multiple endReached calls
   const endReachedCalledRef = useRef(false);
   
@@ -559,6 +569,22 @@ const FeedContent = React.memo(function FeedContent({
     delay: 1000 // Universal 1-second delay consistent with other feeds
   });
   
+  // Create itemContent callback using the standard pattern
+  const itemContentCallback = useCallback((index: number, item: RSSFeedEntry) => {
+    const metrics = getMetrics ? getMetrics(item.entry.guid) : null;
+    return (
+      <RSSEntry 
+        entryWithData={item} 
+        featuredImg={featuredImg}
+        postTitle={postTitle}
+        mediaType={mediaType}
+        verified={verified}
+        onOpenCommentDrawer={onOpenCommentDrawer}
+        metrics={metrics}
+      />
+    );
+  }, [featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer, getMetrics]);
+  
   return (
     <div 
       className="space-y-0 rss-feed-container" 
@@ -574,18 +600,9 @@ const FeedContent = React.memo(function FeedContent({
         <>
           <Virtuoso
             useWindowScroll
-            data={optimizedEntries}
+            data={entries}
             overscan={VIRTUAL_SCROLL_CONFIG.overscan}
-            itemContent={(index, item) => (
-              <RSSEntry 
-                entryWithData={item} 
-                featuredImg={featuredImg}
-                postTitle={postTitle}
-                mediaType={mediaType}
-                verified={verified}
-                onOpenCommentDrawer={onOpenCommentDrawer}
-              />
-            )}
+            itemContent={itemContentCallback}
             components={{
               Footer: () => null
             }}
@@ -609,7 +626,28 @@ const FeedContent = React.memo(function FeedContent({
       ) : null}
     </div>
   );
-}, areFeedContentPropsEqual);
+}, (prevProps, nextProps) => {
+  // Simple length check 
+  if (prevProps.entries.length !== nextProps.entries.length) {
+    return false;
+  }
+  
+  // Check if hasMore or isPending changed
+  if (prevProps.hasMore !== nextProps.hasMore || 
+      prevProps.isPending !== nextProps.isPending ||
+      prevProps.featuredImg !== nextProps.featuredImg ||
+      prevProps.postTitle !== nextProps.postTitle ||
+      prevProps.mediaType !== nextProps.mediaType ||
+      prevProps.verified !== nextProps.verified ||
+      prevProps.isInitialRender !== nextProps.isInitialRender) {
+    return false;
+  }
+  
+  // Check getMetrics function reference for batch metrics reactivity
+  if (prevProps.getMetrics !== nextProps.getMetrics) return false;
+  
+  return true;
+});
 
 // Add displayName for easier debugging
 FeedContent.displayName = 'FeedContent';
@@ -689,8 +727,21 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   
   // Use custom hooks for business logic
   const paginationHook = useRSSFeedPaginationHook(customLoadMore, isActive);
-  const metricsHook = useRSSFeedMetrics();
   const uiHook = useRSSFeedUI();
+  
+  // Apply memory optimization to prevent excessive memory usage
+  const optimizedEntries = useMemo(() => 
+    optimizeRSSEntriesForMemory(entries), 
+    [entries]
+  );
+  
+  // Get entry GUIDs for batch metrics query
+  const entryGuids = useMemo(() => {
+    return optimizedEntries.map(entry => entry.entry.guid);
+  }, [optimizedEntries]);
+  
+  // Use batch metrics hook
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
   
   // Use the shared focus prevention hook
   useFeedFocusPrevention(isActive && !commentDrawer.isOpen, '.rss-feed-container');
@@ -730,7 +781,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   return (
     <div className="w-full rss-feed-container">
       <FeedContent
-        entries={metricsHook.enhancedEntries}
+        entries={optimizedEntries}
         hasMore={hasMore} // PHASE 4: Use granular selector
         loadMoreRef={loadMoreRef}
         isPending={effectiveIsLoading} // PHASE 4: Use granular selector
@@ -741,6 +792,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         verified={verified}
         onOpenCommentDrawer={uiHook.handleCommentDrawer.open}
         isInitialRender={loading.isInitialRender}
+        getMetrics={getMetrics}
       />
       {/* PHASE 4: Single global comment drawer with dynamic loading */}
       {commentDrawer.selectedEntry && (

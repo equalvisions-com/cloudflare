@@ -62,7 +62,7 @@ import { useUserActivityFeedStore } from '@/lib/stores/userActivityFeedStore';
 import { useCommentManagement } from '@/hooks/useCommentManagement';
 import { useActivityLoading } from '@/hooks/useActivityLoading';
 import { useActivityFeedUI } from '@/hooks/useActivityFeedUI';
-import { useEntriesMetrics } from '@/hooks/useEntriesMetrics';
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 
 // Custom hooks are now extracted to separate files
 
@@ -1775,11 +1775,26 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     [activities]
   );
 
-  // Use our custom hook for metrics with memoized dependencies
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
-    entryGuids,
-    initialEntryMetrics
-  );
+  // Use batch metrics hook
+  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(entryGuids);
+  
+  // Wrapper function to convert batch metrics to InteractionStates format
+  const getMetrics = useCallback((entryGuid: string): InteractionStates => {
+    const batchMetrics = getBatchMetrics(entryGuid);
+    if (!batchMetrics) {
+      return {
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 }
+      };
+    }
+    
+    return {
+      likes: batchMetrics.likes,
+      comments: batchMetrics.comments,
+      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 }
+    };
+  }, [getBatchMetrics]);
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
@@ -1802,7 +1817,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       name={name}
       profileImage={profileImage}
       userId={userId}
-      getEntryMetrics={getEntryMetrics}
+      getEntryMetrics={getMetrics}
       handleOpenCommentDrawer={handleOpenCommentDrawer}
       currentTrack={currentTrack}
       playTrack={playTrack}
@@ -1813,7 +1828,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     name,
     profileImage,
     userId,
-    getEntryMetrics,
+    getMetrics,
     handleOpenCommentDrawer,
     currentTrack,
     playTrack

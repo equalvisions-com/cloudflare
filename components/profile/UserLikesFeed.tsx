@@ -51,7 +51,7 @@ import {
   InteractionStates 
 } from "@/lib/types";
 import { useUserLikesFeedStore } from "@/lib/stores/userLikesFeedStore";
-import { useEntriesMetrics } from "@/hooks/useEntriesMetrics";
+import { useBatchEntryMetrics } from "@/hooks/useBatchEntryMetrics";
 import { useLikesLoading } from "@/hooks/useLikesLoading";
 import { useLikesFeedUI } from "@/hooks/useLikesFeedUI";
 
@@ -587,11 +587,26 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     [activities]
   );
   
-  // Use centralized hook for metrics
-  const { getEntryMetrics, isLoading: isMetricsLoading } = useEntriesMetrics(
-    entryGuids,
-    initialData?.entryMetrics
-  );
+  // Use batch metrics hook
+  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(entryGuids);
+  
+  // Wrapper function to convert batch metrics to InteractionStates format
+  const getMetrics = useCallback((entryGuid: string): InteractionStates => {
+    const batchMetrics = getBatchMetrics(entryGuid);
+    if (!batchMetrics) {
+      return {
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 }
+      };
+    }
+    
+    return {
+      likes: batchMetrics.likes,
+      comments: batchMetrics.comments,
+      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 }
+    };
+  }, [getBatchMetrics]);
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
@@ -615,11 +630,11 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
       <ActivityCard 
         activity={activity} 
         entryDetails={entryDetails[activity.entryGuid]}
-        getEntryMetrics={getEntryMetrics}
+        getEntryMetrics={getMetrics}
         onOpenCommentDrawer={handleOpenCommentDrawer}
       />
     );
-  }, [entryDetails, getEntryMetrics, handleOpenCommentDrawer]);
+  }, [entryDetails, getMetrics, handleOpenCommentDrawer]);
 
   // Loading state - only show for initial load and initial metrics fetch
   if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {

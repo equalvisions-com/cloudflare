@@ -64,7 +64,6 @@ const EntriesDisplayComponent = ({
     isMetricsLoading,
     commentDrawerOpen,
     selectedCommentEntry,
-    getEntryMetrics,
     loadMore,
     handleOpenCommentDrawer,
     handleCommentDrawerClose,
@@ -139,19 +138,25 @@ const EntriesDisplayComponent = ({
 
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {
-    // Get metrics from batch query if available, fallback to individual query
-    const batchMetrics = getMetrics ? getMetrics(entry.guid) : null;
-    const fallbackMetrics = getEntryMetrics(entry.guid);
+    // Get metrics from batch query - use universal pattern like other feeds
+    const metrics = getMetrics ? getMetrics(entry.guid) : null;
+    
+    // Use default interactions when no batch metrics available
+    const defaultInteractions = {
+      likes: { isLiked: false, count: 0 },
+      comments: { count: 0 },
+      retweets: { isRetweeted: false, count: 0 }
+    };
     
     return (
       <EntryCard 
         entry={entry} 
-        interactions={batchMetrics || fallbackMetrics}
+        interactions={metrics || defaultInteractions}
         onOpenCommentDrawer={handleOpenCommentDrawer}
-        useBatchMetrics={!!batchMetrics}
+        useBatchMetrics={!!metrics}
       />
     );
-  }, [getMetrics, getEntryMetrics, handleOpenCommentDrawer]);
+  }, [getMetrics, handleOpenCommentDrawer]);
 
   // Don't render anything if tab is not visible
   if (!isVisible) {

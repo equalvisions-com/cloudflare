@@ -655,7 +655,8 @@ function FeaturedContentComponent({
       return null;
     }
     
-    const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
+    // CRITICAL FIX: Remove double optimization - entries are already optimized in parent component
+    // const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
     
     if (!hasLoggedInitialCreateRef.current) {
       hasLoggedInitialCreateRef.current = true;
@@ -665,7 +666,7 @@ function FeaturedContentComponent({
       <Virtuoso
         ref={virtuosoRef}
         useWindowScroll
-        data={optimizedEntries}
+        data={paginatedEntries}
         computeItemKey={(_, item) => item.entry.guid}
         itemContent={itemContentCallback}
         overscan={VIRTUAL_SCROLL_CONFIG.overscan}

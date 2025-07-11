@@ -791,8 +791,8 @@ function EntriesContentComponent({
       return null;
     }
     
-    // Apply memory optimization for large datasets
-    const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
+    // CRITICAL FIX: Remove double optimization - entries are already optimized in parent component
+    // const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
     
     // Only log the first time to avoid duplicate messages
     if (!hasLoggedInitialCreateRef.current) {
@@ -804,7 +804,7 @@ function EntriesContentComponent({
       <Virtuoso
         ref={virtuosoRef}
         useWindowScroll
-        data={optimizedEntries}
+        data={paginatedEntries}
         computeItemKey={(_, item) => item.entry.guid}
         itemContent={itemContentCallback}
         overscan={VIRTUAL_SCROLL_CONFIG.overscan}

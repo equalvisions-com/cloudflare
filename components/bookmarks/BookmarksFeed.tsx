@@ -56,6 +56,7 @@ import {
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useBatchEntryMetrics } from "@/hooks/useBatchEntryMetrics";
 
 // BookmarksFeed State Management Types now imported from @/lib/types
 
@@ -236,14 +237,18 @@ const BookmarkCard = memo(({
   bookmark, 
   entryDetails,
   interactions,
-  onOpenCommentDrawer
-}: BookmarkCardProps) => {
+  onOpenCommentDrawer,
+  metrics
+}: BookmarkCardProps & { metrics?: { likes: { count: number; isLiked: boolean }; comments: { count: number }; retweets?: { count: number; isRetweeted: boolean }; bookmarks?: { isBookmarked: boolean }; } | null }) => {
   // Get audio player state and actions
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = entryDetails && currentTrack?.src === entryDetails.link;
   
   const timestamp = useFormattedTimestamp(entryDetails?.pub_date);
+  
+  // Use batch metrics if available, otherwise fall back to individual metrics
+  const finalInteractions = metrics || interactions;
 
   // Memoize featured image source (for top-left small image)
   const featuredImageSrc = useMemo(() => {
@@ -555,7 +560,8 @@ const BookmarkCard = memo(({
               title={entryDetails.title}
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+              initialData={finalInteractions?.likes || { isLiked: false, count: 0 }}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -568,9 +574,10 @@ const BookmarkCard = memo(({
             <CommentSectionClient
               entryGuid={entryDetails.guid}
               feedUrl={entryDetails.feed_url || ''}
-              initialData={interactions?.comments || { count: 0 }}
+              initialData={finalInteractions?.comments || { count: 0 }}
               buttonOnly={true}
               data-comment-input
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -580,7 +587,8 @@ const BookmarkCard = memo(({
               title={entryDetails.title}
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+              initialData={finalInteractions?.retweets || { isRetweeted: false, count: 0 }}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -640,6 +648,9 @@ const BookmarkCard = memo(({
   
   // Check function reference (should be stable with useCallback)
   if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // Check metrics object for batch metrics reactivity
+  if (prevProps.metrics !== nextProps.metrics) return false;
   
   // All checks passed - prevent re-render for optimal performance
   return true;
@@ -844,9 +855,18 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     optimizeBookmarksForMemory(state.bookmarks), 
     [state.bookmarks]
   );
+  
+  // Get entry GUIDs for batch metrics query
+  const entryGuids = useMemo(() => {
+    return optimizedBookmarks.map(bookmark => bookmark.entryGuid);
+  }, [optimizedBookmarks]);
+  
+  // Use batch metrics hook
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
 
   // Implement the itemContentCallback using the standard pattern
   const itemContentCallback = useCallback((index: number, bookmark: BookmarkItem) => {
+    const metrics = getMetrics(bookmark.entryGuid);
     return (
       <BookmarkCard 
         key={bookmark._id} 
@@ -854,9 +874,10 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
         entryDetails={state.entryDetails[bookmark.entryGuid]}
         interactions={state.entryMetrics[bookmark.entryGuid]}
         onOpenCommentDrawer={handleOpenCommentDrawer}
+        metrics={metrics}
       />
     );
-  }, [state.entryDetails, state.entryMetrics, handleOpenCommentDrawer]);
+  }, [state.entryDetails, state.entryMetrics, handleOpenCommentDrawer, getMetrics]);
 
   // Error state
   if (state.error && state.bookmarks.length === 0) {

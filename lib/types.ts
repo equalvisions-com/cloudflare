@@ -1347,6 +1347,12 @@ export interface RSSEntryProps {
   mediaType?: string;
   verified?: boolean;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  metrics?: {
+    likes: { count: number; isLiked: boolean };
+    comments: { count: number };
+    retweets?: { count: number; isRetweeted: boolean };
+    bookmarks?: { isBookmarked: boolean };
+  } | null;
 }
 
 export interface FeedContentProps {
