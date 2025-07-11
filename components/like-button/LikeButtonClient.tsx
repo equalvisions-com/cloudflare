@@ -20,6 +20,7 @@ interface LikeButtonProps {
     isLiked: boolean;
     count: number;
   };
+  skipQuery?: boolean; // When true, don't use individual query
 }
 
 export const LikeButtonClientWithErrorBoundary = memo(function LikeButtonClientWithErrorBoundary(props: LikeButtonProps) {
@@ -36,7 +37,8 @@ export const LikeButtonClient = memo(function LikeButtonClient({
   title, 
   pubDate, 
   link,
-  initialData = { isLiked: false, count: 0 }
+  initialData = { isLiked: false, count: 0 },
+  skipQuery = false
 }: LikeButtonProps) {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
@@ -48,7 +50,11 @@ export const LikeButtonClient = memo(function LikeButtonClient({
   const isMountedRef = useRef(true);
   
   // Use Convex's real-time query with proper loading state handling
-  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  // Skip query if parent is handling batch metrics
+  const metrics = useQuery(
+    api.entries.getEntryMetrics, 
+    skipQuery ? 'skip' : { entryGuid }
+  );
   
   // Track if the metrics have been loaded at least once
   const [metricsLoaded, setMetricsLoaded] = useState(false);

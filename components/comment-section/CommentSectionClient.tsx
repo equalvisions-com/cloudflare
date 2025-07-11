@@ -250,7 +250,8 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
   initialData = { count: 0 },
   isOpen: externalIsOpen,
   setIsOpen: externalSetIsOpen,
-  buttonOnly = false
+  buttonOnly = false,
+  skipQuery = false
 }) => {
   // Use custom hook for all business logic
   const {
@@ -270,6 +271,7 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
     isOpen: externalIsOpen,
     setIsOpen: externalSetIsOpen,
     buttonOnly,
+    skipQuery,
   });
   
   // Get authentication state and viewer

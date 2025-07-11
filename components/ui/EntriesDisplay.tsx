@@ -16,6 +16,7 @@ import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-butto
 import { ShareButtonClient } from '@/components/share-button/ShareButtonClient';
 import { BookmarkButtonClient } from '@/components/bookmark-button/BookmarkButtonClient';
 import { Virtuoso } from 'react-virtuoso';
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 
 // Memory optimization for large datasets - Virtual scrolling configuration
 const VIRTUAL_SCROLL_CONFIG = {
@@ -103,19 +104,54 @@ const EntriesDisplayComponent = ({
     [entries]
   );
 
+  // Get entry GUIDs for batch metrics query
+  const entryGuids = useMemo(() => {
+    const guids = optimizedEntries.map(entry => entry.guid);
+    
+    // Debug logging for pagination tracking
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Entries Display: entryGuids calculated', {
+        totalEntries: optimizedEntries.length,
+        totalGuids: guids.length,
+        firstFew: guids.slice(0, 3),
+        lastFew: guids.slice(-3),
+        timestamp: Date.now()
+      });
+    }
+    
+    return guids;
+  }, [optimizedEntries]);
+  
+  // Debug logging for entries changes
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Entries Display: entries changed', {
+        totalEntries: entries.length,
+        optimizedEntries: optimizedEntries.length,
+        entryGuids: entryGuids.length,
+        timestamp: Date.now()
+      });
+    }
+  }, [entries.length, optimizedEntries.length, entryGuids.length]);
+  
+  // Use batch metrics hook for reactive updates
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
+
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {
-    // Get the metrics for this entry
-    const metrics = getEntryMetrics(entry.guid);
+    // Get metrics from batch query if available, fallback to individual query
+    const batchMetrics = getMetrics ? getMetrics(entry.guid) : null;
+    const fallbackMetrics = getEntryMetrics(entry.guid);
     
     return (
       <EntryCard 
         entry={entry} 
-        interactions={metrics}
+        interactions={batchMetrics || fallbackMetrics}
         onOpenCommentDrawer={handleOpenCommentDrawer}
+        useBatchMetrics={!!batchMetrics}
       />
     );
-  }, [getEntryMetrics, handleOpenCommentDrawer]);
+  }, [getMetrics, getEntryMetrics, handleOpenCommentDrawer]);
 
   // Don't render anything if tab is not visible
   if (!isVisible) {
@@ -197,14 +233,25 @@ const EntriesDisplayComponent = ({
   );
 };
 
-// Export the memoized version of the component
-export const EntriesDisplay = memo(EntriesDisplayComponent);
+// Export the memoized version of the component with batch metrics comparison
+export const EntriesDisplay = memo(EntriesDisplayComponent, (prevProps, nextProps) => {
+  // Fast path: check primitive values first
+  if (prevProps.isVisible !== nextProps.isVisible) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  if (prevProps.mediaType !== nextProps.mediaType) return false;
+  if (prevProps.searchQuery !== nextProps.searchQuery) return false;
+  if (prevProps.className !== nextProps.className) return false;
+  
+  // All checks passed - prevent re-render for optimal performance
+  return true;
+});
 
-// Modified EntryCard to accept interactions prop and onOpenCommentDrawer
-const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: { 
+// Modified EntryCard to accept interactions prop, onOpenCommentDrawer, and useBatchMetrics flag
+const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer, useBatchMetrics = false }: { 
   entry: EntriesRSSEntry; 
   interactions: InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  useBatchMetrics?: boolean;
 }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -514,6 +561,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={interactions.likes}
+              skipQuery={useBatchMetrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -525,6 +573,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               feedUrl={entry.feed_url || ''}
               initialData={interactions.comments}
               buttonOnly={true}
+              skipQuery={useBatchMetrics}
               data-comment-input
             />
           </NoFocusWrapper>
@@ -536,6 +585,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={interactions.retweets}
+              skipQuery={useBatchMetrics}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -547,6 +597,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
                 pubDate={entry.pub_date}
                 link={entry.link}
                 initialData={{ isBookmarked: false }}
+                skipQuery={useBatchMetrics}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -579,7 +630,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
   if (prevEntry.link !== nextEntry.link) return false;
   if (prevEntry.pub_date !== nextEntry.pub_date) return false;
   
-  // Check interactions that affect UI
+  // Check interactions that affect UI (CRITICAL for batch metrics reactivity)
   if (prevProps.interactions.likes.count !== nextProps.interactions.likes.count) return false;
   if (prevProps.interactions.likes.isLiked !== nextProps.interactions.likes.isLiked) return false;
   if (prevProps.interactions.comments.count !== nextProps.interactions.comments.count) return false;
@@ -588,6 +639,9 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer }: {
   
   // Check function reference (should be stable with useCallback)
   if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
+  
+  // Check useBatchMetrics flag
+  if (prevProps.useBatchMetrics !== nextProps.useBatchMetrics) return false;
   
   // All checks passed - prevent re-render for optimal performance
   return true;

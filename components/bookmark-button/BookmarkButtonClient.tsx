@@ -19,6 +19,7 @@ interface BookmarkButtonProps {
   initialData?: {
     isBookmarked: boolean;
   };
+  skipQuery?: boolean; // When true, don't use individual query
 }
 
 export const BookmarkButtonClientWithErrorBoundary = memo(function BookmarkButtonClientWithErrorBoundary(props: BookmarkButtonProps) {
@@ -36,7 +37,8 @@ const BookmarkButtonClientComponent = ({
   title, 
   pubDate, 
   link,
-  initialData = { isBookmarked: false }
+  initialData = { isBookmarked: false },
+  skipQuery = false
 }: BookmarkButtonProps) => {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
@@ -48,7 +50,11 @@ const BookmarkButtonClientComponent = ({
   const isMountedRef = useRef(true);
   
   // Use Convex's real-time query with proper loading state handling
-  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  // Skip query if parent is handling batch metrics
+  const metrics = useQuery(
+    api.entries.getEntryMetrics, 
+    skipQuery ? 'skip' : { entryGuid }
+  );
   
   // Track if the metrics have been loaded at least once
   const [metricsLoaded, setMetricsLoaded] = useState(false);

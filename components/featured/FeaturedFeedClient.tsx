@@ -23,6 +23,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 import { FeaturedFeedStoreProvider } from "./FeaturedFeedStoreProvider";
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 import {
   useFeaturedFeedEntries,
   useFeaturedFeedIsLoading,
@@ -122,10 +123,16 @@ const memoizedDateParsers = {
 
 interface FeaturedEntryProps {
   entryWithData: FeaturedFeedEntryWithData;
+  metrics?: {
+    likes: { count: number; isLiked: boolean };
+    comments: { count: number };
+    retweets?: { count: number; isRetweeted: boolean };
+    bookmarks?: { isBookmarked: boolean };
+  } | null;
 }
 
 // Memoized FeaturedEntry component with optimized comparison
-const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer, isPriority = false, articleIndex, totalArticles }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean, articleIndex?: number, totalArticles?: number }) => {
+const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, metrics, onOpenCommentDrawer, isPriority = false, articleIndex, totalArticles }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean, articleIndex?: number, totalArticles?: number }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
@@ -224,8 +231,8 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
 
   // Memoized comment handler
   const handleOpenComments = useCallback(() => {
-    onOpenCommentDrawer(entry.guid, entry.feed_url, initialData?.comments);
-  }, [entry.guid, entry.feed_url, initialData?.comments, onOpenCommentDrawer]);
+    onOpenCommentDrawer(entry.guid, entry.feed_url, metrics?.comments || initialData?.comments);
+  }, [entry.guid, entry.feed_url, metrics?.comments, initialData?.comments, onOpenCommentDrawer]);
 
   // Memoized verification status
   const isVerified = useMemo(() => {
@@ -458,7 +465,8 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               title={entry.title}
               pubDate={entry.pub_date}
               link={entry.link}
-              initialData={initialData.likes}
+              initialData={metrics?.likes || initialData.likes}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -468,8 +476,9 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feed_url}
-              initialData={initialData.comments}
+              initialData={metrics?.comments || initialData.comments}
               buttonOnly={true}
+              skipQuery={!!metrics}
               data-comment-input
             />
           </NoFocusWrapper>
@@ -480,7 +489,8 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               title={entry.title}
               pubDate={entry.pub_date}
               link={entry.link}
-              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
+              initialData={metrics?.retweets || initialData.retweets || { isRetweeted: false, count: 0 }}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -548,6 +558,14 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
   if (prevProps.articleIndex !== nextProps.articleIndex) return false;
   if (prevProps.totalArticles !== nextProps.totalArticles) return false;
   
+  // CRITICAL FIX: Check metrics that affect UI
+  if (prevProps.metrics?.likes?.count !== nextProps.metrics?.likes?.count) return false;
+  if (prevProps.metrics?.likes?.isLiked !== nextProps.metrics?.likes?.isLiked) return false;
+  if (prevProps.metrics?.comments?.count !== nextProps.metrics?.comments?.count) return false;
+  if (prevProps.metrics?.retweets?.count !== nextProps.metrics?.retweets?.count) return false;
+  if (prevProps.metrics?.retweets?.isRetweeted !== nextProps.metrics?.retweets?.isRetweeted) return false;
+  if (prevProps.metrics?.bookmarks?.isBookmarked !== nextProps.metrics?.bookmarks?.isBookmarked) return false;
+  
   return true;
 });
 FeaturedEntry.displayName = 'FeaturedEntry';
@@ -562,6 +580,7 @@ interface FeaturedContentProps {
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
   pageSize: number;
+  getMetrics?: (entryGuid: string) => { likes: { count: number; isLiked: boolean }; comments: { count: number }; retweets?: { count: number; isRetweeted: boolean }; bookmarks?: { isBookmarked: boolean }; } | null;
 }
 
 function FeaturedContentComponent({
@@ -572,7 +591,8 @@ function FeaturedContentComponent({
   loadMore,
   onOpenCommentDrawer,
   isInitializing = false,
-  pageSize
+  pageSize,
+  getMetrics
 }: FeaturedContentProps) {
   const endReachedCalledRef = useRef(false);
   const entriesDataRef = useRef(paginatedEntries);
@@ -588,16 +608,19 @@ function FeaturedContentComponent({
   }
   
   const itemContentCallback = useCallback((index: number, item: FeaturedFeedEntryWithData) => {
+    const metrics = getMetrics ? getMetrics(item.entry.guid) : null;
+    
     return (
       <FeaturedEntry 
-        entryWithData={item} 
+        entryWithData={item}
+        metrics={metrics}
         onOpenCommentDrawer={onOpenCommentDrawer}
         isPriority={index < 2} // First two entries get priority loading
         articleIndex={index + 1} // ARIA position starts from 1
         totalArticles={paginatedEntries.length}
       />
     );
-  }, [onOpenCommentDrawer, paginatedEntries.length]);
+  }, [onOpenCommentDrawer, paginatedEntries.length, getMetrics]);
   
   const handleEndReached = useCallback(() => {
     if (hasMore && !isPending && !endReachedCalledRef.current) {
@@ -736,6 +759,9 @@ const FeaturedContent = React.memo<FeaturedContentProps>(
     if (prevProps.loadMore !== nextProps.loadMore) return false;
     if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
     
+    // CRITICAL FIX: Check getMetrics function reference for batch metrics reactivity
+    if (prevProps.getMetrics !== nextProps.getMetrics) return false;
+    
     return true;
   }
 );
@@ -813,6 +839,16 @@ const FeaturedFeedClientComponent = ({
     [visibleEntries]
   );
 
+  // Get entry GUIDs for batch metrics query
+  const entryGuids = useMemo(() => {
+    return optimizedEntries.map(entry => entry.entry.guid);
+  }, [optimizedEntries]);
+  
+
+  
+  // Use batch metrics hook
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
+
   // Focus prevention
   const shouldPreventFocus = useMemo(() => 
     isActive && !commentDrawerOpen, 
@@ -852,6 +888,7 @@ const FeaturedFeedClientComponent = ({
           onOpenCommentDrawer={memoizedCommentHandlers.open}
           isInitializing={!hasInitialized}
           pageSize={pageSize}
+          getMetrics={getMetrics}
         />
       </section>
       

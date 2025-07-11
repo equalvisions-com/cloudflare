@@ -20,6 +20,7 @@ interface RetweetButtonProps {
     isRetweeted: boolean;
     count: number;
   };
+  skipQuery?: boolean; // When true, don't use individual query
 }
 
 export function RetweetButtonClientWithErrorBoundary(props: RetweetButtonProps) {
@@ -37,7 +38,8 @@ const RetweetButtonClientComponent = ({
   title, 
   pubDate, 
   link,
-  initialData = { isRetweeted: false, count: 0 }
+  initialData = { isRetweeted: false, count: 0 },
+  skipQuery = false
 }: RetweetButtonProps) => {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
@@ -49,7 +51,11 @@ const RetweetButtonClientComponent = ({
   const isMountedRef = useRef(true);
   
   // Use Convex's real-time query with proper loading state handling
-  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  // Skip query if parent is handling batch metrics
+  const metrics = useQuery(
+    api.entries.getEntryMetrics, 
+    skipQuery ? 'skip' : { entryGuid }
+  );
   
   // Track if the metrics have been loaded at least once
   const [metricsLoaded, setMetricsLoaded] = useState(false);

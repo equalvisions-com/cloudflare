@@ -82,6 +82,7 @@ import { useRSSEntriesRefresh } from './hooks/useRSSEntriesRefresh';
 import { useRSSEntriesCommentDrawer } from './hooks/useRSSEntriesCommentDrawer';
 import { useRSSEntriesInitialization } from './hooks/useRSSEntriesInitialization';
 import { useRSSEntriesNewEntries } from './hooks/useRSSEntriesNewEntries';
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 
 // Constants for performance optimization
 const ITEMS_PER_REQUEST = 30;
@@ -191,10 +192,16 @@ const formatDateForAPI = (date: Date): string => {
 
 interface RSSEntryProps {
   entryWithData: RSSEntriesDisplayEntry;
+  metrics?: {
+    likes: { count: number; isLiked: boolean };
+    comments: { count: number };
+    retweets?: { count: number; isRetweeted: boolean };
+    bookmarks?: { isBookmarked: boolean };
+  } | null;
 }
 
 // Memoize the RSSEntry component with optimized comparison for maximum performance
-const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
+const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, metrics, onOpenCommentDrawer }: RSSEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
@@ -291,8 +298,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
 
   // Memoize comment handler
   const handleOpenComments = useCallback(() => {
-    onOpenCommentDrawer(entry.guid, entry.feedUrl, initialData?.comments);
-  }, [entry.guid, entry.feedUrl, initialData?.comments, onOpenCommentDrawer]);
+    onOpenCommentDrawer(entry.guid, entry.feedUrl, metrics?.comments || initialData?.comments);
+  }, [entry.guid, entry.feedUrl, metrics?.comments, initialData?.comments, onOpenCommentDrawer]);
 
   // Memoize author display
   const authorDisplay = useMemo(() => {
@@ -512,7 +519,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               title={entry.title}
               pubDate={entry.pubDate}
               link={entry.link}
-              initialData={initialData.likes}
+              initialData={metrics?.likes || initialData.likes}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -522,8 +530,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             <CommentSectionClient
               entryGuid={entry.guid}
               feedUrl={entry.feedUrl}
-              initialData={initialData.comments}
+              initialData={metrics?.comments || initialData.comments}
               buttonOnly={true}
+              skipQuery={!!metrics}
               data-comment-input
             />
           </NoFocusWrapper>
@@ -534,7 +543,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               title={entry.title}
               pubDate={entry.pubDate}
               link={entry.link}
-              initialData={initialData.retweets || { isRetweeted: false, count: 0 }}
+              initialData={metrics?.retweets || initialData.retweets || { isRetweeted: false, count: 0 }}
+              skipQuery={!!metrics}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -545,7 +555,8 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                 title={entry.title}
                 pubDate={entry.pubDate}
                 link={entry.link}
-                initialData={initialData.bookmarks || { isBookmarked: false }}
+                initialData={metrics?.bookmarks || initialData.bookmarks || { isBookmarked: false }}
+                skipQuery={!!metrics}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -595,6 +606,13 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   // Check function reference (should be stable with useCallback)
   if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
   
+  // Check metrics that affect UI
+  if (prevProps.metrics?.likes?.count !== nextProps.metrics?.likes?.count) return false;
+  if (prevProps.metrics?.likes?.isLiked !== nextProps.metrics?.likes?.isLiked) return false;
+  if (prevProps.metrics?.comments?.count !== nextProps.metrics?.comments?.count) return false;
+  if (prevProps.metrics?.retweets?.count !== nextProps.metrics?.retweets?.count) return false;
+  if (prevProps.metrics?.retweets?.isRetweeted !== nextProps.metrics?.retweets?.isRetweeted) return false;
+  
   // All checks passed - prevent re-render for optimal performance
   return true;
 });
@@ -621,6 +639,12 @@ interface EntriesContentProps {
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   isInitializing?: boolean;
   pageSize: number;
+  getMetrics?: (entryGuid: string) => {
+    likes: { count: number; isLiked: boolean };
+    comments: { count: number };
+    retweets?: { count: number; isRetweeted: boolean };
+    bookmarks?: { isBookmarked: boolean };
+  } | null;
 }
 
 // Define the component function first
@@ -635,7 +659,8 @@ function EntriesContentComponent({
   initialData,
   onOpenCommentDrawer,
   isInitializing = false,
-  pageSize
+  pageSize,
+  getMetrics
 }: EntriesContentProps) {
   // Add ref for tracking if endReached was already called
   const endReachedCalledRef = useRef(false);
@@ -659,11 +684,15 @@ function EntriesContentComponent({
   
   // Optimized itemContent callback with performance enhancements
   const itemContentCallback = useCallback((index: number, item: RSSEntriesDisplayEntry) => {
-    // Fast path: if no external data sources, return item as-is
-    if (!entryMetrics && !postMetadata && !initialData.feedMetadataCache) {
+    // Get metrics from batch query if available
+    const metrics = getMetrics ? getMetrics(item.entry.guid) : null;
+    
+    // Fast path: if no external data sources and no batch metrics, return item as-is
+    if (!entryMetrics && !postMetadata && !initialData.feedMetadataCache && !metrics) {
       return (
         <RSSEntry 
-          entryWithData={item} 
+          entryWithData={item}
+          metrics={null}
           onOpenCommentDrawer={onOpenCommentDrawer} 
         />
       );
@@ -709,11 +738,12 @@ function EntriesContentComponent({
     
     return (
       <RSSEntry 
-        entryWithData={finalEntryWithData} 
+        entryWithData={finalEntryWithData}
+        metrics={metrics || updatedInitialData}
         onOpenCommentDrawer={onOpenCommentDrawer} 
       />
     );
-  }, [entryMetrics, postMetadata, initialData.feedMetadataCache, onOpenCommentDrawer]);
+  }, [entryMetrics, postMetadata, initialData.feedMetadataCache, onOpenCommentDrawer, getMetrics]);
   
   // Handle endReached for pagination
   const handleEndReached = useCallback(() => {
@@ -899,6 +929,9 @@ const EntriesContent = React.memo<EntriesContentProps>(
     if (prevProps.loadMore !== nextProps.loadMore) return false;
     if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
     
+    // CRITICAL FIX: Check getMetrics function reference for batch metrics reactivity
+    if (prevProps.getMetrics !== nextProps.getMetrics) return false;
+    
     // All checks passed - prevent re-render for maximum performance
     return true;
   }
@@ -1062,6 +1095,16 @@ const RSSEntriesClientComponent = ({
   );
   
   entriesStateRef.current = optimizedEntries;
+  
+  // Get entry GUIDs for batch metrics query
+  const entryGuids = useMemo(() => {
+    return optimizedEntries.map(entry => entry.entry.guid);
+  }, [optimizedEntries]);
+  
+
+  
+  // Use batch metrics hook
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
   currentPageRef.current = currentPage;
   hasMoreRef.current = hasMore;
   totalEntriesRef.current = totalEntries;
@@ -1269,6 +1312,7 @@ const RSSEntriesClientComponent = ({
         onOpenCommentDrawer={memoizedCommentHandlers.open}
         isInitializing={!hasInitialized}
         pageSize={ITEMS_PER_REQUEST}
+        getMetrics={getMetrics}
       />
       </section>
       

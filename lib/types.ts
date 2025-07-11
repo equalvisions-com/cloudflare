@@ -2120,6 +2120,7 @@ export interface CommentSectionProps {
   isOpen?: boolean;
   setIsOpen?: (open: boolean) => void;
   buttonOnly?: boolean;
+  skipQuery?: boolean; // When true, don't use individual query
 }
 
 export interface CommentProps {

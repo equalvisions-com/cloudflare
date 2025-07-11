@@ -98,7 +98,8 @@ export function useCommentSection({
   isOpen: externalIsOpen,
   setIsOpen: externalSetIsOpen,
   buttonOnly = false,
-}: Omit<CommentSectionProps, 'buttonOnly'> & { buttonOnly?: boolean }): UseCommentSectionReturn {
+  skipQuery = false,
+}: Omit<CommentSectionProps, 'buttonOnly'> & { buttonOnly?: boolean; skipQuery?: boolean }): UseCommentSectionReturn {
   // React state management (replaces Zustand)
   const [state, dispatch] = useReducer(commentSectionReducer, createInitialState());
   
@@ -138,7 +139,10 @@ export function useCommentSection({
   
   // Convex queries and mutations - only query comments when drawer is open or not button-only
   const shouldQueryComments = !buttonOnly || isOpen;
-  const metrics = useQuery(api.entries.getEntryMetrics, { entryGuid });
+  const metrics = useQuery(
+    api.entries.getEntryMetrics, 
+    skipQuery ? 'skip' : { entryGuid }
+  );
   const comments = useQuery(api.comments.getComments, shouldQueryComments ? { entryGuid } : "skip");
   const addComment = useMutation(api.comments.addComment);
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
