@@ -286,7 +286,7 @@ export const PostTabsWrapper = React.memo(({
     mediaType,
     verified,
     // Optional props with proper defaults
-    pageSize: 10,
+    pageSize: 30, // Match the server component's PAGE_SIZE
     isActive: true,
     customLoadMore: undefined,
     isSearchMode: false,

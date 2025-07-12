@@ -189,6 +189,7 @@ export function useDelayedIntersectionObserver(
   
   // CRITICAL FIX: Move endReachedCalledRef outside the effect so it persists across observer recreations
   const endReachedCalledRef = React.useRef(false);
+  const prevIsLoadingRef = React.useRef(isLoading);
   
   // CRITICAL FIX: Use refs for hasMore and isLoading to avoid stale closures in intersection callback
   const hasMoreRef = React.useRef(hasMore);
@@ -198,10 +199,18 @@ export function useDelayedIntersectionObserver(
   hasMoreRef.current = hasMore;
   isLoadingRef.current = isLoading;
   
-  // Reset the endReachedCalled flag when dependencies change
+  // Reset endReached flag when loading completes (isLoading goes from true to false)
+  React.useEffect(() => {
+    if (prevIsLoadingRef.current === true && isLoading === false) {
+      endReachedCalledRef.current = false;
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading]);
+  
+  // Reset when hasMore changes (new entries available)
   React.useEffect(() => {
     endReachedCalledRef.current = false;
-  }, [hasMore, isLoading, callback]);
+  }, [hasMore]);
   
   React.useEffect(() => {
     if (!ref.current || !enabled || !hasMore || isLoading) {

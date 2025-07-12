@@ -176,10 +176,18 @@ export async function GET(
     }));
     
     // Determine if there are more entries
-    // Add a small buffer (2) to account for potential inconsistencies in cached counts
-    const hasMore = cachedTotalEntries !== null 
-      ? totalEntries > (offset + entries.length + 2) 
-      : totalEntries > (offset + entries.length);
+    // Simple and reliable calculation: if we got a full page and there are more entries beyond current offset
+    const hasMore = entries.length === pageSize && totalEntries > (offset + entries.length);
+    
+    console.log('📄 API hasMore calculation:', {
+      entriesReturned: entries.length,
+      pageSize,
+      totalEntries,
+      offset,
+      currentPosition: offset + entries.length,
+      hasMore,
+      calculation: `${entries.length} === ${pageSize} && ${totalEntries} > ${offset + entries.length}`
+    });
     
     console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (total: ${totalEntries}, hasMore: ${hasMore})`);
 

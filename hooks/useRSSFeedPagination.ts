@@ -8,7 +8,8 @@ import {
   useRSSFeedSetCurrentPage,
   useRSSFeedSetHasMore,
   useRSSFeedSetLoading,
-  useRSSFeedSetFetchError
+  useRSSFeedSetFetchError,
+  useRSSFeedEntries // Add this to get current entries count
 } from '@/lib/stores/rssFeedStore';
 import type { UseRSSFeedPaginationReturn, RSSFeedEntry, RSSFeedAPIResponse } from '@/lib/types';
 
@@ -25,6 +26,7 @@ export const useRSSFeedPaginationHook = (
   const pagination = useRSSFeedPaginationState();
   const loading = useRSSFeedLoading();
   const feedMetadata = useRSSFeedMetadata();
+  const entries = useRSSFeedEntries(); // Add this to get current entries count
   
   // Get individual actions from store (prevents object recreation)
   const addEntries = useRSSFeedAddEntries();
@@ -118,6 +120,14 @@ export const useRSSFeedPaginationHook = (
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data: RSSFeedAPIResponse = await response.json();
+      console.log('📄 RSS Pagination: API Response', {
+        entriesCount: data.entries?.length || 0,
+        hasMore: data.hasMore,
+        totalEntries: data.totalEntries,
+        currentPage: nextPage,
+        currentlyLoaded: entries.length,
+        willHaveLoaded: entries.length + (data.entries?.length || 0)
+      });
       
       if (!data.entries?.length) {
         setLoading(false);
@@ -133,9 +143,14 @@ export const useRSSFeedPaginationHook = (
       // Update hasMore if provided in response
       if (typeof data.hasMore === 'boolean') {
         setHasMore(data.hasMore);
+        console.log('📄 RSS Pagination: Updated hasMore', { 
+          hasMore: data.hasMore,
+          reason: data.hasMore ? 'more entries available' : 'no more entries'
+        });
       }
       
     } catch (error) {
+      console.error('📄 RSS Pagination: Error', error);
       setFetchError(error instanceof Error ? error : new Error(String(error)));
     } finally {
       setLoading(false);
@@ -148,7 +163,9 @@ export const useRSSFeedPaginationHook = (
     addEntries,
     setCurrentPage,
     setHasMore,
-    setFetchError
+    setFetchError,
+    pagination.totalEntries,
+    entries.length
   ]); // STABLE dependencies - no state values that change frequently
 
   // Return stable object to prevent unnecessary re-renders

@@ -620,6 +620,10 @@ const FeedContent = React.memo(function FeedContent({
           
           {/* Load more indicator */}
           <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
+            {(() => {
+              console.log('🔄 RSS Load More Indicator:', { hasMore, isPending, entries: entries.length });
+              return null;
+            })()}
             {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
             {!hasMore && entries.length > 0 && <div></div>}
           </div>
@@ -684,9 +688,6 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   const hasMore = useRSSFeedHasMore();
   const isLoading = useRSSFeedIsLoading();
   
-  // Use external loading state when provided (for search mode), otherwise use internal state
-  const effectiveIsLoading = externalIsLoading !== undefined ? externalIsLoading : isLoading;
-  
   // Get individual actions from store (prevents object recreation)
   const initialize = useRSSFeedInitialize();
   const setActive = useRSSFeedSetActive();
@@ -705,24 +706,23 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   }, [isSearchMode, setSearchMode]);
 
   // Initialize store on mount - React key handles component reset
+  const initializationKeyRef = useRef<string>('');
+  
   useEffect(() => {
-    if (initialData) {
-      logger.info('Initializing RSS feed store', {
-        pageKey,
-        entriesCount: initialData.entries?.length || 0
-      });
-      
+    if (initialData && initializationKeyRef.current !== pageKey) {
       initialize({
         entries: initialData.entries || [],
         totalEntries: initialData.totalEntries || 0,
         hasMore: initialData.hasMore || false,
-    postTitle,
-    feedUrl,
-    featuredImg,
+        postTitle,
+        feedUrl,
+        featuredImg,
         mediaType,
         verified,
         pageSize
       });
+      
+      initializationKeyRef.current = pageKey;
     }
   }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, initialize, pageKey]);
   
@@ -785,7 +785,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         entries={optimizedEntries}
         hasMore={hasMore} // PHASE 4: Use granular selector
         loadMoreRef={loadMoreRef}
-        isPending={effectiveIsLoading} // PHASE 4: Use granular selector
+        isPending={paginationHook.isLoading} // Use pagination hook's loading state
         loadMore={paginationHook.loadMoreEntries}
         featuredImg={featuredImg}
         postTitle={postTitle}
