@@ -32,16 +32,34 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
 
   if (!entries || entries.length === 0) return null;
   
+  // Get ALL entry guids for batch metrics query
+  const guids = entries.map(entry => entry.guid);
+  
   // Get unique feed URLs for post metadata query
   const feedUrls = [...new Set(entries.map(entry => entry.feed_url))];
   
-  // Fetch ONLY post metadata on server - let client handle metrics with useBatchEntryMetrics hook
+  // Fetch both interaction data and post metadata in parallel - same pattern as RSSFeed
   const token = await convexAuthNextjsToken();
-  const postsData = await fetchQuery(
-    api.posts.getPostsByFeedUrls,
-    { feedUrls },
-    { token }
-  );
+  const [metricsData, postsData] = await Promise.all([
+    fetchQuery(
+      api.entries.batchGetEntryData,
+      { entryGuids: guids },
+      { token }
+    ).catch(() => {
+      // Use default metrics if fetch fails - same pattern as RSSFeed
+      return entries.map(() => ({
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
+      }));
+    }),
+    fetchQuery(
+      api.posts.getPostsByFeedUrls,
+      { feedUrls },
+      { token }
+    )
+  ]);
 
   // Create a map of feedUrl to post data for fast lookup
   const postsMap = new Map();
@@ -49,8 +67,8 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
     postsMap.set(post.feedUrl, post);
   });
 
-  // Combine all entries with metadata only - no metrics (client hook handles those)
-  const entriesWithPublicData = entries.map((entry) => {
+  // Combine all entries with their data and metadata - same pattern as RSSFeed
+  const entriesWithPublicData = entries.map((entry, index) => {
     // Get post metadata from database
     const postData = postsMap.get(entry.feed_url);
     
@@ -64,8 +82,8 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
       verified: postData?.verified || false
     };
     
-    // Provide default metrics structure - client hook will populate real values
-    const defaultMetrics = {
+    // Use metrics from batch query, or create fallback metrics - same pattern as RSSFeed
+    const metrics = metricsData[index] || {
       likes: { isLiked: false, count: 0 },
       comments: { count: 0 },
       retweets: { isRetweeted: false, count: 0 },
@@ -74,7 +92,7 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
     
     return {
       entry,
-      initialData: defaultMetrics,
+      initialData: metrics,
       postMetadata: metadata
     };
   });
