@@ -24,7 +24,6 @@ import 'server-only';
 
 export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
   if (!kvBinding) {
-
     return null;
   }
 
@@ -33,31 +32,40 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
 
   if (!entries || entries.length === 0) return null;
   
-  // Get ALL entry guids for batch metrics query
-  const guids = entries.map(entry => entry.guid);
+  // Get unique feed URLs for post metadata query
+  const feedUrls = [...new Set(entries.map(entry => entry.feed_url))];
   
-  // Fetch interaction data using the more efficient batchGetEntryData
+  // Fetch ONLY post metadata on server - let client handle metrics with useBatchEntryMetrics hook
   const token = await convexAuthNextjsToken();
-  const metricsData = await fetchQuery(
-    api.entries.batchGetEntryData,
-    { entryGuids: guids },
+  const postsData = await fetchQuery(
+    api.posts.getPostsByFeedUrls,
+    { feedUrls },
     { token }
   );
 
-  // Combine all entries with their data and metadata
-  const entriesWithPublicData = entries.map((entry, index) => {
-    // Create metadata from KV entry data (primary source)
+  // Create a map of feedUrl to post data for fast lookup
+  const postsMap = new Map();
+  postsData.forEach(post => {
+    postsMap.set(post.feedUrl, post);
+  });
+
+  // Combine all entries with metadata only - no metrics (client hook handles those)
+  const entriesWithPublicData = entries.map((entry) => {
+    // Get post metadata from database
+    const postData = postsMap.get(entry.feed_url);
+    
+    // Create metadata from database post data (primary source) with KV fallback
     const metadata = {
-      title: entry.post_title || entry.title,
-      featuredImg: entry.image,
-      mediaType: 'article',
-      postSlug: '',
-      categorySlug: '',
-      verified: false
+      title: postData?.title || entry.post_title || entry.title,
+      featuredImg: postData?.featuredImg || entry.image,
+      mediaType: postData?.mediaType || 'article',
+      postSlug: postData?.postSlug || '',
+      categorySlug: postData?.categorySlug || '',
+      verified: postData?.verified || false
     };
     
-    // Use metrics from batch query, or create fallback metrics
-    const metrics = metricsData[index] || {
+    // Provide default metrics structure - client hook will populate real values
+    const defaultMetrics = {
       likes: { isLiked: false, count: 0 },
       comments: { count: 0 },
       retweets: { isRetweeted: false, count: 0 },
@@ -66,7 +74,7 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
     
     return {
       entry,
-      initialData: metrics,
+      initialData: defaultMetrics,
       postMetadata: metadata
     };
   });
