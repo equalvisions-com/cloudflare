@@ -33,45 +33,35 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
 
   if (!entries || entries.length === 0) return null;
   
-  // Get ALL entry guids for batch query
+  // Get ALL entry guids for batch metrics query
   const guids = entries.map(entry => entry.guid);
   
-  // Get unique feed URLs for post metadata
-  const feedUrls = [...new Set(entries.map(entry => entry.feed_url))];
-  
-  // Fetch ALL interaction data and post metadata in one batch query
+  // Fetch interaction data using the more efficient batchGetEntryData
   const token = await convexAuthNextjsToken();
-  const combinedData = await fetchQuery(
-    api.entries.getFeedDataWithMetrics,
-    { entryGuids: guids, feedUrls },
+  const metricsData = await fetchQuery(
+    api.entries.batchGetEntryData,
+    { entryGuids: guids },
     { token }
-  );
-  
-  // Create maps for O(1) lookups
-  const metricsMap = new Map(
-    combinedData.entryMetrics.map(item => [item.guid, item.metrics])
-  );
-  
-  const postMetadataMap = new Map(
-    combinedData.postMetadata.map(item => [item.feedUrl, item.metadata])
   );
 
   // Combine all entries with their data and metadata
-  const entriesWithPublicData = entries.map(entry => {
-    // Use post metadata from the map, or create fallback metadata
-    const metadata = postMetadataMap.get(entry.feed_url) || {
+  const entriesWithPublicData = entries.map((entry, index) => {
+    // Create metadata from KV entry data (primary source)
+    const metadata = {
       title: entry.post_title || entry.title,
       featuredImg: entry.image,
       mediaType: 'article',
       postSlug: '',
-      categorySlug: ''
+      categorySlug: '',
+      verified: false
     };
     
-    // Use metrics from the map, or create fallback metrics
-    const metrics = metricsMap.get(entry.guid) || {
+    // Use metrics from batch query, or create fallback metrics
+    const metrics = metricsData[index] || {
       likes: { isLiked: false, count: 0 },
       comments: { count: 0 },
-      retweets: { isRetweeted: false, count: 0 }
+      retweets: { isRetweeted: false, count: 0 },
+      bookmarks: { isBookmarked: false }
     };
     
     return {

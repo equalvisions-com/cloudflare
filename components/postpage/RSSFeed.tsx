@@ -153,44 +153,32 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       totalCount = cachedCount;
     }
 
-    // Get metrics data with proper error handling
+    // Get metrics data with proper error handling using the more efficient batchGetEntryData
     const token = await convexAuthNextjsToken().catch(() => {
       // Handle auth token failure gracefully
       return null;
     });
 
     const metricsData = await fetchQuery(
-      api.entries.getFeedDataWithMetrics,
+      api.entries.batchGetEntryData,
       { 
-        entryGuids: entries.map(e => e.guid),
-        feedUrls: [feedUrl]
+        entryGuids: entries.map(e => e.guid)
       },
       token ? { token } : undefined
     ).catch(() => {
       // Use default metrics if fetch fails
-      return {
-        entryMetrics: entries.map(e => ({
-          guid: e.guid,
-          metrics: {
-            likes: { isLiked: false, count: 0 },
-            comments: { count: 0 },
-            retweets: { isRetweeted: false, count: 0 },
-            bookmarks: { isBookmarked: false }
-          }
-        })),
-        postMetadata: []
-      };
+      return entries.map(() => ({
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
+      }));
     });
 
-    // Create metrics lookup map
-    const metricsMap = new Map(
-      metricsData.entryMetrics.map(item => [item.guid, item.metrics])
-    );
-
     // Combine entries with metrics and metadata
-    const entriesWithPublicData = entries.map((entry) => ({
+    const entriesWithPublicData = entries.map((entry, index) => ({
       entry,
-      initialData: metricsMap.get(entry.guid) || {
+      initialData: metricsData[index] || {
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
         retweets: { isRetweeted: false, count: 0 },
