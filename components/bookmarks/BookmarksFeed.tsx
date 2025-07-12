@@ -561,7 +561,7 @@ const BookmarkCard = memo(({
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
               initialData={finalInteractions?.likes || { isLiked: false, count: 0 }}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -577,7 +577,7 @@ const BookmarkCard = memo(({
               initialData={finalInteractions?.comments || { count: 0 }}
               buttonOnly={true}
               data-comment-input
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -588,7 +588,7 @@ const BookmarkCard = memo(({
               pubDate={entryDetails.pub_date}
               link={entryDetails.link}
               initialData={finalInteractions?.retweets || { isRetweeted: false, count: 0 }}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -600,6 +600,7 @@ const BookmarkCard = memo(({
                 pubDate={entryDetails.pub_date}
                 link={entryDetails.link}
                 initialData={{ isBookmarked: true }} // Always true since these are bookmarks
+                skipQuery={true}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -645,6 +646,7 @@ const BookmarkCard = memo(({
   if (prevProps.interactions?.comments?.count !== nextProps.interactions?.comments?.count) return false;
   if (prevProps.interactions?.retweets?.count !== nextProps.interactions?.retweets?.count) return false;
   if (prevProps.interactions?.retweets?.isRetweeted !== nextProps.interactions?.retweets?.isRetweeted) return false;
+  if (prevProps.interactions?.bookmarks?.isBookmarked !== nextProps.interactions?.bookmarks?.isBookmarked) return false;
   
   // Check function reference (should be stable with useCallback)
   if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;

@@ -205,6 +205,7 @@ const InteractionButtons = memo(({
           pubDate={entryDetails.pub_date}
           link={entryDetails.link}
           initialData={interactions.likes}
+          skipQuery={true}
         />
       </NoFocusWrapper>
       <NoFocusWrapper 
@@ -217,6 +218,7 @@ const InteractionButtons = memo(({
           initialData={interactions.comments}
           buttonOnly={true}
           data-comment-input
+          skipQuery={true}
         />
       </NoFocusWrapper>
       <NoFocusWrapper className="flex items-center">
@@ -227,6 +229,7 @@ const InteractionButtons = memo(({
           pubDate={entryDetails.pub_date}
           link={entryDetails.link}
           initialData={interactions.retweets}
+          skipQuery={true}
         />
       </NoFocusWrapper>
       <div className="flex items-center gap-4">
@@ -237,7 +240,8 @@ const InteractionButtons = memo(({
             title={entryDetails.title}
             pubDate={entryDetails.pub_date}
             link={entryDetails.link}
-            initialData={{ isBookmarked: false }}
+            initialData={interactions?.bookmarks || { isBookmarked: false }}
+            skipQuery={true}
           />
         </NoFocusWrapper>
         <NoFocusWrapper className="flex items-center">
@@ -398,7 +402,8 @@ const ActivityCard = memo(({
     entryDetails ? getEntryMetrics(entryDetails.guid) : { 
       likes: { isLiked: false, count: 0 },
       comments: { count: 0 },
-      retweets: { isRetweeted: false, count: 0 }
+      retweets: { isRetweeted: false, count: 0 },
+      bookmarks: { isBookmarked: false }
     },
     [entryDetails, getEntryMetrics]
   );
@@ -597,14 +602,16 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
       return {
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
-        retweets: { isRetweeted: false, count: 0 }
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
       };
     }
     
     return {
       likes: batchMetrics.likes,
       comments: batchMetrics.comments,
-      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 }
+      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 },
+      bookmarks: batchMetrics.bookmarks || { isBookmarked: false }
     };
   }, [getBatchMetrics]);
 

@@ -511,7 +511,8 @@ const ActivityCard = React.memo(({
   profileImage,
   entryDetail,
   getEntryMetrics,
-  onOpenCommentDrawer
+  onOpenCommentDrawer,
+  initialEntryMetrics
 }: {
   activity: ActivityFeedItem;
   username: string;
@@ -520,6 +521,7 @@ const ActivityCard = React.memo(({
   entryDetail?: ActivityFeedRSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
+  initialEntryMetrics?: Record<string, InteractionStates>;
 }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -543,7 +545,7 @@ const ActivityCard = React.memo(({
 
   // Get metrics for this entry - explicitly memoized to prevent regeneration
   const interactions = useMemo(() => {
-    if (!entryGuid) return undefined;
+    if (!entryGuid) return null;
     return getEntryMetrics(entryGuid);
   }, [entryGuid, getEntryMetrics]);
 
@@ -1071,8 +1073,9 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+              // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.likes || (initialEntryMetrics?.[entryDetail.guid]?.likes) || { isLiked: false, count: 0 }}
+              skipQuery={true}
             />
           </NoFocusWrapper>
            {/* Use stable handleGroupCommentClick */}
@@ -1083,10 +1086,11 @@ const ActivityCard = React.memo(({
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-               // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.comments || { count: 0 }}
+               // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.comments || (initialEntryMetrics?.[entryDetail.guid]?.comments) || { count: 0 }}
               buttonOnly={true}
               data-comment-input
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -1096,8 +1100,9 @@ const ActivityCard = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-               // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+               // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.retweets || (initialEntryMetrics?.[entryDetail.guid]?.retweets) || { isRetweeted: false, count: 0 }}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -1108,7 +1113,8 @@ const ActivityCard = React.memo(({
                 title={entryDetail.title}
                 pubDate={entryDetail.pub_date}
                 link={entryDetail.link}
-                initialData={{ isBookmarked: false }}
+                initialData={interactions?.bookmarks || (initialEntryMetrics?.[entryDetail.guid]?.bookmarks) || { isBookmarked: false }}
+                skipQuery={true}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -1198,8 +1204,9 @@ const ActivityGroupRenderer = React.memo(({
   getEntryMetrics,
   handleOpenCommentDrawer,
   currentTrack,
-  playTrack
-}: ActivityFeedGroupRendererProps) => { // Use the defined props type
+  playTrack,
+  initialEntryMetrics
+}: ActivityFeedGroupRendererProps & { initialEntryMetrics?: Record<string, InteractionStates>; }) => { // Use the defined props type
 
   // Always get entryDetail - move outside conditional
   const entryDetail = entryDetails[group.entryGuid];
@@ -1223,7 +1230,7 @@ const ActivityGroupRenderer = React.memo(({
 
   // Always get metrics - move outside conditional
   const interactions = useMemo(() => 
-    entryGuid ? getEntryMetrics(entryGuid) : undefined,
+    entryGuid ? getEntryMetrics(entryGuid) : null,
     [entryGuid, getEntryMetrics]
   );
 
@@ -1610,8 +1617,9 @@ const ActivityGroupRenderer = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.likes || { isLiked: false, count: 0 }}
+              // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.likes || (initialEntryMetrics?.[entryDetail.guid]?.likes) || { isLiked: false, count: 0 }}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           {/* Use stable handleGroupCommentClick */}
@@ -1622,10 +1630,11 @@ const ActivityGroupRenderer = React.memo(({
             <CommentSectionClient
               entryGuid={entryDetail.guid}
               feedUrl={entryDetail.feed_url || ''}
-              // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.comments || { count: 0 }}
+              // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.comments || (initialEntryMetrics?.[entryDetail.guid]?.comments) || { count: 0 }}
               buttonOnly={true}
               data-comment-input
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper className="flex items-center">
@@ -1635,8 +1644,9 @@ const ActivityGroupRenderer = React.memo(({
               title={entryDetail.title}
               pubDate={entryDetail.pub_date}
               link={entryDetail.link}
-              // Ensure interactions is stable or default value is memoized
-              initialData={interactions?.retweets || { isRetweeted: false, count: 0 }}
+              // Use server metrics as fallback when batch metrics aren't available
+              initialData={interactions?.retweets || (initialEntryMetrics?.[entryDetail.guid]?.retweets) || { isRetweeted: false, count: 0 }}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -1647,7 +1657,8 @@ const ActivityGroupRenderer = React.memo(({
                 title={entryDetail.title}
                 pubDate={entryDetail.pub_date}
                 link={entryDetail.link}
-                initialData={{ isBookmarked: false }}
+                initialData={interactions?.bookmarks || (initialEntryMetrics?.[entryDetail.guid]?.bookmarks) || { isBookmarked: false }}
+                skipQuery={true}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -1779,20 +1790,17 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(entryGuids);
   
   // Wrapper function to convert batch metrics to InteractionStates format
-  const getMetrics = useCallback((entryGuid: string): InteractionStates => {
+  const getMetrics = useCallback((entryGuid: string): InteractionStates | null => {
     const batchMetrics = getBatchMetrics(entryGuid);
     if (!batchMetrics) {
-      return {
-        likes: { isLiked: false, count: 0 },
-        comments: { count: 0 },
-        retweets: { isRetweeted: false, count: 0 }
-      };
+      return null; // Let batch metrics handle everything - no fallback needed
     }
     
     return {
       likes: batchMetrics.likes,
       comments: batchMetrics.comments,
-      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 }
+      retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 },
+      bookmarks: batchMetrics.bookmarks || { isBookmarked: false }
     };
   }, [getBatchMetrics]);
 
@@ -1821,6 +1829,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       handleOpenCommentDrawer={handleOpenCommentDrawer}
       currentTrack={currentTrack}
       playTrack={playTrack}
+      initialEntryMetrics={initialEntryMetrics}
     />
   ), [
     entryDetails,

@@ -466,7 +466,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={metrics?.likes || initialData.likes}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -478,7 +478,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               feedUrl={entry.feed_url}
               initialData={metrics?.comments || initialData.comments}
               buttonOnly={true}
-              skipQuery={!!metrics}
+              skipQuery={true}
               data-comment-input
             />
           </NoFocusWrapper>
@@ -490,7 +490,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               pubDate={entry.pub_date}
               link={entry.link}
               initialData={metrics?.retweets || initialData.retweets || { isRetweeted: false, count: 0 }}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -501,7 +501,8 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
                 title={entry.title}
                 pubDate={entry.pub_date}
                 link={entry.link}
-                initialData={initialData.bookmarks || { isBookmarked: false }}
+                initialData={metrics?.bookmarks || initialData.bookmarks || { isBookmarked: false }}
+                skipQuery={true}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">

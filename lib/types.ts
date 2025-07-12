@@ -409,6 +409,7 @@ export interface InteractionStates {
   likes: { isLiked: boolean; count: number };
   comments: { count: number };
   retweets: { isRetweeted: boolean; count: number };
+  bookmarks?: { isBookmarked: boolean };
 }
 
 // Entries Store types
@@ -702,6 +703,7 @@ export interface ProfileFeedData {
   totalCount: number;
   hasMore: boolean;
   entryDetails: Record<string, EntriesRSSEntry>;
+  entryMetrics?: Record<string, InteractionStates>;
 }
 
 // ProfileActivityData types - Phase 4 Optimized
@@ -902,7 +904,7 @@ export interface ActivityFeedGroupRendererProps {
   name: string;
   profileImage?: string | null;
   userId: Id<"users">;
-  getEntryMetrics: (entryGuid: string) => InteractionStates;
+  getEntryMetrics: (entryGuid: string) => InteractionStates | null;
   handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   currentTrack: { src: string | null } | null;
   playTrack: (src: string, title: string, image?: string, creator?: string) => void;

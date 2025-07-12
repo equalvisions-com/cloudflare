@@ -159,26 +159,42 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       return null;
     });
 
-    const entryData = await fetchQuery(
-      api.entries.batchGetEntryData,
-      { entryGuids: entries.map(e => e.guid) },
+    const metricsData = await fetchQuery(
+      api.entries.getFeedDataWithMetrics,
+      { 
+        entryGuids: entries.map(e => e.guid),
+        feedUrls: [feedUrl]
+      },
       token ? { token } : undefined
     ).catch(() => {
       // Use default metrics if fetch fails
-      return entries.map(() => ({
-        likes: { isLiked: false, count: 0 },
-        comments: { count: 0 },
-        retweets: { isRetweeted: false, count: 0 }
-      }));
+      return {
+        entryMetrics: entries.map(e => ({
+          guid: e.guid,
+          metrics: {
+            likes: { isLiked: false, count: 0 },
+            comments: { count: 0 },
+            retweets: { isRetweeted: false, count: 0 },
+            bookmarks: { isBookmarked: false }
+          }
+        })),
+        postMetadata: []
+      };
     });
 
+    // Create metrics lookup map
+    const metricsMap = new Map(
+      metricsData.entryMetrics.map(item => [item.guid, item.metrics])
+    );
+
     // Combine entries with metrics and metadata
-    const entriesWithPublicData = entries.map((entry, index) => ({
+    const entriesWithPublicData = entries.map((entry) => ({
       entry,
-      initialData: entryData[index] || {
+      initialData: metricsMap.get(entry.guid) || {
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
-        retweets: { isRetweeted: false, count: 0 }
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
       },
       postMetadata: {
         title: postTitle,

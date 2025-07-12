@@ -73,22 +73,37 @@ const BookmarkButtonClientComponent = ({
     };
   }, []);
   
-  // Update metricsLoaded when metrics are received
+  // Update metricsLoaded when metrics are received OR when skipQuery is true
   useEffect(() => {
-    if (metrics && !metricsLoaded && isMountedRef.current) {
-      setMetricsLoaded(true);
+    if ((metrics && !metricsLoaded) || (skipQuery && !metricsLoaded)) {
+      if (isMountedRef.current) {
+        setMetricsLoaded(true);
+      }
     }
-  }, [metrics, metricsLoaded]);
+  }, [metrics, metricsLoaded, skipQuery]);
   
   // Determine the current state, prioritizing optimistic updates
-  // If metrics haven't loaded yet, use initialData to prevent flickering
-  const isBookmarked = optimisticState?.isBookmarked ?? (metricsLoaded ? metrics?.bookmarks.isBookmarked : initialData.isBookmarked);
+  // When skipQuery is true, always use initialData as the base (it comes from batch metrics)
+  // When skipQuery is false, use server metrics after they load
+  const isBookmarked = optimisticState?.isBookmarked ?? (skipQuery ? initialData.isBookmarked : (metricsLoaded ? metrics?.bookmarks.isBookmarked : initialData.isBookmarked));
   
   // Only reset optimistic state when real data arrives and matches our expected state
   useEffect(() => {
     if (!isMountedRef.current) return;
     
-    if (metrics && optimisticState) {
+    // When skipQuery is true, we rely on initialData updates from parent batch metrics
+    // When skipQuery is false, we rely on individual metrics query
+    if (skipQuery) {
+      // For skipQuery mode, clear optimistic state when initialData changes and matches our expected state
+      if (optimisticState) {
+        const isServerMatchingOptimistic = initialData.isBookmarked === optimisticState.isBookmarked;
+        const isOptimisticUpdateStale = Date.now() - optimisticState.timestamp > 3000; // 3 seconds
+        
+        if (isServerMatchingOptimistic || isOptimisticUpdateStale) {
+          setOptimisticState(null);
+        }
+      }
+    } else if (metrics && optimisticState) {
       // Only clear optimistic state if server data matches what we expect
       // or if the optimistic update is older than 5 seconds (fallback)
       const isServerMatchingOptimistic = metrics.bookmarks.isBookmarked === optimisticState.isBookmarked;
@@ -98,7 +113,7 @@ const BookmarkButtonClientComponent = ({
         setOptimisticState(null);
       }
     }
-  }, [metrics, optimisticState]);
+  }, [metrics, optimisticState, skipQuery, initialData]);
 
   // Memoize the click handler to prevent unnecessary recreations between renders
   const handleClick = useCallback(async () => {

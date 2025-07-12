@@ -296,7 +296,8 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
         activities: [],
         totalCount: 0,
         hasMore: false,
-        entryDetails: {}
+        entryDetails: {},
+        entryMetrics: {}
       };
     }
     
@@ -319,18 +320,45 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
       )
       .map((activity: ProfileActivityDataConvexActivity) => activity as unknown as ActivityItem);
     
+    // Convert Convex metrics format to InteractionStates format
+    const entryMetrics: Record<string, InteractionStates> = {};
+    if (result.entryMetrics) {
+      Object.entries(result.entryMetrics).forEach(([guid, metrics]: [string, any]) => {
+        if (metrics) {
+          entryMetrics[guid] = {
+            likes: {
+              isLiked: false, // Server metrics don't include user state
+              count: metrics.likeCount || 0
+            },
+            comments: {
+              count: metrics.commentCount || 0
+            },
+            retweets: {
+              isRetweeted: false, // Server metrics don't include user state
+              count: metrics.retweetCount || 0
+            },
+            bookmarks: {
+              isBookmarked: false // Server metrics don't include user state
+            }
+          };
+        }
+      });
+    }
+    
     return {
       activities: typedActivities,
       totalCount: result.activities.totalCount,
       hasMore: result.activities.hasMore,
-      entryDetails
+      entryDetails,
+      entryMetrics
     };
   } catch (error) {
     return {
       activities: [],
       totalCount: 0,
       hasMore: false,
-      entryDetails: {}
+      entryDetails: {},
+      entryMetrics: {}
     };
   }
 });
@@ -369,7 +397,8 @@ export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<Pr
         activities: [],
         totalCount: 0,
         hasMore: false,
-        entryDetails: {}
+        entryDetails: {},
+        entryMetrics: {}
       };
     }
     
@@ -391,18 +420,45 @@ export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<Pr
       .filter((like: ProfileActivityDataConvexLike) => like.entryGuid)
       .map((like: ProfileActivityDataConvexLike) => like as unknown as ActivityItem);
     
+    // Convert Convex metrics format to InteractionStates format
+    const entryMetrics: Record<string, InteractionStates> = {};
+    if (result.entryMetrics) {
+      Object.entries(result.entryMetrics).forEach(([guid, metrics]: [string, any]) => {
+        if (metrics) {
+          entryMetrics[guid] = {
+            likes: {
+              isLiked: false, // Server metrics don't include user state
+              count: metrics.likeCount || 0
+            },
+            comments: {
+              count: metrics.commentCount || 0
+            },
+            retweets: {
+              isRetweeted: false, // Server metrics don't include user state
+              count: metrics.retweetCount || 0
+            },
+            bookmarks: {
+              isBookmarked: false // Server metrics don't include user state
+            }
+          };
+        }
+      });
+    }
+    
     return {
       activities: typedLikes,
       totalCount: result.activities.totalCount,
       hasMore: result.activities.hasMore,
-      entryDetails
+      entryDetails,
+      entryMetrics
     };
   } catch (error) {
     return {
       activities: [],
       totalCount: 0,
       hasMore: false,
-      entryDetails: {}
+      entryDetails: {},
+      entryMetrics: {}
     };
   }
 });

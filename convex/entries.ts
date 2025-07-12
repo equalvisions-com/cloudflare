@@ -497,9 +497,9 @@ export const batchGetEntriesMetrics = query({
     // Make userId optional - it can be null for unauthenticated requests
     const userId = await getAuthUserId(ctx).catch(() => null);
 
-    // Get all likes, comments, and retweets in parallel but within the same query
+    // Get all likes, comments, retweets, and bookmarks in parallel but within the same query
     // Extract only the specific fields we need instead of entire documents
-    const [likeResults, commentResults, retweetResults] = await Promise.all([
+    const [likeResults, commentResults, retweetResults, bookmarkResults] = await Promise.all([
       // Get only entryGuid and userId fields from likes for the requested entries
       ctx.db
         .query("likes")
@@ -544,6 +544,23 @@ export const batchGetEntriesMetrics = query({
         .then(retweets => retweets.map(retweet => ({
           entryGuid: retweet.entryGuid,
           userId: retweet.userId
+        }))),
+        
+      // Get only entryGuid and userId fields from bookmarks for the requested entries
+      ctx.db
+        .query("bookmarks")
+        .withIndex("by_entry")
+        .filter((q) => 
+          q.or(
+            ...args.entryGuids.map(guid => 
+              q.eq(q.field("entryGuid"), guid)
+            )
+          )
+        )
+        .collect()
+        .then(bookmarks => bookmarks.map(bookmark => ({
+          entryGuid: bookmark.entryGuid,
+          userId: bookmark.userId
         })))
     ]);
 
@@ -561,6 +578,7 @@ export const batchGetEntriesMetrics = query({
     for (const entryGuid of args.entryGuids) {
       const entryLikes = likeResults.filter(like => like.entryGuid === entryGuid);
       const entryRetweets = retweetResults.filter(retweet => retweet.entryGuid === entryGuid);
+      const entryBookmarks = bookmarkResults.filter(bookmark => bookmark.entryGuid === entryGuid);
       const commentCount = commentCountMap.get(entryGuid) || 0;
 
       metricsMap.set(entryGuid, {
@@ -574,6 +592,9 @@ export const batchGetEntriesMetrics = query({
         retweets: {
           count: entryRetweets.length,
           isRetweeted: userId ? entryRetweets.some(retweet => retweet.userId && retweet.userId.toString() === userId.toString()) : false
+        },
+        bookmarks: {
+          isBookmarked: userId ? entryBookmarks.some(bookmark => bookmark.userId && bookmark.userId.toString() === userId.toString()) : false
         }
       });
     }

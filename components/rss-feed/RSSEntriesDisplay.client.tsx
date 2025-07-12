@@ -520,7 +520,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               pubDate={entry.pubDate}
               link={entry.link}
               initialData={metrics?.likes || initialData.likes}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <NoFocusWrapper 
@@ -532,7 +532,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               feedUrl={entry.feedUrl}
               initialData={metrics?.comments || initialData.comments}
               buttonOnly={true}
-              skipQuery={!!metrics}
+              skipQuery={true}
               data-comment-input
             />
           </NoFocusWrapper>
@@ -544,7 +544,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               pubDate={entry.pubDate}
               link={entry.link}
               initialData={metrics?.retweets || initialData.retweets || { isRetweeted: false, count: 0 }}
-              skipQuery={!!metrics}
+              skipQuery={true}
             />
           </NoFocusWrapper>
           <div className="flex items-center gap-4">
@@ -556,7 +556,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                 pubDate={entry.pubDate}
                 link={entry.link}
                 initialData={metrics?.bookmarks || initialData.bookmarks || { isBookmarked: false }}
-                skipQuery={!!metrics}
+                skipQuery={true}
               />
             </NoFocusWrapper>
             <NoFocusWrapper className="flex items-center">
@@ -612,6 +612,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
   if (prevProps.metrics?.comments?.count !== nextProps.metrics?.comments?.count) return false;
   if (prevProps.metrics?.retweets?.count !== nextProps.metrics?.retweets?.count) return false;
   if (prevProps.metrics?.retweets?.isRetweeted !== nextProps.metrics?.retweets?.isRetweeted) return false;
+  if (prevProps.metrics?.bookmarks?.isBookmarked !== nextProps.metrics?.bookmarks?.isBookmarked) return false;
   
   // All checks passed - prevent re-render for optimal performance
   return true;

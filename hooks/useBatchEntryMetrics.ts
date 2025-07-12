@@ -6,6 +6,7 @@ interface EntryMetrics {
   likes: { count: number; isLiked: boolean };
   comments: { count: number };
   retweets: { count: number; isRetweeted: boolean };
+  bookmarks: { isBookmarked: boolean };
 }
 
 export function useBatchEntryMetrics(entryGuids: string[]) {

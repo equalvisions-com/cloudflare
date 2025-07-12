@@ -145,7 +145,8 @@ const EntriesDisplayComponent = ({
     const defaultInteractions = {
       likes: { isLiked: false, count: 0 },
       comments: { count: 0 },
-      retweets: { isRetweeted: false, count: 0 }
+      retweets: { isRetweeted: false, count: 0 },
+      bookmarks: { isBookmarked: false }
     };
     
     return (
@@ -153,7 +154,7 @@ const EntriesDisplayComponent = ({
         entry={entry} 
         interactions={metrics || defaultInteractions}
         onOpenCommentDrawer={handleOpenCommentDrawer}
-        useBatchMetrics={!!metrics}
+        useBatchMetrics={true}
       />
     );
   }, [getMetrics, handleOpenCommentDrawer]);
@@ -601,7 +602,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer, useBatchMetr
                 title={decodedContent.title}
                 pubDate={entry.pub_date}
                 link={entry.link}
-                initialData={{ isBookmarked: false }}
+                initialData={interactions.bookmarks || { isBookmarked: false }}
                 skipQuery={useBatchMetrics}
               />
             </NoFocusWrapper>
@@ -641,6 +642,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer, useBatchMetr
   if (prevProps.interactions.comments.count !== nextProps.interactions.comments.count) return false;
   if (prevProps.interactions.retweets.count !== nextProps.interactions.retweets.count) return false;
   if (prevProps.interactions.retweets.isRetweeted !== nextProps.interactions.retweets.isRetweeted) return false;
+  if (prevProps.interactions.bookmarks?.isBookmarked !== nextProps.interactions.bookmarks?.isBookmarked) return false;
   
   // Check function reference (should be stable with useCallback)
   if (prevProps.onOpenCommentDrawer !== nextProps.onOpenCommentDrawer) return false;
