@@ -54,27 +54,27 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
         post.mediaType
       ),
 
-      // Get follow states for related posts if they exist
+      // Get follow states for related posts if they exist (using batch query)
       (async () => {
         if (!post.relatedPosts || !isAuthenticated || !token) {
           return {};
         }
 
-        const states = await Promise.all(
-          post.relatedPosts.map(async (relatedPost) => {
-            const isFollowing = await fetchQuery(
-              api.following.isFollowing,
-              { postId: relatedPost._id },
-              { token }
-            );
-            return [
-              relatedPost._id.toString(),
-              { isAuthenticated, isFollowing }
-            ] as const;
-          })
+        // Use batch query instead of individual queries
+        const postIds = post.relatedPosts.map(p => p._id);
+        const followStates = await fetchQuery(
+          api.following.getFollowStates,
+          { postIds },
+          { token }
         );
 
-        return Object.fromEntries(states);
+        // Convert array response to object format
+        return Object.fromEntries(
+          post.relatedPosts.map((relatedPost, index) => [
+            relatedPost._id.toString(),
+            { isAuthenticated, isFollowing: followStates[index] ?? false }
+          ])
+        );
       })()
     ]);
 
@@ -377,6 +377,7 @@ function PostContent({ post, followState, rssData }: PostContentProps) {
             initialIsFollowing={followState.isFollowing}
             isAuthenticated={followState.isAuthenticated}
             className="w-full rounded-lg"
+            disableAutoFetch={true}
           />
           
           <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />

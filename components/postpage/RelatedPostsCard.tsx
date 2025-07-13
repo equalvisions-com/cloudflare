@@ -72,6 +72,7 @@ export const RelatedPostsCard = memo(function RelatedPostsCard({ posts, followSt
                     postTitle={post.title}
                     initialIsFollowing={followState.isFollowing}
                     isAuthenticated={followState.isAuthenticated}
+                    disableAutoFetch={true}
                   />
                 </div>
               </div>
