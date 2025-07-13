@@ -599,7 +599,7 @@ const BookmarkCard = memo(({
                 title={entryDetails.title}
                 pubDate={entryDetails.pub_date}
                 link={entryDetails.link}
-                initialData={{ isBookmarked: true }} // Always true since these are bookmarks
+                initialData={finalInteractions?.bookmarks || { isBookmarked: true }}
                 skipQuery={true}
               />
             </NoFocusWrapper>

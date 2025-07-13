@@ -586,6 +586,9 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     setCommentDrawerOpen,
   } = useLikesFeedUI({ isActive });
 
+  // Extract server-provided metrics for fallback
+  const initialEntryMetrics = initialData?.entryMetrics;
+
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid), 
@@ -599,6 +602,12 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
   const getMetrics = useCallback((entryGuid: string): InteractionStates => {
     const batchMetrics = getBatchMetrics(entryGuid);
     if (!batchMetrics) {
+      // Use server-provided metrics as fallback to prevent 0 → count jitter
+      const serverMetrics = initialEntryMetrics?.[entryGuid];
+      if (serverMetrics) {
+        return serverMetrics;
+      }
+      
       return {
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
@@ -613,7 +622,7 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
       retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 },
       bookmarks: batchMetrics.bookmarks || { isBookmarked: false }
     };
-  }, [getBatchMetrics]);
+  }, [getBatchMetrics, initialEntryMetrics]);
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
