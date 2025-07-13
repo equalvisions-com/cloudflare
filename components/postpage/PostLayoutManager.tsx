@@ -18,14 +18,6 @@ type Post = {
   featuredImg?: string;
   feedUrl: string;
   categorySlug: string;
-  relatedPosts?: Array<{
-    _id: Id<"posts">;
-    title: string;
-    featuredImg?: string;
-    postSlug: string;
-    categorySlug: string;
-    feedUrl: string;
-  }>;
 };
 
 /**
@@ -35,8 +27,7 @@ type Post = {
 export const PostLayoutManager = ({ 
   children,
   post,
-  className = "",
-  relatedFollowStates
+  className = ""
 }: PostLayoutManagerProps) => {
   // Prepare sidebar content on the server
   const rightSidebar = (

@@ -41,8 +41,8 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
     const isAuthenticated = await isAuthenticatedNextjs();
     const token = isAuthenticated ? await convexAuthNextjsToken().catch(() => undefined) : undefined;
 
-    // Now run auth, RSS, and related posts follow states fetches in parallel
-    const [mainFollowState, rssData, relatedFollowStates] = await Promise.all([
+    // Now run auth and RSS fetches in parallel
+    const [mainFollowState, rssData] = await Promise.all([
       // Get follow state for main post
       isAuthenticated && token 
         ? fetchQuery(api.following.isFollowing, { postId: post._id }, { token })
@@ -53,30 +53,7 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
         post.title,
         post.feedUrl,
         post.mediaType
-      ),
-
-      // Get follow states for related posts if they exist
-      (async () => {
-        if (!post.relatedPosts || !isAuthenticated || !token) {
-          return {};
-        }
-
-        const states = await Promise.all(
-          post.relatedPosts.map(async (relatedPost) => {
-            const isFollowing = await fetchQuery(
-              api.following.isFollowing,
-              { postId: relatedPost._id },
-              { token }
-            );
-            return [
-              relatedPost._id.toString(),
-              { isAuthenticated, isFollowing }
-            ] as const;
-          })
-        );
-
-        return Object.fromEntries(states);
-      })()
+      )
     ]);
 
     return {
@@ -85,8 +62,7 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
       followState: {
         isAuthenticated,
         isFollowing: mainFollowState
-      },
-      relatedFollowStates
+      }
     };
   } catch (error) {
     return null;
@@ -394,7 +370,7 @@ export default async function PostPage(props: PostPageProps) {
   const pageData = await getPageData(postSlug);
 
   if (!pageData) notFound();
-  const { post, rssData, followState, relatedFollowStates } = pageData;
+  const { post, rssData, followState } = pageData;
 
   const siteUrl = process.env.SITE_URL;
   const profileUrl = `${siteUrl}/podcasts/${post.postSlug}`;
@@ -412,7 +388,7 @@ export default async function PostPage(props: PostPageProps) {
         }}
       />
       
-      <PostLayoutManager post={post} relatedFollowStates={relatedFollowStates}>
+      <PostLayoutManager post={post}>
         <PostSearchProvider>
           <PostSearchHeader title={post.title} mediaType={post.mediaType} />
           <PostContent post={post} followState={followState} rssData={rssData} />

@@ -45,13 +45,7 @@ export const getByMediaTypeAndSlug = query({
     
     if (!post) return null;
 
-    // Get related posts from same media type (excluding current post)
-    const relatedPosts = await ctx.db
-      .query("posts")
-      .filter((q) => q.eq(q.field("mediaType"), mediaType))
-      .filter((q) => q.neq(q.field("postSlug"), postSlug))
-      .order("desc")
-      .take(5);
+
     
     // Get follower count efficiently using the optimized SSR query
     const followerCount = await ctx.db
@@ -74,15 +68,6 @@ export const getByMediaTypeAndSlug = query({
       verified: post.verified ?? false, // Ensure consistency with other queries
       body: post.body, // Assuming body is needed here
       isFeatured: post.isFeatured, // Assuming this field might exist and be needed
-      relatedPosts: relatedPosts.map((p) => ({ // Removed type assertion as it might be complex with partial objects
-        _id: p._id,
-        _creationTime: p._creationTime,
-        title: p.title,
-        featuredImg: p.featuredImg,
-        postSlug: p.postSlug,
-        categorySlug: p.categorySlug,
-        feedUrl: p.feedUrl
-      })),
       followerCount
     };
   },

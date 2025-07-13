@@ -992,17 +992,9 @@ export interface PostWithFollowerCount {
   isAuthenticated?: boolean;
   verified?: boolean;
   followerCount: number;
-  relatedPosts?: RelatedPost[];
 }
 
-export interface RelatedPost {
-  _id: Id<"posts">;
-  title: string;
-  featuredImg?: string;
-  postSlug: string;
-  categorySlug: string;
-  feedUrl: string;
-}
+
 
 export interface PostFollowState {
   isAuthenticated: boolean;
@@ -1013,7 +1005,6 @@ export interface PostPageData {
   post: PostWithFollowerCount;
   rssData: NonNullable<Awaited<ReturnType<typeof import("@/components/postpage/RSSFeed").getInitialEntries>>> | null;
   followState: PostFollowState;
-  relatedFollowStates: Record<string, PostFollowState>;
 }
 
 // Post search types
@@ -1142,14 +1133,6 @@ export interface NewsletterPageProps {
 
 export interface NewsletterPost extends Doc<"posts"> {
   followerCount: number;
-  relatedPosts?: Array<{
-    _id: Id<"posts">;
-    title: string;
-    featuredImg?: string;
-    postSlug: string;
-    categorySlug: string;
-    feedUrl: string;
-  }>;
 }
 
 export interface NewsletterPageData {
@@ -1158,12 +1141,6 @@ export interface NewsletterPageData {
   followState: {
     isAuthenticated: boolean;
     isFollowing: boolean;
-  };
-  relatedFollowStates: {
-    [postId: string]: {
-      isAuthenticated: boolean;
-      isFollowing: boolean;
-    };
   };
 }
 
@@ -1420,22 +1397,8 @@ export interface PostLayoutManagerProps {
     featuredImg?: string;
     feedUrl: string;
     categorySlug: string;
-    relatedPosts?: Array<{
-      _id: Id<"posts">;
-      title: string;
-      featuredImg?: string;
-      postSlug: string;
-      categorySlug: string;
-      feedUrl: string;
-    }>;
   };
   className?: string;
-  relatedFollowStates: {
-    [postId: string]: {
-      isAuthenticated: boolean;
-      isFollowing: boolean;
-    };
-  };
 }
 
 // Search Input Component Props Interface
