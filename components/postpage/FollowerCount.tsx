@@ -3,6 +3,7 @@
 import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useConvexAuth } from "convex/react";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import {
   Drawer,
   DrawerContent,
@@ -143,8 +144,8 @@ export function FollowerCount({
   totalEntries, 
   mediaType 
 }: FollowerCountProps) {
-  // Authentication state
-  const { isAuthenticated } = useConvexAuth();
+  // Authentication state - use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   
   // State management with useReducer
   const [state, dispatch] = useReducer(followersListReducer, createInitialState(followerCount));

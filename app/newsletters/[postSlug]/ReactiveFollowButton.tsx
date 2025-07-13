@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api';
 import { FollowButton } from '@/components/follow-button/FollowButton';
 import { Id } from '@/convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 interface ReactiveFollowButtonProps {
   postId: Id<"posts">;
@@ -28,18 +29,28 @@ export const ReactiveFollowButton = React.memo(function ReactiveFollowButton({
   isAuthenticated: serverIsAuthenticated,
   className
 }: ReactiveFollowButtonProps) {
-  const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated: sidebarIsAuthenticated } = useSidebar();
   
-  // Use client auth state when available, fallback to server state
-  const isAuthenticated = clientIsAuthenticated ?? serverIsAuthenticated;
+  // Use sidebar auth state when available, fallback to server state
+  const isAuthenticated = sidebarIsAuthenticated ?? serverIsAuthenticated;
   
-  // Reactive follow state query - this will update when database changes
+  // Strategy: Use server data initially, but enable reactivity after a short delay
+  // This prevents duplicate initial queries while maintaining reactivity for user interactions
+  const [enableReactivity, setEnableReactivity] = React.useState(false);
+  
+  React.useEffect(() => {
+    // Enable reactivity after initial render to catch any follow/unfollow actions
+    const timer = setTimeout(() => setEnableReactivity(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+  
   const currentFollowState = useQuery(
     api.following.isFollowing,
-    isAuthenticated ? { postId } : "skip"
+    isAuthenticated && enableReactivity ? { postId } : "skip"
   );
   
-  // Use reactive state when available, fallback to initial state
+  // Use reactive state when available, fallback to initial server state
   const isFollowing = currentFollowState ?? initialIsFollowing;
   
   return (

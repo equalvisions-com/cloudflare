@@ -19,6 +19,7 @@ import { mutate as globalMutate } from 'swr';
 import { FOLLOWED_POSTS_KEY } from "@/components/follow-button/FollowButton";
 import { Loader2 } from "lucide-react";
 import { useFeaturedPostsStore } from "@/lib/stores/featuredPostsStore";
+import { useWidgetData } from "@/components/ui/WidgetDataProvider";
 import { 
   FeaturedPostsWidgetPost,
   FeaturedPostsWidgetProps,
@@ -273,6 +274,14 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
   const { posts: storedPosts, followStates: storedFollowStates, setPosts, setFollowStates } = useFeaturedPostsStore();
   const hasStoredData = storedPosts.length > 0;
   
+  // Use shared widget data to eliminate duplicate queries
+  const { 
+    widgetPosts: featuredPosts, 
+    followStates: followStatesResult, 
+    isLoading: isLoadingPosts,
+    isLoadingFollowStates
+  } = useWidgetData();
+  
   // Stable IDs using refs (no regeneration on render)
   const widgetId = useRef(generateStableId('featured-posts-widget')).current;
   const loadingId = useRef(generateStableId('loading-status')).current;
@@ -281,22 +290,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // 1. Fetch posts
-  const featuredPosts = useQuery(api.widgets.getPublicWidgetPosts, { limit: 6 });
-  const isLoadingPosts = featuredPosts === undefined;
-
-  // 2. Fetch follow states
-  const postIdsToFetch = (!isAuthenticated || isLoadingPosts || !featuredPosts) 
-    ? null 
-    : featuredPosts.map(p => p._id);
-
-  const followStatesResult = useQuery(
-    api.following.getFollowStates,
-    postIdsToFetch ? { postIds: postIdsToFetch } : "skip"
-  );
-  const isLoadingFollowStates = isAuthenticated && !isLoadingPosts && followStatesResult === undefined;
-
-  // 3. Combined loading state
+  // Combined loading state
   const isLoading = isLoadingPosts || isLoadingFollowStates;
   const shouldShowSkeleton = isLoading && !hasStoredData;
 

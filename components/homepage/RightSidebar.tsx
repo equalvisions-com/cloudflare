@@ -5,6 +5,7 @@ import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
+import { WidgetDataProvider } from "@/components/ui/WidgetDataProvider";
 import { Suspense } from "react";
 
 interface RightSidebarProps {
@@ -22,15 +23,18 @@ export function RightSidebar({ className = "", showSearch = true }: RightSidebar
         {/* Notifications Widget */}
         <NotificationsWidgetServer />
         
-        {/* Trending Widget */}
-        <Suspense fallback={<TrendingWidgetSkeleton />}>
-          <TrendingWidget />
-        </Suspense>
-        
-        {/* Featured Posts Widget */}
-        <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-          <FeaturedPostsWidget />
-        </Suspense>
+        {/* Widget Data Provider - eliminates duplicate queries between TrendingWidget and FeaturedPostsWidget */}
+        <WidgetDataProvider>
+          {/* Trending Widget */}
+          <Suspense fallback={<TrendingWidgetSkeleton />}>
+            <TrendingWidget />
+          </Suspense>
+          
+          {/* Featured Posts Widget */}
+          <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+            <FeaturedPostsWidget />
+          </Suspense>
+        </WidgetDataProvider>
         
         {/* Legal Widget */}
         <LegalWidget />

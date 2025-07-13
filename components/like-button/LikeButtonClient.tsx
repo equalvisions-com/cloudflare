@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Heart } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -41,7 +42,8 @@ export const LikeButtonClient = memo(function LikeButtonClient({
   skipQuery = false
 }: LikeButtonProps) {
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const like = useMutation(api.likes.like);
   const unlike = useMutation(api.likes.unlike);
   const { toast } = useToast();

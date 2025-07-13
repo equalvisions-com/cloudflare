@@ -21,8 +21,9 @@ import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from 'next/link';
-import { useConvexAuth, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { 
   CommentSectionProps, 
   CommentProps, 
@@ -274,9 +275,9 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
     skipQuery,
   });
   
-  // Get authentication state and viewer
-  const { isAuthenticated } = useConvexAuth();
-  const viewer = useQuery(api.users.viewer);
+  // Get authentication state and viewer - use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated, userId: viewerId, displayName: viewerName, username: viewerUsername } = useSidebar();
+  const viewer = viewerId ? { _id: viewerId, name: viewerName, username: viewerUsername } : null;
   
   // Memoize the drawer open handler to prevent re-renders
   const handleOpenDrawer = useMemo(() => () => {

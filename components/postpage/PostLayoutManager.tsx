@@ -4,6 +4,7 @@ import { TrendingWidget } from "@/components/trending/TrendingWidget";
 import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkeleton";
 import { SidebarSearch } from "@/components/search/SidebarSearch";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
+import { WidgetDataProvider } from "@/components/ui/WidgetDataProvider";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
@@ -38,12 +39,15 @@ export const PostLayoutManager = ({
         {/* Notifications Widget */}
         <NotificationsWidgetServer />
         
-        <Suspense fallback={<TrendingWidgetSkeleton />}>
-          <TrendingWidget />
-        </Suspense>
-        <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-          <FeaturedPostsWidget />
-        </Suspense>
+        {/* Widget Data Provider - eliminates duplicate queries between TrendingWidget and FeaturedPostsWidget */}
+        <WidgetDataProvider>
+          <Suspense fallback={<TrendingWidgetSkeleton />}>
+            <TrendingWidget />
+          </Suspense>
+          <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+            <FeaturedPostsWidget />
+          </Suspense>
+        </WidgetDataProvider>
         
         {/* Legal Widget */}
         <LegalWidget />

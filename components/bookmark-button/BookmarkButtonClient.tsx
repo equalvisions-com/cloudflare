@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -41,7 +42,8 @@ const BookmarkButtonClientComponent = ({
   skipQuery = false
 }: BookmarkButtonProps) => {
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const bookmark = useMutation(api.bookmarks.bookmark);
   const removeBookmark = useMutation(api.bookmarks.removeBookmark);
   const { toast } = useToast();

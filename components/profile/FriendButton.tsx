@@ -66,9 +66,9 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
   }, []);
 
   // Only fetch viewer if authenticated and we need it
-  const needsViewerQuery = isAuthenticated && 
-    (!currentStatus || (currentStatus.status === "self" && isEditModalOpen));
-  const user = useQuery(api.users.viewer, needsViewerQuery ? {} : "skip");
+  // Use sidebar context instead of individual users.viewer query to eliminate duplicate
+  const { userId: viewerId, displayName: viewerName, username: viewerUsername } = useSidebar();
+  const user = viewerId ? { _id: viewerId, name: viewerName, username: viewerUsername } : null;
 
   // Only fetch friendship status if not provided from server and user is authenticated
   const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;

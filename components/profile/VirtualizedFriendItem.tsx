@@ -9,6 +9,7 @@ import { useMutation, useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface VirtualizedFriendItemProps {
   friend: FriendsListFriendWithProfile;
@@ -41,7 +42,9 @@ const FriendListButton = memo<{
   const [isLoading, setIsLoading] = useState(false);
 
   // Get current user info to check if this is the user's own profile
-  const currentUser = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
+  // Use sidebar context instead of individual users.viewer query to eliminate duplicate
+  const { userId: currentUserId } = useSidebar();
+  const currentUser = currentUserId ? { _id: currentUserId } : null;
   
   // Mutations for friend actions - MUST be called before any conditional returns
   const sendRequest = useMutation(api.friends.sendFriendRequest);

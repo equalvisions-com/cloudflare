@@ -9,6 +9,7 @@ import { TrendingWidgetSkeleton } from "@/components/trending/TrendingWidgetSkel
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { LegalWidget } from "@/components/widgets/LegalWidget";
+import { WidgetDataProvider } from "@/components/ui/WidgetDataProvider";
 import ProfileSettingsClientWrapper from "@/components/settings/ProfileSettingsClientWrapper";
 import { BackButton } from '@/components/back-button';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
@@ -67,12 +68,15 @@ export default function SettingsPage() {
         {/* Notifications Widget */}
         <NotificationsWidgetServer />
         
-        <Suspense fallback={<TrendingWidgetSkeleton />}>
-          <TrendingWidget />
-        </Suspense>
-        <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-          <FeaturedPostsWidget />
-        </Suspense>
+        {/* Widget Data Provider - eliminates duplicate queries between TrendingWidget and FeaturedPostsWidget */}
+        <WidgetDataProvider>
+          <Suspense fallback={<TrendingWidgetSkeleton />}>
+            <TrendingWidget />
+          </Suspense>
+          <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+            <FeaturedPostsWidget />
+          </Suspense>
+        </WidgetDataProvider>
         
         {/* Legal Widget */}
         <LegalWidget />

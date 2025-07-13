@@ -9,10 +9,23 @@ interface EntryMetrics {
   bookmarks: { isBookmarked: boolean };
 }
 
-export function useBatchEntryMetrics(entryGuids: string[]) {
+interface UseBatchEntryMetricsOptions {
+  /** Skip the initial query if we already have metrics from initialData */
+  skipInitialQuery?: boolean;
+  /** Initial metrics data to use instead of querying */
+  initialMetrics?: Record<string, EntryMetrics>;
+}
+
+export function useBatchEntryMetrics(
+  entryGuids: string[], 
+  options: UseBatchEntryMetricsOptions = {}
+) {
+  const { skipInitialQuery = false, initialMetrics = {} } = options;
+  
   // Track previous values to detect changes
   const prevEntryGuidsRef = useRef<string[]>([]);
   const prevLengthRef = useRef(0);
+  const hasInitialMetricsRef = useRef(Object.keys(initialMetrics).length > 0);
   
   // Deduplicate and filter valid GUIDs with a stable sort
   const uniqueGuids = useMemo(() => {
@@ -26,35 +39,50 @@ export function useBatchEntryMetrics(entryGuids: string[]) {
     return validGuids.sort();
   }, [entryGuids]);
 
+  // Determine which GUIDs need to be fetched from Convex
+  const guidsToFetch = useMemo(() => {
+    if (!skipInitialQuery) {
+      return uniqueGuids; // Fetch all if not skipping
+    }
+    
+    // If skipping initial query, only fetch GUIDs we don't have metrics for
+    return uniqueGuids.filter(guid => !initialMetrics[guid]);
+  }, [uniqueGuids, skipInitialQuery, initialMetrics]);
+
   // Update refs to track changes
   useEffect(() => {
     prevEntryGuidsRef.current = entryGuids;
     prevLengthRef.current = entryGuids.length;
-  }, [entryGuids]);
+    hasInitialMetricsRef.current = Object.keys(initialMetrics).length > 0;
+  }, [entryGuids, initialMetrics]);
 
-  // Single batch query for all entries - this is reactive by default
-  // CRITICAL: Skip query when no GUIDs to prevent unnecessary API calls
+  // Single batch query for entries that need fresh data
+  // CRITICAL: Skip query when no GUIDs to fetch or when we have all metrics from initialData
   const metricsArray = useQuery(
     api.entries.batchGetEntriesMetrics, 
-    uniqueGuids.length > 0 ? { entryGuids: uniqueGuids } : 'skip'
+    guidsToFetch.length > 0 ? { entryGuids: guidsToFetch } : 'skip'
   );
   
-  // Convert array to map for O(1) lookup - but don't over-cache
-  // Let this recompute when metricsArray changes (which happens reactively)
+  // Convert to map, combining initial metrics with fresh query results
   const metricsMap = useMemo(() => {
-    if (!metricsArray || !uniqueGuids.length) return null;
-    
     const map = new Map<string, EntryMetrics>();
-    uniqueGuids.forEach((guid, index) => {
-      if (metricsArray[index]) {
-        map.set(guid, metricsArray[index]);
-      }
+    
+    // First, add initial metrics
+    Object.entries(initialMetrics).forEach(([guid, metrics]) => {
+      map.set(guid, metrics);
     });
     
-
+    // Then, add fresh metrics from query (these take precedence for pagination)
+    if (metricsArray && guidsToFetch.length > 0) {
+      guidsToFetch.forEach((guid, index) => {
+        if (metricsArray[index]) {
+          map.set(guid, metricsArray[index]);
+        }
+      });
+    }
     
-    return map;
-  }, [metricsArray, uniqueGuids]);
+    return map.size > 0 ? map : null;
+  }, [metricsArray, guidsToFetch, initialMetrics]);
   
   // CRITICAL FIX: Create a new getMetrics function when metricsMap changes
   // This ensures that components using getMetrics as a prop will re-render when data updates
@@ -62,11 +90,20 @@ export function useBatchEntryMetrics(entryGuids: string[]) {
     return metricsMap?.get(entryGuid) || null;
   }, [metricsMap]); // This dependency ensures the function reference changes when data updates
   
-
+  // Determine loading state - we're loading if we're fetching fresh data
+  const isLoading = useMemo(() => {
+    // If we have initial metrics for all requested GUIDs, we're not loading
+    if (skipInitialQuery && uniqueGuids.every(guid => initialMetrics[guid])) {
+      return false;
+    }
+    
+    // Otherwise, we're loading if the query is undefined and we have GUIDs to fetch
+    return guidsToFetch.length > 0 && metricsArray === undefined;
+  }, [skipInitialQuery, uniqueGuids, initialMetrics, guidsToFetch.length, metricsArray]);
   
   return {
     getMetrics,
-    isLoading: metricsArray === undefined,
+    isLoading,
     metricsMap
   };
 } 

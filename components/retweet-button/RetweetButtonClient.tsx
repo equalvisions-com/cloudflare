@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Repeat } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -42,7 +43,8 @@ const RetweetButtonClientComponent = ({
   skipQuery = false
 }: RetweetButtonProps) => {
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const retweet = useMutation(api.retweets.retweet);
   const unretweet = useMutation(api.retweets.unretweet);
   const { toast } = useToast();

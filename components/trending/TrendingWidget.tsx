@@ -18,6 +18,7 @@ import {
 } from '@/lib/stores/audioPlayerStore';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useTrendingStore } from '@/lib/stores/trendingStore';
+import { useWidgetData } from "@/components/ui/WidgetDataProvider";
 import {
   TrendingWidgetErrorType,
   type TrendingWidgetProps,
@@ -327,11 +328,8 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
   const loadingId = useRef(generateStableId('loading-status')).current;
   const errorId = useRef(generateStableId('error-status')).current;
 
-  // Convex query for trending posts
-  const trendingPostsSource = useQuery(api.widgets.getPublicWidgetPosts, { 
-    limit: 6 
-  });
-  const isLoadingPosts = trendingPostsSource === undefined;
+  // Use shared widget data to eliminate duplicate queries
+  const { widgetPosts: trendingPostsSource, isLoading: isLoadingPosts } = useWidgetData();
   
   // Initialize state with stored data if available
   useEffect(() => {
