@@ -39,7 +39,7 @@ export function SidebarWithErrorBoundary() {
 
 // Memoized NavLink component - only re-renders when props actually change
 const NavLink = memo(({ item, isActive }: { item: NavItem; isActive: boolean }) => (
-  <Link href={item.href} className="w-full" prefetch={item.prefetch === false ? false : true}>
+  <Link href={item.href} className="w-full" prefetch={false}>
     <Button
       variant="ghost"
       className={`w-full justify-start gap-2 px-3 py-1 rounded-lg flex items-center ${
