@@ -106,7 +106,6 @@ export function useCommentSection({
   // External dependencies
   const { isAuthenticated } = useConvexAuth();
   const router = useRouter();
-  const viewer = useQuery(api.users.viewer);
   const { toast } = useToast();
   
   // AbortController for request cleanup (replaces isMountedRef anti-pattern)

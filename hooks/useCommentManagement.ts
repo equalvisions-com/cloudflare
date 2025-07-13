@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from "@/convex/_generated/dataModel";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { ActivityFeedItem, ActivityFeedComment } from '@/lib/types';
 
 export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id<"users">) {
@@ -22,7 +23,7 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
 
   // Authentication and mutations
   const { isAuthenticated } = useConvexAuth();
-  const viewer = useQuery(api.users.viewer);
+  const { userId } = useSidebar();
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   const addComment = useMutation(api.comments.addComment);
 
@@ -36,15 +37,15 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
 
   // Check if current user owns the comment - simplified logic
   const isCurrentUserComputed = useMemo(() => {
-    if (!isAuthenticated || !viewer || item.type !== 'comment') {
+    if (!isAuthenticated || !userId || item.type !== 'comment') {
       return false;
     }
     
     // For comments on a profile page, check if the current viewer is the profile owner
     // This works because comments on a profile are typically made by the profile owner
     // If we need more granular control, we'd need to add userId to ActivityFeedItem type
-    return profileOwnerId ? viewer._id === profileOwnerId : false;
-  }, [isAuthenticated, viewer, item.type, profileOwnerId]);
+    return profileOwnerId ? userId === profileOwnerId : false;
+  }, [isAuthenticated, userId, item.type, profileOwnerId]);
 
   // Update replies when query result changes
   if (repliesExpanded && commentRepliesQuery && item.type === 'comment' && item._id && replies !== commentRepliesQuery) {
