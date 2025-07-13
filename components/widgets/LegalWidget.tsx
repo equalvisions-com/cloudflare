@@ -9,19 +9,19 @@ export const LegalWidget = memo<LegalWidgetProps>(({ className = "" }) => {
       <CardContent className="px-4 py-4 rounded">
         <div className="text-xs text-muted-foreground">
           <div className="flex items-center gap-1 leading-none">
-            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors" prefetch={false}>
               Submit
             </Link>
             <span>•</span>
-            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors" prefetch={false}>
               Advertise
             </Link>
             <span>•</span>
-            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors" prefetch={false}>
               Privacy
             </Link>
             <span>•</span>
-            <Link href="#" className="hover:underline hover:text-foreground transition-colors">
+            <Link href="#" className="hover:underline hover:text-foreground transition-colors" prefetch={false}>
               Terms
             </Link>
           </div>

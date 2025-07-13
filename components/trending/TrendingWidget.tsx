@@ -228,6 +228,7 @@ const TrendingItem = ({ post, rssEntry, priority }: TrendingItemProps) => {
         <Link 
           href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}
           className="text-xs font-bold hover:underline flex-grow line-clamp-1"
+          prefetch={false}
         >
           {post.title}
           {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}

@@ -42,7 +42,7 @@ export default function NotFound() {
             The page you&apos;re looking for doesn&apos;t exist or has been moved.
           </p>
           <Button asChild>
-            <Link href="/">Go Home</Link>
+            <Link href="/" prefetch={false}>Go Home</Link>
           </Button>
         </div>
       </div>

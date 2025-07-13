@@ -195,7 +195,7 @@ const PostCard = memo(({ post, onUpdatePost }: { post: Post; onUpdatePost: (post
       <CardContent className="p-4 h-[116px]">
         <div className="flex items-start gap-4">
           {post.featuredImg && (
-            <Link href={postUrl}>
+            <Link href={postUrl} prefetch={false}>
               <div className="flex-shrink-0 w-[82px] h-[82px]">
                 <AspectRatio ratio={1/1} className="overflow-hidden rounded-md">
                   <Image
@@ -211,7 +211,7 @@ const PostCard = memo(({ post, onUpdatePost }: { post: Post; onUpdatePost: (post
           )}
           <div className="flex-1 min-w-0 space-y-2 pt-0">
             <div className="flex justify-between items-start gap-4 mt-[-4px]">
-              <Link href={postUrl} className="block flex-1">
+              <Link href={postUrl} className="block flex-1" prefetch={false}>
                 <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">
                   {post.title}
                   {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
@@ -233,7 +233,7 @@ const PostCard = memo(({ post, onUpdatePost }: { post: Post; onUpdatePost: (post
                 </div>
               )}
             </div>
-            <Link href={postUrl} className="block !mt-[3px]">
+            <Link href={postUrl} className="block !mt-[3px]" prefetch={false}>
               <p className={cn(
                 "text-sm text-muted-foreground",
                 descriptionLines === 3 ? "line-clamp-3" : "line-clamp-2"

@@ -43,7 +43,7 @@ export const RelatedPostsCard = memo(function RelatedPostsCard({ posts, followSt
               <div key={post._id} className="flex items-center gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   {post.featuredImg && (
-                    <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}>
+                    <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} prefetch={false}>
                       <div className="relative w-9 h-9 shrink-0">
                         <Image
                           src={post.featuredImg}

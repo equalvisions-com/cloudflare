@@ -953,7 +953,8 @@ const ActivityCard = React.memo(({
                                                    entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast') 
                       ? "" : "noopener noreferrer"}
                     onMouseDown={handleLinkInteraction}
-                    >
+                    prefetch={false}
+                  >
                       <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                         {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}
                         {entryDetail.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
@@ -1440,7 +1441,7 @@ const ActivityGroupRenderer = React.memo(({
                           entryDetail.category_slug ?
                             `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
                             entryDetail.link) :
-                        entryDetail.link}
+                          entryDetail.link}
                     className="block w-full h-full relative rounded-md overflow-hidden hover:opacity-80 transition-opacity"
                     target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
                                                   entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
@@ -1450,6 +1451,7 @@ const ActivityGroupRenderer = React.memo(({
                       ? "" : "noopener noreferrer"}
                     onMouseDown={handleLinkInteraction}
                     onClick={(e) => e.stopPropagation()}
+                    prefetch={false}
                   >
                     <AspectRatio ratio={1}>
                       <Image
@@ -1482,7 +1484,7 @@ const ActivityGroupRenderer = React.memo(({
                           entryDetail.category_slug ?
                             `/${entryDetail.category_slug}/${entryDetail.post_slug}` :
                             entryDetail.link) :
-                        entryDetail.link}
+                          entryDetail.link}
                     className="hover:opacity-80 transition-opacity"
                     target={entryDetail.post_slug && (entryDetail.post_media_type === 'newsletter' || entryDetail.mediaType === 'newsletter' ||
                                                   entryDetail.post_media_type === 'podcast' || entryDetail.mediaType === 'podcast')
@@ -1492,6 +1494,7 @@ const ActivityGroupRenderer = React.memo(({
                       ? "" : "noopener noreferrer"}
                     onMouseDown={handleLinkInteraction}
                     onClick={(e) => e.stopPropagation()}
+                    prefetch={false}
                   >
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                       {entryDetail.post_title || entryDetail.feed_title || entryDetail.title}

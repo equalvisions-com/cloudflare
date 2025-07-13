@@ -131,7 +131,7 @@ const UserMenu = memo(({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="ml-4">
         <DropdownMenuItem asChild>
-          <Link href="/settings" className="cursor-pointer flex items-center">
+          <Link href="/settings" className="cursor-pointer flex items-center" prefetch={false}>
             <Settings className="mr-1 h-4 w-4" />
             Settings
           </Link>

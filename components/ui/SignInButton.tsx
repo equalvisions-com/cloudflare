@@ -9,7 +9,7 @@ interface SignInButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
 export const SignInButton = React.forwardRef<HTMLButtonElement, SignInButtonProps>(
   ({ className, ...props }, ref) => {
     return (
-      <Link href="/signin">
+      <Link href="/signin" prefetch={false}>
         <button
           ref={ref}
           className={cn(

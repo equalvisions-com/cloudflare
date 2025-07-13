@@ -89,7 +89,7 @@ const Comment = memo<CommentProps>(({
     <div className={`${isReply ? '' : 'border-t border-border'}`}>
       <div className={`flex items-start gap-4 ${isReply ? 'pb-4' : 'py-4 pl-4'}`}>
         {profileData.username ? (
-          <Link href={`/@${profileData.username}`} className="flex-shrink-0">
+          <Link href={`/@${profileData.username}`} className="flex-shrink-0" prefetch={false}>
             <ProfileImage 
               profileImage={profileData.imageUrl}
               username={profileData.username}
@@ -109,7 +109,7 @@ const Comment = memo<CommentProps>(({
           <div className="flex-1">
             <div className="flex items-center mb-1">
               {profileData.username ? (
-                <Link href={`/@${profileData.username}`} className="text-sm font-bold leading-none hover:none overflow-anywhere">
+                <Link href={`/@${profileData.username}`} className="text-sm font-bold leading-none hover:none overflow-anywhere" prefetch={false}>
                   {profileData.displayName}
                 </Link>
               ) : (

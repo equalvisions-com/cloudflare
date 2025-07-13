@@ -12,7 +12,7 @@ export default function FloatingChatButton() {
 
   return (
     <div className="hidden md:fixed md:bottom-6 md:right-6 md:block z-50">
-      <Link href="/chat">
+      <Link href="/chat" prefetch={false}>
         <button
           className="bg-primary text-primary-foreground p-3 rounded-full hover:bg-primary/90 transition shadow-none"
           aria-label="Ask AI Chat"

@@ -172,6 +172,7 @@ const EntryLink = memo(({
       rel={isInternalContent ? "" : "noopener noreferrer"}
       onClick={onClick}
       onTouchStart={onTouchStart}
+      prefetch={false}
     >
       {children}
     </Link>

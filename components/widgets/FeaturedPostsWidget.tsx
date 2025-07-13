@@ -173,7 +173,7 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
         <div className="flex gap-3">
           {post.featuredImg && (
             <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
-              <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}>
+              <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} prefetch={false}>
                 <AspectRatio ratio={1/1} className="bg-muted">
                   <Image 
                     src={post.featuredImg} 
@@ -216,7 +216,7 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
       <div className="flex gap-3">
         {post.featuredImg && (
           <div className="flex-shrink-0 w-10 h-10 overflow-hidden rounded-md">
-            <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`}>
+            <Link href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} prefetch={false}>
               <AspectRatio ratio={1/1} className="bg-muted">
                 <Image 
                   src={post.featuredImg} 

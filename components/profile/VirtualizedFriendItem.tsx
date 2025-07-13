@@ -350,6 +350,7 @@ export const VirtualizedFriendItem = memo<VirtualizedFriendItemProps>(({
         href={`/profile/${friendUsername}`}
         className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none p-1 -m-1"
         aria-label={`View ${friendName}'s profile`}
+        prefetch={false}
       >
         <div className="flex-shrink-0">
           <ProfileImage

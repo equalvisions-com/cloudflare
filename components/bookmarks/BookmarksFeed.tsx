@@ -357,7 +357,7 @@ const BookmarkCard = memo(({
           onClick={handleLinkInteraction}
           onTouchStart={handleLinkInteraction}
         >
-          <Link href={bookmark.link} target="_blank">
+          <Link href={bookmark.link} target="_blank" prefetch={false}>
             <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 mb-1">{bookmark.title}</h3>
           </Link>
         </NoFocusLinkWrapper>

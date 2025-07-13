@@ -67,15 +67,15 @@ const DefaultEmptyState: React.FC<{
         </Button>
         
         <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-          <Link href="/newsletters" className="flex items-center hover:text-blue-600 transition-colors">
+          <Link href="/newsletters" className="flex items-center hover:text-blue-600 transition-colors" prefetch={false}>
             <BookOpen className="h-4 w-4 mr-1" />
             Newsletters
           </Link>
-          <Link href="/podcasts" className="flex items-center hover:text-blue-600 transition-colors">
+          <Link href="/podcasts" className="flex items-center hover:text-blue-600 transition-colors" prefetch={false}>
             <Rss className="h-4 w-4 mr-1" />
             Podcasts
           </Link>
-          <Link href="/trending" className="flex items-center hover:text-blue-600 transition-colors">
+          <Link href="/trending" className="flex items-center hover:text-blue-600 transition-colors" prefetch={false}>
             <TrendingUp className="h-4 w-4 mr-1" />
             Trending
           </Link>

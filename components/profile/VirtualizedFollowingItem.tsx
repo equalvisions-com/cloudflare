@@ -279,6 +279,7 @@ export const VirtualizedFollowingItem = memo(({
         className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none p-1 -m-1"
         onClick={handleLinkClick}
         aria-label={`View ${item.post.title}`}
+        prefetch={false}
       >
         <div className="flex-shrink-0 h-12 w-12 rounded-md bg-muted overflow-hidden relative">
           <AspectRatio ratio={1}>

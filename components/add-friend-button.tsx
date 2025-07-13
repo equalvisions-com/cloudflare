@@ -10,7 +10,7 @@ interface AddFriendButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function AddFriendButton({ className, ...props }: AddFriendButtonProps) {
   return (
-    <Link href="/users">
+    <Link href="/users" prefetch={false}>
       <Button
         variant="secondary"
         size="icon"
