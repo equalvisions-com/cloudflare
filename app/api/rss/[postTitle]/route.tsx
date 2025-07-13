@@ -197,7 +197,7 @@ export async function GET(
     // Batch fetch entry data for all entries at once
     const guids = mappedEntries.map((entry: RSSItem) => entry.guid);
     const entryData = await fetchQuery(
-      api.entries.batchGetEntryData,
+      api.entries.batchGetEntriesMetrics,
       { entryGuids: guids },
       token ? { token } : undefined
     );

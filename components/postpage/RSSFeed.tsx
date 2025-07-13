@@ -153,14 +153,14 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       totalCount = cachedCount;
     }
 
-    // Get metrics data with proper error handling using the more efficient batchGetEntryData
+    // Get metrics data with proper error handling using the more efficient batchGetEntriesMetrics
     const token = await convexAuthNextjsToken().catch(() => {
       // Handle auth token failure gracefully
       return null;
     });
 
     const metricsData = await fetchQuery(
-      api.entries.batchGetEntryData,
+      api.entries.batchGetEntriesMetrics,
       { 
         entryGuids: entries.map(e => e.guid)
       },

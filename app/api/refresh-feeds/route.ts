@@ -378,11 +378,11 @@ async function getNewEntriesFromRefresh(
     const guids = mappedEntries.map(entry => entry.guid);
     
     // Batch fetch entry data for all entries at once
-    const entryData = await fetchQuery(
-      api.entries.batchGetEntryData,
-      { entryGuids: guids },
-      { token }
-    );
+            const entryData = await fetchQuery(
+          api.entries.batchGetEntriesMetrics,
+          { entryGuids: guids },
+          { token }
+        );
     
     // Fetch post metadata
     const feedUrls = [...new Set(mappedEntries.map(entry => entry.feedUrl))];
@@ -423,11 +423,12 @@ async function getNewEntriesFromRefresh(
       
       return {
         entry,
-        initialData: entryData[index] || {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-          retweets: { isRetweeted: false, count: 0 }
-        },
+                  initialData: entryData[index] || {
+            likes: { isLiked: false, count: 0 },
+            comments: { count: 0 },
+            retweets: { isRetweeted: false, count: 0 },
+            bookmarks: { isBookmarked: false }
+          },
         postMetadata: metadata || fallbackMetadata 
       };
     });

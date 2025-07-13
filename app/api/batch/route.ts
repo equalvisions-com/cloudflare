@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch all entry data in a single batch query
     const entryData = await fetchQuery(
-      api.entries.batchGetEntryData,
+      api.entries.batchGetEntriesMetrics,
       { entryGuids: guids },
       { token }
     );

@@ -264,7 +264,7 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
       
       // 7. Batch fetch entry data for all entries at once
       const entryData = await fetchQuery(
-        api.entries.batchGetEntryData,
+        api.entries.batchGetEntriesMetrics,
         { entryGuids: guids },
         { token }
       );

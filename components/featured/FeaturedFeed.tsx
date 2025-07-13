@@ -42,7 +42,7 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
   const token = await convexAuthNextjsToken();
   const [metricsData, postsData] = await Promise.all([
     fetchQuery(
-      api.entries.batchGetEntryData,
+      api.entries.batchGetEntriesMetrics,
       { entryGuids: guids },
       { token }
     ).catch(() => {
