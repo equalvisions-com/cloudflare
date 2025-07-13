@@ -2,6 +2,8 @@
 const { withAxiom } = require('next-axiom')
 
 const nextConfig = {
+  // Disable React Strict Mode to prevent double mounting in production
+  reactStrictMode: false,
   images: {
     loader: 'custom',
     loaderFile: './lib/cloudflare-loader.ts',
