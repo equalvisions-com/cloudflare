@@ -193,6 +193,7 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
                 <Link 
                   href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} 
                   className="text-sm hover:text-primary hover:no-underline font-semibold line-clamp-2 overflow-hidden"
+                  prefetch={false}
                 >
                   {post.title}
                   {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
@@ -236,6 +237,7 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
               <Link 
                 href={`/${post.mediaType === 'newsletter' ? 'newsletters' : post.mediaType === 'podcast' ? 'podcasts' : post.categorySlug}/${post.postSlug}`} 
                 className="text-sm hover:text-primary hover:no-underline font-semibold line-clamp-2 overflow-hidden"
+                prefetch={false}
               >
                 {post.title}
                 {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
