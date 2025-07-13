@@ -374,6 +374,7 @@ export interface PostsDisplayProps {
   className?: string;
   searchQuery?: string;
   isVisible?: boolean;
+  globalFollowStates?: boolean[] | undefined;
 }
 
 // Entries Display types

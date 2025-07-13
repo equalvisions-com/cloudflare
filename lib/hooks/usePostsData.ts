@@ -9,6 +9,7 @@ interface UsePostsDataProps {
   searchQuery?: string;
   initialPosts?: Post[];
   isVisible?: boolean;
+  globalFollowStates?: boolean[] | undefined;
 }
 
 export const usePostsData = ({
@@ -17,6 +18,7 @@ export const usePostsData = ({
   searchQuery = '',
   initialPosts = [],
   isVisible = true,
+  globalFollowStates,
 }: UsePostsDataProps) => {
   const { isAuthenticated } = useConvexAuth();
   
@@ -43,19 +45,36 @@ export const usePostsData = ({
   }, [searchQuery, mediaType, nextCursor, categoryId, shouldLoadMore]);
 
   // Query for posts - either search results or category posts (ONLY when visible)
+  // Skip individual queries if we have initial posts (use only for pagination)
+  const shouldMakeIndividualQuery = useMemo(() => {
+    // Always query for search results
+    if (searchQuery) return true;
+    
+    // For category posts, only query if:
+    // 1. We don't have initial posts (fallback), OR
+    // 2. We're paginating (shouldLoadMore is true)
+    return initialPosts.length === 0 || shouldLoadMore;
+  }, [searchQuery, initialPosts.length, shouldLoadMore]);
+
   const postsResult = useQuery(
     searchQuery ? api.posts.searchPosts : api.categories.getPostsByCategory,
-    isVisible ? queryParams : "skip"
+    isVisible && shouldMakeIndividualQuery ? queryParams : "skip"
   );
 
-  // Memoize the array of post IDs for the follow states query
-  const postIds = useMemo(() => posts.map(post => post._id), [posts]);
+  // Get post IDs for posts that don't have follow states yet
+  const postsNeedingFollowStates = useMemo(() => {
+    return posts.filter(post => post.isFollowing === undefined);
+  }, [posts]);
 
-  // Query for follow states if authenticated and we have posts (ONLY when visible)
-  const followStates = useQuery(
+  const postIdsNeedingFollowStates = useMemo(() => {
+    return postsNeedingFollowStates.map(post => post._id);
+  }, [postsNeedingFollowStates]);
+
+  // Query for follow states ONLY for posts that need them (pagination case)
+  const paginationFollowStates = useQuery(
     api.following.getFollowStates,
-    isVisible && isAuthenticated && posts.length > 0
-      ? { postIds } 
+    isVisible && isAuthenticated && postIdsNeedingFollowStates.length > 0 && !globalFollowStates
+      ? { postIds: postIdsNeedingFollowStates } 
       : "skip"
   );
 
@@ -133,43 +152,49 @@ export const usePostsData = ({
     }
   }, [isVisible, postsResult, isAuthenticated, shouldLoadMore, isInitialLoad]);
 
-  // Update follow states when they load (FIXED - removed posts from dependencies)
+  // Update follow states when they load - handle both global and pagination follow states
   useEffect(() => {
-    if (isVisible && followStates && Array.isArray(followStates) && posts.length > 0 && !followStatesProcessedRef.current) {
-      // Map postIds to their respective follow states
-      const followStateMap = new Map();
+    if (isVisible && posts.length > 0 && !followStatesProcessedRef.current) {
+      let shouldUpdate = false;
+      let updatedPosts = [...posts];
       
-      posts.forEach((post, index) => {
-        if (index < followStates.length) {
-          followStateMap.set(post._id.toString(), followStates[index]);
-        }
-      });
-      
-      // Update posts with their follow states
-      if (followStateMap.size > 0) {
-        const updatedPosts = posts.map(post => {
-          const postIdStr = post._id.toString();
-          const isFollowing = followStateMap.has(postIdStr)
-            ? followStateMap.get(postIdStr)
-            : post.isFollowing;
-          
-          if (post.isFollowing === isFollowing) {
-            return post;
+      // Handle global follow states (for initial posts)
+      if (globalFollowStates && Array.isArray(globalFollowStates)) {
+        posts.forEach((post, index) => {
+          if (index < globalFollowStates.length && post.isFollowing === undefined) {
+            updatedPosts[index] = {
+              ...post,
+              isAuthenticated,
+              isFollowing: globalFollowStates[index]
+            };
+            shouldUpdate = true;
           }
-          
-          return {
-            ...post,
-            isAuthenticated,
-            isFollowing
-          };
         });
-        
-        // Mark as processed to prevent infinite loops
+      }
+      
+      // Handle pagination follow states (for newly loaded posts)
+      if (paginationFollowStates && Array.isArray(paginationFollowStates) && postsNeedingFollowStates.length > 0) {
+        postsNeedingFollowStates.forEach((post, index) => {
+          if (index < paginationFollowStates.length) {
+            const postIndex = posts.findIndex(p => p._id === post._id);
+            if (postIndex !== -1) {
+              updatedPosts[postIndex] = {
+                ...post,
+                isAuthenticated,
+                isFollowing: paginationFollowStates[index]
+              };
+              shouldUpdate = true;
+            }
+          }
+        });
+      }
+      
+      if (shouldUpdate) {
         followStatesProcessedRef.current = true;
         setPosts(updatedPosts);
       }
     }
-  }, [isVisible, followStates, isAuthenticated]); // Removed 'posts' from dependencies
+  }, [isVisible, globalFollowStates, paginationFollowStates, posts, postsNeedingFollowStates, isAuthenticated]);
 
   // Load more posts function (ONLY when visible)
   const loadMorePosts = useCallback(() => {

@@ -78,6 +78,7 @@ const PostsDisplayComponent = ({
   className,
   searchQuery = '',
   isVisible = true,
+  globalFollowStates,
 }: PostsDisplayProps) => {
   // Use custom hook for all data management
   const {
@@ -94,6 +95,7 @@ const PostsDisplayComponent = ({
     searchQuery,
     initialPosts,
     isVisible,
+    globalFollowStates,
   });
   
   // Set up intersection observer for infinite scrolling

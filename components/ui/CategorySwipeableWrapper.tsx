@@ -1,7 +1,9 @@
 'use client';
 
-import React, { memo, Suspense } from 'react';
+import React, { memo, Suspense, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { PostsDisplaySkeleton } from './PostsDisplay';
 import { EntriesDisplay } from './EntriesDisplay';
 import { cn } from '@/lib/utils';
@@ -167,6 +169,51 @@ const CategorySwipeableWrapperComponent = ({
     updateState,
     restoreScrollPosition,
   });
+
+  // PAGE-LEVEL FOLLOW STATES BATCHING
+  // Collect ALL post IDs from all categories and make a single batched query
+  const allPostIds = useMemo(() => {
+    if (!allCategories.length) return [];
+    
+    const categoryPostIds: any[] = [];
+    
+    // Collect post IDs from all categories
+    allCategories.forEach(category => {
+      const categoryPosts = getInitialPostsForCategory(category._id);
+      const postIds = categoryPosts.map(post => post._id);
+      categoryPostIds.push(...postIds);
+    });
+    
+    // TODO: Also include featured posts from FeaturedPostsWidget if available
+    // This would require getting featured posts data here or passing it down
+    
+    // Remove duplicates (in case same post appears in multiple categories)
+    return [...new Set(categoryPostIds)];
+  }, [allCategories, getInitialPostsForCategory]);
+
+  // Single batched follow states query for ALL posts on the page
+  const globalFollowStates = useQuery(
+    api.following.getFollowStates,
+    isAuthenticated && allPostIds.length > 0 
+      ? { postIds: allPostIds }
+      : "skip"
+  );
+
+  // Create a function to get follow states for specific category posts
+  const getFollowStatesForCategory = useMemo(() => {
+    return (categoryId: string) => {
+      if (!globalFollowStates || !allPostIds.length) return undefined;
+      
+      const categoryPosts = getInitialPostsForCategory(categoryId);
+      const categoryPostIds = categoryPosts.map(post => post._id);
+      
+      // Map category post IDs to their follow states from the global result
+      return categoryPostIds.map(postId => {
+        const globalIndex = allPostIds.findIndex(id => id === postId);
+        return globalIndex !== -1 ? globalFollowStates[globalIndex] : false;
+      });
+    };
+  }, [globalFollowStates, allPostIds, getInitialPostsForCategory]);
 
   return (
     <div className={cn("w-full", className)}>
@@ -371,7 +418,8 @@ const CategorySwipeableWrapperComponent = ({
                     mediaType={mediaType}
                     initialPosts={getInitialPostsForCategory(category._id)}
                     className=""
-                      isVisible={isActive || state.isTransitioning}
+                    isVisible={isActive || state.isTransitioning}
+                    globalFollowStates={getFollowStatesForCategory(category._id)}
                     key={`category-${category._id}-${mediaType}`}
                   />
                   </Suspense>

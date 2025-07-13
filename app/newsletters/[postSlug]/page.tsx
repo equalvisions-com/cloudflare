@@ -7,6 +7,7 @@ import { cache } from "react";
 import { getInitialEntries } from "@/components/postpage/RSSFeed";
 import Image from "next/image";
 import { FollowButton } from "@/components/follow-button/FollowButton";
+import { ReactiveFollowButton } from "./ReactiveFollowButton";
 import { FollowerCount } from "@/components/postpage/FollowerCount";
 import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -54,27 +55,27 @@ const getPageData = cache(async (postSlug: string): Promise<NewsletterPageData |
         post.mediaType
       ),
 
-      // Get follow states for related posts if they exist (using batch query)
+      // Get follow states for related posts if they exist
       (async () => {
         if (!post.relatedPosts || !isAuthenticated || !token) {
           return {};
         }
 
-        // Use batch query instead of individual queries
-        const postIds = post.relatedPosts.map(p => p._id);
-        const followStates = await fetchQuery(
-          api.following.getFollowStates,
-          { postIds },
-          { token }
+        const states = await Promise.all(
+          post.relatedPosts.map(async (relatedPost) => {
+            const isFollowing = await fetchQuery(
+              api.following.isFollowing,
+              { postId: relatedPost._id },
+              { token }
+            );
+            return [
+              relatedPost._id.toString(),
+              { isAuthenticated, isFollowing }
+            ] as const;
+          })
         );
 
-        // Convert array response to object format
-        return Object.fromEntries(
-          post.relatedPosts.map((relatedPost, index) => [
-            relatedPost._id.toString(),
-            { isAuthenticated, isFollowing: followStates[index] ?? false }
-          ])
-        );
+        return Object.fromEntries(states);
       })()
     ]);
 
@@ -351,14 +352,13 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
         
         {/* Group 4: Action Buttons (16px gap from the container) */}
         <div className="grid grid-cols-2 gap-4 w-full" style={{ marginTop: '2px' }}>
-          <FollowButton
+          <ReactiveFollowButton
             postId={post._id}
             feedUrl={post.feedUrl}
             postTitle={post.title}
             initialIsFollowing={followState.isFollowing}
             isAuthenticated={followState.isAuthenticated}
             className="w-full rounded-lg"
-            disableAutoFetch={true}
           />
           
           <ShareButton className="w-full py-2 rounded-lg" displayName={post.title} />
