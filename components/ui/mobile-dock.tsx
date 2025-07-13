@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
-import { memo, useMemo, useCallback, useRef, useEffect, useState } from "react";
+import { memo, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSidebar } from "@/components/ui/sidebar-context";
 
 interface NavItem {
@@ -57,27 +57,27 @@ const MobileDockComponent = ({ className }: MobileDockProps) => {
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
   
-  // ✅ INSTANT AUTH HINTS: Get immediate hints from HTML data attributes
-  const [authHints, setAuthHints] = useState<{
-    isAuthenticated?: boolean;
-    isOnboarded?: boolean;
-  }>({});
+  // ✅ REACT BEST PRACTICE: Read auth hints synchronously during initial render
+  // This follows React's purity rules by avoiding side effects in useEffect
+  // and eliminates the post-render state update that caused unnecessary re-renders
+  const authHints = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return { isAuthenticated: undefined, isOnboarded: undefined };
+    }
+    
+    const isAuthenticatedHint = document.documentElement.getAttribute('data-user-authenticated') === '1';
+    const isOnboardedHint = document.documentElement.getAttribute('data-user-onboarded') === '1';
+    
+    return {
+      isAuthenticated: isAuthenticatedHint,
+      isOnboarded: isOnboardedHint
+    };
+  }, []); // Empty dependency array - hints are static after initial render
   
   // Set up the mounted ref
   useEffect(() => {
     // Set mounted flag to true
     isMountedRef.current = true;
-    
-    // ✅ SIMPLE: Get auth hints from HTML data attributes (set by server-side layout)
-    if (typeof window !== 'undefined') {
-      const isAuthenticatedHint = document.documentElement.getAttribute('data-user-authenticated') === '1';
-      const isOnboardedHint = document.documentElement.getAttribute('data-user-onboarded') === '1';
-      
-      setAuthHints({
-        isAuthenticated: isAuthenticatedHint,
-        isOnboarded: isOnboardedHint
-      });
-    }
     
     // Cleanup function to set mounted flag to false when component unmounts
     return () => {
