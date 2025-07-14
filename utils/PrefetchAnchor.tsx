@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ComponentProps } from 'react';
+import { useAudioPlayerCurrentTrack, useAudioPlayerIsPlaying } from '@/lib/stores/audioPlayerStore';
 
 type AnchorProps = ComponentProps<'a'> & { 
   href: string;
@@ -10,6 +11,8 @@ type AnchorProps = ComponentProps<'a'> & {
 
 export function PrefetchAnchor({ href, children, preserveAudio = true, ...rest }: AnchorProps) {
   const router = useRouter();
+  const currentTrack = useAudioPlayerCurrentTrack();
+  const isPlaying = useAudioPlayerIsPlaying();
 
   // No prefetching - removed useEffect
 
@@ -19,11 +22,11 @@ export function PrefetchAnchor({ href, children, preserveAudio = true, ...rest }
     // Check if this is an internal navigation (same origin)
     const isInternal = href.startsWith('/') || href.startsWith(window.location.origin);
     
-    if (isInternal) {
-      // For internal navigation, use Next.js router to preserve audio player
+    if (isInternal && preserveAudio && currentTrack && isPlaying) {
+      // For internal navigation with audio playing, use Next.js router to preserve state
       router.push(href);
     } else {
-      // For external links, use window.open
+      // For external links or when no audio is playing, use window.open to avoid bfcache issues
       window.open(href, '_self');
     }
   };

@@ -74,29 +74,6 @@ export function FeedTabsContainer({
   useEffect(() => {
     errorsRef.current = errors;
   }, [errors]);
-
-  // Add bfcache handling via custom event
-  useEffect(() => {
-    const handleBfcacheRestore = () => {
-      console.log('Feed: Handling bfcache restore, reinitializing feeds');
-      
-      // Reset state to force reinitialization
-      setHasInitialized(false);
-      setRssData(initialData);
-      setFeaturedData(initialFeaturedData);
-      setLoading({ rss: false, featured: false });
-      setErrors({ rss: null, featured: null });
-      
-      // Reset retry attempts
-      retryAttemptsRef.current = { rss: 0, featured: 0 };
-    };
-
-    window.addEventListener('bfcache-restore', handleBfcacheRestore);
-    
-    return () => {
-      window.removeEventListener('bfcache-restore', handleBfcacheRestore);
-    };
-  }, [initialData, initialFeaturedData]);
   
   // useTransition for smooth tab changes
   const [isPending, startTransition] = useTransition();
