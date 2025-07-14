@@ -40,8 +40,7 @@ import {
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { useQuery, useConvexAuth, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+import { useConvexAuth } from 'convex/react';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";

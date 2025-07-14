@@ -39,8 +39,6 @@ import {
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { ErrorBoundary } from "react-error-boundary";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
@@ -587,9 +585,6 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     setCommentDrawerOpen,
   } = useLikesFeedUI({ isActive });
 
-  // Extract server-provided metrics for fallback
-  const initialEntryMetrics = initialData?.entryMetrics;
-
   // Get entry guids for metrics
   const entryGuids = useMemo(() => 
     activities.map(activity => activity.entryGuid), 
@@ -600,19 +595,16 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
   // Likes feed doesn't need comment likes (defaults to false), just regular entry metrics
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(
     isActive ? entryGuids : [], // Only fetch metrics when tab is active
-    { skipInitialQuery: !isActive } // Skip initial query when not active
+    { 
+      skipInitialQuery: !isActive // Skip initial query when not active
+      // Removed initialMetrics - let batch hook handle everything consistently
+    }
   );
   
   // Wrapper function to convert batch metrics to InteractionStates format
   const getMetrics = useCallback((entryGuid: string): InteractionStates => {
     const batchMetrics = getBatchMetrics(entryGuid);
     if (!batchMetrics) {
-      // Use server-provided metrics as fallback to prevent 0 → count jitter
-      const serverMetrics = initialEntryMetrics?.[entryGuid];
-      if (serverMetrics) {
-        return serverMetrics;
-      }
-      
       return {
         likes: { isLiked: false, count: 0 },
         comments: { count: 0 },
@@ -627,7 +619,7 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
       retweets: batchMetrics.retweets || { isRetweeted: false, count: 0 },
       bookmarks: batchMetrics.bookmarks || { isBookmarked: false }
     };
-  }, [getBatchMetrics, initialEntryMetrics]);
+  }, [getBatchMetrics]);
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
