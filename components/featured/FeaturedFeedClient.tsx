@@ -846,40 +846,11 @@ const FeaturedFeedClientComponent = ({
     return optimizedEntries.map(entry => entry.entry.guid);
   }, [optimizedEntries]);
   
-  // Track if we've already used the initial server metrics to prevent duplicate queries
-  const hasUsedServerMetricsRef = useRef(false);
-  
-  // Extract initial metrics from initialData to avoid duplicate queries
-  const initialMetrics = useMemo(() => {
-    if (!initialData?.entries) return {};
-    
-    const metrics: Record<string, any> = {};
-    initialData.entries.forEach(entry => {
-      if (entry.entry.guid && entry.initialData) {
-        metrics[entry.entry.guid] = entry.initialData;
-      }
-    });
-    return metrics;
-  }, [initialData]);
-  
-  // Only skip the initial query on the very first load when we have server data
-  // After that, enable full reactivity
-  const shouldSkipInitialQuery = useMemo(() => {
-    const hasServerMetrics = Object.keys(initialMetrics).length > 0;
-    const shouldSkip = hasServerMetrics && !hasUsedServerMetricsRef.current;
-    
-    if (shouldSkip) {
-      hasUsedServerMetricsRef.current = true;
-    }
-    
-    return shouldSkip;
-  }, [initialMetrics]);
-  
-  // Use batch metrics hook with one-time skip for reactivity
-  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids, {
-    skipInitialQuery: shouldSkipInitialQuery,
-    initialMetrics
-  });
+  // Use batch metrics hook for reactivity
+  // Note: We accept the initial duplicate query to maintain real-time reactivity
+  // The server-side metrics in initialData serve as a fast initial render,
+  // then the client query provides live updates
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
 
   // Focus prevention
   const shouldPreventFocus = useMemo(() => 
