@@ -61,6 +61,13 @@ export const getInitialEntries = cache(async (kvBinding?: KVNamespace) => {
     )
   ]);
 
+  // Add Edge-compatible server-side logging
+  console.log('🔍 SERVER batchGetEntriesMetrics called:', {
+    guidsCount: guids.length,
+    timestamp: Date.now(),
+    location: 'FeaturedFeed.tsx server component'
+  });
+
   // Create a map of feedUrl to post data for fast lookup
   const postsMap = new Map();
   postsData.forEach(post => {
