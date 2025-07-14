@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useTransition, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { SwipeableTabs } from "@/components/ui/swipeable-tabs";
 import { UserMenuClientWithErrorBoundary } from '../user-menu/UserMenuClient';
 import { MobileSearch } from '@/components/mobile/MobileSearch';
@@ -74,8 +74,7 @@ export function FeedTabsContainer({
     errorsRef.current = errors;
   }, [errors]);
   
-  // useTransition for smooth tab changes
-  const [isPending, startTransition] = useTransition();
+  // Removed useTransition to fix tab switching timing issues
   
   // Custom hook for data fetching - simplified to accept callbacks
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
@@ -129,10 +128,9 @@ export function FeedTabsContainer({
       return;
     }
     
-    // Use startTransition for smooth UX
-    startTransition(() => {
-      setActiveTabIndex(index);
-    });
+    // CRITICAL FIX: Remove startTransition to make tab changes synchronous
+    // This prevents the Featured Feed from staying mounted during RSS tab switch
+    setActiveTabIndex(index);
   }, [isAuthenticated, router]);
   
   // Auth state management - reset to Discover tab when user signs out
