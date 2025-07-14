@@ -13,11 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
-import { api } from "@/convex/_generated/api";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import UserMenuImage from "./UserMenuImage";
 
 export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
@@ -28,36 +26,22 @@ export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithE
   );
 });
 
-// Pure client reactive component - single source of truth via Convex queries
+// DEDUPLICATION FIX: Use sidebar context instead of duplicate queries
 const UserMenuClientComponent = () => {
   
-  // ✅ Convex best practice: Use reactive queries as single source of truth
-  const { isAuthenticated, isLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
   const router = useRouter();
   
-  // ✅ ULTRA OPTIMIZED: Single combined query for user data + friend requests
-  // Reduced from 3 separate queries to just 2 parallel database operations:
-  // 1. User data lookup (primary key)
-  // 2. Friend requests count (single index query with OR filter)
-  const authData = useQuery(
-    api.users.getAuthUserWithNotifications, 
-    isAuthenticated ? {} : "skip"
-  );
-  
-  // ✅ Extract data from combined query result
-  const viewer = authData?.user || null;
-  const pendingFriendRequestCount = authData?.pendingFriendRequestCount || 0;
-
-  // ✅ OPTIMIZED: Memoize derived state to prevent unnecessary recalculations
-  const derivedState = useMemo(() => ({
-    displayName: viewer?.name || viewer?.username || "",
-    username: viewer?.username || "",
-    profileImage: viewer?.profileImage,
-    isDataLoaded: authData !== undefined
-  }), [viewer, authData]);
-  
-  const { displayName, username, profileImage, isDataLoaded } = derivedState;
+  // ✅ DEDUPLICATION: Use sidebar context data instead of making duplicate queries
+  // This eliminates the duplicate getAuthUserWithNotifications query
+  const { 
+    isAuthenticated, 
+    displayName, 
+    username, 
+    profileImage, 
+    pendingFriendRequestCount,
+    isLoading 
+  } = useSidebar();
 
   // Memoized event handlers
   const onSignIn = useCallback(() => {
@@ -72,18 +56,9 @@ const UserMenuClientComponent = () => {
     }
   }, [signOut]);
 
-  // ✅ OPTIMIZED: Better loading state detection using memoized value
-  // Only show loading when we genuinely don't have data yet, not during navigation transitions
-  // when the data is already cached (prevents profile image flicker during client navigation)
-  const shouldShowLoading = useMemo(() => {
-    // If we have cached authData, never show loading (prevents navigation flicker)
-    if (authData !== undefined) {
-      return false;
-    }
-    
-    // Only show loading when auth is still resolving AND we don't have cached data
-    return isLoading || (isAuthenticated && !isDataLoaded);
-  }, [isLoading, isAuthenticated, isDataLoaded, authData]);
+  // ✅ SIMPLIFIED: Use sidebar context loading state directly
+  // The sidebar context already handles proper loading state management
+  const shouldShowLoading = isLoading;
 
   if (shouldShowLoading) {
     return (

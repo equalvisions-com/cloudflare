@@ -69,8 +69,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     ? (isLoading || !authData ? authHints.isOnboarded : (viewer?.isBoarded ?? false))
     : (viewer?.isBoarded ?? false);
 
-  // ✅ OPTIMIZED: Memoized context value prevents unnecessary re-renders
-  // Following React best practices for context optimization
+  // ✅ STABILIZED CONTEXT: Only change when actual user data changes, not auth mechanisms
+  // This prevents remounting during auth refresh while maintaining reactivity
   const contextValue = useMemo(
     () => ({ 
       isAuthenticated: effectiveIsAuthenticated,
@@ -83,7 +83,18 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       // ✅ ZERO LOADING: Never show loading when we have hints
       isLoading: authHints.isAuthenticated === undefined && isLoading,
     }),
-    [effectiveIsAuthenticated, effectiveIsOnboarded, viewer, pendingFriendRequestCount, authData, authHints, isLoading]
+    // CRITICAL FIX: Remove authData and isLoading from dependencies to prevent remounts during auth refresh
+    // Only include the actual computed values that should trigger context updates
+    [
+      effectiveIsAuthenticated, 
+      effectiveIsOnboarded, 
+      viewer?.username,
+      viewer?.name, 
+      viewer?.profileImage,
+      viewer?._id,
+      pendingFriendRequestCount,
+      authHints.isAuthenticated
+    ]
   );
 
   return (

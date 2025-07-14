@@ -29,9 +29,8 @@ export function FeedTabsContainer({
   featuredData: initialFeaturedData, 
   pageSize = 30
 }: FeedTabsContainerProps) {
-  // Single sidebar context call - optimized to prevent multiple re-renders
-  const sidebarContext = useSidebar();
-  const { isAuthenticated, displayName, isBoarded, profileImage, pendingFriendRequestCount } = sidebarContext;
+  // STABILITY FIX: Only destructure needed values to prevent unnecessary re-renders during auth refresh
+  const { isAuthenticated, displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
   const router = useRouter();
   
   // React state management - local component state
