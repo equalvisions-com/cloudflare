@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useTransition, useReducer, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useReducer, useRef } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
 import { Id } from "@/convex/_generated/dataModel";
@@ -159,7 +159,6 @@ export function UserProfileTabs({
 }: UserProfileTabsProps) {
   // Local state management with useState and useReducer
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
-  const [isPending, startTransition] = useTransition();
   
   // Initialize likes state
   const initialLikesState: LikesState = {
@@ -219,9 +218,9 @@ export function UserProfileTabs({
       fetchLikesData();
     }
     
-    startTransition(() => {
-      setSelectedTabIndex(index);
-    });
+    // CRITICAL FIX: Remove startTransition to make tab changes synchronous
+    // This prevents components from staying mounted during tab switch
+    setSelectedTabIndex(index);
   }, [likesState.status, fetchLikesData]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
