@@ -25,7 +25,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import useSWR from 'swr';
 import { FOLLOWED_POSTS_KEY } from '@/components/follow-button/FollowButton';
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
-import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
+import Link from "next/link";
 import { RSSEntriesDisplayStoreProvider } from "./RSSEntriesDisplayStoreProvider";
 import {
   useRSSEntriesDisplayEntries,
@@ -365,7 +365,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <PrefetchAnchor href={postUrl}>
+              <Link href={postUrl} prefetch={false}>
                 <AspectRatio ratio={1}>
                   <Image
                     src={safePostMetadata.featuredImg}
@@ -376,7 +376,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                     priority={false}
                   />
                 </AspectRatio>
-              </PrefetchAnchor>
+              </Link>
             </NoFocusLinkWrapper>
           )}
           
@@ -390,13 +390,13 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                       className="hover:opacity-80 transition-opacity"
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
-                    >
-                      <PrefetchAnchor href={postUrl}>
+                                          >
+                      <Link href={postUrl} prefetch={false}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {safePostMetadata.title}
                           {safePostMetadata.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h3>
-                      </PrefetchAnchor>
+                      </Link>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
