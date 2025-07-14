@@ -1,6 +1,6 @@
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useMemo, useEffect, useCallback, useRef } from 'react';
+import { useMemo, useEffect, useCallback, useRef, useState } from 'react';
 
 interface EntryMetrics {
   likes: { count: number; isLiked: boolean };
@@ -29,6 +29,9 @@ export function useBatchEntryMetrics(
   const prevEntryGuidsRef = useRef<string[]>([]);
   const prevLengthRef = useRef(0);
   const hasInitialMetricsRef = useRef(Object.keys(initialMetrics).length > 0);
+  
+  // Persistent metrics cache to prevent flashing during pagination
+  const [persistentMetrics, setPersistentMetrics] = useState<Map<string, EntryMetrics>>(new Map());
   
   // Deduplicate and filter valid GUIDs with a stable sort
   const uniqueGuids = useMemo(() => {
@@ -66,26 +69,41 @@ export function useBatchEntryMetrics(
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
   
-  // Convert to map, combining initial metrics with fresh query results
-  const metricsMap = useMemo(() => {
-    const map = new Map<string, EntryMetrics>();
-    
-    // First, add initial metrics
-    Object.entries(initialMetrics).forEach(([guid, metrics]) => {
-      map.set(guid, metrics);
-    });
-    
-    // Then, add fresh metrics from query (these take precedence for pagination)
+  // Update persistent cache when new metrics arrive
+  useEffect(() => {
     if (metricsArray && guidsToFetch.length > 0) {
-      guidsToFetch.forEach((guid, index) => {
-        if (metricsArray[index]) {
-          map.set(guid, metricsArray[index]);
-        }
+      setPersistentMetrics(prev => {
+        const newMap = new Map(prev);
+        
+        // Add fresh metrics from query
+        guidsToFetch.forEach((guid, index) => {
+          if (metricsArray[index]) {
+            newMap.set(guid, metricsArray[index]);
+          }
+        });
+        
+        return newMap;
       });
     }
-    
-    return map.size > 0 ? map : null;
-  }, [metricsArray, guidsToFetch, initialMetrics]);
+  }, [metricsArray, guidsToFetch]);
+  
+  // Initialize persistent cache with initial metrics
+  useEffect(() => {
+    if (Object.keys(initialMetrics).length > 0) {
+      setPersistentMetrics(prev => {
+        const newMap = new Map(prev);
+        Object.entries(initialMetrics).forEach(([guid, metrics]) => {
+          newMap.set(guid, metrics);
+        });
+        return newMap;
+      });
+    }
+  }, [initialMetrics]);
+  
+  // Convert to map, using persistent cache to prevent flashing
+  const metricsMap = useMemo(() => {
+    return persistentMetrics.size > 0 ? persistentMetrics : null;
+  }, [persistentMetrics]);
   
   // CRITICAL FIX: Create a new getMetrics function when metricsMap changes
   // This ensures that components using getMetrics as a prop will re-render when data updates

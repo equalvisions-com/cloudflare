@@ -3,7 +3,7 @@ import {
   ActivityFeedItem, 
   ActivityFeedRSSEntry, 
   ActivityFeedState,
-  ActivityFeedAction 
+  ActivityFeedAction
 } from '@/lib/types';
 
 interface UserActivityFeedStore extends ActivityFeedState {
