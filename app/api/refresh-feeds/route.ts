@@ -374,6 +374,13 @@ async function getNewEntriesFromRefresh(
       feedUrl: entry.feed_url
     }));
     
+    // CRITICAL FIX: Only call batch metrics if we actually have new entries
+    // This prevents unnecessary batchGetEntriesMetrics calls when no new content is found
+    if (mappedEntries.length === 0) {
+      devLog('🔄 SERVERLESS: No new entries found - skipping batch metrics call');
+      return { entries: [], totalEntries: 0, hasMore: false };
+    }
+    
     // Get unique entry guids for batch query
     const guids = mappedEntries.map(entry => entry.guid);
     
