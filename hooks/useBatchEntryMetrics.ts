@@ -65,18 +65,6 @@ export function useBatchEntryMetrics(
     api.entries.batchGetEntriesMetrics, 
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
-
-  // Add Edge-compatible development logging to track when queries fire
-  useEffect(() => {
-    if (metricsArray !== undefined && typeof window !== 'undefined') {
-      console.log('🔍 CLIENT batchGetEntriesMetrics called:', {
-        guidsCount: guidsToFetch.length,
-        timestamp: Date.now(),
-        location: 'useBatchEntryMetrics hook',
-        hasResults: !!metricsArray
-      });
-    }
-  }, [metricsArray, guidsToFetch.length]);
   
   // Convert to map, combining initial metrics with fresh query results
   const metricsMap = useMemo(() => {

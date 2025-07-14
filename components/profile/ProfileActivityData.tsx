@@ -319,15 +319,6 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
         { token }
       ) : []
     ]);
-
-    // Add Edge-compatible server-side logging
-    if (validGuids.length > 0) {
-      console.log('🔍 SERVER batchGetEntriesMetrics called:', {
-        guidsCount: validGuids.length,
-        timestamp: Date.now(),
-        location: 'ProfileActivityData.tsx server component'
-      });
-    }
     
     await performBackupEnrichment(entryDetails);
     
@@ -340,7 +331,7 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
       )
       .map((activity: ProfileActivityDataConvexActivity) => {
         const baseActivity = activity as unknown as ActivityItem;
-        
+    
         // Attach comment replies if this is a comment activity
         if (activity.type === "comment" && activity._id) {
           const replies = commentReplies[activity._id.toString()] || [];
