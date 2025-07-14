@@ -87,7 +87,8 @@ const ActivityTabContent = React.memo(({
   profileImage,
   activityData, 
   pageSize,
-}: ActivityTabContentProps) => {
+  isActive = false
+}: ActivityTabContentProps & { isActive?: boolean }) => {
   if (!activityData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -105,6 +106,7 @@ const ActivityTabContent = React.memo(({
       initialData={activityData}
       pageSize={pageSize}
       apiEndpoint="/api/activity"
+      isActive={isActive}
     />
   );
 });
@@ -116,8 +118,9 @@ const LikesTabContent = React.memo(({
   likesData, 
   pageSize,
   isLoading,
-  error
-}: LikesTabContentProps) => {
+  error,
+  isActive = false
+}: LikesTabContentProps & { isActive?: boolean }) => {
   if (isLoading) {
     return <SkeletonFeed count={5} />;
   }
@@ -138,11 +141,14 @@ const LikesTabContent = React.memo(({
     );
   }
 
+  // Only load the UserLikesFeed component when we actually have data to display
+  // Pass isActive to prevent useBatchEntryMetrics calls when tab is not active
   return (
     <DynamicUserLikesFeed
       userId={userId}
       initialData={likesData}
       pageSize={pageSize}
+      isActive={isActive}
     />
   );
 });
@@ -237,10 +243,11 @@ export function UserProfileTabs({
           profileImage={profileImage}
           activityData={activityData} 
           pageSize={pageSize}
+          isActive={selectedTabIndex === 0} // Pass isActive based on current tab
         />
       )
     },
-    // Likes tab
+    // Likes tab - only create the component when this tab is selected
     {
       id: 'likes',
       label: 'Likes',
@@ -251,6 +258,7 @@ export function UserProfileTabs({
           pageSize={pageSize}
           isLoading={likesState.status === 'loading'}
           error={likesState.error}
+          isActive={selectedTabIndex === 1} // Pass isActive based on current tab
         />
       )
     }
@@ -263,7 +271,8 @@ export function UserProfileTabs({
     likesState.data, 
     likesState.status,
     likesState.error,
-    pageSize
+    pageSize,
+    selectedTabIndex // Add selectedTabIndex to dependencies
   ]);
 
   return (

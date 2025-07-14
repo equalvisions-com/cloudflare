@@ -790,6 +790,7 @@ export interface UserActivityFeedProps {
   initialData: ProfileFeedData;
   pageSize: number;
   apiEndpoint: string;
+  isActive?: boolean;
 }
 
 export interface UserLikesFeedProps {

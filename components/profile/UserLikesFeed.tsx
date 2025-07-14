@@ -596,8 +596,11 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     [activities]
   );
   
-  // Use batch metrics hook
-  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(entryGuids);
+  // Use batch metrics hook - only when component is active to prevent unnecessary queries
+  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(
+    isActive ? entryGuids : [], // Only fetch metrics when tab is active
+    { skipInitialQuery: !isActive } // Skip initial query when not active
+  );
   
   // Wrapper function to convert batch metrics to InteractionStates format
   const getMetrics = useCallback((entryGuid: string): InteractionStates => {
