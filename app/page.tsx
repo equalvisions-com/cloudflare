@@ -1,5 +1,6 @@
 import { LayoutManager } from "@/components/ui/LayoutManager";
 import { Metadata } from "next";
+import { BfcacheHandler } from "@/components/BfcacheHandler";
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /* ----------  b. page component ---------- */
-export default function HomePage() {
+export default function Home() {
   const siteUrl = process.env.SITE_URL;
 
   const jsonLd = JSON.stringify({
@@ -95,6 +96,8 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: jsonLd }}
       />
 
+      <BfcacheHandler />
+      
       {/* Existing layout – keeps lazy loading for the feed */}
       <LayoutManager />
     </>

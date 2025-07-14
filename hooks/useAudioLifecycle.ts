@@ -9,7 +9,8 @@ import {
   useAudioPlayerIsPlaying,
   useAudioPlayerIsLoading,
   registerSeekCallback,
-  unregisterSeekCallback
+  unregisterSeekCallback,
+  useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
 import type { UseAudioLifecycleProps, UseAudioLifecycleReturn } from '@/lib/types';
 
@@ -47,6 +48,7 @@ export const useAudioLifecycle = ({
   const setSeek = useAudioPlayerSetSeek();
   const setPlaying = useAudioPlayerSetPlaying();
   const setError = useAudioPlayerSetError();
+  const playTrack = useAudioPlayerPlayTrack();
   
   // Get playing state to sync with Howler
   const isPlaying = useAudioPlayerIsPlaying();
@@ -212,6 +214,46 @@ export const useAudioLifecycle = ({
       unregisterSeekCallback();
     };
   }, [seekToPosition]);
+
+  // Add audio state restoration logic
+  useEffect(() => {
+    // Check if we should restore audio state on mount
+    const shouldRestoreAudio = sessionStorage.getItem('shouldRestoreAudio');
+    
+    if (shouldRestoreAudio === 'true') {
+      try {
+        const savedState = sessionStorage.getItem('audioPlayerState');
+        if (savedState) {
+          const audioState = JSON.parse(savedState);
+          
+          // Check if the saved state is recent (within 5 minutes)
+          const isRecent = Date.now() - audioState.timestamp < 5 * 60 * 1000;
+          
+          if (isRecent && audioState.src && audioState.title) {
+            // Restore the audio track
+            playTrack(audioState.src, audioState.title);
+            
+            // Set a timeout to restore the seek position after the track loads
+            setTimeout(() => {
+              if (audioState.currentTime > 0) {
+                setSeek(audioState.currentTime);
+                // Trigger seek in Howler if available
+                if (howlerRef.current) {
+                  howlerRef.current.seek(audioState.currentTime);
+                }
+              }
+            }, 1000); // Give the audio time to load
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to restore audio state:', error);
+      } finally {
+        // Clear the restoration flags
+        sessionStorage.removeItem('shouldRestoreAudio');
+        sessionStorage.removeItem('audioPlayerState');
+      }
+    }
+  }, []); // Only run on mount
 
   // Initialize Howler only when src changes and is not empty
   useEffect(() => {
