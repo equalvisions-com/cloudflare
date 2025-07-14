@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { 
   useAudioPlayerCurrentTrack,
   useAudioPlayerIsPlaying,
@@ -41,6 +41,7 @@ const AudioContext = createContext<AudioContextType | null>(null);
  * ✅ Prevents object recreation on every render
  * ✅ Maintains backward compatibility
  * ✅ Uses Zustand store for state management
+ * ✅ Memoized context value to prevent unnecessary remounting
  */
 export function AudioProvider({ children }: { children: React.ReactNode }) {
   // Get state from Zustand store
@@ -90,12 +91,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     seekOffset: 15 // 15 seconds forward/backward
   });
 
-  // Adapter function to match the old API
-  const handleSeekAdapter = (value: number) => {
+  // Adapter function to match the old API - memoized to prevent recreation
+  const handleSeekAdapter = useMemo(() => (value: number) => {
     handleSeek([value]);
-  };
+  }, [handleSeek]);
 
-  const contextValue: AudioContextType = {
+  // CRITICAL FIX: Memoize context value to prevent unnecessary remounting of consuming components
+  const contextValue = useMemo((): AudioContextType => ({
     currentTrack,
     playTrack,
     stopTrack,
@@ -104,7 +106,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     seek,
     duration,
     handleSeek: handleSeekAdapter,
-  };
+  }), [
+    currentTrack,
+    playTrack,
+    stopTrack,
+    isPlaying,
+    togglePlayPause,
+    seek,
+    duration,
+    handleSeekAdapter
+  ]);
 
   return (
     <AudioContext.Provider value={contextValue}>

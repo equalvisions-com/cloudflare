@@ -80,7 +80,7 @@ ActivityIcon.displayName = 'ActivityIcon'; // Add display name for React DevTool
 
 // Export ActivityDescription for reuse
 // Memoize ActivityDescription
-export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp, userId }: ActivityDescriptionProps) => {
+export const ActivityDescription = React.memo(({ item, username, name, profileImage, timestamp, userId, reactiveCommentLikes }: ActivityDescriptionProps & { reactiveCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }> }) => {
   const router = useRouter();
   
   // Use custom hook for comment management
@@ -254,6 +254,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                   size="sm"
                   hideCount={true}
                   onCountChange={updateReplyLikeCountLocal}
+                  initialData={reactiveCommentLikes?.[reply._id.toString()] || { isLiked: false, count: 0 }}
+                  skipQuery={!!reactiveCommentLikes}
                 />
               </div>
             </div>
@@ -391,6 +393,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
                       size="sm"
                       hideCount={true}
                       onCountChange={updateLikeCount}
+                      initialData={reactiveCommentLikes?.[item._id.toString()] || { isLiked: false, count: 0 }}
+                      skipQuery={!!reactiveCommentLikes}
                     />
                   )}
                 </div>
@@ -514,7 +518,8 @@ const ActivityCard = React.memo(({
   entryDetail,
   getEntryMetrics,
   onOpenCommentDrawer,
-  initialEntryMetrics
+  initialEntryMetrics,
+  commentLikes
 }: {
   activity: ActivityFeedItem;
   username: string;
@@ -524,6 +529,7 @@ const ActivityCard = React.memo(({
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   initialEntryMetrics?: Record<string, InteractionStates>;
+  commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }) => {
   // Get state and actions from Zustand store
   const currentTrack = useAudioPlayerCurrentTrack();
@@ -663,6 +669,7 @@ const ActivityCard = React.memo(({
               name={name}
               profileImage={profileImage}
               timestamp={activity.type === "comment" ? activityTimestamp : undefined}
+              reactiveCommentLikes={commentLikes}
             />
             {activity.type !== "comment" && (
               <div className="text-sm text-gray-500 mt-2">
@@ -1151,6 +1158,7 @@ const ActivityCard = React.memo(({
               name={name}
               profileImage={profileImage}
               timestamp={activityTimestamp}
+              reactiveCommentLikes={commentLikes}
             />
           </div>
         </div>
@@ -1208,7 +1216,8 @@ const ActivityGroupRenderer = React.memo(({
   handleOpenCommentDrawer,
   currentTrack,
   playTrack,
-  initialEntryMetrics
+  initialEntryMetrics,
+  reactiveCommentLikes,
 }: ActivityFeedGroupRendererProps & { initialEntryMetrics?: Record<string, InteractionStates>; }) => { // Use the defined props type
 
   // Always get entryDetail - move outside conditional
@@ -1711,6 +1720,7 @@ const ActivityGroupRenderer = React.memo(({
                   userId={userId}
                   // Pass the memoized comment timestamp
                   timestamp={commentTimestamp}
+                  reactiveCommentLikes={reactiveCommentLikes}
                 />
               </div>
             </div>
@@ -1769,7 +1779,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     isActive,
     initialActivities,
     initialEntryDetails,
-    initialHasMore
+    initialHasMore,
   });
 
   const {
@@ -1791,8 +1801,33 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     [activities]
   );
 
-  // Use batch metrics hook
-  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(entryGuids);
+  // Use batch metrics hook with comment likes enabled for UserActivityFeed
+  const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading, metricsMap } = useBatchEntryMetrics(entryGuids, { includeCommentLikes: true });
+  
+  // Get comment likes from batch metrics instead of separate query
+  const reactiveCommentLikes = useMemo(() => {
+    const likesMap: Record<string, { commentId: string; isLiked: boolean; count: number; }> = {};
+    
+    // First, include initial server-side comment likes data
+    if (initialEntryMetrics) {
+      Object.values(initialEntryMetrics).forEach(metrics => {
+        if (metrics.commentLikes) {
+          Object.assign(likesMap, metrics.commentLikes);
+        }
+      });
+    }
+    
+    // Then, overlay with client-side reactive data (if available)
+    if (metricsMap) {
+      metricsMap.forEach(metrics => {
+        if (metrics.commentLikes) {
+          Object.assign(likesMap, metrics.commentLikes);
+        }
+      });
+    }
+    
+    return likesMap;
+  }, [metricsMap, initialEntryMetrics]);
   
   // Wrapper function to convert batch metrics to InteractionStates format
   const getMetrics = useCallback((entryGuid: string): InteractionStates | null => {
@@ -1835,6 +1870,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       currentTrack={currentTrack}
       playTrack={playTrack}
       initialEntryMetrics={initialEntryMetrics}
+      reactiveCommentLikes={reactiveCommentLikes}
     />
   ), [
     entryDetails,
@@ -1845,7 +1881,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     getMetrics,
     handleOpenCommentDrawer,
     currentTrack,
-    playTrack
+    playTrack,
+    initialEntryMetrics,
+    reactiveCommentLikes
   ]);
 
   // Activity grouping and UI state calculations are now handled by custom hooks

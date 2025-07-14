@@ -7,6 +7,7 @@ interface EntryMetrics {
   comments: { count: number };
   retweets: { count: number; isRetweeted: boolean };
   bookmarks: { isBookmarked: boolean };
+  commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }
 
 interface UseBatchEntryMetricsOptions {
@@ -14,13 +15,15 @@ interface UseBatchEntryMetricsOptions {
   skipInitialQuery?: boolean;
   /** Initial metrics data to use instead of querying */
   initialMetrics?: Record<string, EntryMetrics>;
+  /** Whether to include comment likes data in the query */
+  includeCommentLikes?: boolean;
 }
 
 export function useBatchEntryMetrics(
   entryGuids: string[], 
   options: UseBatchEntryMetricsOptions = {}
 ) {
-  const { skipInitialQuery = false, initialMetrics = {} } = options;
+  const { skipInitialQuery = false, initialMetrics = {}, includeCommentLikes = false } = options;
   
   // Track previous values to detect changes
   const prevEntryGuidsRef = useRef<string[]>([]);
@@ -60,7 +63,7 @@ export function useBatchEntryMetrics(
   // CRITICAL: Skip query when no GUIDs to fetch or when we have all metrics from initialData
   const metricsArray = useQuery(
     api.entries.batchGetEntriesMetrics, 
-    guidsToFetch.length > 0 ? { entryGuids: guidsToFetch } : 'skip'
+    guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
   
   // Convert to map, combining initial metrics with fresh query results

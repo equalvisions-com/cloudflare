@@ -411,6 +411,7 @@ export interface InteractionStates {
   comments: { count: number };
   retweets: { isRetweeted: boolean; count: number };
   bookmarks?: { isBookmarked: boolean };
+  commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }
 
 // Entries Store types
@@ -756,6 +757,7 @@ export interface ProfileActivityDataConvexResult {
     hasMore: boolean;
   };
   entryDetails: Record<string, ProfileActivityDataPostMetadata>;
+  commentReplies?: Record<string, ActivityFeedComment[]>; // Include comment replies
 }
 
 export interface ProfileActivityDataConvexLikesResult {
@@ -833,6 +835,7 @@ export interface ActivityFeedItem {
   pubDate?: string;
   content?: string;
   _id: string | Id<"comments">;
+  replies?: ActivityFeedComment[]; // Include replies for comments
 }
 
 export interface ActivityFeedRSSEntry {
@@ -909,6 +912,7 @@ export interface ActivityFeedGroupRendererProps {
   handleOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
   currentTrack: { src: string | null } | null;
   playTrack: (src: string, title: string, image?: string, creator?: string) => void;
+  reactiveCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }
 
 export interface ActivityFeedState {
@@ -918,12 +922,13 @@ export interface ActivityFeedState {
   entryDetails: Record<string, ActivityFeedRSSEntry>;
   currentSkip: number;
   isInitialLoad: boolean;
+  commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>; // Include comment like statuses
 }
 
 export type ActivityFeedAction =
-  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean } }
+  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean, commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }> } }
   | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean } }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean, commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }> } }
   | { type: 'LOAD_MORE_FAILURE' }
   | { type: 'SET_INITIAL_LOAD_COMPLETE' };
 

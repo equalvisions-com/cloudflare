@@ -191,14 +191,16 @@ export const getEntryWithComments = query({
 export const batchGetEntriesMetrics = query({
   args: {
     entryGuids: v.array(v.string()),
+    includeCommentLikes: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Make userId optional - it can be null for unauthenticated requests
     const userId = await getAuthUserId(ctx).catch(() => null);
 
-    // Get all likes, comments, retweets, and bookmarks in parallel but within the same query
+    // Get all likes, comments, retweets, bookmarks, and conditionally comment likes in parallel but within the same query
     // Extract only the specific fields we need instead of entire documents
-    const [likeResults, commentResults, retweetResults, bookmarkResults] = await Promise.all([
+    const shouldIncludeCommentLikes = args.includeCommentLikes === true;
+    const [likeResults, commentResults, retweetResults, bookmarkResults, commentLikesResults] = await Promise.all([
       // Get only entryGuid and userId fields from likes for the requested entries
       ctx.db
         .query("likes")
@@ -245,8 +247,8 @@ export const batchGetEntriesMetrics = query({
           userId: retweet.userId
         }))),
         
-      // Get only entryGuid and userId fields from bookmarks for the requested entries
-      ctx.db
+              // Get only entryGuid and userId fields from bookmarks for the requested entries
+        ctx.db
         .query("bookmarks")
         .withIndex("by_entry")
         .filter((q) => 
@@ -260,7 +262,31 @@ export const batchGetEntriesMetrics = query({
         .then(bookmarks => bookmarks.map(bookmark => ({
           entryGuid: bookmark.entryGuid,
           userId: bookmark.userId
-        })))
+        }))),
+
+        // Get comment likes for all comments in these entries (only if requested)
+        shouldIncludeCommentLikes ? Promise.all(args.entryGuids.map(async (entryGuid) => {
+          // First get all comments for this entry
+          const comments = await ctx.db
+            .query("comments")
+            .withIndex("by_entry", q => q.eq("entryGuid", entryGuid))
+            .collect();
+          
+          if (comments.length === 0) {
+            return { entryGuid, comments: [], commentLikes: [] };
+          }
+          
+          // Get all comment likes for these comments
+          const commentLikes = await ctx.db
+            .query("commentLikes")
+            .withIndex("by_comment")
+            .filter((q) => 
+              q.or(...comments.map(comment => q.eq(q.field("commentId"), comment._id)))
+            )
+            .collect();
+          
+          return { entryGuid, comments, commentLikes };
+        })) : Promise.resolve([])
     ]);
 
     // Build comment counts map for faster lookup
@@ -268,6 +294,40 @@ export const batchGetEntriesMetrics = query({
     commentResults.forEach(result => {
       commentCountMap.set(result.entryGuid, result.count);
     });
+
+    // Build comment likes map for faster lookup (only if comment likes were requested)
+    const commentLikesMap = new Map();
+    if (shouldIncludeCommentLikes) {
+      commentLikesResults.forEach(result => {
+        const likesCountMap = new Map<string, number>();
+        const userLikedMap = new Map<string, boolean>();
+        
+        // Process comment likes for this entry
+        result.commentLikes.forEach(like => {
+          const commentId = like.commentId.toString();
+          likesCountMap.set(commentId, (likesCountMap.get(commentId) || 0) + 1);
+          
+          if (userId && like.userId.toString() === userId.toString()) {
+            userLikedMap.set(commentId, true);
+          }
+        });
+        
+        // Convert to the expected format using the comments we already have
+        const commentLikesData: Record<string, { commentId: string; isLiked: boolean; count: number; }> = {};
+        
+        // Use the comments from the result to build the comment likes data
+        result.comments.forEach(comment => {
+          const commentId = comment._id.toString();
+          commentLikesData[commentId] = {
+            commentId,
+            isLiked: !!userLikedMap.get(commentId),
+            count: likesCountMap.get(commentId) || 0
+          };
+        });
+        
+        commentLikesMap.set(result.entryGuid, commentLikesData);
+      });
+    }
 
     // Create a map for storing the metrics for each entry guid
     const metricsMap = new Map();
@@ -294,7 +354,8 @@ export const batchGetEntriesMetrics = query({
         },
         bookmarks: {
           isBookmarked: userId ? entryBookmarks.some(bookmark => bookmark.userId && bookmark.userId.toString() === userId.toString()) : false
-        }
+        },
+        commentLikes: shouldIncludeCommentLikes ? (commentLikesMap.get(entryGuid) || {}) : {}
       });
     }
 

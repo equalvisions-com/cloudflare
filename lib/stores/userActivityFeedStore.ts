@@ -11,13 +11,15 @@ interface UserActivityFeedStore extends ActivityFeedState {
   setInitialData: (payload: { 
     activities: ActivityFeedItem[], 
     entryDetails: Record<string, ActivityFeedRSSEntry>, 
-    hasMore: boolean 
+    hasMore: boolean,
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
   }) => void;
   startLoadingMore: () => void;
   loadMoreSuccess: (payload: { 
     activities: ActivityFeedItem[], 
     entryDetails: Record<string, ActivityFeedRSSEntry>, 
-    hasMore: boolean 
+    hasMore: boolean,
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
   }) => void;
   loadMoreFailure: () => void;
   setInitialLoadComplete: () => void;
@@ -31,6 +33,7 @@ const initialState: ActivityFeedState = {
   entryDetails: {},
   currentSkip: 0,
   isInitialLoad: true,
+  commentLikes: {},
 };
 
 export const useUserActivityFeedStore = create<UserActivityFeedStore>((set, get) => ({
@@ -44,6 +47,7 @@ export const useUserActivityFeedStore = create<UserActivityFeedStore>((set, get)
       currentSkip: payload.activities.length,
       isLoading: false,
       isInitialLoad: false,
+      commentLikes: payload.commentLikes || {},
     }),
   
   startLoadingMore: () =>
@@ -56,6 +60,7 @@ export const useUserActivityFeedStore = create<UserActivityFeedStore>((set, get)
       hasMore: payload.hasMore,
       currentSkip: state.currentSkip + payload.activities.length,
       isLoading: false,
+      commentLikes: { ...state.commentLikes, ...(payload.commentLikes || {}) },
     })),
   
   loadMoreFailure: () =>

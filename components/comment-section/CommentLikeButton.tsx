@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery, useConvexAuth } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 interface CommentLikeButtonProps {
   commentId: Id<"comments">;
@@ -19,6 +20,8 @@ interface CommentLikeButtonProps {
   size?: 'sm' | 'md';
   hideCount?: boolean;
   onCountChange?: (count: number) => void;
+  onStoreUpdate?: (commentId: string, isLiked: boolean, count: number) => void; // New prop to update store
+  skipQuery?: boolean; // When true, don't use individual query
 }
 
 export function CommentLikeButtonWithErrorBoundary(props: CommentLikeButtonProps) {
@@ -35,7 +38,9 @@ const CommentLikeButtonComponent = ({
   initialData = { isLiked: false, count: 0 },
   size = 'sm',
   hideCount = false,
-  onCountChange
+  onCountChange,
+  onStoreUpdate,
+  skipQuery = false
 }: CommentLikeButtonProps) => {
   const [optimisticIsLiked, setOptimisticIsLiked] = useState<boolean | null>(null);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
@@ -46,7 +51,8 @@ const CommentLikeButtonComponent = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   
   // Add authentication and router hooks
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query (same as other buttons)
+  const { isAuthenticated } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -63,22 +69,27 @@ const CommentLikeButtonComponent = ({
   }, []);
   
   // Use Convex's real-time query with proper loading state handling
-  const likeStatus = useQuery(api.commentLikes.getCommentLikeStatus, { commentId });
+  // Skip query if parent is handling batch comment likes
+  const likeStatus = useQuery(
+    api.commentLikes.getCommentLikeStatus, 
+    skipQuery ? 'skip' : { commentId }
+  );
   
   // Track if the like status has been loaded at least once
   const [statusLoaded, setStatusLoaded] = useState(false);
   
-  // Update statusLoaded when like status is received
+  // Update statusLoaded when like status is received OR when skipQuery is true
   useEffect(() => {
-    if (likeStatus && !statusLoaded) {
+    if ((likeStatus && !statusLoaded) || (skipQuery && !statusLoaded)) {
       setStatusLoaded(true);
     }
-  }, [likeStatus, statusLoaded]);
+  }, [likeStatus, statusLoaded, skipQuery]);
   
   // Get the like status and count, prioritizing optimistic updates
-  // If status hasn't loaded yet, use initialData to prevent flickering
-  const isLiked = optimisticIsLiked ?? (statusLoaded ? (likeStatus?.isLiked ?? initialData.isLiked) : initialData.isLiked);
-  const count = optimisticCount ?? (statusLoaded ? (likeStatus?.count ?? initialData.count) : initialData.count);
+  // When skipQuery is true, always use initialData as the base (it comes from batch comment likes)
+  // When skipQuery is false, use server like status after it loads
+  const isLiked = optimisticIsLiked ?? (skipQuery ? initialData.isLiked : (statusLoaded ? (likeStatus?.isLiked ?? initialData.isLiked) : initialData.isLiked));
+  const count = optimisticCount ?? (skipQuery ? initialData.count : (statusLoaded ? (likeStatus?.count ?? initialData.count) : initialData.count));
   
   // Notify parent component of count changes
   useEffect(() => {
@@ -92,7 +103,21 @@ const CommentLikeButtonComponent = ({
     // Check if request was aborted
     if (abortControllerRef.current?.signal.aborted) return;
     
-    if (likeStatus && (optimisticIsLiked !== null || optimisticCount !== null) && optimisticTimestamp !== null) {
+    // When skipQuery is true, we rely on initialData updates from parent batch comment likes
+    // When skipQuery is false, we rely on individual like status query
+    if (skipQuery) {
+      // For skipQuery mode, clear optimistic state when initialData changes and matches our expected state
+      if (optimisticIsLiked !== null || optimisticCount !== null) {
+        const isServerMatchingOptimistic = initialData.isLiked === optimisticIsLiked && initialData.count === optimisticCount;
+        const isOptimisticUpdateStale = optimisticTimestamp !== null && Date.now() - optimisticTimestamp > 3000; // 3 seconds
+        
+        if (isServerMatchingOptimistic || isOptimisticUpdateStale) {
+          setOptimisticIsLiked(null);
+          setOptimisticCount(null);
+          setOptimisticTimestamp(null);
+        }
+      }
+    } else if (likeStatus && (optimisticIsLiked !== null || optimisticCount !== null) && optimisticTimestamp !== null) {
       // Only clear optimistic state if:
       // 1. The server state matches our optimistic state (meaning our update was processed)
       // 2. OR if the optimistic update is older than 5 seconds (fallback)
@@ -107,7 +132,7 @@ const CommentLikeButtonComponent = ({
         setOptimisticTimestamp(null);
       }
     }
-  }, [likeStatus, optimisticIsLiked, optimisticCount, optimisticTimestamp]);
+  }, [likeStatus, optimisticIsLiked, optimisticCount, optimisticTimestamp, skipQuery, initialData]);
   
   const toggleLike = useMutation(api.commentLikes.toggleCommentLike);
   
@@ -132,7 +157,10 @@ const CommentLikeButtonComponent = ({
     
     try {
       await toggleLike({ commentId });
-      // Successful submission - no need to do anything as Convex will update the UI
+      // Successful submission - update store if callback provided
+      if (onStoreUpdate) {
+        onStoreUpdate(commentId, newIsLiked, newCount);
+      }
     } catch (error) {
 
       // Check if request was aborted (component unmounted)

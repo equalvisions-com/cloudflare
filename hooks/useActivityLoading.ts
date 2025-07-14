@@ -10,6 +10,7 @@ interface UseActivityLoadingProps {
   initialActivities: any[];
   initialEntryDetails: Record<string, any>;
   initialHasMore: boolean;
+  initialCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }
 
 export function useActivityLoading({
@@ -19,7 +20,8 @@ export function useActivityLoading({
   isActive,
   initialActivities,
   initialEntryDetails,
-  initialHasMore
+  initialHasMore,
+  initialCommentLikes
 }: UseActivityLoadingProps) {
   // Get store state and actions
   const {
@@ -29,6 +31,7 @@ export function useActivityLoading({
     isLoading,
     currentSkip,
     isInitialLoad,
+    commentLikes,
     setInitialData,
     startLoadingMore,
     loadMoreSuccess,
@@ -43,10 +46,11 @@ export function useActivityLoading({
       setInitialData({
         activities: initialActivities,
         entryDetails: initialEntryDetails,
-        hasMore: initialHasMore
+        hasMore: initialHasMore,
+        commentLikes: initialCommentLikes
       });
     }
-  }, [initialActivities, initialEntryDetails, initialHasMore, activities.length, isInitialLoad, setInitialData]);
+  }, [initialActivities, initialEntryDetails, initialHasMore, initialCommentLikes, activities.length, isInitialLoad, setInitialData]);
 
   // Reset state when initial data changes (similar to RSSFeedClient pattern)
   useEffect(() => {
@@ -62,7 +66,8 @@ export function useActivityLoading({
         setInitialData({
           activities: initialActivities,
           entryDetails: initialEntryDetails,
-          hasMore: initialHasMore
+          hasMore: initialHasMore,
+          commentLikes: initialCommentLikes
         });
       }
     }
@@ -119,7 +124,8 @@ export function useActivityLoading({
       loadMoreSuccess({
         activities: data.activities,
         entryDetails: data.entryDetails || {},
-        hasMore: data.hasMore
+        hasMore: data.hasMore,
+        commentLikes: data.commentLikes || {}
       });
     } catch (error) {
       loadMoreFailure();
@@ -233,6 +239,7 @@ export function useActivityLoading({
     groupedActivities,
     uiIsInitialLoading,
     uiHasNoActivities,
+    commentLikes,
     
     // Refs
     loadMoreRef,

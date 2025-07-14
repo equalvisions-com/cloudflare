@@ -510,6 +510,75 @@ export const getProfileActivityData = query({
           pubDate: retweet.pubDate
         })))
     ]);
+
+    // Fetch comment replies for all top-level comments to eliminate individual queries
+    const commentReplies = comments.length > 0 ? await Promise.all(
+      comments.map(async comment => {
+        const replies = await ctx.db
+          .query("comments")
+          .withIndex("by_parent")
+          .filter(q => q.eq(q.field("parentId"), comment._id))
+          .order("asc") // Oldest first for replies
+          .collect()
+          .then(replies => replies.map(reply => ({
+            _id: reply._id,
+            _creationTime: reply._creationTime,
+            userId: reply.userId,
+            feedUrl: reply.feedUrl,
+            parentId: reply.parentId,
+            content: reply.content,
+            createdAt: reply.createdAt,
+            username: reply.username,
+            entryGuid: reply.entryGuid
+          })));
+
+        // Get user data for replies if any exist
+        if (replies.length === 0) {
+          return { commentId: comment._id, replies: [] };
+        }
+
+        const userIds = [...new Set(replies.map(r => r.userId))];
+        const users = await Promise.all(
+          userIds.map(id => 
+            ctx.db
+              .query("users")
+              .filter(q => q.eq(q.field("_id"), id))
+              .first()
+              .then(user => user ? {
+                _id: user._id,
+                username: user.username || user.name || "Guest",
+                name: user.name,
+                profileImage: user.profileImage
+              } : null)
+          )
+        );
+
+        // Create user map and attach user data to replies
+        const userMap = new Map();
+        users.filter(Boolean).forEach(user => {
+          if (user) {
+            userMap.set(user._id.toString(), {
+              userId: user._id,
+              username: user.username,
+              name: user.name,
+              profileImage: user.profileImage
+            });
+          }
+        });
+
+        const repliesWithUserData = replies.map(reply => ({
+          ...reply,
+          user: userMap.get(reply.userId.toString()) || null
+        }));
+
+        return { commentId: comment._id, replies: repliesWithUserData };
+      })
+    ) : [];
+
+    // Create a map of comment ID to replies for easy lookup
+    const commentRepliesMap = Object.fromEntries(
+      commentReplies.map(cr => [cr.commentId.toString(), cr.replies])
+    );
     
     // Convert to unified activity items - already optimized from previous step
     const commentActivities = comments.map(comment => ({
@@ -518,7 +587,8 @@ export const getProfileActivityData = query({
       entryGuid: comment.entryGuid,
       feedUrl: comment.feedUrl,
       content: comment.content,
-      _id: comment._id.toString()
+      _id: comment._id.toString(),
+      replies: commentRepliesMap[comment._id.toString()] || [] // Include replies in activity data
     }));
     
     const retweetActivities = retweets.map(retweet => ({
@@ -600,7 +670,7 @@ export const getProfileActivityData = query({
           retweetCount: entryRetweets.length
         };
       });
-    })() : Promise.resolve([]);
+    })() : Promise.resolve([])
     
     // Get post data with only the fields we need
     const postsPromises = feedUrls.map(feedUrl => 
@@ -662,6 +732,16 @@ export const getProfileActivityData = query({
       }
     }
     
+    // Get comment like statuses for all comments and replies
+    const allCommentIds = [
+      // Top-level comments
+      ...comments.map(comment => comment._id),
+      // All replies
+      ...Object.values(commentRepliesMap).flat().map((reply: any) => reply._id)
+    ].filter(Boolean);
+    
+
+
     return {
       activities: {
         activities,
@@ -669,7 +749,8 @@ export const getProfileActivityData = query({
         hasMore: allActivities.length > limit
       },
       entryMetrics,
-      entryDetails
+      entryDetails,
+      commentReplies: commentRepliesMap // Include comment replies in the response
     };
   }
 });

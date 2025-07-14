@@ -86,9 +86,12 @@ export async function GET(request: NextRequest) {
     // Fetch paginated activity data from Convex
     const result = await fetchQuery(
       api.userActivity.getUserActivityFeed,
-      { userId, skip, limit },
+      { userId, currentUserId: userId, skip, limit }, // Pass currentUserId to avoid getAuthUserId call
       { token }
-    ) as ActivityResponse;
+    ) as ActivityResponse & {
+      commentReplies?: Record<string, any[]>;
+      commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+    };
 
     // Extract GUIDs from activities to fetch entry details
     const guids = result.activities.map((activity: ActivityItem) => activity.entryGuid);
@@ -177,10 +180,10 @@ export async function GET(request: NextRequest) {
         console.log(`🔍 API: Fetching metrics for ${guids.length} entries`);
         const metricsStartTime = Date.now();
         
-        // Fetch metrics from Convex
+        // Fetch metrics from Convex with comment likes for activity feed
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
-          { entryGuids: guids },
+          { entryGuids: guids, includeCommentLikes: true },
           { token }
         );
         
@@ -198,7 +201,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...result,
       entryDetails,
-      entryMetrics
+      entryMetrics,
+      // Include comment likes data from the updated getUserActivityFeed query
+      commentLikes: result.commentLikes || {}
     });
   } catch (error) {
     console.error("Error fetching activity data:", error);

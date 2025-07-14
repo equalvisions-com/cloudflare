@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 // Type definitions for activity items
 type ActivityBase = {
@@ -38,11 +39,13 @@ type UserActivity = LikeActivity | CommentActivity | RetweetActivity;
 export const getUserActivityFeed = query({
   args: {
     userId: v.id("users"),
+    currentUserId: v.id("users"), // Required - always pass current user ID instead of calling getAuthUserId
     skip: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = args.userId;
+    const currentUserId = args.currentUserId; // Use passed currentUserId instead of calling getAuthUserId
     const limit = args.limit || 30;
     const skip = args.skip || 0;
     
@@ -101,10 +104,138 @@ export const getUserActivityFeed = query({
     // Check if there are more items
     const hasMore = skip + limit < totalCount;
     
+    // Get comment replies for paginated comments (similar to getProfileActivityData)
+    const paginatedComments = paginatedActivities.filter(activity => activity.type === "comment");
+    const commentReplies = paginatedComments.length > 0 ? await Promise.all(
+      paginatedComments.map(async comment => {
+        const commentId = comment._id as unknown as Id<"comments">;
+        
+        // Get replies for this comment
+        const replies = await ctx.db
+          .query("comments")
+          .withIndex("by_parent", q => q.eq("parentId", commentId))
+          .order("asc")
+          .collect();
+        
+        if (replies.length === 0) {
+          return { commentId, replies: [] };
+        }
+        
+        // Get user data for replies
+        const userIds = [...new Set(replies.map(reply => reply.userId))];
+        const users = await Promise.all(
+          userIds.map(id => 
+            ctx.db
+              .query("users")
+              .filter(q => q.eq(q.field("_id"), id))
+              .first()
+              .then(user => user ? {
+                _id: user._id,
+                username: user.username,
+                name: user.name,
+                profileImage: user.profileImage
+              } : null)
+          )
+        );
+        
+        // Create user map
+        const userMap = new Map();
+        users.filter(Boolean).forEach(user => {
+          if (user) userMap.set(user._id.toString(), user);
+        });
+        
+        // Attach user data to replies
+        const repliesWithUserData = replies.map(reply => ({
+          ...reply,
+          user: userMap.get(reply.userId.toString()) || null
+        }));
+
+        return { commentId, replies: repliesWithUserData };
+      })
+    ) : [];
+
+    // Create a map of comment ID to replies for easy lookup
+    const commentRepliesMap = Object.fromEntries(
+      commentReplies.map(cr => [cr.commentId.toString(), cr.replies])
+    );
+    
+    // Get comment like statuses for all comments and replies in paginated data
+    const allCommentIds = [
+      // Top-level comments
+      ...paginatedComments.map(comment => comment._id as unknown as Id<"comments">),
+      // All replies
+      ...Object.values(commentRepliesMap).flat().map((reply: any) => reply._id)
+    ].filter(Boolean);
+    
+    const commentLikesMap = allCommentIds.length > 0 ? await (async () => {
+      // Use passed currentUserId instead of calling getAuthUserId
+      // currentUserId is already defined in the handler scope
+      
+      // Get all likes for these comments
+      const allLikes = await ctx.db
+        .query("commentLikes")
+        .withIndex("by_comment")
+        .filter((q) => 
+          q.or(...allCommentIds.map(id => q.eq(q.field("commentId"), id)))
+        )
+        .collect();
+      
+      // Count likes per comment
+      const likesCountMap = new Map<string, number>();
+      for (const like of allLikes) {
+        const commentId = like.commentId.toString();
+        likesCountMap.set(commentId, (likesCountMap.get(commentId) || 0) + 1);
+      }
+      
+      // Check which comments the current user has liked
+      const userLikedMap = new Map<string, boolean>();
+      const userLikes = await ctx.db
+        .query("commentLikes")
+        .withIndex("by_user")
+        .filter((q) => 
+          q.and(
+            q.eq(q.field("userId"), currentUserId),
+            q.or(...allCommentIds.map(id => q.eq(q.field("commentId"), id)))
+          )
+        )
+        .collect();
+      
+      for (const like of userLikes) {
+        userLikedMap.set(like.commentId.toString(), true);
+      }
+      
+      // Create results map
+      const resultsMap = new Map();
+      for (const commentId of allCommentIds) {
+        const commentIdStr = commentId.toString();
+        resultsMap.set(commentIdStr, {
+          commentId,
+          isLiked: !!userLikedMap.get(commentIdStr),
+          count: likesCountMap.get(commentIdStr) || 0
+        });
+      }
+      
+      return Object.fromEntries(resultsMap);
+    })() : {};
+    
+    // Add replies to comment activities
+    const activitiesWithReplies = paginatedActivities.map(activity => {
+      if (activity.type === "comment") {
+        const replies = commentRepliesMap[activity._id.toString()] || [];
+        return {
+          ...activity,
+          replies: replies
+        };
+      }
+      return activity;
+    });
+
     return {
-      activities: paginatedActivities,
+      activities: activitiesWithReplies,
       totalCount,
-      hasMore
+      hasMore,
+      commentReplies: commentRepliesMap,
+      commentLikes: commentLikesMap
     };
   },
 });

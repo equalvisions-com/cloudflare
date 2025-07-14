@@ -36,13 +36,15 @@ export function WidgetDataProvider({ children }: WidgetDataProviderProps) {
     postIdsToFetch ? { postIds: postIdsToFetch } : "skip"
   );
   
+  // CRITICAL FIX: Remove isAuthenticated from dependencies to prevent remounting during auth refresh
+  // Only include the actual data values that should trigger context updates
   const contextValue = useMemo(() => ({
     widgetPosts,
     followStates,
     isLoading: widgetPosts === undefined,
     isLoadingFollowStates: isAuthenticated && widgetPosts !== undefined && followStates === undefined,
     error: widgetPosts === null
-  }), [widgetPosts, followStates, isAuthenticated]);
+  }), [widgetPosts, followStates]); // Removed isAuthenticated from dependencies
 
   return (
     <WidgetDataContext.Provider value={contextValue}>

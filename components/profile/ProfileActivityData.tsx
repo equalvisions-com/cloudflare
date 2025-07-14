@@ -1,6 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { fetchQuery } from "convex/nextjs";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache, Suspense, useCallback, useRef, useEffect } from "react";
 
 // Import the client component
@@ -302,12 +303,22 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
     }
     
     const activities = result.activities.activities;
+    const commentReplies = result.commentReplies || {};
     
     const validGuids = extractValidUniqueGuids(activities);
     const postMetadata: Record<string, ProfileActivityDataPostMetadata> = result.entryDetails as Record<string, ProfileActivityDataPostMetadata> || {};
     
-    const entryDetailsPromise = enrichEntryDetails(validGuids, postMetadata);
-    const entryDetails = await entryDetailsPromise;
+    // Get full entry metrics including comment likes using batchGetEntriesMetrics
+    // Use authenticated call to match client-side sidebar context state
+    const token = await convexAuthNextjsToken();
+    const [entryDetails, fullEntryMetrics] = await Promise.all([
+      enrichEntryDetails(validGuids, postMetadata),
+      validGuids.length > 0 ? fetchQuery(
+        api.entries.batchGetEntriesMetrics, 
+        { entryGuids: validGuids, includeCommentLikes: true },
+        { token }
+      ) : []
+    ]);
     
     await performBackupEnrichment(entryDetails);
     
@@ -318,28 +329,33 @@ export const getInitialActivityData = cache(async (userId: Id<"users">): Promise
         activity.type && 
         (activity.type === "comment" || activity.type === "retweet")
       )
-      .map((activity: ProfileActivityDataConvexActivity) => activity as unknown as ActivityItem);
+      .map((activity: ProfileActivityDataConvexActivity) => {
+        const baseActivity = activity as unknown as ActivityItem;
+        
+        // Attach comment replies if this is a comment activity
+        if (activity.type === "comment" && activity._id) {
+          const replies = commentReplies[activity._id.toString()] || [];
+          return {
+            ...baseActivity,
+            replies: replies
+          };
+        }
+        
+        return baseActivity;
+      });
     
-    // Convert Convex metrics format to InteractionStates format
+    // Use full entry metrics from batchGetEntriesMetrics (includes comment likes and user state)
     const entryMetrics: Record<string, InteractionStates> = {};
-    if (result.entryMetrics) {
-      Object.entries(result.entryMetrics).forEach(([guid, metrics]: [string, any]) => {
+    if (fullEntryMetrics && Array.isArray(fullEntryMetrics)) {
+      validGuids.forEach((guid, index) => {
+        const metrics = fullEntryMetrics[index];
         if (metrics) {
           entryMetrics[guid] = {
-            likes: {
-              isLiked: false, // Server metrics don't include user state
-              count: metrics.likeCount || 0
-            },
-            comments: {
-              count: metrics.commentCount || 0
-            },
-            retweets: {
-              isRetweeted: false, // Server metrics don't include user state
-              count: metrics.retweetCount || 0
-            },
-            bookmarks: {
-              isBookmarked: false // Server metrics don't include user state
-            }
+            likes: metrics.likes || { isLiked: false, count: 0 },
+            comments: metrics.comments || { count: 0 },
+            retweets: metrics.retweets || { isRetweeted: false, count: 0 },
+            bookmarks: metrics.bookmarks || { isBookmarked: false },
+            commentLikes: metrics.commentLikes || {}
           };
         }
       });

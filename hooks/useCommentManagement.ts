@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from "@/convex/_generated/dataModel";
@@ -23,17 +23,36 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
 
   // Authentication and mutations
   const { isAuthenticated } = useConvexAuth();
-  const { userId } = useSidebar();
+  const { userId, username, displayName, profileImage } = useSidebar();
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   const addComment = useMutation(api.comments.addComment);
 
-  // Query for comment replies
+  // Use pre-loaded replies from activity data instead of making individual queries
+  // Only fall back to query if replies are not pre-loaded (for backward compatibility)
+  const shouldQuery = item.type === 'comment' && item._id && !item.replies;
   const commentRepliesQuery = useQuery(
     api.comments.getCommentReplies,
-    item.type === 'comment' && item._id 
+    shouldQuery 
       ? { commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id }
       : 'skip'
   );
+
+  // Initialize replies from pre-loaded data or query result
+  useEffect(() => {
+    if (item.type === 'comment') {
+      if (item.replies) {
+        // Use pre-loaded replies from activity data
+        setReplies(item.replies);
+        setRepliesLoaded(true);
+        setRepliesLoading(false);
+      } else if (commentRepliesQuery) {
+        // Fall back to query result (for backward compatibility)
+        setReplies(commentRepliesQuery);
+        setRepliesLoaded(true);
+        setRepliesLoading(false);
+      }
+    }
+  }, [item.type, item.replies, commentRepliesQuery]);
 
   // Check if current user owns the comment - simplified logic
   const isCurrentUserComputed = useMemo(() => {
@@ -47,49 +66,26 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
     return profileOwnerId ? userId === profileOwnerId : false;
   }, [isAuthenticated, userId, item.type, profileOwnerId]);
 
-  // Update replies when query result changes
-  if (repliesExpanded && commentRepliesQuery && item.type === 'comment' && item._id && replies !== commentRepliesQuery) {
-    setReplies(commentRepliesQuery || []);
-    setRepliesLoaded(true);
-    setRepliesLoading(false);
-  }
-
-  // Fetch replies callback
-  const fetchReplies = useCallback(() => {
-    if (item.type !== 'comment' || !item._id) return;
-
-    setRepliesLoading(true);
-    try {
-      if (commentRepliesQuery) {
-        setReplies(commentRepliesQuery || []);
-        setRepliesLoaded(true);
-      }
-    } catch (error) {
-      setRepliesLoaded(false);
-    } finally {
+  // Update replies when query result changes (fallback only)
+  useEffect(() => {
+    if (commentRepliesQuery && !item.replies) {
+      setReplies(commentRepliesQuery);
+      setRepliesLoaded(true);
       setRepliesLoading(false);
     }
-  }, [item.type, item._id, commentRepliesQuery]);
+  }, [commentRepliesQuery, item.replies]);
 
   // Toggle replies visibility
   const toggleReplies = useCallback(() => {
-    const newExpandedState = !repliesExpanded;
-    setRepliesExpanded(newExpandedState);
+    setRepliesExpanded(!repliesExpanded);
+  }, [repliesExpanded]);
 
-    if (newExpandedState && !repliesLoaded && item.type === 'comment' && item._id) {
-      fetchReplies();
-    }
-  }, [repliesExpanded, fetchReplies, repliesLoaded, item.type, item._id]);
-
-  // Handle reply click
+  // Handle reply button click
   const handleReplyClick = useCallback(() => {
     setIsReplying(!isReplying);
-    if (isReplying) {
-      setReplyText(''); // Clear text when canceling
-    }
   }, [isReplying]);
 
-  // Cancel reply
+  // Handle cancel reply
   const cancelReplyClick = useCallback(() => {
     setIsReplying(false);
     setReplyText('');
@@ -97,77 +93,81 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
 
   // Submit reply
   const submitReply = useCallback(async () => {
-    if (!replyText.trim() || !item._id || item.type !== 'comment') return;
+    if (!replyText.trim() || isSubmittingReply || !item._id) return;
 
     setIsSubmittingReply(true);
     try {
-      const commentId = typeof item._id === 'string' ? 
-        item._id as unknown as Id<"comments"> : 
-        item._id;
-
-      await addComment({
+      const result = await addComment({
         entryGuid: item.entryGuid,
+        feedUrl: item.feedUrl,
         content: replyText.trim(),
-        parentId: commentId,
-        feedUrl: '' // Will be populated by the mutation
+        parentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id,
       });
 
+      // Create a temporary reply object for optimistic UI update
+      // The actual reply data will be refreshed from the server
+      const tempReply: ActivityFeedComment = {
+        _id: result.commentId,
+        _creationTime: Date.now(),
+        userId: userId!,
+        username: username || 'You',
+        content: replyText.trim(),
+        parentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id,
+        entryGuid: item.entryGuid,
+        feedUrl: item.feedUrl,
+        createdAt: Date.now(),
+        user: {
+          username: username || 'You',
+          name: displayName || 'You',
+          profileImage: profileImage || undefined
+        }
+      };
+
+      setReplies(prev => [...prev, tempReply]);
       setReplyText('');
       setIsReplying(false);
-      
-      // Refresh replies if they're expanded
-      if (repliesExpanded) {
-        fetchReplies();
-      }
     } catch (error) {
-      // Error handled silently for production
+      console.error('Error submitting reply:', error);
     } finally {
       setIsSubmittingReply(false);
     }
-  }, [replyText, item._id, item.type, item.entryGuid, addComment, repliesExpanded, fetchReplies]);
+  }, [replyText, isSubmittingReply, item._id, item.entryGuid, item.feedUrl, addComment, userId, username, displayName, profileImage]);
 
   // Delete comment
   const deleteComment = useCallback(async () => {
-    if (item.type !== 'comment' || !item._id) return;
-
-    const commentId = typeof item._id === 'string' ?
-      item._id as unknown as Id<"comments"> :
-      item._id;
-
+    if (!item._id) return;
+    
     try {
-      await deleteCommentMutation({ commentId });
+      await deleteCommentMutation({
+        commentId: typeof item._id === 'string' ? item._id as unknown as Id<"comments"> : item._id,
+      });
       setIsDeleted(true);
     } catch (error) {
-      // Error handled silently for production
+      console.error('Error deleting comment:', error);
     }
-  }, [item.type, item._id, deleteCommentMutation]);
+  }, [item._id, deleteCommentMutation]);
 
-  // Delete reply function factory
+  // Create delete reply function
   const createDeleteReply = useCallback((reply: ActivityFeedComment) => {
-    return useCallback(() => {
-      if (!reply._id) return;
-
-      deleteCommentMutation({ commentId: reply._id })
-        .then(() => {
-          setDeletedReplies((prev: Set<string>) => {
-            const newSet = new Set(prev);
-            newSet.add(reply._id.toString());
-            return newSet;
-          });
-        })
-        .catch(error => {
-          // Error handled silently for production
+    return async () => {
+      try {
+        await deleteCommentMutation({
+          commentId: reply._id,
         });
-    }, [reply._id, deleteCommentMutation]);
+        setDeletedReplies(prev => new Set([...prev, reply._id.toString()]));
+      } catch (error) {
+        console.error('Error deleting reply:', error);
+      }
+    };
   }, [deleteCommentMutation]);
 
   // Update like count
   const updateLikeCount = useCallback((count: number) => {
     if (likeCountRef.current) {
-      const span = likeCountRef.current.querySelector('span');
-      if (span) {
-        span.textContent = count > 0 ? `${count} Like${count !== 1 ? 's' : ''}` : '0 Likes';
-        likeCountRef.current.classList.toggle('hidden', count === 0);
+      const countElement = likeCountRef.current.querySelector('span');
+      if (countElement) {
+        countElement.textContent = count === 1 ? '1 Like' : `${count} Likes`;
+        likeCountRef.current.style.display = count > 0 ? 'block' : 'none';
       }
     }
   }, []);
@@ -183,18 +183,17 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
 
   // Update reply like count
   const updateReplyLikeCount = useCallback((count: number, replyId: string) => {
-    const ref = replyLikeCountRefs.current.get(replyId);
-    if (ref) {
-      const span = ref.querySelector('span');
-      if (span) {
-        span.textContent = count > 0 ? `${count} Like${count !== 1 ? 's' : ''}` : '0 Likes';
-        ref.classList.toggle('hidden', count === 0);
+    const element = replyLikeCountRefs.current.get(replyId);
+    if (element) {
+      const countElement = element.querySelector('span');
+      if (countElement) {
+        countElement.textContent = count === 1 ? '1 Like' : `${count} Likes`;
+        element.style.display = count > 0 ? 'block' : 'none';
       }
     }
   }, []);
 
   return {
-    // State
     repliesExpanded,
     replyText,
     isSubmittingReply,
@@ -205,14 +204,8 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
     isReplying,
     isDeleted,
     isCurrentUserComputed,
-    
-    // Refs
     likeCountRef,
-    
-    // Query data
-    commentRepliesQuery,
-    
-    // Actions
+    commentRepliesQuery: replies, // Return replies instead of query for backward compatibility
     setReplyText,
     setIsSubmittingReply,
     setIsReplying,
@@ -225,8 +218,6 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
     updateLikeCount,
     setReplyLikeCountRef,
     updateReplyLikeCount,
-    
-    // Mutations
     addComment,
   };
 } 
