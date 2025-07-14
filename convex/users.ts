@@ -617,60 +617,8 @@ export const getProfileActivityData = query({
     // Get only the unique feedUrls we need
     const feedUrls = [...new Set(activities.map(activity => activity.feedUrl))];
     
-    // Get entry metrics for all guids efficiently using batch queries
-    const batchMetricsPromise = entryGuids.length > 0 ? (async () => {
-      // Use the same efficient batch approach as batchGetEntriesMetrics
-      const [likeResults, commentResults, retweetResults] = await Promise.all([
-        // Get all likes for all entries in one query
-        ctx.db.query("likes")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(likes => likes.map(like => ({
-            entryGuid: like.entryGuid,
-            userId: like.userId
-          }))),
-        
-        // Get all comments for all entries in one query  
-        ctx.db.query("comments")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(comments => comments.map(comment => ({
-            entryGuid: comment.entryGuid
-          }))),
-          
-        // Get all retweets for all entries in one query
-        ctx.db.query("retweets")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(retweets => retweets.map(retweet => ({
-            entryGuid: retweet.entryGuid,
-            userId: retweet.userId
-          })))
-      ]);
-      
-      // Process results into metrics for each entry
-      return entryGuids.map(guid => {
-        const entryLikes = likeResults.filter(like => like.entryGuid === guid);
-        const entryComments = commentResults.filter(comment => comment.entryGuid === guid);
-        const entryRetweets = retweetResults.filter(retweet => retweet.entryGuid === guid);
-        
-        return {
-          guid,
-          likeCount: entryLikes.length,
-          commentCount: entryComments.length,
-          retweetCount: entryRetweets.length
-        };
-      });
-    })() : Promise.resolve([])
+    // REMOVED: Duplicate metrics fetching - let server components handle this via batchGetEntriesMetrics
+    // This eliminates duplicate queries for likes, comments, and retweets data
     
     // Get post data with only the fields we need
     const postsPromises = feedUrls.map(feedUrl => 
@@ -688,16 +636,8 @@ export const getProfileActivityData = query({
         } : null)
     );
     
-    // Collect all data in parallel
-    const [entryMetricsArray, postsArray] = await Promise.all([
-      batchMetricsPromise,
-      Promise.all(postsPromises)
-    ]);
-    
-    // Construct the metrics lookup and filter out nulls
-    const entryMetrics = Object.fromEntries(
-      entryMetricsArray.map((metrics: any) => [metrics.guid, metrics])
-    );
+    // Get posts data only (metrics handled by server components)
+    const postsArray = await Promise.all(postsPromises);
     
     // Filter null posts and create a map for fast lookup
     const postsMap = new Map();
@@ -748,7 +688,6 @@ export const getProfileActivityData = query({
         totalCount: allActivities.length,
         hasMore: allActivities.length > limit
       },
-      entryMetrics,
       entryDetails,
       commentReplies: commentRepliesMap // Include comment replies in the response
     };
@@ -804,60 +743,8 @@ export const getProfileLikesData = query({
     const entryGuids = [...new Set(activities.map(activity => activity.entryGuid))];
     const feedUrls = [...new Set(activities.map(activity => activity.feedUrl))];
     
-    // Get entry metrics for all guids efficiently using batch queries
-    const batchMetricsPromise = entryGuids.length > 0 ? (async () => {
-      // Use the same efficient batch approach as batchGetEntriesMetrics
-      const [likeResults, commentResults, retweetResults] = await Promise.all([
-        // Get all likes for all entries in one query
-        ctx.db.query("likes")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(likes => likes.map(like => ({
-            entryGuid: like.entryGuid,
-            userId: like.userId
-          }))),
-        
-        // Get all comments for all entries in one query  
-        ctx.db.query("comments")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(comments => comments.map(comment => ({
-            entryGuid: comment.entryGuid
-          }))),
-          
-        // Get all retweets for all entries in one query
-        ctx.db.query("retweets")
-          .withIndex("by_entry")
-          .filter((q) => 
-            q.or(...entryGuids.map(guid => q.eq(q.field("entryGuid"), guid)))
-          )
-          .collect()
-          .then(retweets => retweets.map(retweet => ({
-            entryGuid: retweet.entryGuid,
-            userId: retweet.userId
-          })))
-      ]);
-      
-      // Process results into metrics for each entry
-      return entryGuids.map(guid => {
-        const entryLikes = likeResults.filter(like => like.entryGuid === guid);
-        const entryComments = commentResults.filter(comment => comment.entryGuid === guid);
-        const entryRetweets = retweetResults.filter(retweet => retweet.entryGuid === guid);
-        
-        return {
-          guid,
-          likeCount: entryLikes.length,
-          commentCount: entryComments.length,
-          retweetCount: entryRetweets.length
-        };
-      });
-    })() : Promise.resolve([]);
+    // REMOVED: Duplicate metrics fetching - let server components handle this via batchGetEntriesMetrics
+    // This eliminates duplicate queries for likes, comments, and retweets data
     
     // Get post data with only the fields we need
     const postsPromises = feedUrls.map(feedUrl => 
@@ -875,16 +762,8 @@ export const getProfileLikesData = query({
         } : null)
     );
     
-    // Collect all data in parallel
-    const [entryMetricsArray, postsArray] = await Promise.all([
-      batchMetricsPromise,
-      Promise.all(postsPromises)
-    ]);
-    
-    // Construct the metrics lookup
-    const entryMetrics = Object.fromEntries(
-      entryMetricsArray.map((metrics: any) => [metrics.guid, metrics])
-    );
+    // Get posts data only (metrics handled by server components)
+    const postsArray = await Promise.all(postsPromises);
     
     // Filter null posts and create a map for fast lookup
     const postsMap = new Map();
@@ -925,7 +804,6 @@ export const getProfileLikesData = query({
         totalCount: likes.length,
         hasMore: likes.length >= limit
       },
-      entryMetrics,
       entryDetails
     };
   }

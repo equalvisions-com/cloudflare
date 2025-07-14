@@ -436,37 +436,15 @@ export const getInitialLikesData = cache(async (userId: Id<"users">): Promise<Pr
       .filter((like: ProfileActivityDataConvexLike) => like.entryGuid)
       .map((like: ProfileActivityDataConvexLike) => like as unknown as ActivityItem);
     
-    // Convert Convex metrics format to InteractionStates format
-    const entryMetrics: Record<string, InteractionStates> = {};
-    if (result.entryMetrics) {
-      Object.entries(result.entryMetrics).forEach(([guid, metrics]: [string, any]) => {
-        if (metrics) {
-          entryMetrics[guid] = {
-            likes: {
-              isLiked: false, // Server metrics don't include user state
-              count: metrics.likeCount || 0
-            },
-            comments: {
-              count: metrics.commentCount || 0
-            },
-            retweets: {
-              isRetweeted: false, // Server metrics don't include user state
-              count: metrics.retweetCount || 0
-            },
-            bookmarks: {
-              isBookmarked: false // Server metrics don't include user state
-            }
-          };
-        }
-      });
-    }
+    // Metrics are now handled by server components via batchGetEntriesMetrics
+    // No need to convert since queries no longer return entryMetrics
     
     return {
       activities: typedLikes,
       totalCount: result.activities.totalCount,
       hasMore: result.activities.hasMore,
       entryDetails,
-      entryMetrics
+      entryMetrics: {} // Empty since metrics are handled by server components
     };
   } catch (error) {
     return {

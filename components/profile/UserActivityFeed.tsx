@@ -1802,13 +1802,10 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   );
 
   // Use batch metrics hook with comment likes enabled for UserActivityFeed
-  // Only fetch metrics when component is active to prevent unnecessary queries
+  // Activity tab should always fetch metrics since it's the default tab
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading, metricsMap } = useBatchEntryMetrics(
-    isActive ? entryGuids : [], // Only fetch metrics when tab is active
-    { 
-      includeCommentLikes: true,
-      skipInitialQuery: !isActive // Skip initial query when not active
-    }
+    entryGuids, // Always fetch metrics for activity feed
+    { includeCommentLikes: true } // Always include comment likes for activity feed
   );
   
   // Get comment likes from batch metrics instead of separate query

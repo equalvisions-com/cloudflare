@@ -199,6 +199,7 @@ export const batchGetEntriesMetrics = query({
 
     // Get all likes, comments, retweets, bookmarks, and conditionally comment likes in parallel but within the same query
     // Extract only the specific fields we need instead of entire documents
+    // Default to false - only fetch comment likes when explicitly requested
     const shouldIncludeCommentLikes = args.includeCommentLikes === true;
     const [likeResults, commentResults, retweetResults, bookmarkResults, commentLikesResults] = await Promise.all([
       // Get only entryGuid and userId fields from likes for the requested entries

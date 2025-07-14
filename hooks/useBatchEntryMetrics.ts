@@ -15,7 +15,7 @@ interface UseBatchEntryMetricsOptions {
   skipInitialQuery?: boolean;
   /** Initial metrics data to use instead of querying */
   initialMetrics?: Record<string, EntryMetrics>;
-  /** Whether to include comment likes data in the query */
+  /** Whether to include comment likes data in the query (defaults to false) */
   includeCommentLikes?: boolean;
 }
 

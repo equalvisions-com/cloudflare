@@ -597,6 +597,7 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
   );
   
   // Use batch metrics hook - only when component is active to prevent unnecessary queries
+  // Likes feed doesn't need comment likes (defaults to false), just regular entry metrics
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(
     isActive ? entryGuids : [], // Only fetch metrics when tab is active
     { skipInitialQuery: !isActive } // Skip initial query when not active
