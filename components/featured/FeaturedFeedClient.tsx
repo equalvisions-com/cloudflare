@@ -846,6 +846,9 @@ const FeaturedFeedClientComponent = ({
     return optimizedEntries.map(entry => entry.entry.guid);
   }, [optimizedEntries]);
   
+  // Track if we've already used the initial server metrics to prevent duplicate queries
+  const hasUsedServerMetricsRef = useRef(false);
+  
   // Extract initial metrics from initialData to avoid duplicate queries
   const initialMetrics = useMemo(() => {
     if (!initialData?.entries) return {};
@@ -859,9 +862,22 @@ const FeaturedFeedClientComponent = ({
     return metrics;
   }, [initialData]);
   
-  // Use batch metrics hook with initial metrics to skip duplicate queries on first load
+  // Only skip the initial query on the very first load when we have server data
+  // After that, enable full reactivity
+  const shouldSkipInitialQuery = useMemo(() => {
+    const hasServerMetrics = Object.keys(initialMetrics).length > 0;
+    const shouldSkip = hasServerMetrics && !hasUsedServerMetricsRef.current;
+    
+    if (shouldSkip) {
+      hasUsedServerMetricsRef.current = true;
+    }
+    
+    return shouldSkip;
+  }, [initialMetrics]);
+  
+  // Use batch metrics hook with one-time skip for reactivity
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids, {
-    skipInitialQuery: true,
+    skipInitialQuery: shouldSkipInitialQuery,
     initialMetrics
   });
 
