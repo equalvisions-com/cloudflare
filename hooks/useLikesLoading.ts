@@ -5,12 +5,13 @@ import { UserLikesFeedProps } from '@/lib/types';
 
 interface UseLikesLoadingProps {
   userId: string;
+  currentUserId?: string | null;
   username: string;
   initialData: UserLikesFeedProps['initialData'];
   pageSize: number;
 }
 
-export function useLikesLoading({ userId, username, initialData, pageSize }: UseLikesLoadingProps) {
+export function useLikesLoading({ userId, currentUserId, username, initialData, pageSize }: UseLikesLoadingProps) {
   // Use refs for tracking state without causing re-renders
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const isMountedRef = useRef(true);
@@ -67,6 +68,7 @@ export function useLikesLoading({ userId, username, initialData, pageSize }: Use
         },
         body: JSON.stringify({
           userId,
+          currentUserId,
           skip: skipValue,
           limit: pageSize
         })

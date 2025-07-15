@@ -57,9 +57,9 @@ interface ActivityResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get userId and pagination parameters from request body
+    // Get userId, currentUserId and pagination parameters from request body
     const body = await request.json();
-    const { userId, skip = 0, limit = 30 } = body;
+    const { userId, currentUserId, skip = 0, limit = 30 } = body;
 
     // UserId is required - this endpoint works by userId for efficiency
     if (!userId) {
@@ -69,28 +69,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try to get authentication token (optional for interaction states)
+    // Try to get authentication token (for authenticated queries)
     const token = await convexAuthNextjsToken();
-    let currentUser = null;
-    
-    if (token) {
-      try {
-        currentUser = await fetchQuery(api.users.viewer, {}, { token });
-      } catch (error) {
-        // Ignore auth errors for public access
-        console.log("No valid authentication, proceeding with public access");
-      }
-    }
 
     // Use the provided userId directly (no lookup needed)
     const targetUserId = userId as Id<"users">;
+    
+    // Use currentUserId from sidebar context if provided, otherwise fallback to targetUserId
+    const effectiveCurrentUserId = currentUserId ? currentUserId as Id<"users"> : targetUserId;
 
     // Fetch paginated activity data from Convex
     const result = await fetchQuery(
       api.userActivity.getUserActivityFeed,
       { 
         userId: targetUserId, 
-        currentUserId: currentUser?._id || targetUserId, // Use viewer's ID for interaction states, fallback to target
+        currentUserId: effectiveCurrentUserId, // Use provided currentUserId for interaction states
         skip, 
         limit 
       },
@@ -189,6 +182,7 @@ export async function POST(request: NextRequest) {
         const metricsStartTime = Date.now();
         
         // Fetch metrics from Convex with comment likes for activity feed
+        // Use currentUserId from sidebar context if provided, otherwise use authenticated token
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
           { entryGuids: guids, includeCommentLikes: true },

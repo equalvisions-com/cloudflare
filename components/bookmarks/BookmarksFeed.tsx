@@ -696,7 +696,16 @@ const useBookmarksPagination = ({
       const skipValue = state.currentSkip;
       
       // Use the API route to fetch the next page with AbortController
-      const result = await fetch(`/api/bookmarks?skip=${skipValue}&limit=${pageSize}`, {
+      const result = await fetch(`/api/bookmarks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentUserId: userId,
+          skip: skipValue,
+          limit: pageSize
+        }),
         signal: abortControllerRef.current.signal
       }).then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

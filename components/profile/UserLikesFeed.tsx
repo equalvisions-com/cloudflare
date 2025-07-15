@@ -42,6 +42,7 @@ import {
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { ErrorBoundary } from "react-error-boundary";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { 
   UserLikesFeedProps, 
   UserLikesActivityItem, 
@@ -567,6 +568,9 @@ EmptyState.displayName = 'EmptyState';
 
 // Create a memoized version of the component with error boundary
 const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
+  // Get current user ID from sidebar context to optimize API calls
+  const { userId: currentUserId } = useSidebar();
+  
   // Use custom hooks for business logic separation
   const {
     activities,
@@ -576,7 +580,7 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     isInitialLoad,
     loadMoreRef,
     loadMoreActivities,
-  } = useLikesLoading({ userId, username, initialData, pageSize });
+  } = useLikesLoading({ userId, currentUserId, username, initialData, pageSize });
 
   const {
     commentDrawerOpen,

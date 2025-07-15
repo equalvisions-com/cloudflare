@@ -1746,6 +1746,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   apiEndpoint = `/api/activity`,
   isActive = true
 }: UserActivityFeedComponentProps) {
+  // Get current user ID from sidebar context to optimize API calls
+  const { userId: currentUserId } = useSidebar();
+  
   // Cache extracted values from initialData for hooks
   const initialActivities = initialData?.activities || [];
   const initialEntryDetails = initialData?.entryDetails || {};
@@ -1768,6 +1771,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     setInitialLoadComplete,
   } = useActivityLoading({
       userId,
+      currentUserId,
       apiEndpoint,
       pageSize,
     isActive,

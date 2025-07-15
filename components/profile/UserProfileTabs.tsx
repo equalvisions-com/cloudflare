@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useCallback, useReducer, useRef } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
 import { 
@@ -165,6 +166,9 @@ export function UserProfileTabs({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
+  // Get current user ID from sidebar context to optimize API calls
+  const { userId: currentUserId } = useSidebar();
+  
   // Local state management with useState and useReducer
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   
@@ -195,6 +199,7 @@ export function UserProfileTabs({
         },
         body: JSON.stringify({
           userId,
+          currentUserId,
           skip: 0,
           limit: pageSize
         }),

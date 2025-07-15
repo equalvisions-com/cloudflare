@@ -4,6 +4,7 @@ import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
 
 interface UseActivityLoadingProps {
   userId: string;
+  currentUserId?: string | null;
   apiEndpoint: string;
   pageSize: number;
   isActive: boolean;
@@ -15,6 +16,7 @@ interface UseActivityLoadingProps {
 
 export function useActivityLoading({
   userId,
+  currentUserId,
   apiEndpoint,
   pageSize,
   isActive,
@@ -110,6 +112,7 @@ export function useActivityLoading({
         },
         body: JSON.stringify({
           userId,
+          currentUserId,
           skip: currentSkipValue,
           limit: pageSize
         })

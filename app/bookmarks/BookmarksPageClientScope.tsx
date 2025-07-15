@@ -283,11 +283,16 @@ const BookmarksPageClientScopeComponent = ({ rightSidebar }: BookmarksPageClient
     
     try {
       // Phase 3: Edge Runtime optimization - Direct API call instead of server action
-      const response = await fetch(`/api/bookmarks?skip=0&limit=30`, {
-        method: 'GET',
+      const response = await fetch(`/api/bookmarks`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          currentUserId: userId,
+          skip: 0,
+          limit: 30
+        }),
         signal,
         // Edge Runtime optimization: Add caching headers
         cache: 'no-store', // Ensure fresh data for bookmarks

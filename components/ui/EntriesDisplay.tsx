@@ -64,7 +64,7 @@ const EntriesDisplayComponent = ({
     isMetricsLoading,
     commentDrawerOpen,
     selectedCommentEntry,
-
+    getMetrics,
     loadMore,
     handleOpenCommentDrawer,
     handleCommentDrawerClose,
@@ -134,8 +134,8 @@ const EntriesDisplayComponent = ({
     }
   }, [entries.length, optimizedEntries.length, entryGuids.length]);
   
-  // Use batch metrics hook for reactive updates
-  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
+  // Use batch metrics hook for reactive updates (getMetrics comes from useEntriesData)
+  // The useEntriesData hook already handles server metrics via useBatchEntryMetrics with initialMetrics
 
   // Use a ref to store the itemContent callback to ensure stability
   const itemContentCallback = useCallback((index: number, entry: EntriesRSSEntry) => {

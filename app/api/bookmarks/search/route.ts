@@ -9,9 +9,21 @@ import { api } from "@/convex/_generated/api";
 // Use Edge runtime for this API route
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    // Verify user is authenticated
+    // Get currentUserId and search parameters from request body
+    const body = await request.json();
+    const { currentUserId, query, limit = 30 } = body;
+
+    // CurrentUserId is required - this comes from sidebar context
+    if (!currentUserId) {
+      return NextResponse.json(
+        { error: 'Authentication required - currentUserId missing' },
+        { status: 401 }
+      );
+    }
+
+    // Try to get authentication token (for metrics and authenticated queries)
     const token = await convexAuthNextjsToken();
     if (!token) {
       return NextResponse.json(
@@ -20,20 +32,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the authenticated user's ID from Convex (single source of truth)
-    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 401 }
-      );
-    }
-
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('query');
-    const limit = parseInt(searchParams.get('limit') || '30', 10);
-
     if (!query) {
       return NextResponse.json(
         { error: 'Missing query parameter' },
@@ -41,8 +39,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 🔒 SECURE: Always use authenticated user's ID
-    const userId = currentUser._id;
+    // 🔒 SECURE: Use currentUserId from sidebar context (no api.users.viewer call needed)
+    const userId = currentUserId;
 
     // Step 1: Fetch all bookmarks from Convex
     const bookmarksResult = await fetchQuery(api.userActivity.getUserBookmarks, { 

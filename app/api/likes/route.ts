@@ -55,9 +55,9 @@ interface LikesResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Get userId and pagination parameters from request body
+    // Get userId, currentUserId and pagination parameters from request body
     const body = await request.json();
-    const { userId, skip = 0, limit = 30 } = body;
+    const { userId, currentUserId, skip = 0, limit = 30 } = body;
     
     // Validate userId
     if (!userId || typeof userId !== 'string') {
@@ -67,21 +67,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Try to get authentication token (optional for interaction states)
+    // Try to get authentication token (for authenticated queries)
     const token = await convexAuthNextjsToken();
-    let currentUser = null;
-    
-    if (token) {
-      try {
-        currentUser = await fetchQuery(api.users.viewer, {}, { token });
-      } catch (error) {
-        // Ignore auth errors for public access
-        console.log("No valid authentication, proceeding with public access");
-      }
-    }
 
     // Use the userId directly from the request body
     const targetUserId = userId as Id<"users">;
+    
+    // Use currentUserId from sidebar context if provided, otherwise fallback to targetUserId
+    const effectiveCurrentUserId = currentUserId ? currentUserId as Id<"users"> : targetUserId;
 
     // Fetch paginated likes data from Convex  
     const result = await fetchQuery(
