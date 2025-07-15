@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useMemo } from 'react';
-import { Id } from '@/convex/_generated/dataModel';
 import { useUserLikesFeedStore } from '@/lib/stores/userLikesFeedStore';
 import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
 import { UserLikesFeedProps } from '@/lib/types';
 
 interface UseLikesLoadingProps {
-  userId: Id<"users">;
+  username: string;
   initialData: UserLikesFeedProps['initialData'];
   pageSize: number;
 }
 
-export function useLikesLoading({ userId, initialData, pageSize }: UseLikesLoadingProps) {
+export function useLikesLoading({ username, initialData, pageSize }: UseLikesLoadingProps) {
   // Use refs for tracking state without causing re-renders
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const isMountedRef = useRef(true);
@@ -60,7 +59,7 @@ export function useLikesLoading({ userId, initialData, pageSize }: UseLikesLoadi
       const skipValue = currentSkipRef.current;
       
       // Use the public API route to fetch the next page for this specific user
-      const result = await fetch(`/api/users/${userId}/likes?skip=${skipValue}&limit=${pageSize}`);
+      const result = await fetch(`/api/users/${username}/likes?skip=${skipValue}&limit=${pageSize}`);
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
@@ -88,7 +87,7 @@ export function useLikesLoading({ userId, initialData, pageSize }: UseLikesLoadi
     } catch (error) {
       loadMoreFailure();
     }
-  }, [userId, isLoading, hasMore, pageSize, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [username, isLoading, hasMore, pageSize, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
   
   // Use the shared hook for delayed intersection observer
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {

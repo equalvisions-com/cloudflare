@@ -57,7 +57,7 @@ interface ActivityResponse {
 
 // Define the route context type with async params
 interface RouteContext {
-  params: Promise<{ userId: string }>;
+  params: Promise<{ username: string }>;
 }
 
 // Helper function to fetch entry details from PlanetScale
@@ -172,13 +172,23 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     // Await the params to get the actual values
-    const { userId } = await context.params;
+    const { username } = await context.params;
     
-    // Validate userId format
-    if (!userId || typeof userId !== 'string') {
+    // Validate username format
+    if (!username || typeof username !== 'string') {
       return NextResponse.json(
-        { error: 'Invalid userId parameter' },
+        { error: 'Invalid username parameter' },
         { status: 400 }
+      );
+    }
+
+    // First, resolve username to userId via Convex
+    const user = await fetchQuery(api.users.getProfileByUsername, { username });
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
@@ -187,13 +197,13 @@ export async function GET(
     const skip = parseInt(searchParams.get("skip") || "0", 10);
     const limit = parseInt(searchParams.get("limit") || "30", 10);
 
-    console.log(`📡 Fetching public likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
+    console.log(`📡 Fetching public likes data for user: ${username} (${user.userId}), skip: ${skip}, limit: ${limit}`);
     const startTime = Date.now();
     
     // Fetch activity data from Convex - this is a PUBLIC query, no auth required
     const result = await fetchQuery(
       api.userActivity.getUserLikes,
-      { userId: userId as Id<"users">, skip, limit }
+      { userId: user.userId as Id<"users">, skip, limit }
     ) as ActivityResponse;
     
     console.log(`✅ Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);

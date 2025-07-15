@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { executeRead } from "@/lib/database";
-import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -58,37 +57,53 @@ interface ActivityResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify user is authenticated
-    const token = await convexAuthNextjsToken();
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Get the authenticated user's ID from Convex (single source of truth)
-    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 401 }
-      );
-    }
-
     // Get pagination parameters from query string
     const searchParams = request.nextUrl.searchParams;
     const skip = parseInt(searchParams.get("skip") || "0", 10);
     const limit = parseInt(searchParams.get("limit") || "30", 10);
+    const username = searchParams.get("username");
 
-    // 🔒 SECURE: Always use authenticated user's ID
-    const userId = currentUser._id;
+    // Username is required - this endpoint always works by username
+    if (!username) {
+      return NextResponse.json(
+        { error: 'Username parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    // Try to get authentication token (optional for interaction states)
+    const token = await convexAuthNextjsToken();
+    let currentUser = null;
+    
+    if (token) {
+      try {
+        currentUser = await fetchQuery(api.users.viewer, {}, { token });
+      } catch (error) {
+        // Ignore auth errors for public access
+        console.log("No valid authentication, proceeding with public access");
+      }
+    }
+
+    // Get user by username
+    const targetUser = await fetchQuery(api.users.getProfileByUsername, { username });
+    if (!targetUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+    const targetUserId = targetUser.userId;
 
     // Fetch paginated activity data from Convex
     const result = await fetchQuery(
       api.userActivity.getUserActivityFeed,
-      { userId, currentUserId: userId, skip, limit }, // Pass currentUserId to avoid getAuthUserId call
-      { token }
+      { 
+        userId: targetUserId, 
+        currentUserId: currentUser?._id || targetUserId, // Use viewer's ID for interaction states, fallback to target
+        skip, 
+        limit 
+      },
+      token ? { token } : undefined // Use token if available, otherwise public access
     ) as ActivityResponse & {
       commentReplies?: Record<string, any[]>;
       commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
@@ -138,7 +153,7 @@ export async function GET(request: NextRequest) {
               const posts = await fetchQuery(
                 api.posts.getByTitles, 
                 { titles: feedTitles },
-                { token }
+                token ? { token } : undefined
               );
               
               console.log(`✅ API: Fetched ${posts.length} posts from Convex`);
@@ -174,7 +189,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // ✅ RESTORED: Fetch entry metrics for pagination (same pattern as RSS/Featured feeds)
+    // Fetch entry metrics for pagination (same pattern as RSS/Featured feeds)
     // Server provides initial metrics for fast rendering, client hook provides reactive updates
     let entryMetrics: Record<string, InteractionStates> = {};
     if (guids.length > 0) {
@@ -186,7 +201,7 @@ export async function GET(request: NextRequest) {
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
           { entryGuids: guids, includeCommentLikes: true },
-          { token }
+          token ? { token } : undefined
         );
         
         // Create a map of guid to metrics

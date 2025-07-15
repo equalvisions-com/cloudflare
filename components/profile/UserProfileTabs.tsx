@@ -105,7 +105,7 @@ const ActivityTabContent = React.memo(({
       profileImage={profileImage}
       initialData={activityData}
       pageSize={pageSize}
-      apiEndpoint="/api/activity"
+                apiEndpoint={`/api/activity?username=${username}`}
       isActive={isActive}
     />
   );
@@ -114,7 +114,7 @@ ActivityTabContent.displayName = 'ActivityTabContent';
 
 // Memoized component for the "Likes" tab content
 const LikesTabContent = React.memo(({ 
-  userId, 
+  username, 
   likesData, 
   pageSize,
   isLoading,
@@ -145,7 +145,7 @@ const LikesTabContent = React.memo(({
   // Pass isActive to prevent useBatchEntryMetrics calls when tab is not active
   return (
     <DynamicUserLikesFeed
-      userId={userId}
+      username={username}
       initialData={likesData}
       pageSize={pageSize}
       isActive={isActive}
@@ -186,7 +186,7 @@ export function UserProfileTabs({
     
     try {
       // Use the public API endpoint for consistency - no authentication required
-      const response = await fetch(`/api/users/${userId}/likes?skip=0&limit=${pageSize}`, {
+      const response = await fetch(`/api/users/${username}/likes?skip=0&limit=${pageSize}`, {
         cache: 'no-store'
       });
       
@@ -254,7 +254,7 @@ export function UserProfileTabs({
       label: 'Likes',
       component: () => (
         <LikesTabContent 
-          userId={userId}
+          username={username}
           likesData={likesState.data} 
           pageSize={pageSize}
           isLoading={likesState.status === 'loading'}
