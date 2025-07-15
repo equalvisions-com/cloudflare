@@ -3,6 +3,9 @@ import type { RSSItem } from "@/lib/rss";
 import { executeRead } from '@/lib/database';
 import { refreshExistingFeeds } from '@/lib/rss.server';
 import type { RSSEntryRow } from '@/lib/types';
+import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
+import { fetchQuery } from 'convex/nextjs';
+import { api } from '@/convex/_generated/api';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
@@ -252,13 +255,66 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 entries.length > 0 ? [...new Set(entries.map(e => e.feed_url))] : []
     };
     
+    // ✅ ADDED: Fetch entry metrics for pagination (same pattern as other feeds)
+    // Server provides initial metrics for fast rendering, client hook provides reactive updates
+    let entryMetrics: Record<string, any> = {};
+    if (mappedEntries.length > 0) {
+      try {
+        // Get auth token for Convex query
+        const token = await convexAuthNextjsToken();
+        
+        // Extract GUIDs for metrics query
+        const guids = mappedEntries.map(entry => entry.guid);
+        
+        console.log(`🔍 API: Fetching metrics for ${guids.length} paginated entries`);
+        const metricsStartTime = Date.now();
+        
+        // Fetch metrics from Convex
+        const metrics = await fetchQuery(
+          api.entries.batchGetEntriesMetrics,
+          { entryGuids: guids, includeCommentLikes: false },
+          { token }
+        );
+        
+        // Create a map of guid to metrics
+        entryMetrics = Object.fromEntries(
+          guids.map((guid, index) => [guid, metrics[index]])
+        );
+        
+        console.log(`✅ API: Fetched pagination metrics in ${Date.now() - metricsStartTime}ms`);
+      } catch (error) {
+        console.error("⚠️ API: Error fetching pagination entry metrics:", error);
+        // Continue without metrics
+      }
+    }
+
+    // Return entries with both data and metrics
+    const entriesWithData = mappedEntries.map((entry, index) => ({
+      entry,
+      initialData: entryMetrics[entry.guid] || {
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
+      }
+    }));
+
+    const finalResponseData = {
+      entries: entriesWithData,
+      hasMore,
+      totalEntries,
+      postTitles,
+      feedUrls: feedUrls.length > 0 ? feedUrls : 
+                entries.length > 0 ? [...new Set(entries.map(e => e.feed_url))] : []
+    };
+    
     // Set no-cache headers to ensure fresh results with every request
     const headers = new Headers();
     headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
     
-    return NextResponse.json(responseData, { headers });
+    return NextResponse.json(finalResponseData, { headers });
     
   } catch (error) {
     console.error('❌ API: Error fetching merged feed', error);

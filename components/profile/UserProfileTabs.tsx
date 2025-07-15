@@ -185,7 +185,8 @@ export function UserProfileTabs({
     dispatchLikes({ type: 'FETCH_START' });
     
     try {
-      const response = await fetch(`/api/likes?skip=0&limit=${pageSize}`, {
+      // Use the public API endpoint for consistency - no authentication required
+      const response = await fetch(`/api/users/${userId}/likes?skip=0&limit=${pageSize}`, {
         cache: 'no-store'
       });
       

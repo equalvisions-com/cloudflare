@@ -591,13 +591,25 @@ const UserLikesFeedComponent = memo(({ userId, initialData, pageSize = 30, isAct
     [activities]
   );
   
-  // Use batch metrics hook - only when component is active to prevent unnecessary queries
-  // Likes feed doesn't need comment likes (defaults to false), just regular entry metrics
+  // Extract initial metrics from initial data for server-side rendering optimization
+  const initialMetrics = useMemo(() => {
+    const metrics: Record<string, any> = {};
+    if (initialData?.entryMetrics) {
+      Object.entries(initialData.entryMetrics).forEach(([guid, entryMetrics]) => {
+        metrics[guid] = entryMetrics;
+      });
+    }
+    return metrics;
+  }, [initialData?.entryMetrics]);
+
+  // Use batch metrics hook with initial server metrics to prevent button flashing
+  // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading } = useBatchEntryMetrics(
     isActive ? entryGuids : [], // Only fetch metrics when tab is active
     { 
-      skipInitialQuery: !isActive // Skip initial query when not active
-      // Removed initialMetrics - let batch hook handle everything consistently
+      includeCommentLikes: false, // Likes feed doesn't need comment likes
+      initialMetrics
+      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
     }
   );
   

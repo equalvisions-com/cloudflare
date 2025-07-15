@@ -741,11 +741,26 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
     return optimizedEntries.map(entry => entry.entry.guid);
   }, [optimizedEntries]);
   
-  // Use batch metrics hook for reactivity
-  // Note: We accept the initial duplicate query to maintain real-time reactivity
-  // The server-side metrics in initialData serve as a fast initial render,
-  // then the client query provides live updates
-  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
+  // Extract initial metrics from server data for fast rendering without button flashing
+  const initialMetrics = useMemo(() => {
+    const metrics: Record<string, any> = {};
+    optimizedEntries.forEach(entry => {
+      if (entry.initialData && entry.entry.guid) {
+        metrics[entry.entry.guid] = entry.initialData;
+      }
+    });
+    return metrics;
+  }, [optimizedEntries]);
+  
+  // Use batch metrics hook with server metrics for immediate correct rendering
+  // Server provides initial metrics for fast rendering, client hook provides reactive updates
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
+    entryGuids, 
+    { 
+      initialMetrics
+      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
+    }
+  );
   
   // Use the shared focus prevention hook
   useFeedFocusPrevention(isActive && !commentDrawer.isOpen, '.rss-feed-container');

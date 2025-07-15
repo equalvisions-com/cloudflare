@@ -3,6 +3,7 @@ import { executeRead } from '@/lib/database';
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
+import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
@@ -92,9 +93,43 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Return the entries with metadata
+    // ✅ ADDED: Fetch entry metrics for immediate correct rendering (same pattern as other feeds)
+    // Server provides initial metrics for fast rendering, client hook provides reactive updates
+    let entryMetrics: Record<string, any> = {};
+    if (entriesWithMetadata.length > 0) {
+      try {
+        // Get auth token for Convex query
+        const token = await convexAuthNextjsToken();
+        
+        // Extract GUIDs for metrics query
+        const guids = entriesWithMetadata.map(entry => entry.guid);
+        
+        console.log(`🔍 API: Fetching metrics for ${guids.length} search entries`);
+        const metricsStartTime = Date.now();
+        
+        // Fetch metrics from Convex
+        const metrics = await fetchQuery(
+          api.entries.batchGetEntriesMetrics,
+          { entryGuids: guids, includeCommentLikes: false },
+          { token }
+        );
+        
+        // Create a map of guid to metrics
+        entryMetrics = Object.fromEntries(
+          guids.map((guid, index) => [guid, metrics[index]])
+        );
+        
+        console.log(`✅ API: Fetched search metrics in ${Date.now() - metricsStartTime}ms`);
+      } catch (error) {
+        console.error("⚠️ API: Error fetching search entry metrics:", error);
+        // Continue without metrics
+      }
+    }
+
+    // Return the entries with metadata and metrics
     return NextResponse.json({
       entries: entriesWithMetadata,
+      entryMetrics,
       hasMore,
     });
 

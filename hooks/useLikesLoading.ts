@@ -59,8 +59,8 @@ export function useLikesLoading({ userId, initialData, pageSize }: UseLikesLoadi
       // Get current skip value from ref to ensure it's up-to-date
       const skipValue = currentSkipRef.current;
       
-      // Use the API route to fetch the next page
-      const result = await fetch(`/api/likes?skip=${skipValue}&limit=${pageSize}`);
+      // Use the public API route to fetch the next page for this specific user
+      const result = await fetch(`/api/users/${userId}/likes?skip=${skipValue}&limit=${pageSize}`);
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
@@ -88,7 +88,7 @@ export function useLikesLoading({ userId, initialData, pageSize }: UseLikesLoadi
     } catch (error) {
       loadMoreFailure();
     }
-  }, [isLoading, hasMore, pageSize, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [userId, isLoading, hasMore, pageSize, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
   
   // Use the shared hook for delayed intersection observer
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {

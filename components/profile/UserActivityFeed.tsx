@@ -1795,13 +1795,25 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     [activities]
   );
 
-  // Use batch metrics hook with comment likes enabled for UserActivityFeed
-  // Let the hook handle all metrics consistently - no initialMetrics optimization
+  // Extract initial metrics from initial data for server-side rendering optimization
+  const initialMetrics = useMemo(() => {
+    const metrics: Record<string, any> = {};
+    if (initialData?.entryMetrics) {
+      Object.entries(initialData.entryMetrics).forEach(([guid, entryMetrics]) => {
+        metrics[guid] = entryMetrics;
+      });
+    }
+    return metrics;
+  }, [initialData?.entryMetrics]);
+
+  // Use batch metrics hook with initial server metrics to prevent button flashing
+  // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading, metricsMap } = useBatchEntryMetrics(
     entryGuids,
     { 
-      includeCommentLikes: true
-      // Removed initialMetrics - let batch hook handle everything consistently
+      includeCommentLikes: true,
+      initialMetrics
+      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
     }
   );
   

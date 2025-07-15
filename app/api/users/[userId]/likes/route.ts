@@ -7,7 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 // Use Edge runtime for this API route
 export const runtime = 'edge';
 
-// Import types from UserActivityFeed
+// Import types from UserLikesFeed
 type ActivityItem = {
   type: "like" | "comment" | "retweet";
   timestamp: number;
@@ -46,12 +46,18 @@ interface InteractionStates {
   likes: { isLiked: boolean; count: number };
   comments: { count: number };
   retweets: { isRetweeted: boolean; count: number };
+  bookmarks: { isBookmarked: boolean };
 }
 
 interface ActivityResponse {
   activities: ActivityItem[];
   totalCount: number;
   hasMore: boolean;
+}
+
+// Define the route context type with async params
+interface RouteContext {
+  params: Promise<{ userId: string }>;
 }
 
 // Helper function to fetch entry details from PlanetScale
@@ -86,7 +92,7 @@ async function fetchEntryDetails(guids: string[], baseUrl: string) {
 }
 
 // Helper function to fetch post data from Convex
-async function fetchPostData(feedTitles: string[], token: string | null | undefined) {
+async function fetchPostData(feedTitles: string[]) {
   if (!feedTitles.length) return [];
   
   try {
@@ -95,8 +101,7 @@ async function fetchPostData(feedTitles: string[], token: string | null | undefi
     
     const posts = await fetchQuery(
       api.posts.getByTitles, 
-      { titles: feedTitles },
-      token ? { token } : undefined
+      { titles: feedTitles }
     );
     
     console.log(`✅ Fetched ${posts.length} posts in ${Date.now() - postsStartTime}ms`);
@@ -108,7 +113,7 @@ async function fetchPostData(feedTitles: string[], token: string | null | undefi
 }
 
 // Enhanced function to fetch and process entry details with parallel post fetching
-async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, token: string | null | undefined) {
+async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string) {
   if (!guids.length) return {};
   
   try {
@@ -130,33 +135,24 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
       .filter(Boolean) as string[])];
     
     if (feedTitles.length > 0) {
-      // Step 4: Fetch posts from Convex
-      const posts = await fetchPostData(feedTitles, token);
+      const posts = await fetchPostData(feedTitles);
       
-      // Step 5: Create a map of feed title to post
+      // Create a map of feed title to post data
       const feedTitleToPostMap = new Map(
-        posts.map((post: any) => [post.title, post])
+        posts.map(post => [post.title, post])
       );
       
-      // Step 6: Enrich entry details with post data
+      // Enrich entry details with post data
       for (const guid in entryDetails) {
         const entry = entryDetails[guid];
         if (entry.feed_title) {
           const post = feedTitleToPostMap.get(entry.feed_title);
-          
           if (post) {
-            // Get the featured image from the correct field
-            const featuredImg = post.featuredImage || post.featuredImg;
-            
-            // Get the slug from the correct field
-            const slug = post.slug || post.postSlug;
-            
-            // Update entry with post metadata
             entry.post_title = post.title;
-            entry.post_featured_img = featuredImg;
+            entry.post_featured_img = post.featuredImg;
             entry.post_media_type = post.mediaType;
             entry.category_slug = post.categorySlug;
-            entry.post_slug = slug;
+            entry.post_slug = post.postSlug;
             entry.verified = post.verified;
           }
         }
@@ -170,23 +166,19 @@ async function fetchAndProcessEntryDetails(guids: string[], baseUrl: string, tok
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest, 
+  context: RouteContext
+): Promise<NextResponse> {
   try {
-    // Verify user is authenticated
-    const token = await convexAuthNextjsToken();
-    if (!token) {
+    // Await the params to get the actual values
+    const { userId } = await context.params;
+    
+    // Validate userId format
+    if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Get the authenticated user's ID from Convex (single source of truth)
-    const currentUser = await fetchQuery(api.users.viewer, {}, { token });
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 401 }
+        { error: 'Invalid userId parameter' },
+        { status: 400 }
       );
     }
 
@@ -195,17 +187,13 @@ export async function GET(request: NextRequest) {
     const skip = parseInt(searchParams.get("skip") || "0", 10);
     const limit = parseInt(searchParams.get("limit") || "30", 10);
 
-    // 🔒 SECURE: Always use authenticated user's ID
-    const userId = currentUser._id;
-
-    console.log(`📡 Fetching likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
+    console.log(`📡 Fetching public likes data for user: ${userId}, skip: ${skip}, limit: ${limit}`);
     const startTime = Date.now();
     
-    // Fetch activity data from Convex with a larger limit since we'll filter
+    // Fetch activity data from Convex - this is a PUBLIC query, no auth required
     const result = await fetchQuery(
       api.userActivity.getUserLikes,
-      { userId, skip, limit },
-      { token }
+      { userId: userId as Id<"users">, skip, limit }
     ) as ActivityResponse;
     
     console.log(`✅ Fetched ${result.activities.length} likes in ${Date.now() - startTime}ms`);
@@ -214,19 +202,23 @@ export async function GET(request: NextRequest) {
     const guids = result.activities.map((activity: ActivityItem) => activity.entryGuid);
     
     // Fetch and process entry details in a single step
-    const entryDetails = await fetchAndProcessEntryDetails(guids, request.nextUrl.origin, token);
-    
-    // Fetch entry metrics for all guids
+    const entryDetails = await fetchAndProcessEntryDetails(guids, request.nextUrl.origin);
+
+    // ✅ RESTORED: Fetch entry metrics for pagination (same pattern as Activity route)
+    // Server provides initial metrics for fast rendering, client hook provides reactive updates
     let entryMetrics: Record<string, InteractionStates> = {};
     if (guids.length > 0) {
       try {
-        console.log(`📡 Fetching metrics for ${guids.length} entries`);
+        console.log(`🔍 API: Fetching metrics for ${guids.length} entries`);
         const metricsStartTime = Date.now();
         
-        // Fetch metrics from Convex
+        // Get auth token for Convex query
+        const token = await convexAuthNextjsToken();
+        
+        // Fetch metrics from Convex (no comment likes needed for likes feed)
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
-          { entryGuids: guids },
+          { entryGuids: guids, includeCommentLikes: false },
           { token }
         );
         
@@ -235,9 +227,9 @@ export async function GET(request: NextRequest) {
           guids.map((guid, index) => [guid, metrics[index] as InteractionStates])
         );
         
-        console.log(`✅ Fetched metrics in ${Date.now() - metricsStartTime}ms`);
+        console.log(`✅ API: Fetched metrics in ${Date.now() - metricsStartTime}ms`);
       } catch (error) {
-        console.error("❌ Error fetching entry metrics:", error);
+        console.error("⚠️ API: Error fetching entry metrics:", error);
       }
     }
 
@@ -249,7 +241,7 @@ export async function GET(request: NextRequest) {
       entryMetrics
     });
   } catch (error) {
-    console.error("❌ Error fetching likes data:", error);
+    console.error("❌ Error fetching public likes data:", error);
     return NextResponse.json(
       { error: "Failed to fetch likes data" },
       { status: 500 }

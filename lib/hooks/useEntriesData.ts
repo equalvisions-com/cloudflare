@@ -3,6 +3,8 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useEntriesStore } from '@/lib/stores/entriesStore';
 import { EntriesRSSEntry, InteractionStates } from '@/lib/types';
+import { useState } from 'react';
+import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 
 interface UseEntriesDataProps {
   mediaType: string;
@@ -94,11 +96,32 @@ export const useEntriesData = ({
     endReachedCalledRef.current = false;
   }, [entries.length]);
 
+  // Store server metrics for efficient button rendering
+  const [serverMetrics, setServerMetrics] = useState<Record<string, any>>({});
+  
   // Get entry guids for metrics
   const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
   
-  // Use our custom hook for metrics
-  const { getEntryMetrics, isLoading: metricsLoading } = useEntriesMetrics(entryGuids, isVisible);
+  // Extract initial metrics from server data for fast rendering without button flashing
+  const initialMetrics = useMemo(() => {
+    const metrics: Record<string, any> = {};
+    entryGuids.forEach(guid => {
+      if (serverMetrics[guid]) {
+        metrics[guid] = serverMetrics[guid];
+      }
+    });
+    return metrics;
+  }, [entryGuids, serverMetrics]);
+  
+  // Use batch metrics hook with server metrics for immediate correct rendering
+  // Server provides initial metrics for fast rendering, client hook provides reactive updates
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
+    entryGuids, 
+    isVisible ? { 
+      initialMetrics
+      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
+    } : { skipInitialQuery: true } // Skip when not visible
+  );
 
   // Update metrics loading state when it changes
   useEffect(() => {
@@ -119,6 +142,11 @@ export const useEntriesData = ({
     try {
       const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=${nextPage}&pageSize=${pageSize}`);
       const data = await response.json();
+      
+      // Store server metrics for immediate button rendering
+      if (data.entryMetrics) {
+        setServerMetrics(prev => ({ ...prev, ...data.entryMetrics }));
+      }
       
       addEntries(data.entries);
       setHasMore(data.hasMore);
@@ -155,6 +183,11 @@ export const useEntriesData = ({
         const response = await fetch(`/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType)}&page=1&pageSize=${pageSize}`);
         const data = await response.json();
         
+        // Store server metrics for immediate button rendering
+        if (data.entryMetrics) {
+          setServerMetrics(data.entryMetrics);
+        }
+        
         setEntries(data.entries);
         setHasMore(data.hasMore);
         setPage(1);
@@ -188,7 +221,7 @@ export const useEntriesData = ({
     isMetricsLoading,
     commentDrawerOpen,
     selectedCommentEntry,
-    getEntryMetrics,
+    getMetrics,
     loadMore,
     handleOpenCommentDrawer,
     handleCommentDrawerClose,

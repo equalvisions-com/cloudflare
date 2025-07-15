@@ -64,6 +64,7 @@ const EntriesDisplayComponent = ({
     isMetricsLoading,
     commentDrawerOpen,
     selectedCommentEntry,
+
     loadMore,
     handleOpenCommentDrawer,
     handleCommentDrawerClose,

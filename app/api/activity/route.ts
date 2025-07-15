@@ -47,6 +47,7 @@ interface InteractionStates {
   likes: { isLiked: boolean; count: number };
   comments: { count: number };
   retweets: { isRetweeted: boolean; count: number };
+  bookmarks: { isBookmarked: boolean };
 }
 
 interface ActivityResponse {
@@ -173,7 +174,8 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Fetch entry metrics for all guids
+    // ✅ RESTORED: Fetch entry metrics for pagination (same pattern as RSS/Featured feeds)
+    // Server provides initial metrics for fast rendering, client hook provides reactive updates
     let entryMetrics: Record<string, InteractionStates> = {};
     if (guids.length > 0) {
       try {

@@ -863,8 +863,26 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     return optimizedBookmarks.map(bookmark => bookmark.entryGuid);
   }, [optimizedBookmarks]);
   
-  // Use batch metrics hook
-  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(entryGuids);
+  // Extract initial metrics from server data for fast rendering without button flashing
+  const initialMetrics = useMemo(() => {
+    const metrics: Record<string, any> = {};
+    optimizedBookmarks.forEach(bookmark => {
+      if (state.entryMetrics[bookmark.entryGuid] && bookmark.entryGuid) {
+        metrics[bookmark.entryGuid] = state.entryMetrics[bookmark.entryGuid];
+      }
+    });
+    return metrics;
+  }, [optimizedBookmarks, state.entryMetrics]);
+  
+  // Use batch metrics hook with server metrics for immediate correct rendering
+  // Server provides initial metrics for fast rendering, client hook provides reactive updates
+  const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
+    entryGuids, 
+    { 
+      initialMetrics
+      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
+    }
+  );
 
   // Implement the itemContentCallback using the standard pattern
   const itemContentCallback = useCallback((index: number, bookmark: BookmarkItem) => {
