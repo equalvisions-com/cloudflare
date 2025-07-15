@@ -566,7 +566,7 @@ const EmptyState = memo(() => (
 EmptyState.displayName = 'EmptyState';
 
 // Create a memoized version of the component with error boundary
-const UserLikesFeedComponent = memo(({ username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
+const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
   // Use custom hooks for business logic separation
   const {
     activities,
@@ -576,7 +576,7 @@ const UserLikesFeedComponent = memo(({ username, initialData, pageSize = 30, isA
     isInitialLoad,
     loadMoreRef,
     loadMoreActivities,
-  } = useLikesLoading({ username, initialData, pageSize });
+  } = useLikesLoading({ userId, username, initialData, pageSize });
 
   const {
     commentDrawerOpen,
@@ -724,10 +724,10 @@ UserLikesFeedComponent.displayName = 'UserLikesFeedComponent';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed({ username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) {
+export function UserLikesFeed({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <UserLikesFeedComponent {...{ username, initialData, pageSize, isActive }} />
+      <UserLikesFeedComponent {...{ userId, username, initialData, pageSize, isActive }} />
     </ErrorBoundary>
   );
 } 

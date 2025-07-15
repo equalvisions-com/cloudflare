@@ -7,7 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 // Use Edge runtime for this API route
 export const runtime = 'edge';
 
-// Import types from UserActivityFeed
+// Import types
 type ActivityItem = {
   type: "like" | "comment" | "retweet";
   timestamp: number;
@@ -32,7 +32,6 @@ type RSSEntry = {
   feed_title?: string;
   feed_url?: string;
   mediaType?: string;
-  // Additional fields from Convex posts
   post_title?: string;
   post_featured_img?: string;
   post_media_type?: string;
@@ -41,7 +40,6 @@ type RSSEntry = {
   verified?: boolean;
 };
 
-// Define the shape of interaction states for batch metrics
 interface InteractionStates {
   likes: { isLiked: boolean; count: number };
   comments: { count: number };
@@ -49,22 +47,22 @@ interface InteractionStates {
   bookmarks: { isBookmarked: boolean };
 }
 
-interface ActivityResponse {
+interface LikesResponse {
   activities: ActivityItem[];
   totalCount: number;
   hasMore: boolean;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Get userId and pagination parameters from request body
     const body = await request.json();
     const { userId, skip = 0, limit = 30 } = body;
-
-    // UserId is required - this endpoint works by userId for efficiency
-    if (!userId) {
+    
+    // Validate userId
+    if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
-        { error: 'UserId parameter is required' },
+        { error: 'Invalid userId parameter' },
         { status: 400 }
       );
     }
@@ -82,23 +80,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use the provided userId directly (no lookup needed)
+    // Use the userId directly from the request body
     const targetUserId = userId as Id<"users">;
 
-    // Fetch paginated activity data from Convex
+    // Fetch paginated likes data from Convex  
     const result = await fetchQuery(
-      api.userActivity.getUserActivityFeed,
+      api.userActivity.getUserLikes,
       { 
         userId: targetUserId, 
-        currentUserId: currentUser?._id || targetUserId, // Use viewer's ID for interaction states, fallback to target
         skip, 
         limit 
       },
       token ? { token } : undefined // Use token if available, otherwise public access
-    ) as ActivityResponse & {
-      commentReplies?: Record<string, any[]>;
-      commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
-    };
+    ) as LikesResponse;
 
     // Extract GUIDs from activities to fetch entry details
     const guids = result.activities.map((activity: ActivityItem) => activity.entryGuid);
@@ -181,14 +175,13 @@ export async function POST(request: NextRequest) {
     }
     
     // Fetch entry metrics for pagination (same pattern as RSS/Featured feeds)
-    // Server provides initial metrics for fast rendering, client hook provides reactive updates
     let entryMetrics: Record<string, InteractionStates> = {};
     if (guids.length > 0) {
       try {
         console.log(`🔍 API: Fetching metrics for ${guids.length} entries`);
         const metricsStartTime = Date.now();
         
-        // Fetch metrics from Convex with comment likes for activity feed
+        // Fetch metrics from Convex
         const metrics = await fetchQuery(
           api.entries.batchGetEntriesMetrics,
           { entryGuids: guids, includeCommentLikes: true },
@@ -209,14 +202,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...result,
       entryDetails,
-      entryMetrics,
-      // Include comment likes data from the updated getUserActivityFeed query
-      commentLikes: result.commentLikes || {}
+      entryMetrics
     });
   } catch (error) {
-    console.error("Error fetching activity data:", error);
+    console.error("Error fetching likes data:", error);
     return NextResponse.json(
-      { error: "Failed to fetch activity data" },
+      { error: "Failed to fetch likes data" },
       { status: 500 }
     );
   }

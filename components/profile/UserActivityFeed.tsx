@@ -1743,7 +1743,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   profileImage,
   initialData,
   pageSize = 30,
-  apiEndpoint = `/api/activity?username=${username}`,
+  apiEndpoint = `/api/activity`,
   isActive = true
 }: UserActivityFeedComponentProps) {
   // Cache extracted values from initialData for hooks

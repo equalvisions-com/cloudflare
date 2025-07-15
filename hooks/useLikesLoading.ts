@@ -4,12 +4,13 @@ import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
 import { UserLikesFeedProps } from '@/lib/types';
 
 interface UseLikesLoadingProps {
+  userId: string;
   username: string;
   initialData: UserLikesFeedProps['initialData'];
   pageSize: number;
 }
 
-export function useLikesLoading({ username, initialData, pageSize }: UseLikesLoadingProps) {
+export function useLikesLoading({ userId, username, initialData, pageSize }: UseLikesLoadingProps) {
   // Use refs for tracking state without causing re-renders
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const isMountedRef = useRef(true);
@@ -58,8 +59,18 @@ export function useLikesLoading({ username, initialData, pageSize }: UseLikesLoa
       // Get current skip value from ref to ensure it's up-to-date
       const skipValue = currentSkipRef.current;
       
-      // Use the public API route to fetch the next page for this specific user
-      const result = await fetch(`/api/users/${username}/likes?skip=${skipValue}&limit=${pageSize}`);
+      // Use the public API route to fetch the next page for this specific user  
+      const result = await fetch('/api/likes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          skip: skipValue,
+          limit: pageSize
+        })
+      });
       
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);

@@ -794,6 +794,7 @@ export interface UserActivityFeedProps {
 }
 
 export interface UserLikesFeedProps {
+  userId: string;
   username: string;
   initialData: {
     activities: UserLikesActivityItem[];
@@ -816,6 +817,7 @@ export interface ActivityTabContentProps {
 }
 
 export interface LikesTabContentProps {
+  userId: string;
   username: string;
   likesData: ProfileFeedData | null;
   pageSize: number;

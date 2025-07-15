@@ -103,10 +103,17 @@ export function useActivityLoading({
 
     try {
       // Use the API route to fetch the next page
-      const url = new URL(apiEndpoint, window.location.origin);
-      url.searchParams.set('skip', currentSkipValue.toString());
-      url.searchParams.set('limit', pageSize.toString());
-      const result = await fetch(url.toString());
+      const result = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          skip: currentSkipValue,
+          limit: pageSize
+        })
+      });
 
       if (!result.ok) {
         throw new Error(`API error: ${result.status}`);
