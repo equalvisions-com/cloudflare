@@ -20,8 +20,8 @@
 
 import { useReducer, useMemo, useCallback, useRef, useEffect } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import {
   Drawer,
   DrawerContent,
@@ -167,8 +167,8 @@ const followingListReducer = (state: FollowingListState, action: FollowingListAc
 };
 
 export function FollowingList({ username, initialCount = 0, initialFollowing }: FollowingListProps) {
-  // Authentication state (like FollowButton.tsx)
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   
   // Router for navigation
   const router = useRouter();

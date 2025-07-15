@@ -6,11 +6,12 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { SimpleFriendButton } from "@/components/ui/SimpleFriendButton";
 import { Button } from "@/components/ui/button";
-import { useMutation, useConvexAuth } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import type { FollowersListUserData, ViewerFriendshipStatus } from "@/lib/types";
 
 interface VirtualizedFollowerItemProps {
@@ -34,7 +35,8 @@ const FollowerFriendButton = memo<{
   className?: string;
 }>(({ userId, username, displayName, profileImage, initialStatus, onStatusChange, className }) => {
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 

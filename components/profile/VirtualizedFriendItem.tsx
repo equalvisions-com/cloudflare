@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import type { FriendsListFriendWithProfile, ViewerFriendshipStatus } from '@/lib/types';
 import { Id } from '@/convex/_generated/dataModel';
 import { Check, X, Clock, Loader2 } from 'lucide-react';
-import { useMutation, useConvexAuth, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,7 +37,8 @@ const FriendListButton = memo<{
   className?: string;
 }>(({ friendshipId, userId, username, displayName, currentStatus, direction, onStatusChange, className }) => {
   const router = useRouter();
-  const { isAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 

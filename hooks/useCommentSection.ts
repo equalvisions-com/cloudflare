@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useReducer } from 'react';
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
-import { useMutation, useQuery, useConvexAuth } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { 
   UseCommentSectionReturn, 
   CommentSectionProps, 
@@ -103,8 +104,8 @@ export function useCommentSection({
   // React state management (replaces Zustand)
   const [state, dispatch] = useReducer(commentSectionReducer, createInitialState());
   
-  // External dependencies
-  const { isAuthenticated } = useConvexAuth();
+  // External dependencies - use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   

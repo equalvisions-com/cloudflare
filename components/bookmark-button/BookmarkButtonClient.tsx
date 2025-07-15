@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Bookmark } from "lucide-react";
 import { useRouter } from 'next/navigation';
-import { useConvexAuth } from 'convex/react';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useToast } from "@/components/ui/use-toast";

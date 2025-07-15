@@ -40,7 +40,7 @@ import {
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { useConvexAuth } from 'convex/react';
+
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { ProfileImage } from "@/components/profile/ProfileImage";
 import { CommentLikeButton } from "@/components/comment-section/CommentLikeButton";
@@ -119,9 +119,8 @@ export const ActivityDescription = React.memo(({ item, username, name, profileIm
     const isReplyDeleted = deletedReplies.has(reply._id.toString());
 
     // Check if this reply belongs to the current user using ID-based authorization
-    const { isAuthenticated } = useConvexAuth();
-    // Use sidebar context instead of individual users.viewer query to eliminate duplicate
-    const { userId: viewerId } = useSidebar();
+    // Use sidebar context exclusively to eliminate duplicate users:viewer query
+    const { isAuthenticated, userId: viewerId } = useSidebar();
     const isReplyFromCurrentUser = isAuthenticated && viewerId && reply.userId === viewerId;
 
     // Use delete function from custom hook

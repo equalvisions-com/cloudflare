@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { useQuery, useConvexAuth, useMutation } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from "@/convex/_generated/dataModel";
 import { useSidebar } from "@/components/ui/sidebar-context";
@@ -21,9 +21,8 @@ export function useCommentManagement(item: ActivityFeedItem, profileOwnerId?: Id
   const likeCountRef = useRef<HTMLDivElement>(null);
   const replyLikeCountRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Authentication and mutations
-  const { isAuthenticated } = useConvexAuth();
-  const { userId, username, displayName, profileImage } = useSidebar();
+  // Authentication and mutations - use sidebar context exclusively to eliminate duplicate users:viewer query
+  const { isAuthenticated, userId, username, displayName, profileImage } = useSidebar();
   const deleteCommentMutation = useMutation(api.comments.deleteComment);
   const addComment = useMutation(api.comments.addComment);
 

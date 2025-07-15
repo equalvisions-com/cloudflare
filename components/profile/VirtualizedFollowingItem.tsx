@@ -10,7 +10,7 @@ import Image from "next/image";
 import { MinusCircle, PlusCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import { useConvexAuth } from "convex/react";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -41,7 +41,8 @@ export const VirtualizedFollowingItem = memo(({
   showIcon = false // Default to false for Following list (cleaner UI)
 }: VirtualizedFollowingItemProps) => {
   const router = useRouter();
-  const { isAuthenticated: clientIsAuthenticated } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated: clientIsAuthenticated } = useSidebar();
   const { toast } = useToast();
   
   // Use server-provided auth state initially, then client state once available (like FollowButton.tsx)

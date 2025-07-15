@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useMutation, useQuery, useConvexAuth } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Loader2, UserCheck, UserX, UserMinus, UserPlus, Clock, UserCog, UserPen } from "lucide-react";
@@ -43,7 +43,8 @@ interface FriendButtonProps {
 }
 
 const FriendButtonComponent = ({ username, userId, profileData, initialFriendshipStatus, className }: FriendButtonProps) => {
-  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  // Use sidebar context to eliminate duplicate users:viewer query
+  const { isAuthenticated, isLoading: isAuthLoading } = useSidebar();
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
