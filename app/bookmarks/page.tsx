@@ -7,6 +7,7 @@ import { LegalWidget } from "@/components/widgets/LegalWidget";
 import { FeaturedPostsWidget } from "@/components/widgets/FeaturedPostsWidget";
 import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsWidgetSkeleton";
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
+import { WidgetDataProvider } from "@/components/ui/WidgetDataProvider";
 import { Suspense } from "react";
 import { BookmarksPageClientScope } from "./BookmarksPageClientScope";
 import { LAYOUT_CONSTANTS } from "@/lib/layout-constants";
@@ -42,12 +43,15 @@ export default async function BookmarksPage() {
         {/* Notifications Widget */}
         <NotificationsWidgetServer />
         
-        <Suspense fallback={<TrendingWidgetSkeleton />}>
-          <TrendingWidget />
-        </Suspense>
-        <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-          <FeaturedPostsWidget />
-        </Suspense>
+        {/* Widget Data Provider - eliminates duplicate queries between TrendingWidget and FeaturedPostsWidget */}
+        <WidgetDataProvider>
+          <Suspense fallback={<TrendingWidgetSkeleton />}>
+            <TrendingWidget />
+          </Suspense>
+          <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+            <FeaturedPostsWidget />
+          </Suspense>
+        </WidgetDataProvider>
         
         {/* Legal Widget */}
         <LegalWidget />
