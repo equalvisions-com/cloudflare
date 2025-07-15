@@ -205,12 +205,62 @@ export const useRSSEntriesDataLoading = ({
       // Only update if component is still mounted
       if (!isMountedRef.current) return;
       
-      // Transform and append entries - FIXED: Use addEntries instead of setEntries
-      const transformedEntries = transformEntries(response.entries);
+      // CRITICAL FIX: Check response structure and handle both old and new formats
+      // New format: entries are already in { entry, initialData } structure
+      // Old format: entries are raw RSS entries that need transformation
+      let entriesToAdd: RSSEntriesDisplayEntry[];
+      
+      if (response.entries?.length > 0 && response.entries[0]?.entry) {
+        // New format: entries are already transformed with { entry, initialData, postMetadata? }
+        entriesToAdd = response.entries.map((entryWithData: any) => {
+          const feedUrl = entryWithData.entry?.feedUrl || '';
+          
+          // Get or create post metadata
+          let existingMetadata = feedMetadataCache.current[feedUrl];
+          
+          if (!existingMetadata && initialData?.entries) {
+            const matchingEntry = initialData.entries.find(
+              e => e?.entry?.feedUrl === feedUrl
+            );
+            
+            if (matchingEntry?.postMetadata) {
+              existingMetadata = matchingEntry.postMetadata;
+              feedMetadataCache.current[feedUrl] = existingMetadata;
+            }
+          }
+          
+          const finalMetadata = existingMetadata || entryWithData.postMetadata || {
+            title: (entryWithData.entry as any)?.feedTitle || entryWithData.entry?.title || '',
+            featuredImg: entryWithData.entry?.image || '',
+            mediaType: entryWithData.entry?.mediaType || '',
+            categorySlug: '',
+            postSlug: '',
+            verified: false
+          };
+          
+          if (feedUrl) {
+            feedMetadataCache.current[feedUrl] = finalMetadata;
+          }
+          
+          return {
+            entry: entryWithData.entry,
+            initialData: entryWithData.initialData || {
+              likes: { isLiked: false, count: 0 },
+              comments: { count: 0 },
+              retweets: { isRetweeted: false, count: 0 },
+              bookmarks: { isBookmarked: false }
+            },
+            postMetadata: finalMetadata
+          };
+        });
+      } else {
+        // Old format: transform raw entries
+        entriesToAdd = transformEntries(response.entries);
+      }
       
       // CRITICAL FIX: Use addEntries to append, not setEntries to replace
       // This matches the working pattern in RSSFeedClient
-      addEntries(transformedEntries);
+      addEntries(entriesToAdd);
       setCurrentPage(nextPage);
       setHasMore(response.hasMore);
       
