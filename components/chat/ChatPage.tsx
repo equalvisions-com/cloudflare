@@ -36,7 +36,7 @@ import { api } from "@/convex/_generated/api";
 import { useToast } from "@/components/ui/use-toast";
 import { TrendingTopicsGrid } from './TrendingTopicsGrid';
 import { useChatActions } from '@/lib/hooks/useChatActions';
-import { useChatStore } from '@/lib/stores/chatStore';
+import { useChatContext } from '@/lib/contexts/ChatContext';
 import { ActiveButton } from '@/lib/types';
 import {
   TypingIndicator,
@@ -286,8 +286,8 @@ const ChatPageComponent = () => {
   // Add rate limit status query
   const rateLimitStatus = useQuery(api.chat.getRateLimitStatus);
   
-  // Get state and actions from store and custom hook
-  const { reset } = useChatStore();
+  // Get state and actions from context and custom hook
+  const { reset } = useChatContext();
   const {
     activeButton,
     hasTyped,

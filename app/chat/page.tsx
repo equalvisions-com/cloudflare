@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { ChatPage } from '../../components/chat/ChatPage';
+import { ChatProvider } from '@/lib/contexts/ChatContext';
 import { StandardSidebarLayout } from '@/components/ui/StandardSidebarLayout';
 import { LAYOUT_CONSTANTS } from '@/lib/layout-constants';
 import { NotificationsWidgetServer } from '@/components/widgets/NotificationsWidgetServer';
@@ -128,7 +129,9 @@ export default function Page() {
           mainContentClass={LAYOUT_CONSTANTS.MAIN_CONTENT_CLASS}
           rightSidebarClass={LAYOUT_CONSTANTS.RIGHT_SIDEBAR_CLASS}
         >
-          <ChatPage />
+          <ChatProvider>
+            <ChatPage />
+          </ChatProvider>
         </StandardSidebarLayout>
       </div>
     </>

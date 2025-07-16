@@ -1,17 +1,19 @@
 import { useCallback, useRef } from 'react';
-import { useChatStore } from '@/lib/stores/chatStore';
+import { useChatContext } from '@/lib/contexts/ChatContext';
 import { ActiveButton, SelectionState } from '@/lib/types';
 import { useToast } from '@/components/ui/use-toast';
 
 export const useChatActions = () => {
   const {
-    activeButton,
-    hasTyped,
-    shouldAnimate,
-    lastMessageId,
-    likedMessages,
-    dislikedMessages,
-    activeTouchButton,
+    state: {
+      activeButton,
+      hasTyped,
+      shouldAnimate,
+      lastMessageId,
+      likedMessages,
+      dislikedMessages,
+      activeTouchButton,
+    },
     setActiveButton,
     setHasTyped,
     setShouldAnimate,
@@ -19,8 +21,8 @@ export const useChatActions = () => {
     setActiveTouchButton,
     toggleLikeMessage,
     toggleDislikeMessage,
-    resetChat: storeResetChat,
-  } = useChatStore();
+    resetChat: contextResetChat,
+  } = useChatContext();
 
   const { toast } = useToast();
   const selectionStateRef = useRef<SelectionState>({ start: null, end: null });
@@ -167,14 +169,14 @@ export const useChatActions = () => {
       
       setTimeout(() => {
         setMessages([]);
-        storeResetChat();
+        contextResetChat();
         
         if (textareaRef.current) {
           textareaRef.current.focus();
         }
       }, 300);
     }
-  }, [safeVibrate, setShouldAnimate, storeResetChat]);
+  }, [safeVibrate, setShouldAnimate, contextResetChat]);
 
   // Topic click handler
   const handleTopicClick = useCallback((
