@@ -99,10 +99,10 @@ export const useEntriesData = ({
   // Store server metrics for efficient button rendering
   const [serverMetrics, setServerMetrics] = useState<Record<string, any>>({});
   
-  // Get entry guids for metrics - FIXED: Only depend on stable identifiers, not full entries
+  // Get entry guids for metrics - FIXED: Only depend on GUID strings, not entry objects
   const entryGuids = useMemo(() => {
     return entries.map(entry => entry.guid);
-  }, [entries.length, entries.map(e => e.guid).join(',')]); // Only depend on GUIDs, not full entry objects
+  }, [entries.map(e => e.guid).join(',')]); // Only depend on GUID string, not entry objects
   
   // Extract initial metrics from server data for fast rendering without button flashing
   // CRITICAL: Only set once from initial data, don't update reactively

@@ -1097,10 +1097,13 @@ const RSSEntriesClientComponent = ({
   
   entriesStateRef.current = optimizedEntries;
   
-  // Get entry GUIDs for batch metrics query - FIXED: Only depend on stable identifiers, not full entries
+  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {
-    return entries.map(entry => entry.entry.guid);
-  }, [entries.length, entries.map(e => e.entry.guid).join(',')]); // Only depend on GUIDs, not full entry objects
+    if (!initialData?.entries) return [];
+    
+    // Extract GUIDs from initial server data
+    return initialData.entries.map(entry => entry.entry.guid);
+  }, [initialData?.entries]); // Only depend on stable server data
   
   // Extract initial metrics from server data for fast rendering without button flashing
   // CRITICAL: Only set once from initial data, don't update reactively

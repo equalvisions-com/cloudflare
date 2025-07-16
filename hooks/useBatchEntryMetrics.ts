@@ -30,20 +30,37 @@ export function useBatchEntryMetrics(
   const prevLengthRef = useRef(0);
   const hasInitialMetricsRef = useRef(Object.keys(initialMetrics).length > 0);
   
+  // CRITICAL FIX: Use ref to track stable GUIDs and only update when they actually change
+  const stableGuidsRef = useRef<string[]>([]);
+  const stableGuidsStringRef = useRef<string>('');
+  
+  // Check if GUIDs have actually changed (not just dependency objects)
+  const currentGuidsString = entryGuids.filter(Boolean).sort().join(',');
+  const guidsHaveChanged = currentGuidsString !== stableGuidsStringRef.current;
+  
+  // Only update stable refs when GUIDs actually change
+  if (guidsHaveChanged) {
+    stableGuidsRef.current = entryGuids.filter(Boolean).sort();
+    stableGuidsStringRef.current = currentGuidsString;
+  }
+  
+  // Use stable GUIDs for all computations
+  const stableGuids = stableGuidsRef.current;
+  
   // Persistent metrics cache to prevent flashing during pagination
   const [persistentMetrics, setPersistentMetrics] = useState<Map<string, EntryMetrics>>(new Map());
   
   // Deduplicate and filter valid GUIDs with a stable sort
   const uniqueGuids = useMemo(() => {
     const seen = new Set<string>();
-    const validGuids = entryGuids.filter(guid => {
+    const validGuids = stableGuids.filter(guid => {
       if (!guid || seen.has(guid)) return false;
       seen.add(guid);
       return true;
     });
     // Sort to ensure consistent order for React's dependency comparison
     return validGuids.sort();
-  }, [entryGuids]);
+  }, [stableGuids.join(',')]); // Only depend on stable string representation
 
   // Determine which GUIDs need to be fetched from Convex
   const guidsToFetch = useMemo(() => {
@@ -53,17 +70,10 @@ export function useBatchEntryMetrics(
     
     // If skipping initial query, only fetch GUIDs we don't have metrics for
     return uniqueGuids.filter(guid => !initialMetrics[guid]);
-  }, [uniqueGuids, skipInitialQuery, initialMetrics]);
-
-  // Update refs to track changes
-  useEffect(() => {
-    prevEntryGuidsRef.current = entryGuids;
-    prevLengthRef.current = entryGuids.length;
-    hasInitialMetricsRef.current = Object.keys(initialMetrics).length > 0;
-  }, [entryGuids, initialMetrics]);
+  }, [uniqueGuids.join(','), skipInitialQuery, Object.keys(initialMetrics).sort().join(',')]); // Stable dependencies
 
   // Single batch query for entries that need fresh data
-  // CRITICAL: Skip query when no GUIDs to fetch or when we have all metrics from initialData
+  // CRITICAL: Skip query when no GUIDs to fetch
   const metricsArray = useQuery(
     api.entries.batchGetEntriesMetrics, 
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'

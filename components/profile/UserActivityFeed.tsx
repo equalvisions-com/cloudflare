@@ -1793,10 +1793,13 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     handleMouseDown,
   } = useActivityFeedUI({ isActive });
 
-  // Get entry guids as primitive array of strings - memoize to prevent recalculations
+  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {
-    return activities.map(activity => activity.entryGuid);
-  }, [activities.length, activities.map(a => a.entryGuid).join(',')]); // Only depend on GUIDs, not full activity objects
+    if (!initialData?.entryMetrics) return [];
+    
+    // Extract GUIDs from initial server data keys
+    return Object.keys(initialData.entryMetrics);
+  }, [initialData?.entryMetrics]); // Only depend on stable server data
 
   // Extract initial metrics from initial data for server-side rendering optimization
   const initialMetrics = useMemo(() => {

@@ -867,10 +867,13 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     [state.bookmarks]
   );
   
-  // Get entry GUIDs for batch metrics query - FIXED: Only depend on stable identifiers, not full entries
+  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {
-    return state.bookmarks.map(bookmark => bookmark.entryGuid);
-  }, [state.bookmarks.length, state.bookmarks.map(b => b.entryGuid).join(',')]); // Only depend on GUIDs, not full bookmark objects
+    if (!initialData?.entryMetrics) return [];
+    
+    // Extract GUIDs from initial server data keys
+    return Object.keys(initialData.entryMetrics);
+  }, [initialData?.entryMetrics]); // Only depend on stable server data
   
   // Extract initial metrics from server data for fast rendering without button flashing
   // CRITICAL: Only set once from initial data, don't update reactively

@@ -841,10 +841,15 @@ const FeaturedFeedClientComponent = ({
     [visibleEntries]
   );
 
-  // Get entry GUIDs for batch metrics query - FIXED: Only depend on stable identifiers, not full entries
+  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {
-    return visibleEntries.map(entry => entry.entry.guid);
-  }, [visibleEntries]); // Depend on visibleEntries directly, not optimizedEntries
+    if (!initialData?.entries) return [];
+    
+    // Extract GUIDs from initial server data (slice for pagination)
+    return initialData.entries
+      .slice(0, currentPage * pageSize)
+      .map(entry => entry.entry.guid);
+  }, [initialData?.entries, currentPage, pageSize]); // Only depend on stable server data and pagination state
   
   // Extract initial metrics from server data for fast rendering without button flashing
   // CRITICAL: Only set once from initial data, don't update reactively
