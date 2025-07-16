@@ -589,11 +589,10 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     setCommentDrawerOpen,
   } = useLikesFeedUI({ isActive });
 
-  // Get entry guids for metrics
-  const entryGuids = useMemo(() => 
-    activities.map(activity => activity.entryGuid), 
-    [activities]
-  );
+  // Get entry GUIDs for batch metrics query - FIXED: Only depend on stable identifiers, not full activities
+  const entryGuids = useMemo(() => {
+    return activities.map(activity => activity.entryGuid);
+  }, [activities.length, activities.map(a => a.entryGuid).join(',')]); // Only depend on GUIDs, not full activity objects
   
   // Extract initial metrics from initial data for server-side rendering optimization
   const initialMetrics = useMemo(() => {

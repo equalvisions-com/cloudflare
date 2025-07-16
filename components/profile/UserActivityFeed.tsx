@@ -1794,10 +1794,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   } = useActivityFeedUI({ isActive });
 
   // Get entry guids as primitive array of strings - memoize to prevent recalculations
-  const entryGuids = useMemo(() => 
-    activities.map(activity => activity.entryGuid),
-    [activities]
-  );
+  const entryGuids = useMemo(() => {
+    return activities.map(activity => activity.entryGuid);
+  }, [activities.length, activities.map(a => a.entryGuid).join(',')]); // Only depend on GUIDs, not full activity objects
 
   // Extract initial metrics from initial data for server-side rendering optimization
   const initialMetrics = useMemo(() => {

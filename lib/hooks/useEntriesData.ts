@@ -99,20 +99,19 @@ export const useEntriesData = ({
   // Store server metrics for efficient button rendering
   const [serverMetrics, setServerMetrics] = useState<Record<string, any>>({});
   
-  // Get entry guids for metrics
-  const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
+  // Get entry guids for metrics - FIXED: Only depend on stable identifiers, not full entries
+  const entryGuids = useMemo(() => {
+    return entries.map(entry => entry.guid);
+  }, [entries.length, entries.map(e => e.guid).join(',')]); // Only depend on GUIDs, not full entry objects
   
   // Extract initial metrics from server data for fast rendering without button flashing
   // CRITICAL: Only set once from initial data, don't update reactively
   const initialMetrics = useMemo(() => {
     const metrics: Record<string, any> = {};
-    entryGuids.forEach(guid => {
-      if (serverMetrics[guid]) {
-        metrics[guid] = serverMetrics[guid];
-      }
-    });
+    // Keep this empty for search entries since we don't have stable initial data
+    // Server metrics will be handled by the reactive subscription
     return metrics;
-  }, [entryGuids]); // Only depend on entryGuids, not serverMetrics
+  }, []); // No dependencies - stable empty object
   
   // Use batch metrics hook with server metrics for immediate correct rendering
   // Server provides initial metrics for fast rendering, client hook provides reactive updates
