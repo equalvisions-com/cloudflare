@@ -26,7 +26,7 @@ const optimizeActivitiesForMemory = (activities: ActivityFeedGroupedActivity[], 
   // This ensures we don't run out of memory with very large activity feeds
   return activities.slice(0, maxSize);
 };
-import React, { useCallback, useRef, useMemo } from "react";
+import React, { useCallback, useRef, useMemo, useReducer } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -58,11 +58,99 @@ import {
   ActivityFeedGroupRendererProps,
   ActivityDescriptionProps
 } from '@/lib/types';
-import { useUserActivityFeedStore } from '@/lib/stores/userActivityFeedStore';
 import { useCommentManagement } from '@/hooks/useCommentManagement';
 import { useActivityLoading } from '@/hooks/useActivityLoading';
 import { useActivityFeedUI } from '@/hooks/useActivityFeedUI';
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
+
+// State interface for useReducer
+interface UserActivityFeedState {
+  // Core data
+  activities: ActivityFeedItem[];
+  entryDetails: Record<string, ActivityFeedRSSEntry>;
+  commentLikes: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  
+  // Pagination
+  currentSkip: number;
+  hasMore: boolean;
+  
+  // Loading states
+  isLoading: boolean;
+  isInitialLoad: boolean;
+}
+
+// Action types for useReducer
+type UserActivityFeedAction = 
+  | { type: 'SET_INITIAL_DATA'; payload: {
+      activities: ActivityFeedItem[];
+      entryDetails: Record<string, ActivityFeedRSSEntry>;
+      hasMore: boolean;
+      commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+    }}
+  | { type: 'START_LOADING_MORE' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: {
+      activities: ActivityFeedItem[];
+      entryDetails: Record<string, ActivityFeedRSSEntry>;
+      hasMore: boolean;
+      commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+    }}
+  | { type: 'LOAD_MORE_FAILURE' }
+  | { type: 'SET_INITIAL_LOAD_COMPLETE' }
+  | { type: 'RESET' };
+
+// Initial state factory
+const createInitialState = (): UserActivityFeedState => ({
+  activities: [],
+  entryDetails: {},
+  commentLikes: {},
+  currentSkip: 0,
+  hasMore: false,
+  isLoading: false,
+  isInitialLoad: true,
+});
+
+// Reducer function
+const userActivityFeedReducer = (state: UserActivityFeedState, action: UserActivityFeedAction): UserActivityFeedState => {
+  switch (action.type) {
+    case 'SET_INITIAL_DATA':
+      return {
+        ...state,
+        activities: action.payload.activities,
+        entryDetails: action.payload.entryDetails,
+        hasMore: action.payload.hasMore,
+        currentSkip: action.payload.activities.length,
+        isLoading: false,
+        isInitialLoad: false,
+        commentLikes: action.payload.commentLikes || {},
+      };
+    
+    case 'START_LOADING_MORE':
+      return { ...state, isLoading: true };
+    
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        activities: [...state.activities, ...action.payload.activities],
+        entryDetails: { ...state.entryDetails, ...action.payload.entryDetails },
+        hasMore: action.payload.hasMore,
+        currentSkip: state.currentSkip + action.payload.activities.length,
+        isLoading: false,
+        commentLikes: { ...state.commentLikes, ...(action.payload.commentLikes || {}) },
+      };
+    
+    case 'LOAD_MORE_FAILURE':
+      return { ...state, isLoading: false };
+    
+    case 'SET_INITIAL_LOAD_COMPLETE':
+      return { ...state, isInitialLoad: false };
+    
+    case 'RESET':
+      return createInitialState();
+    
+    default:
+      return state;
+  }
+};
 
 // Custom hooks are now extracted to separate files
 
@@ -1698,8 +1786,8 @@ const ActivityGroupRenderer = React.memo(({
 
            return (
             <div
-              // Use comment._id for key
-              key={`comment-${comment._id?.toString()}`}
+              // Use unique key combining group and comment to prevent duplicates
+              key={`group-${group.entryGuid}-comment-${comment._id?.toString()}`}
               // Remove p-4 from here, keep border-t and relative
               className="border-t relative"
             >
@@ -1753,31 +1841,71 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   const initialActivities = initialData?.activities || [];
   const initialEntryDetails = initialData?.entryDetails || {};
   const initialHasMore = initialData?.hasMore || false;
-  // Removed initialEntryMetrics since we're using batch hook consistently
+  const initialCommentLikes: Record<string, { commentId: string; isLiked: boolean; count: number; }> = {};
+  if (initialData?.entryMetrics) {
+    Object.entries(initialData.entryMetrics).forEach(([guid, metrics]) => {
+      if (metrics.commentLikes) {
+        Object.assign(initialCommentLikes, metrics.commentLikes);
+      }
+    });
+  }
 
-  // Use custom hooks for business logic
+  // Main state with useReducer
+  const [state, dispatch] = useReducer(userActivityFeedReducer, createInitialState());
+
+  // Create action dispatchers
+  const setInitialData = useCallback((payload: {
+    activities: ActivityFeedItem[];
+    entryDetails: Record<string, ActivityFeedRSSEntry>;
+    hasMore: boolean;
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  }) => dispatch({ type: 'SET_INITIAL_DATA', payload }), []);
+
+  const startLoadingMore = useCallback(() => dispatch({ type: 'START_LOADING_MORE' }), []);
+  
+  const loadMoreSuccess = useCallback((payload: {
+    activities: ActivityFeedItem[];
+    entryDetails: Record<string, ActivityFeedRSSEntry>;
+    hasMore: boolean;
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  }) => dispatch({ type: 'LOAD_MORE_SUCCESS', payload }), []);
+
+  const loadMoreFailure = useCallback(() => dispatch({ type: 'LOAD_MORE_FAILURE' }), []);
+  const setInitialLoadComplete = useCallback(() => dispatch({ type: 'SET_INITIAL_LOAD_COMPLETE' }), []);
+  const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
+
+  // Use custom hooks for business logic - now passing state and actions
   const {
-    activities,
-    entryDetails,
-    hasMore,
-    isLoading,
-    isInitialLoad,
     groupedActivities,
     uiIsInitialLoading,
     uiHasNoActivities,
     loadMoreRef,
     loadMoreActivities,
-    reset,
-    setInitialLoadComplete,
   } = useActivityLoading({
-      userId,
-      currentUserId,
-      apiEndpoint,
-      pageSize,
+    userId,
+    currentUserId,
+    apiEndpoint,
+    pageSize,
     isActive,
     initialActivities,
     initialEntryDetails,
     initialHasMore,
+    initialCommentLikes,
+    // Pass current state
+    activities: state.activities,
+    entryDetails: state.entryDetails,
+    hasMore: state.hasMore,
+    isLoading: state.isLoading,
+    currentSkip: state.currentSkip,
+    isInitialLoad: state.isInitialLoad,
+    commentLikes: state.commentLikes,
+    // Pass action dispatchers
+    setInitialData,
+    startLoadingMore,
+    loadMoreSuccess,
+    loadMoreFailure,
+    setInitialLoadComplete,
+    reset,
   });
 
   const {
@@ -1856,9 +1984,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
-    enabled: hasMore && !isLoading,
-    isLoading: isLoading,
-    hasMore,
+    enabled: state.hasMore && !state.isLoading,
+    isLoading: state.isLoading,
+    hasMore: state.hasMore,
     rootMargin: '1000px',
     threshold: 0.1
   });
@@ -1870,7 +1998,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     <ActivityGroupRenderer
       key={`group-${group.entryGuid}-${group.type}`} // Remove index from key
       group={group}
-      entryDetails={entryDetails}
+      entryDetails={state.entryDetails}
       username={username}
       name={name}
       profileImage={profileImage}
@@ -1882,7 +2010,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
       reactiveCommentLikes={reactiveCommentLikes}
     />
   ), [
-    entryDetails,
+    state.entryDetails,
     username,
     name,
     profileImage,
@@ -1942,8 +2070,8 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
           
           {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
           <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-            {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-            {!hasMore && activities.length > 0 && <div></div>}
+            {state.hasMore && state.isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+            {!state.hasMore && state.activities.length > 0 && <div></div>}
           </div>
           
           {selectedCommentEntry && (

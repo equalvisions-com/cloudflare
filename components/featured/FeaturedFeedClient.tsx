@@ -1082,7 +1082,7 @@ FeaturedFeedClient.displayName = 'FeaturedFeedClient';
 export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
   return (
     <ErrorBoundary>
-      <FeaturedFeedClient {...props} />
+        <FeaturedFeedClient {...props} />
     </ErrorBoundary>
   );
 }); 

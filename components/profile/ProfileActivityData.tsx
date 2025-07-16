@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
-import { cache, Suspense, useCallback, useRef, useEffect } from "react";
+import { cache, Suspense } from "react";
 
 // Import the client component
 import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";

@@ -1,39 +1,49 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { 
-  useRSSFeedStore, 
-  useRSSFeedPagination as useRSSFeedPaginationState, 
-  useRSSFeedLoading, 
-  useRSSFeedMetadata,
-  useRSSFeedAddEntries,
-  useRSSFeedSetCurrentPage,
-  useRSSFeedSetHasMore,
-  useRSSFeedSetLoading,
-  useRSSFeedSetFetchError,
-  useRSSFeedEntries // Add this to get current entries count
-} from '@/lib/stores/rssFeedStore';
 import type { UseRSSFeedPaginationReturn, RSSFeedEntry, RSSFeedAPIResponse } from '@/lib/types';
+
+// Define types for the hook parameters
+interface RSSFeedState {
+  entries: RSSFeedEntry[];
+  pagination: {
+    currentPage: number;
+    hasMore: boolean;
+    totalEntries: number;
+  };
+  loading: {
+    isLoading: boolean;
+    isInitialRender: boolean;
+    fetchError: Error | null;
+  };
+  feedMetadata: {
+    postTitle: string;
+    feedUrl: string;
+    featuredImg?: string;
+    mediaType?: string;
+    verified: boolean;
+    pageSize: number;
+  };
+}
+
+type RSSFeedAction =
+  | { type: 'ADD_ENTRIES'; payload: RSSFeedEntry[] }
+  | { type: 'SET_CURRENT_PAGE'; payload: number }
+  | { type: 'SET_HAS_MORE'; payload: boolean }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_FETCH_ERROR'; payload: Error | null };
 
 /**
  * Custom hook for RSS Feed pagination logic
  * Handles API calls, data transformation, and pagination state
- * Extracted from RSSFeedClient to separate concerns and eliminate useState
+ * Updated to work with useReducer instead of Zustand
  */
 export const useRSSFeedPaginationHook = (
+  state: RSSFeedState,
+  dispatch: React.Dispatch<RSSFeedAction>,
   customLoadMore?: () => Promise<void>,
   isActive: boolean = true
 ): UseRSSFeedPaginationReturn => {
-  // Get state from Zustand store
-  const pagination = useRSSFeedPaginationState();
-  const loading = useRSSFeedLoading();
-  const feedMetadata = useRSSFeedMetadata();
-  const entries = useRSSFeedEntries(); // Add this to get current entries count
-  
-  // Get individual actions from store (prevents object recreation)
-  const addEntries = useRSSFeedAddEntries();
-  const setCurrentPage = useRSSFeedSetCurrentPage();
-  const setHasMore = useRSSFeedSetHasMore();
-  const setLoading = useRSSFeedSetLoading();
-  const setFetchError = useRSSFeedSetFetchError();
+  // Extract state values for easier access
+  const { pagination, loading, feedMetadata, entries } = state;
 
   // CRITICAL: Use refs to track current values and avoid stale closures
   // This prevents the loadMoreEntries callback from recreating on every state change
@@ -110,7 +120,7 @@ export const useRSSFeedPaginationHook = (
       return;
     }
     
-    setLoading(true);
+    dispatch({ type: 'SET_LOADING', payload: true });
     const nextPage = currentPageValue + 1;
     
     try {
@@ -130,19 +140,19 @@ export const useRSSFeedPaginationHook = (
       });
       
       if (!data.entries?.length) {
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
         return;
       }
       
       const transformedEntries = transformApiEntries(data.entries);
       
-      // Update store state
-      addEntries(transformedEntries);
-      setCurrentPage(nextPage);
+      // Update state using dispatch
+      dispatch({ type: 'ADD_ENTRIES', payload: transformedEntries });
+      dispatch({ type: 'SET_CURRENT_PAGE', payload: nextPage });
       
       // Update hasMore if provided in response
       if (typeof data.hasMore === 'boolean') {
-        setHasMore(data.hasMore);
+        dispatch({ type: 'SET_HAS_MORE', payload: data.hasMore });
         console.log('📄 RSS Pagination: Updated hasMore', { 
           hasMore: data.hasMore,
           reason: data.hasMore ? 'more entries available' : 'no more entries'
@@ -151,19 +161,15 @@ export const useRSSFeedPaginationHook = (
       
     } catch (error) {
       console.error('📄 RSS Pagination: Error', error);
-      setFetchError(error instanceof Error ? error : new Error(String(error)));
+      dispatch({ type: 'SET_FETCH_ERROR', payload: error instanceof Error ? error : new Error(String(error)) });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [
     customLoadMore,
     createApiUrl,
     transformApiEntries,
-    setLoading,
-    addEntries,
-    setCurrentPage,
-    setHasMore,
-    setFetchError,
+    dispatch,
     pagination.totalEntries,
     entries.length
   ]); // STABLE dependencies - no state values that change frequently

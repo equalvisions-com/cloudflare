@@ -1,18 +1,18 @@
 import { useCallback } from 'react';
-import { usePostSearchStore } from '@/lib/stores/postSearchStore';
+import { usePostSearchContext } from '@/lib/contexts/PostSearchContext';
 
 /**
  * Custom hook for PostSearchProvider functionality
  * Separates provider logic from component rendering
- * Removed unnecessary cleanup - store persists across component lifecycles
+ * Migrated from Zustand to React Context + useReducer for better React/Next.js practices
  */
 export const usePostSearchProvider = () => {
-  const reset = usePostSearchStore((state) => state.reset);
+  const { actions } = usePostSearchContext();
 
   // Provide manual reset function if needed
   const manualReset = useCallback(() => {
-    reset();
-  }, [reset]);
+    actions.reset();
+  }, [actions.reset]);
 
   return {
     manualReset

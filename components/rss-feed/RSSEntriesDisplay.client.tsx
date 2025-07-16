@@ -546,7 +546,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
                       className="hover:opacity-80 transition-opacity"
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
-                    >
+                                          >
                       <PrefetchAnchor href={postUrl}>
                         <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {safePostMetadata.title}
@@ -1105,7 +1105,7 @@ const RSSEntriesClientComponent = ({
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
-  
+
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
   const entriesStateRef = useRef<RSSEntriesDisplayEntry[]>([]);
@@ -1385,9 +1385,9 @@ const RSSEntriesClientComponent = ({
             ) : (
               <>
                 <MoveUp className="h-3 w-3" aria-hidden="true" />
-                <span className="text-sm font-medium">
+              <span className="text-sm font-medium">
                   {state.notificationCount} new {state.notificationCount === 1 ? 'post' : 'posts'}
-                </span>
+              </span>
               </>
             )}
           </button>
@@ -1408,13 +1408,13 @@ const RSSEntriesClientComponent = ({
               variant="outline"
               className="flex items-center gap-2"
               onClick={handleRefreshAttempt}
-              aria-label="Retry refreshing RSS feed"
-            >
-              <ArrowDown className="h-4 w-4" aria-hidden="true" />
-              Refresh Feed
-            </Button>
-          </div>
-        </section>
+                aria-label="Retry refreshing RSS feed"
+          >
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
+            Refresh Feed
+          </Button>
+        </div>
+          </section>
       )}
       
       {/* Main content */}
@@ -1424,20 +1424,20 @@ const RSSEntriesClientComponent = ({
           {state.totalEntries > 0 && ` (${state.totalEntries} total entries)`}
           {state.isLoading && ' - Loading...'}
         </h1>
-        <EntriesContent
-          paginatedEntries={optimizedEntries}
+      <EntriesContent
+        paginatedEntries={optimizedEntries}
           hasMore={state.hasMore}
-          loadMoreRef={loadMoreRef}
+        loadMoreRef={loadMoreRef}
           isPending={state.isLoading}
-          loadMore={loadMoreEntries}
-          entryMetrics={null}
-          postMetadata={undefined}
-          initialData={memoizedInitialData}
-          onOpenCommentDrawer={memoizedCommentHandlers.open}
+        loadMore={loadMoreEntries}
+        entryMetrics={null}
+        postMetadata={undefined}
+        initialData={memoizedInitialData}
+        onOpenCommentDrawer={memoizedCommentHandlers.open}
           isInitializing={!state.hasInitialized}
-          pageSize={ITEMS_PER_REQUEST}
-          getMetrics={getMetrics}
-        />
+        pageSize={ITEMS_PER_REQUEST}
+        getMetrics={getMetrics}
+      />
       </section>
       
       {/* Comment drawer */}

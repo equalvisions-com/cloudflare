@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { useSearchResultsStore } from '@/lib/stores/searchResultsStore';
+import { useSearchResultsContext } from '@/lib/contexts/SearchResultsContext';
 import type { PostSearchRSSData } from '@/lib/types';
 
 interface UseSearchResultsProps {
@@ -15,16 +15,19 @@ export const useSearchResults = ({
   searchQuery, 
   mediaType 
 }: UseSearchResultsProps) => {
+  const { state, actions } = useSearchResultsContext();
   const {
     searchData,
     isLoading,
     currentPage,
+  } = state;
+  const {
     setSearchData,
     setIsLoading,
     setCurrentPage,
     appendSearchData,
     reset
-  } = useSearchResultsStore();
+  } = actions;
 
   // Use refs to track current values for callbacks
   const currentPageRef = useRef(currentPage);
@@ -79,8 +82,8 @@ export const useSearchResults = ({
     const currentPageValue = currentPageRef.current;
     const isLoadingValue = isLoadingRef.current;
     
-    // Get current searchData to avoid stale closure
-    const currentSearchData = useSearchResultsStore.getState().searchData;
+    // Use current state directly since we're in React Context
+    const currentSearchData = searchData;
     
     if (isLoadingValue || !currentSearchData?.hasMore) {
       return;

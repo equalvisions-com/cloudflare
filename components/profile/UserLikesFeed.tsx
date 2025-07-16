@@ -5,27 +5,7 @@ import { format } from "date-fns";
 import { Podcast, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
-
-// Memory optimization for large datasets - Virtual scrolling configuration
-const VIRTUAL_SCROLL_CONFIG = {
-  overscan: 2000, // Current buffer size
-  maxBufferSize: 10000, // Maximum items to keep in memory
-  recycleThreshold: 5000, // Start recycling items after this many
-  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
-};
-
-// Memory management for large likes lists
-const optimizeLikesForMemory = (activities: UserLikesActivityItem[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): UserLikesActivityItem[] => {
-  // If we're under the threshold, return as-is
-  if (activities.length <= maxSize) {
-    return activities;
-  }
-  
-  // Keep the most recent likes up to maxSize
-  // This ensures we don't run out of memory with very large likes feeds
-  return activities.slice(0, maxSize);
-};
-import React, { useCallback, useRef, useMemo, memo } from "react";
+import React, { useCallback, useRef, useMemo, memo, useReducer } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Image from "next/image";
@@ -49,10 +29,126 @@ import {
   UserLikesRSSEntry, 
   InteractionStates 
 } from "@/lib/types";
-import { useUserLikesFeedStore } from "@/lib/stores/userLikesFeedStore";
 import { useBatchEntryMetrics } from "@/hooks/useBatchEntryMetrics";
-import { useLikesLoading } from "@/hooks/useLikesLoading";
-import { useLikesFeedUI } from "@/hooks/useLikesFeedUI";
+
+// Memory optimization for large datasets - Virtual scrolling configuration
+const VIRTUAL_SCROLL_CONFIG = {
+  overscan: 2000, // Current buffer size
+  maxBufferSize: 10000, // Maximum items to keep in memory
+  recycleThreshold: 5000, // Start recycling items after this many
+  increaseViewportBy: { top: 600, bottom: 600 }, // Viewport extension
+};
+
+// Memory management for large likes lists
+const optimizeLikesForMemory = (activities: UserLikesActivityItem[], maxSize: number = VIRTUAL_SCROLL_CONFIG.maxBufferSize): UserLikesActivityItem[] => {
+  // If we're under the threshold, return as-is
+  if (activities.length <= maxSize) {
+    return activities;
+  }
+  
+  // Keep the most recent likes up to maxSize
+  // This ensures we don't run out of memory with very large likes feeds
+  return activities.slice(0, maxSize);
+};
+
+// State interface for useReducer
+interface UserLikesFeedState {
+  activities: UserLikesActivityItem[];
+  isLoading: boolean;
+  hasMore: boolean;
+  entryDetails: Record<string, UserLikesRSSEntry>;
+  currentSkip: number;
+  isInitialLoad: boolean;
+  // Comment drawer state
+  commentDrawerOpen: boolean;
+  selectedCommentEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+}
+
+// Action types for useReducer
+type UserLikesFeedAction = 
+  | { type: 'SET_INITIAL_DATA'; payload: { 
+      activities: UserLikesActivityItem[], 
+      entryDetails: Record<string, UserLikesRSSEntry>, 
+      hasMore: boolean 
+    }}
+  | { type: 'START_LOADING_MORE' }
+  | { type: 'LOAD_MORE_SUCCESS'; payload: { 
+      activities: UserLikesActivityItem[], 
+      entryDetails: Record<string, UserLikesRSSEntry>, 
+      hasMore: boolean 
+    }}
+  | { type: 'LOAD_MORE_FAILURE' }
+  | { type: 'SET_INITIAL_LOAD_COMPLETE' }
+  | { type: 'SET_CURRENT_SKIP'; payload: number }
+  | { type: 'SET_COMMENT_DRAWER_OPEN'; payload: boolean }
+  | { type: 'SET_SELECTED_COMMENT_ENTRY'; payload: UserLikesFeedState['selectedCommentEntry'] }
+  | { type: 'RESET' };
+
+// Initial state factory
+const createInitialState = (): UserLikesFeedState => ({
+  activities: [],
+  isLoading: false,
+  hasMore: false,
+  entryDetails: {},
+  currentSkip: 0,
+  isInitialLoad: true,
+  commentDrawerOpen: false,
+  selectedCommentEntry: null,
+});
+
+// Reducer function
+const userLikesFeedReducer = (state: UserLikesFeedState, action: UserLikesFeedAction): UserLikesFeedState => {
+  switch (action.type) {
+    case 'SET_INITIAL_DATA':
+      return {
+        ...state,
+        activities: action.payload.activities,
+        entryDetails: action.payload.entryDetails,
+        hasMore: action.payload.hasMore,
+        currentSkip: action.payload.activities.length,
+        isLoading: false,
+        isInitialLoad: false,
+      };
+    
+    case 'START_LOADING_MORE':
+      return { ...state, isLoading: true };
+    
+    case 'LOAD_MORE_SUCCESS':
+      return {
+        ...state,
+        activities: [...state.activities, ...action.payload.activities],
+        entryDetails: { ...state.entryDetails, ...action.payload.entryDetails },
+        hasMore: action.payload.hasMore,
+        currentSkip: state.currentSkip + action.payload.activities.length,
+        isLoading: false,
+      };
+    
+    case 'LOAD_MORE_FAILURE':
+      return { ...state, isLoading: false };
+    
+    case 'SET_INITIAL_LOAD_COMPLETE':
+      return { ...state, isInitialLoad: false };
+    
+    case 'SET_CURRENT_SKIP':
+      return { ...state, currentSkip: action.payload };
+    
+    case 'SET_COMMENT_DRAWER_OPEN':
+      return { ...state, commentDrawerOpen: action.payload };
+    
+    case 'SET_SELECTED_COMMENT_ENTRY':
+      return { ...state, selectedCommentEntry: action.payload };
+    
+    case 'RESET':
+      return createInitialState();
+    
+    default:
+      return state;
+  }
+};
 
 // Memoized timestamp formatter
 const useFormattedTimestamp = (pubDate?: string) => {
@@ -571,23 +667,147 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
   // Get current user ID from sidebar context to optimize API calls
   const { userId: currentUserId } = useSidebar();
   
-  // Use custom hooks for business logic separation
-  const {
-    activities,
-    entryDetails,
-    hasMore,
-    isLoading,
-    isInitialLoad,
-    loadMoreRef,
-    loadMoreActivities,
-  } = useLikesLoading({ userId, currentUserId, username, initialData, pageSize });
+  // Main state with useReducer
+  const [state, dispatch] = useReducer(userLikesFeedReducer, createInitialState());
+  
+  // Refs for state persistence
+  const isMountedRef = useRef(true);
+  const currentSkipRef = useRef(0);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const {
-    commentDrawerOpen,
-    selectedCommentEntry,
-    handleOpenCommentDrawer,
-    setCommentDrawerOpen,
-  } = useLikesFeedUI({ isActive });
+  // Memoized dispatch actions
+  const setInitialData = useCallback((payload: { 
+    activities: UserLikesActivityItem[], 
+    entryDetails: Record<string, UserLikesRSSEntry>, 
+    hasMore: boolean 
+  }) => dispatch({ type: 'SET_INITIAL_DATA', payload }), []);
+  
+  const startLoadingMore = useCallback(() => dispatch({ type: 'START_LOADING_MORE' }), []);
+  
+  const loadMoreSuccess = useCallback((payload: { 
+    activities: UserLikesActivityItem[], 
+    entryDetails: Record<string, UserLikesRSSEntry>, 
+    hasMore: boolean 
+  }) => dispatch({ type: 'LOAD_MORE_SUCCESS', payload }), []);
+  
+  const loadMoreFailure = useCallback(() => dispatch({ type: 'LOAD_MORE_FAILURE' }), []);
+  
+  const setCommentDrawerOpen = useCallback((open: boolean) => dispatch({ type: 'SET_COMMENT_DRAWER_OPEN', payload: open }), []);
+  
+  const setSelectedCommentEntry = useCallback((entry: UserLikesFeedState['selectedCommentEntry']) => 
+    dispatch({ type: 'SET_SELECTED_COMMENT_ENTRY', payload: entry }), []);
+
+  // Sync refs with state
+  currentSkipRef.current = state.currentSkip;
+
+  // Process initial data when received - use useMemo for efficiency
+  useMemo(() => {
+    if (!initialData?.activities) return;
+    
+    setInitialData({
+      activities: initialData.activities,
+      entryDetails: initialData.entryDetails || {},
+      hasMore: initialData.hasMore
+    });
+    currentSkipRef.current = initialData.activities.length;
+  }, [initialData, setInitialData]);
+
+  // Function to load more activities
+  const loadMoreActivities = useCallback(async () => {
+    if (!isMountedRef.current || state.isLoading || !state.hasMore) {
+      return;
+    }
+
+    startLoadingMore();
+    
+    try {
+      // Get current skip value from ref to ensure it's up-to-date
+      const skipValue = currentSkipRef.current;
+      
+      // Use the public API route to fetch the next page for this specific user  
+      const result = await fetch('/api/likes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          currentUserId,
+          skip: skipValue,
+          limit: pageSize
+        })
+      });
+      
+      if (!result.ok) {
+        throw new Error(`API error: ${result.status}`);
+      }
+      
+      const data = await result.json();
+      
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+      
+      if (!data.activities?.length) {
+        loadMoreFailure();
+        return;
+      }
+      
+      // Update both the ref and the state for the new skip value
+      const newSkip = skipValue + data.activities.length;
+      currentSkipRef.current = newSkip;
+      
+      loadMoreSuccess({
+        activities: data.activities,
+        entryDetails: data.entryDetails || {},
+        hasMore: data.hasMore
+      });
+    } catch (error) {
+      loadMoreFailure();
+    }
+  }, [userId, currentUserId, pageSize, state.isLoading, state.hasMore, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  
+  // Callback to open the comment drawer for a given entry
+  const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
+    if (!isMountedRef.current) return;
+    
+    setSelectedCommentEntry({ entryGuid, feedUrl, initialData });
+    setCommentDrawerOpen(true);
+  }, [setSelectedCommentEntry, setCommentDrawerOpen]);
+
+  // Use the shared focus prevention hook
+  useFeedFocusPrevention(isActive && !state.commentDrawerOpen, '.user-likes-feed-container');
+
+  // Single legitimate cleanup useEffect for component mount/unmount
+  React.useEffect(() => {
+    // Set mounted to true when component mounts
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Check if we need to load more when content is short - legitimate useEffect for timer cleanup
+  React.useEffect(() => {
+    if (!state.hasMore || state.isLoading || state.activities.length === 0) return;
+    
+    const checkContentHeight = () => {
+      if (!isMountedRef.current || !loadMoreRef.current) return;
+      
+      const viewportHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // If the document is shorter than the viewport, load more
+      if (documentHeight <= viewportHeight) {
+        loadMoreActivities();
+      }
+    };
+    
+    // Reduced delay from 1000ms to 200ms for faster response
+    const timer = setTimeout(checkContentHeight, 200);
+    
+    return () => clearTimeout(timer);
+  }, [state.activities.length, state.hasMore, state.isLoading, loadMoreActivities]);
 
   // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {
@@ -641,17 +861,17 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
 
   // Universal delayed intersection observer hook - exactly like RSSEntriesDisplay
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
-    enabled: hasMore && !isLoading,
-    isLoading: isLoading,
-    hasMore,
+    enabled: state.hasMore && !state.isLoading,
+    isLoading: state.isLoading,
+    hasMore: state.hasMore,
     rootMargin: '1000px',
     threshold: 0.1
   });
 
   // Apply memory optimization to prevent excessive memory usage
   const optimizedActivities = useMemo(() => 
-    optimizeLikesForMemory(activities), 
-    [activities]
+    optimizeLikesForMemory(state.activities), 
+    [state.activities]
   );
 
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
@@ -660,20 +880,20 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     return (
       <ActivityCard 
         activity={activity} 
-        entryDetails={entryDetails[activity.entryGuid]}
+        entryDetails={state.entryDetails[activity.entryGuid]}
         getEntryMetrics={getMetrics}
         onOpenCommentDrawer={handleOpenCommentDrawer}
       />
     );
-  }, [entryDetails, getMetrics, handleOpenCommentDrawer]);
+  }, [state.entryDetails, getMetrics, handleOpenCommentDrawer]);
 
   // Loading state - only show for initial load and initial metrics fetch
-  if ((isLoading && isInitialLoad) || (isInitialLoad && activities.length > 0 && isMetricsLoading)) {
+  if ((state.isLoading && state.isInitialLoad) || (state.isInitialLoad && state.activities.length > 0 && isMetricsLoading)) {
     return <LoadingSpinner />;
   }
 
   // No likes state
-  if (activities.length === 0 && !isLoading) {
+  if (state.activities.length === 0 && !state.isLoading) {
     return <EmptyState />;
   }
 
@@ -708,16 +928,16 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
       
       {/* Fixed position load more container at bottom - exactly like RSSEntriesDisplay */}
       <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-        {hasMore && isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-        {!hasMore && activities.length > 0 && <div></div>}
+        {state.hasMore && state.isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+        {!state.hasMore && state.activities.length > 0 && <div></div>}
       </div>
       
-      {selectedCommentEntry && (
+      {state.selectedCommentEntry && (
         <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
+          entryGuid={state.selectedCommentEntry.entryGuid}
+          feedUrl={state.selectedCommentEntry.feedUrl}
+          initialData={state.selectedCommentEntry.initialData}
+          isOpen={state.commentDrawerOpen}
           setIsOpen={setCommentDrawerOpen}
           skipQuery={true}
         />

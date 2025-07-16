@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
-import { useUserActivityFeedStore } from '@/lib/stores/userActivityFeedStore';
 import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
 
 interface UseActivityLoadingProps {
@@ -12,6 +11,31 @@ interface UseActivityLoadingProps {
   initialEntryDetails: Record<string, any>;
   initialHasMore: boolean;
   initialCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  // State values passed from parent component
+  activities: any[];
+  entryDetails: Record<string, any>;
+  hasMore: boolean;
+  isLoading: boolean;
+  currentSkip: number;
+  isInitialLoad: boolean;
+  commentLikes: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  // Action dispatchers passed from parent component
+  setInitialData: (payload: { 
+    activities: any[], 
+    entryDetails: Record<string, any>, 
+    hasMore: boolean,
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
+  }) => void;
+  startLoadingMore: () => void;
+  loadMoreSuccess: (payload: { 
+    activities: any[], 
+    entryDetails: Record<string, any>, 
+    hasMore: boolean,
+    commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
+  }) => void;
+  loadMoreFailure: () => void;
+  setInitialLoadComplete: () => void;
+  reset: () => void;
 }
 
 export function useActivityLoading({
@@ -23,10 +47,8 @@ export function useActivityLoading({
   initialActivities,
   initialEntryDetails,
   initialHasMore,
-  initialCommentLikes
-}: UseActivityLoadingProps) {
-  // Get store state and actions
-  const {
+  initialCommentLikes,
+  // State values from parent
     activities,
     entryDetails,
     hasMore,
@@ -34,14 +56,14 @@ export function useActivityLoading({
     currentSkip,
     isInitialLoad,
     commentLikes,
+  // Action dispatchers from parent
     setInitialData,
     startLoadingMore,
     loadMoreSuccess,
     loadMoreFailure,
     setInitialLoadComplete,
     reset
-  } = useUserActivityFeedStore();
-
+}: UseActivityLoadingProps) {
   // Initialize store with initial data using useEffect to prevent re-initialization
   useEffect(() => {
     if (initialActivities.length > 0 && activities.length === 0 && isInitialLoad) {
@@ -133,7 +155,7 @@ export function useActivityLoading({
         return;
       }
 
-      // Use the store to update state in one go
+      // Use the dispatched actions to update state in one go
       loadMoreSuccess({
         activities: data.activities,
         entryDetails: data.entryDetails || {},
@@ -143,7 +165,7 @@ export function useActivityLoading({
     } catch (error) {
       loadMoreFailure();
     }
-  }, [isActive, apiEndpoint, pageSize, currentSkipRef, hasMoreRef, isLoadingRef, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [isActive, apiEndpoint, pageSize, userId, currentUserId, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
 
   // Use the shared delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {

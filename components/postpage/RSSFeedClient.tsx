@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense, type JSX } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense, useReducer, useContext, type JSX } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";
@@ -15,19 +15,253 @@ import type {
   RSSFeedClientProps,
   RSSFeedAPIResponse
 } from "@/lib/types";
-import { 
-  createRSSFeedStore,
-  RSSFeedStoreContext,
-  useRSSFeedEntries,
-  useRSSFeedLoading,
-  useRSSFeedPagination as useRSSFeedPaginationState,
-  useRSSFeedCommentDrawer,
-  useRSSFeedInitialize,
-  useRSSFeedSetActive,
-  useRSSFeedSetSearchMode,
-  useRSSFeedHasMore,
-  useRSSFeedIsLoading
-} from '@/lib/stores/rssFeedStore';
+
+// RSS Feed State Management with useReducer - Replacing Zustand
+interface RSSFeedLoadingState {
+  isLoading: boolean;
+  isInitialRender: boolean;
+  fetchError: Error | null;
+}
+
+interface RSSFeedPaginationState {
+  currentPage: number;
+  hasMore: boolean;
+  totalEntries: number;
+}
+
+interface RSSFeedCommentDrawerState {
+  isOpen: boolean;
+  selectedEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+}
+
+interface RSSFeedUIState {
+  isActive: boolean;
+  isSearchMode: boolean;
+}
+
+interface RSSFeedMetadata {
+  postTitle: string;
+  feedUrl: string;
+  featuredImg?: string;
+  mediaType?: string;
+  verified: boolean;
+  pageSize: number;
+}
+
+interface RSSFeedState {
+  entries: RSSFeedEntry[];
+  pagination: RSSFeedPaginationState;
+  loading: RSSFeedLoadingState;
+  commentDrawer: RSSFeedCommentDrawerState;
+  ui: RSSFeedUIState;
+  feedMetadata: RSSFeedMetadata;
+}
+
+// RSS Feed Actions
+type RSSFeedAction =
+  | { type: 'SET_ENTRIES'; payload: RSSFeedEntry[] }
+  | { type: 'ADD_ENTRIES'; payload: RSSFeedEntry[] }
+  | { type: 'UPDATE_ENTRY_METRICS'; payload: { entryGuid: string; metrics: RSSFeedEntry['initialData'] } }
+  | { type: 'SET_CURRENT_PAGE'; payload: number }
+  | { type: 'SET_HAS_MORE'; payload: boolean }
+  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_INITIAL_RENDER'; payload: boolean }
+  | { type: 'SET_FETCH_ERROR'; payload: Error | null }
+  | { type: 'OPEN_COMMENT_DRAWER'; payload: { entryGuid: string; feedUrl: string; initialData?: { count: number } } }
+  | { type: 'CLOSE_COMMENT_DRAWER' }
+  | { type: 'SET_ACTIVE'; payload: boolean }
+  | { type: 'SET_SEARCH_MODE'; payload: boolean }
+  | { type: 'SET_FEED_METADATA'; payload: Partial<RSSFeedMetadata> }
+  | { type: 'RESET' }
+  | { type: 'INITIALIZE'; payload: {
+      entries: RSSFeedEntry[];
+      totalEntries: number;
+      hasMore: boolean;
+      postTitle: string;
+      feedUrl: string;
+      featuredImg?: string;
+      mediaType?: string;
+      verified?: boolean;
+      pageSize?: number;
+    } };
+
+// Initial state factory functions
+const createInitialRSSFeedState = (): RSSFeedState => ({
+  entries: [],
+  pagination: {
+    currentPage: 1,
+    hasMore: false,
+    totalEntries: 0,
+  },
+  loading: {
+    isLoading: false,
+    isInitialRender: true,
+    fetchError: null,
+  },
+  commentDrawer: {
+    isOpen: false,
+    selectedEntry: null,
+  },
+  ui: {
+    isActive: true,
+    isSearchMode: false,
+  },
+  feedMetadata: {
+    postTitle: '',
+    feedUrl: '',
+    featuredImg: undefined,
+    mediaType: undefined,
+    verified: false,
+    pageSize: 30,
+  },
+});
+
+// RSS Feed Reducer
+function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedState {
+  switch (action.type) {
+    case 'SET_ENTRIES':
+      return { ...state, entries: action.payload };
+    
+    case 'ADD_ENTRIES':
+      return { ...state, entries: [...state.entries, ...action.payload] };
+    
+    case 'UPDATE_ENTRY_METRICS':
+      return {
+        ...state,
+        entries: state.entries.map(entry => 
+          entry.entry.guid === action.payload.entryGuid 
+            ? { ...entry, initialData: { ...entry.initialData, ...action.payload.metrics } }
+            : entry
+        ),
+      };
+    
+    case 'SET_CURRENT_PAGE':
+      return {
+        ...state,
+        pagination: { ...state.pagination, currentPage: action.payload },
+      };
+    
+    case 'SET_HAS_MORE':
+      return {
+        ...state,
+        pagination: { ...state.pagination, hasMore: action.payload },
+      };
+    
+    case 'SET_TOTAL_ENTRIES':
+      return {
+        ...state,
+        pagination: { ...state.pagination, totalEntries: action.payload },
+      };
+    
+    case 'SET_LOADING':
+      return {
+        ...state,
+        loading: { ...state.loading, isLoading: action.payload },
+      };
+    
+    case 'SET_INITIAL_RENDER':
+      return {
+        ...state,
+        loading: { ...state.loading, isInitialRender: action.payload },
+      };
+    
+    case 'SET_FETCH_ERROR':
+      return {
+        ...state,
+        loading: { ...state.loading, fetchError: action.payload },
+      };
+    
+    case 'OPEN_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawer: {
+          isOpen: true,
+          selectedEntry: action.payload,
+        },
+      };
+    
+    case 'CLOSE_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawer: {
+          isOpen: false,
+          selectedEntry: null,
+        },
+      };
+    
+    case 'SET_ACTIVE':
+      return {
+        ...state,
+        ui: { ...state.ui, isActive: action.payload },
+      };
+    
+    case 'SET_SEARCH_MODE':
+      return {
+        ...state,
+        ui: { ...state.ui, isSearchMode: action.payload },
+      };
+    
+    case 'SET_FEED_METADATA':
+      return {
+        ...state,
+        feedMetadata: { ...state.feedMetadata, ...action.payload },
+      };
+    
+    case 'RESET':
+      return createInitialRSSFeedState();
+    
+    case 'INITIALIZE':
+      const {
+        entries,
+        totalEntries,
+        hasMore,
+        postTitle,
+        feedUrl,
+        featuredImg,
+        mediaType,
+        verified = false,
+        pageSize = 30,
+      } = action.payload;
+
+      return {
+        entries,
+        pagination: {
+          currentPage: 1,
+          hasMore,
+          totalEntries,
+        },
+        loading: {
+          isLoading: false,
+          isInitialRender: true,
+          fetchError: null,
+        },
+        commentDrawer: {
+          isOpen: false,
+          selectedEntry: null,
+        },
+        ui: {
+          isActive: true,
+          isSearchMode: false,
+        },
+        feedMetadata: {
+          postTitle,
+          feedUrl,
+          featuredImg,
+          mediaType,
+          verified,
+          pageSize,
+        },
+      };
+    
+    default:
+      return state;
+  }
+}
 import { useRSSFeedPaginationHook } from '@/hooks/useRSSFeedPagination';
 import { useRSSFeedUI } from '@/hooks/useRSSFeedUI';
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
@@ -125,7 +359,7 @@ const arePropsEqual = (prevProps: RSSEntryProps, nextProps: RSSEntryProps) => {
 };
 
 const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredImg, postTitle, mediaType, verified, onOpenCommentDrawer, metrics }: RSSEntryProps & { metrics?: { likes: { count: number; isLiked: boolean }; comments: { count: number }; retweets?: { count: number; isRetweeted: boolean }; bookmarks?: { isBookmarked: boolean }; } | null }): JSX.Element => {
-  // Get state and actions from Zustand store
+  // Get audio player state and actions (global store - intentionally kept)
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
@@ -659,76 +893,89 @@ FeedContent.displayName = 'FeedContent';
 
 // Use centralized RSSFeedClientProps from @/lib/types
 
-// RSS Feed Store Provider Component
-// This creates a fresh store instance for each RSS feed, preventing state pollution
-const RSSFeedStoreProvider = ({ children }: { children: React.ReactNode }) => {
-  const store = useMemo(() => createRSSFeedStore(), []);
+// Create React Context for state and dispatch
+const RSSFeedContext = React.createContext<{
+  state: RSSFeedState;
+  dispatch: React.Dispatch<RSSFeedAction>;
+} | null>(null);
+
+// Custom hook to use RSS Feed context
+const useRSSFeedContext = () => {
+  const context = useContext(RSSFeedContext);
+  if (!context) {
+    throw new Error('useRSSFeedContext must be used within RSSFeedProvider');
+  }
+  return context;
+};
+
+// RSS Feed Provider Component with useReducer
+// This creates a fresh state instance for each RSS feed, preventing state pollution
+const RSSFeedProvider = ({ children }: { children: React.ReactNode }) => {
+  const [state, dispatch] = useReducer(rssFeedReducer, createInitialRSSFeedState());
+  
+  const contextValue = useMemo(() => ({ state, dispatch }), [state, dispatch]);
   
   return (
-    <RSSFeedStoreContext.Provider value={store}>
+    <RSSFeedContext.Provider value={contextValue}>
       {children}
-    </RSSFeedStoreContext.Provider>
+    </RSSFeedContext.Provider>
   );
 };
 
-// Internal RSSFeedClient component that uses the store from context
+// Internal RSSFeedClient component that uses the reducer state from context
 function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode, externalIsLoading }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // Get state and dispatch from context
+  const { state, dispatch } = useRSSFeedContext();
+  
+  // Extract state values for easier access
+  const { entries, loading, pagination, commentDrawer, ui } = state;
+  const hasMore = pagination.hasMore;
+  const isLoading = loading.isLoading;
   
   // Create a unique key for this podcast page to force complete reset
   const pageKey = useMemo(() => `${feedUrl}-${postTitle}`, [feedUrl, postTitle]);
   
-  // PHASE 4: Use granular selectors to minimize re-renders
-  const entries = useRSSFeedEntries();
-  const loading = useRSSFeedLoading();
-  const pagination = useRSSFeedPaginationState();
-  const commentDrawer = useRSSFeedCommentDrawer();
-  
-  // PHASE 4: Use specific selectors for frequently accessed values
-  const hasMore = useRSSFeedHasMore();
-  const isLoading = useRSSFeedIsLoading();
-  
-  // Get individual actions from store (prevents object recreation)
-  const initialize = useRSSFeedInitialize();
-  const setActive = useRSSFeedSetActive();
-  const setSearchMode = useRSSFeedSetSearchMode();
-  
   // PHASE 3 OPTIMIZATION: Use useEffect for state updates to prevent render-phase updates
   // This prevents "Cannot update a component while rendering" errors
   useEffect(() => {
-    setActive(isActive);
-  }, [isActive, setActive]);
+    dispatch({ type: 'SET_ACTIVE', payload: isActive });
+  }, [isActive, dispatch]);
   
   useEffect(() => {
     if (isSearchMode !== undefined) {
-      setSearchMode(isSearchMode);
+      dispatch({ type: 'SET_SEARCH_MODE', payload: isSearchMode });
     }
-  }, [isSearchMode, setSearchMode]);
+  }, [isSearchMode, dispatch]);
 
   // Initialize store on mount - React key handles component reset
   const initializationKeyRef = useRef<string>('');
   
   useEffect(() => {
     if (initialData && initializationKeyRef.current !== pageKey) {
-      initialize({
-        entries: initialData.entries || [],
-        totalEntries: initialData.totalEntries || 0,
-        hasMore: initialData.hasMore || false,
-        postTitle,
-        feedUrl,
-        featuredImg,
-        mediaType,
-        verified,
-        pageSize
+      dispatch({
+        type: 'INITIALIZE',
+        payload: {
+          entries: initialData.entries || [],
+          totalEntries: initialData.totalEntries || 0,
+          hasMore: initialData.hasMore || false,
+          postTitle,
+          feedUrl,
+          featuredImg,
+          mediaType,
+          verified,
+          pageSize
+        }
       });
       
       initializationKeyRef.current = pageKey;
     }
-  }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, initialize, pageKey]);
+  }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, dispatch, pageKey]);
   
-  // Use custom hooks for business logic
-  const paginationHook = useRSSFeedPaginationHook(customLoadMore, isActive);
-  const uiHook = useRSSFeedUI();
+  // Use custom hooks for business logic - pass state and dispatch
+  const paginationHook = useRSSFeedPaginationHook(state, dispatch, customLoadMore, isActive);
+  const uiHook = useRSSFeedUI(state, dispatch);
   
   // Apply memory optimization to prevent excessive memory usage
   const optimizedEntries = useMemo(() => 
@@ -780,16 +1027,19 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         onClick={() => {
           // Reset to initial data
           if (initialData) {
-            initialize({
-              entries: initialData.entries || [],
-              totalEntries: initialData.totalEntries || 0,
-              hasMore: initialData.hasMore || false,
-              postTitle,
-              feedUrl,
-              featuredImg,
-              mediaType,
-              verified,
-              pageSize
+            dispatch({
+              type: 'INITIALIZE',
+              payload: {
+                entries: initialData.entries || [],
+                totalEntries: initialData.totalEntries || 0,
+                hasMore: initialData.hasMore || false,
+                postTitle,
+                feedUrl,
+                featuredImg,
+                mediaType,
+                verified,
+                pageSize
+              }
             });
           }
         }}
@@ -836,12 +1086,12 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   );
 }
 
-// Main RSSFeedClient component with store provider
+// Main RSSFeedClient component with reducer provider
 export function RSSFeedClient(props: RSSFeedClientProps) {
   return (
-    <RSSFeedStoreProvider>
+    <RSSFeedProvider>
       <RSSFeedClientInternal {...props} />
-    </RSSFeedStoreProvider>
+    </RSSFeedProvider>
   );
 }
 

@@ -918,22 +918,7 @@ export interface ActivityFeedGroupRendererProps {
   reactiveCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
 }
 
-export interface ActivityFeedState {
-  activities: ActivityFeedItem[];
-  isLoading: boolean;
-  hasMore: boolean;
-  entryDetails: Record<string, ActivityFeedRSSEntry>;
-  currentSkip: number;
-  isInitialLoad: boolean;
-  commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>; // Include comment like statuses
-}
 
-export type ActivityFeedAction =
-  | { type: 'INITIAL_LOAD'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean, commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }> } }
-  | { type: 'LOAD_MORE_START' }
-  | { type: 'LOAD_MORE_SUCCESS'; payload: { activities: ActivityFeedItem[], entryDetails: Record<string, ActivityFeedRSSEntry>, hasMore: boolean, commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }> } }
-  | { type: 'LOAD_MORE_FAILURE' }
-  | { type: 'SET_INITIAL_LOAD_COMPLETE' };
 
 export interface ActivityDescriptionProps {
   item: ActivityFeedItem;
