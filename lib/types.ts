@@ -1490,111 +1490,7 @@ export interface RSSEntriesDisplayEntry {
   };
 }
 
-// RSS Entries Display State Interfaces
-export interface RSSEntriesDisplayPaginationState {
-  currentPage: number;
-  hasMore: boolean;
-  totalEntries: number;
-}
-
-export interface RSSEntriesDisplayLoadingState {
-  isLoading: boolean;
-  isRefreshing: boolean;
-  hasRefreshed: boolean;
-  fetchError: Error | null;
-  refreshError: string | null;
-}
-
-export interface RSSEntriesDisplayUIState {
-  commentDrawerOpen: boolean;
-  selectedCommentEntry: {
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null;
-  showNotification: boolean;
-  notificationCount: number;
-  notificationImages: string[];
-  isActive: boolean;
-}
-
-export interface RSSEntriesDisplayMetadataState {
-  postTitles: string[];
-  feedUrls: string[];
-  mediaTypes: string[];
-  feedMetadataCache: Record<string, RSSEntriesDisplayEntry['postMetadata']>;
-  newEntries: RSSEntriesDisplayEntry[];
-}
-
-// Main RSS Entries Display Store State
-export interface RSSEntriesDisplayState {
-  // Core data
-  entries: RSSEntriesDisplayEntry[];
-  
-  // Pagination state
-  pagination: RSSEntriesDisplayPaginationState;
-  
-  // Loading state
-  loading: RSSEntriesDisplayLoadingState;
-  
-  // UI state
-  ui: RSSEntriesDisplayUIState;
-  
-  // Metadata state
-  metadata: RSSEntriesDisplayMetadataState;
-  
-  // Initialization flag
-  hasInitialized: boolean;
-}
-
-// RSS Entries Display Store Actions
-export interface RSSEntriesDisplayActions {
-  // Entry management
-  setEntries: (entries: RSSEntriesDisplayEntry[]) => void;
-  addEntries: (entries: RSSEntriesDisplayEntry[]) => void;
-  prependEntries: (entries: RSSEntriesDisplayEntry[]) => void;
-  updateEntryMetrics: (entryGuid: string, metrics: RSSEntriesDisplayEntry['initialData']) => void;
-  
-  // Pagination actions
-  setCurrentPage: (page: number) => void;
-  setHasMore: (hasMore: boolean) => void;
-  setTotalEntries: (total: number) => void;
-  
-  // Loading actions
-  setLoading: (isLoading: boolean) => void;
-  setRefreshing: (isRefreshing: boolean) => void;
-  setHasRefreshed: (hasRefreshed: boolean) => void;
-  setFetchError: (error: Error | null) => void;
-  setRefreshError: (error: string | null) => void;
-  
-  // UI actions
-  setActive: (isActive: boolean) => void;
-  openCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  closeCommentDrawer: () => void;
-  setNotification: (show: boolean, count?: number, images?: string[]) => void;
-  
-  // Metadata actions
-  setPostTitles: (titles: string[]) => void;
-  setFeedUrls: (urls: string[]) => void;
-  setMediaTypes: (types: string[]) => void;
-  updateFeedMetadataCache: (feedUrl: string, metadata: RSSEntriesDisplayEntry['postMetadata']) => void;
-  setNewEntries: (entries: RSSEntriesDisplayEntry[]) => void;
-  clearNewEntries: () => void;
-  
-  // Utility actions
-  reset: () => void;
-  initialize: (initialData: {
-    entries: RSSEntriesDisplayEntry[];
-    totalEntries: number;
-    hasMore: boolean;
-    postTitles: string[];
-    feedUrls: string[];
-    mediaTypes: string[];
-  }) => void;
-}
-
-// Combined RSS Entries Display Store Interface
-export interface RSSEntriesDisplayStore extends RSSEntriesDisplayState, RSSEntriesDisplayActions {}
+// RSS Entries Display interfaces (simplified for useReducer implementation)
 
 // RSS Entries Display Component Props
 export interface RSSEntriesDisplayClientProps {
@@ -1683,20 +1579,7 @@ export interface UseRSSEntriesDisplayRefreshReturn {
   hasRefreshed: boolean;
 }
 
-export interface UseRSSEntriesDisplayUIReturn {
-  handleCommentDrawer: {
-    open: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-    close: () => void;
-    isOpen: boolean;
-    selectedEntry: RSSEntriesDisplayUIState['selectedCommentEntry'];
-  };
-  notification: {
-    show: boolean;
-    count: number;
-    images: string[];
-  };
-  setNotification: (show: boolean, count?: number, images?: string[]) => void;
-}
+
 
 // RSS Entries Display Hook Props
 export interface UseRSSEntriesDisplayPaginationProps {
@@ -2197,90 +2080,7 @@ export interface FeaturedFeedEntryWithData {
   };
 }
 
-// Featured Feed Pagination State
-export interface FeaturedFeedPaginationState {
-  currentPage: number;
-  hasMore: boolean;
-  totalEntries: number;
-}
 
-// Featured Feed Loading State
-export interface FeaturedFeedLoadingState {
-  isLoading: boolean;
-  fetchError: Error | null;
-}
-
-// Featured Feed UI State
-export interface FeaturedFeedUIState {
-  commentDrawerOpen: boolean;
-  selectedCommentEntry: {
-    entryGuid: string;
-    feedUrl: string;
-    initialData?: { count: number };
-  } | null;
-  isActive: boolean;
-}
-
-// Featured Feed Metadata State
-export interface FeaturedFeedMetadataState {
-  feedMetadataCache: Record<string, FeaturedFeedEntryWithData['postMetadata']>;
-}
-
-// Main Featured Feed State Interface
-export interface FeaturedFeedState {
-  // Core data
-  entries: FeaturedFeedEntryWithData[];
-  
-  // Pagination state
-  pagination: FeaturedFeedPaginationState;
-  
-  // Loading state
-  loading: FeaturedFeedLoadingState;
-  
-  // UI state
-  ui: FeaturedFeedUIState;
-  
-  // Metadata state
-  metadata: FeaturedFeedMetadataState;
-  
-  // Initialization flag
-  hasInitialized: boolean;
-}
-
-// Featured Feed Store Actions Interface
-export interface FeaturedFeedActions {
-  // Entry management actions
-  setEntries: (entries: FeaturedFeedEntryWithData[]) => void;
-  addEntries: (newEntries: FeaturedFeedEntryWithData[]) => void;
-  updateEntryMetrics: (entryGuid: string, metrics: FeaturedFeedEntryWithData['initialData']) => void;
-  
-  // Pagination actions
-  setCurrentPage: (page: number) => void;
-  setHasMore: (hasMore: boolean) => void;
-  setTotalEntries: (total: number) => void;
-  
-  // Loading actions
-  setLoading: (isLoading: boolean) => void;
-  setFetchError: (error: Error | null) => void;
-  
-  // UI actions
-  setActive: (isActive: boolean) => void;
-  openCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
-  closeCommentDrawer: () => void;
-  
-  // Metadata actions
-  updateFeedMetadataCache: (feedUrl: string, metadata: FeaturedFeedEntryWithData['postMetadata']) => void;
-  
-  // Utility actions
-  reset: () => void;
-  initialize: (initialData: {
-    entries: FeaturedFeedEntryWithData[];
-    totalEntries: number;
-  }) => void;
-}
-
-// Combined Featured Feed Store Interface
-export interface FeaturedFeedStore extends FeaturedFeedState, FeaturedFeedActions {}
 
 // Featured Feed Client Props Interface
 export interface FeaturedFeedClientProps {

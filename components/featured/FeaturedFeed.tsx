@@ -9,7 +9,7 @@ interface KVNamespace {
 
 import { cache } from "react";
 import { getFeaturedEntriesKV } from "@/lib/featured_kv";
-import { FeaturedFeedClient } from "@/components/featured/FeaturedFeedClient";
+import { FeaturedFeedClientWithErrorBoundary } from "@/components/featured/FeaturedFeedClient";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
@@ -118,7 +118,7 @@ export default async function FeaturedFeed({ initialData: preloadedData, kvBindi
   // Data source tracking removed
   
   return (
-    <FeaturedFeedClient
+    <FeaturedFeedClientWithErrorBoundary
       initialData={data}
       pageSize={30}
     />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, startTransition } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, useReducer } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -22,26 +22,7 @@ import { Virtuoso } from 'react-virtuoso';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
-import { FeaturedFeedStoreProvider } from "./FeaturedFeedStoreProvider";
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
-import {
-  useFeaturedFeedEntries,
-  useFeaturedFeedIsLoading,
-  useFeaturedFeedHasMore,
-  useFeaturedFeedCommentDrawerOpen,
-  useFeaturedFeedSelectedCommentEntry,
-  useFeaturedFeedCurrentPage,
-  useFeaturedFeedTotalEntries,
-  useFeaturedFeedHasInitialized,
-  useFeaturedFeedSetEntries,
-  useFeaturedFeedSetLoading,
-  useFeaturedFeedSetCurrentPage,
-  useFeaturedFeedSetHasMore,
-  useFeaturedFeedSetTotalEntries,
-  useFeaturedFeedOpenCommentDrawer,
-  useFeaturedFeedCloseCommentDrawer,
-  useFeaturedFeedInitialize
-} from "@/lib/stores/featuredFeedStore";
 import type { 
   FeaturedFeedClientProps,
   FeaturedFeedEntryWithData
@@ -121,6 +102,150 @@ const memoizedDateParsers = {
   }
 };
 
+// State interface for useReducer
+interface FeaturedFeedState {
+  // Core data
+  entries: FeaturedFeedEntryWithData[];
+  
+  // Pagination
+  currentPage: number;
+  hasMore: boolean;
+  totalEntries: number;
+  
+  // Loading states
+  isLoading: boolean;
+  fetchError: Error | null;
+  
+  // UI states
+  commentDrawerOpen: boolean;
+  selectedCommentEntry: {
+    entryGuid: string;
+    feedUrl: string;
+    initialData?: { count: number };
+  } | null;
+  
+  // Metadata
+  feedMetadataCache: Record<string, FeaturedFeedEntryWithData['postMetadata']>;
+  
+  // Initialization
+  hasInitialized: boolean;
+}
+
+// Action types for useReducer
+type FeaturedFeedAction = 
+  | { type: 'INITIALIZE'; payload: {
+      entries: FeaturedFeedEntryWithData[];
+      totalEntries: number;
+    }}
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_FETCH_ERROR'; payload: Error | null }
+  | { type: 'SET_ENTRIES'; payload: FeaturedFeedEntryWithData[] }
+  | { type: 'ADD_ENTRIES'; payload: FeaturedFeedEntryWithData[] }
+  | { type: 'SET_CURRENT_PAGE'; payload: number }
+  | { type: 'SET_HAS_MORE'; payload: boolean }
+  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
+  | { type: 'OPEN_COMMENT_DRAWER'; payload: {
+      entryGuid: string;
+      feedUrl: string;
+      initialData?: { count: number };
+    }}
+  | { type: 'CLOSE_COMMENT_DRAWER' }
+  | { type: 'UPDATE_FEED_METADATA_CACHE'; payload: {
+      feedUrl: string;
+      metadata: FeaturedFeedEntryWithData['postMetadata'];
+    }}
+  | { type: 'UPDATE_ENTRY_METRICS'; payload: {
+      entryGuid: string;
+      metrics: FeaturedFeedEntryWithData['initialData'];
+    }};
+
+// Initial state factory
+const createInitialState = (): FeaturedFeedState => ({
+  entries: [],
+  currentPage: 1,
+  hasMore: false,
+  totalEntries: 0,
+  isLoading: false,
+  fetchError: null,
+  commentDrawerOpen: false,
+  selectedCommentEntry: null,
+  feedMetadataCache: {},
+  hasInitialized: false,
+});
+
+// Reducer function
+const featuredFeedReducer = (state: FeaturedFeedState, action: FeaturedFeedAction): FeaturedFeedState => {
+  switch (action.type) {
+    case 'INITIALIZE':
+      return {
+        ...state,
+        entries: action.payload.entries,
+        totalEntries: action.payload.totalEntries,
+        hasMore: false, // Featured feed doesn't paginate like RSS - it's client-side slicing
+        hasInitialized: true,
+        isLoading: false,
+        fetchError: null,
+      };
+    
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    
+    case 'SET_FETCH_ERROR':
+      return { ...state, fetchError: action.payload };
+    
+    case 'SET_ENTRIES':
+      return { ...state, entries: action.payload };
+    
+    case 'ADD_ENTRIES':
+      return { ...state, entries: [...state.entries, ...action.payload] };
+    
+    case 'SET_CURRENT_PAGE':
+      return { ...state, currentPage: action.payload };
+    
+    case 'SET_HAS_MORE':
+      return { ...state, hasMore: action.payload };
+    
+    case 'SET_TOTAL_ENTRIES':
+      return { ...state, totalEntries: action.payload };
+    
+    case 'OPEN_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawerOpen: true,
+        selectedCommentEntry: action.payload,
+      };
+    
+    case 'CLOSE_COMMENT_DRAWER':
+      return {
+        ...state,
+        commentDrawerOpen: false,
+        selectedCommentEntry: null,
+      };
+    
+    case 'UPDATE_FEED_METADATA_CACHE':
+      return {
+        ...state,
+        feedMetadataCache: {
+          ...state.feedMetadataCache,
+          [action.payload.feedUrl]: action.payload.metadata,
+        },
+      };
+    
+    case 'UPDATE_ENTRY_METRICS':
+      return {
+        ...state,
+        entries: state.entries.map(entry => 
+          entry.entry.guid === action.payload.entryGuid 
+            ? { ...entry, initialData: { ...entry.initialData, ...action.payload.metrics } }
+            : entry
+        ),
+      };
+    
+    default:
+      return state;
+  }
+};
+
 interface FeaturedEntryProps {
   entryWithData: FeaturedFeedEntryWithData;
   metrics?: {
@@ -133,7 +258,7 @@ interface FeaturedEntryProps {
 
 // Memoized FeaturedEntry component with optimized comparison
 const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata }, metrics, onOpenCommentDrawer, isPriority = false, articleIndex, totalArticles }: FeaturedEntryProps & { onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void, isPriority?: boolean, articleIndex?: number, totalArticles?: number }) => {
-  // Get state and actions from Zustand store
+  // Get audio player state and actions (from global audio store)
   const currentTrack = useAudioPlayerCurrentTrack();
   const playTrack = useAudioPlayerPlayTrack();
   const isCurrentlyPlaying = currentTrack?.src === entry.link;
@@ -656,9 +781,6 @@ function FeaturedContentComponent({
       return null;
     }
     
-    // CRITICAL FIX: Remove double optimization - entries are already optimized in parent component
-    // const optimizedEntries = optimizeEntriesForMemory(paginatedEntries);
-    
     if (!hasLoggedInitialCreateRef.current) {
       hasLoggedInitialCreateRef.current = true;
     }
@@ -776,37 +898,19 @@ const FeaturedFeedClientComponent = ({
   pageSize = 30, 
   isActive = true
 }: FeaturedFeedClientProps) => {
-  // Critical store hooks
-  const entries = useFeaturedFeedEntries();
-  const isLoading = useFeaturedFeedIsLoading();
-  const hasMore = useFeaturedFeedHasMore();
-  const commentDrawerOpen = useFeaturedFeedCommentDrawerOpen();
-  const selectedCommentEntry = useFeaturedFeedSelectedCommentEntry();
-  const hasInitialized = useFeaturedFeedHasInitialized();
-  
-  // Non-critical store hooks with deferred values
-  const currentPage = useDeferredValue(useFeaturedFeedCurrentPage());
-  const totalEntries = useDeferredValue(useFeaturedFeedTotalEntries());
-
-  // Store actions
-  const initialize = useFeaturedFeedInitialize();
-  const setLoading = useFeaturedFeedSetLoading();
-  const setCurrentPage = useFeaturedFeedSetCurrentPage();
-  const setHasMore = useFeaturedFeedSetHasMore();
-  const setTotalEntries = useFeaturedFeedSetTotalEntries();
-  const openCommentDrawer = useFeaturedFeedOpenCommentDrawer();
-  const closeCommentDrawer = useFeaturedFeedCloseCommentDrawer();
+  // Main state with useReducer
+  const [state, dispatch] = useReducer(featuredFeedReducer, createInitialState());
 
   // Refs for state persistence
   const isMountedRef = useRef(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Initialize store with data
+  // Initialize with server data
   useEffect(() => {
-    if (!hasInitialized && initialData && isMountedRef.current) {
-      initialize(initialData);
+    if (!state.hasInitialized && initialData && isMountedRef.current) {
+      dispatch({ type: 'INITIALIZE', payload: initialData });
     }
-  }, [hasInitialized, initialData, initialize]);
+  }, [state.hasInitialized, initialData]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -815,25 +919,25 @@ const FeaturedFeedClientComponent = ({
     };
   }, []);
 
-  // Load more entries function
+  // Load more entries function (client-side pagination via slicing)
   const loadMoreEntries = useCallback(() => {
-    if (hasMore && !isLoading && isMountedRef.current) {
-      setLoading(true);
+    if (state.hasMore && !state.isLoading && isMountedRef.current) {
+      dispatch({ type: 'SET_LOADING', payload: true });
       
       // Simulate loading delay for better UX
       setTimeout(() => {
         if (isMountedRef.current) {
-          setCurrentPage(currentPage + 1);
-          setLoading(false);
+          dispatch({ type: 'SET_CURRENT_PAGE', payload: state.currentPage + 1 });
+          dispatch({ type: 'SET_LOADING', payload: false });
         }
       }, 300);
     }
-  }, [hasMore, isLoading, currentPage, setLoading, setCurrentPage]);
+  }, [state.hasMore, state.isLoading, state.currentPage]);
 
-  // Calculate visible entries based on current page
+  // Calculate visible entries based on current page (client-side slicing)
   const visibleEntries = useMemo(() => {
-    return entries.slice(0, currentPage * pageSize);
-  }, [entries, currentPage, pageSize]);
+    return state.entries.slice(0, state.currentPage * pageSize);
+  }, [state.entries, state.currentPage, pageSize]);
 
   // Apply memory optimization
   const optimizedEntries = useMemo(() => 
@@ -841,18 +945,25 @@ const FeaturedFeedClientComponent = ({
     [visibleEntries]
   );
 
-  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
+  // Update hasMore based on visible vs total entries
+  useEffect(() => {
+    const newHasMore = visibleEntries.length < state.entries.length;
+    if (newHasMore !== state.hasMore) {
+      dispatch({ type: 'SET_HAS_MORE', payload: newHasMore });
+    }
+  }, [visibleEntries.length, state.entries.length, state.hasMore]);
+
+  // Get entry GUIDs for batch metrics query - extract from stable initial data only
   const entryGuids = useMemo(() => {
     if (!initialData?.entries) return [];
     
     // Extract GUIDs from initial server data (slice for pagination)
     return initialData.entries
-      .slice(0, currentPage * pageSize)
+      .slice(0, state.currentPage * pageSize)
       .map(entry => entry.entry.guid);
-  }, [initialData?.entries, currentPage, pageSize]); // Only depend on stable server data and pagination state
+  }, [initialData?.entries, state.currentPage, pageSize]); // Only depend on stable server data and pagination state
   
   // Extract initial metrics from server data for fast rendering without button flashing
-  // CRITICAL: Only set once from initial data, don't update reactively
   const initialMetrics = useMemo(() => {
     if (!initialData?.entries) return {};
     
@@ -866,24 +977,28 @@ const FeaturedFeedClientComponent = ({
   }, [initialData?.entries]); // Only depend on initial server data
   
   // Use batch metrics hook with server metrics for immediate correct rendering
-  // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
     isActive ? entryGuids : [], // Only query when feed is active
     { 
       initialMetrics
-      // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
+      // Reactive subscription for cross-feed updates
     }
   );
 
   // Focus prevention
   const shouldPreventFocus = useMemo(() => 
-    isActive && !commentDrawerOpen, 
-    [isActive, commentDrawerOpen]
+    isActive && !state.commentDrawerOpen, 
+    [isActive, state.commentDrawerOpen]
   );
 
   useFeedFocusPrevention(shouldPreventFocus, '.featured-feed-container');
 
   // Memoized comment handlers
+  const openCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => 
+    dispatch({ type: 'OPEN_COMMENT_DRAWER', payload: { entryGuid, feedUrl, initialData } }), []);
+  
+  const closeCommentDrawer = useCallback(() => dispatch({ type: 'CLOSE_COMMENT_DRAWER' }), []);
+  
   const memoizedCommentHandlers = useMemo(() => ({
     open: openCommentDrawer,
     close: closeCommentDrawer
@@ -901,30 +1016,30 @@ const FeaturedFeedClientComponent = ({
       <section id="main-content" aria-labelledby="feed-heading">
         <h1 id="feed-heading" className="sr-only">
           Featured Feed Entries
-          {totalEntries > 0 && ` (${totalEntries} total entries)`}
-          {isLoading && ' - Loading...'}
+          {state.totalEntries > 0 && ` (${state.totalEntries} total entries)`}
+          {state.isLoading && ' - Loading...'}
         </h1>
         
         <FeaturedContent
           paginatedEntries={optimizedEntries}
-          hasMore={hasMore}
+          hasMore={state.hasMore}
           loadMoreRef={loadMoreRef}
-          isPending={isLoading}
+          isPending={state.isLoading}
           loadMore={loadMoreEntries}
           onOpenCommentDrawer={memoizedCommentHandlers.open}
-          isInitializing={!hasInitialized}
+          isInitializing={!state.hasInitialized}
           pageSize={pageSize}
           getMetrics={getMetrics}
         />
       </section>
       
       {/* Comment drawer */}
-      {commentDrawerOpen && selectedCommentEntry && (
+      {state.commentDrawerOpen && state.selectedCommentEntry && (
         <CommentSectionClient
-          entryGuid={selectedCommentEntry.entryGuid}
-          feedUrl={selectedCommentEntry.feedUrl}
-          initialData={selectedCommentEntry.initialData}
-          isOpen={commentDrawerOpen}
+          entryGuid={state.selectedCommentEntry.entryGuid}
+          feedUrl={state.selectedCommentEntry.feedUrl}
+          initialData={state.selectedCommentEntry.initialData}
+          isOpen={state.commentDrawerOpen}
           setIsOpen={memoizedCommentHandlers.close}
           skipQuery={true}
         />
@@ -963,13 +1078,11 @@ export const FeaturedFeedClient = memo(FeaturedFeedClientComponent, (prevProps, 
 });
 FeaturedFeedClient.displayName = 'FeaturedFeedClient';
 
-// Export with store provider wrapper
+// Export with error boundary (no store provider needed)
 export const FeaturedFeedClientWithErrorBoundary = memo(function FeaturedFeedClientWithErrorBoundary(props: FeaturedFeedClientProps) {
   return (
     <ErrorBoundary>
-      <FeaturedFeedStoreProvider>
-        <FeaturedFeedClient {...props} />
-      </FeaturedFeedStoreProvider>
+      <FeaturedFeedClient {...props} />
     </ErrorBoundary>
   );
 }); 
