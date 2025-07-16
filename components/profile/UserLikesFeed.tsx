@@ -717,6 +717,7 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
           setIsOpen={setCommentDrawerOpen}
+          skipQuery={true}
         />
       )}
     </div>

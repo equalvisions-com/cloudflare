@@ -205,6 +205,38 @@ export function useCommentSection({
     
     return topLevelComments;
   }, [comments]);
+
+  // Get all comment IDs (including replies) for batch comment likes query
+  const allCommentIds = useMemo(() => {
+    if (!comments) return [];
+    return comments.map(comment => comment._id);
+  }, [comments]);
+
+  // Batch query for comment likes - only when drawer is open and we have comments
+  const shouldQueryCommentLikes = shouldQueryComments && allCommentIds.length > 0;
+  const batchCommentLikes = useQuery(
+    api.commentLikes.batchGetCommentLikes,
+    shouldQueryCommentLikes ? { commentIds: allCommentIds } : "skip"
+  );
+
+  // Create a map of comment likes for easy lookup
+  const commentLikesMap = useMemo(() => {
+    const map = new Map<string, { isLiked: boolean; count: number }>();
+    if (batchCommentLikes) {
+      batchCommentLikes.forEach(result => {
+        map.set(result.commentId.toString(), {
+          isLiked: result.isLiked,
+          count: result.count
+        });
+      });
+    }
+    return map;
+  }, [batchCommentLikes]);
+
+  // Function to get comment like data for a specific comment
+  const getCommentLikeData = useCallback((commentId: string) => {
+    return commentLikesMap.get(commentId) || { isLiked: false, count: 0 };
+  }, [commentLikesMap]);
   
   // Submit comment handler
   const handleSubmit = useCallback(async () => {
@@ -379,5 +411,8 @@ export function useCommentSection({
     // Refs and utilities
     setCommentLikeCountRef,
     updateCommentLikeCount,
+    
+    // Batch comment likes
+    getCommentLikeData,
   };
 } 

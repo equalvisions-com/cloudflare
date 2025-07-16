@@ -2115,6 +2115,7 @@ export interface CommentProps {
   onToggleReplies: (commentId: string) => void;
   onSetCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
   onUpdateCommentLikeCount: (commentId: string, count: number) => void;
+  getCommentLikeData: (commentId: string) => { isLiked: boolean; count: number };
 }
 
 export interface CommentButtonProps {
@@ -2143,6 +2144,9 @@ export interface UseCommentSectionReturn {
   // Refs and utilities
   setCommentLikeCountRef: (commentId: string, el: HTMLDivElement | null) => void;
   updateCommentLikeCount: (commentId: string, count: number) => void;
+  
+  // Batch comment likes
+  getCommentLikeData: (commentId: string) => { isLiked: boolean; count: number };
 }
 
 // ===================================================================

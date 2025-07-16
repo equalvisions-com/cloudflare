@@ -234,6 +234,7 @@ const EntriesDisplayComponent = ({
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
           setIsOpen={handleCommentDrawerClose}
+          skipQuery={true}
         />
       )}
     </div>

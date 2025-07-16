@@ -1813,7 +1813,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   // Use batch metrics hook with initial server metrics to prevent button flashing
   // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics: getBatchMetrics, isLoading: isMetricsLoading, metricsMap } = useBatchEntryMetrics(
-    entryGuids,
+    isActive ? entryGuids : [], // Only query when feed is active
     { 
       includeCommentLikes: true,
       initialMetrics
@@ -1951,6 +1951,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
               initialData={selectedCommentEntry.initialData}
               isOpen={commentDrawerOpen}
               setIsOpen={handleCloseCommentDrawer}
+              skipQuery={true}
             />
           )}
         </>

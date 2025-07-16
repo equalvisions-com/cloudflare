@@ -103,6 +103,7 @@ export const useEntriesData = ({
   const entryGuids = useMemo(() => entries.map(entry => entry.guid), [entries]);
   
   // Extract initial metrics from server data for fast rendering without button flashing
+  // CRITICAL: Only set once from initial data, don't update reactively
   const initialMetrics = useMemo(() => {
     const metrics: Record<string, any> = {};
     entryGuids.forEach(guid => {
@@ -111,16 +112,16 @@ export const useEntriesData = ({
       }
     });
     return metrics;
-  }, [entryGuids, serverMetrics]);
+  }, [entryGuids]); // Only depend on entryGuids, not serverMetrics
   
   // Use batch metrics hook with server metrics for immediate correct rendering
   // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
-    entryGuids, 
-    isVisible ? { 
+    isVisible ? entryGuids : [], // Only query when feed is active
+    { 
       initialMetrics
       // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
-    } : { skipInitialQuery: true } // Skip when not visible
+    }
   );
 
   // Update metrics loading state when it changes

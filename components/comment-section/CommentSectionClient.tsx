@@ -46,6 +46,7 @@ const Comment = memo<CommentProps>(({
   onToggleReplies,
   onSetCommentLikeCountRef,
   onUpdateCommentLikeCount,
+  getCommentLikeData,
 }) => {
   const hasReplies = 'replies' in comment && comment.replies.length > 0;
   const isDeleted = deletedComments.has(comment._id.toString());
@@ -186,6 +187,8 @@ const Comment = memo<CommentProps>(({
                 size="sm"
                 hideCount={true}
                 onCountChange={(count) => onUpdateCommentLikeCount(comment._id.toString(), count)}
+                initialData={getCommentLikeData(comment._id.toString())}
+                skipQuery={true}
               />
             </div>
           </div>
@@ -207,6 +210,7 @@ const Comment = memo<CommentProps>(({
               onToggleReplies={onToggleReplies}
               onSetCommentLikeCountRef={onSetCommentLikeCountRef}
               onUpdateCommentLikeCount={onUpdateCommentLikeCount}
+              getCommentLikeData={getCommentLikeData}
             />
           ))}
         </div>
@@ -265,6 +269,7 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
     handleToggleReplies,
     setCommentLikeCountRef,
     updateCommentLikeCount,
+    getCommentLikeData,
   } = useCommentSection({
     entryGuid,
     feedUrl,
@@ -312,13 +317,14 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
                     comment={comment}
                     isAuthenticated={isAuthenticated}
                     viewer={viewer}
-                  deletedComments={state.deletedComments}
-                  expandedReplies={state.expandedReplies}
+                    deletedComments={state.deletedComments}
+                    expandedReplies={state.expandedReplies}
                     onReply={handleReply}
-                  onDeleteComment={handleDeleteComment}
-                  onToggleReplies={handleToggleReplies}
+                    onDeleteComment={handleDeleteComment}
+                    onToggleReplies={handleToggleReplies}
                     onSetCommentLikeCountRef={setCommentLikeCountRef}
                     onUpdateCommentLikeCount={updateCommentLikeCount}
+                    getCommentLikeData={getCommentLikeData}
                   />
                 ))
               ) : (

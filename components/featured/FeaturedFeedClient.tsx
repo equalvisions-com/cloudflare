@@ -847,20 +847,23 @@ const FeaturedFeedClientComponent = ({
   }, [optimizedEntries]);
   
   // Extract initial metrics from server data for fast rendering without button flashing
+  // CRITICAL: Only set once from initial data, don't update reactively
   const initialMetrics = useMemo(() => {
+    if (!initialData?.entries) return {};
+    
     const metrics: Record<string, any> = {};
-    optimizedEntries.forEach(entry => {
+    initialData.entries.forEach(entry => {
       if (entry.initialData && entry.entry.guid) {
         metrics[entry.entry.guid] = entry.initialData;
       }
     });
     return metrics;
-  }, [optimizedEntries]);
+  }, [initialData?.entries]); // Only depend on initial server data
   
   // Use batch metrics hook with server metrics for immediate correct rendering
   // Server provides initial metrics for fast rendering, client hook provides reactive updates
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
-    entryGuids, 
+    isActive ? entryGuids : [], // Only query when feed is active
     { 
       initialMetrics
       // Removed skipInitialQuery - we NEED the reactive subscription for cross-feed updates
@@ -918,6 +921,7 @@ const FeaturedFeedClientComponent = ({
           initialData={selectedCommentEntry.initialData}
           isOpen={commentDrawerOpen}
           setIsOpen={memoizedCommentHandlers.close}
+          skipQuery={true}
         />
       )}
     </main>
