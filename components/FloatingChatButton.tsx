@@ -7,8 +7,8 @@ import { MessageCircle } from 'lucide-react'
 export default function FloatingChatButton() {
   const pathname = usePathname()
 
-  // Hide on chat page
-  if (pathname === '/chat') return null
+  // Hide on chat page and signin page
+  if (pathname === '/chat' || pathname === '/signin') return null
 
   return (
     <div className="hidden md:fixed md:bottom-6 md:right-6 md:block z-50">
