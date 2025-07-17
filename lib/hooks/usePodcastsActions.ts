@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { usePodcastsStore } from '@/lib/stores/podcastsStore';
+import { usePodcastsContext } from '@/lib/contexts/PodcastsContext';
 import { PodcastItem } from '@/lib/types';
 
 export const usePodcastsActions = () => {
-  const { setItems, setSelectedCategory, setLoading, setError, reset } = usePodcastsStore();
+  const { setItems, setSelectedCategory, setLoading, setError, reset } = usePodcastsContext();
 
   // Initialize podcasts data
   const initializePodcasts = useCallback(async (initialItems?: PodcastItem[]) => {

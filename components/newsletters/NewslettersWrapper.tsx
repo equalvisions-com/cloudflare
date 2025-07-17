@@ -2,7 +2,7 @@
 
 import { memo, useEffect } from 'react';
 import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
-import { useNewslettersStore } from '@/lib/stores/newslettersStore';
+import { useNewslettersStore } from '@/lib/contexts/NewslettersContext';
 import { useNewslettersActions } from '@/lib/hooks/useNewslettersActions';
 import { NewsletterItem } from '@/lib/types';
 
@@ -14,10 +14,12 @@ export const NewslettersWrapper = memo<NewslettersWrapperProps>(({ initialItems 
   const { items, isLoading, error, announceMessage } = useNewslettersStore();
   const { initializeNewsletters, resetNewsletters } = useNewslettersActions();
 
-  // Initialize newsletters data directly during render - React best practice
-  if (items.length === 0 && !isLoading && !error) {
-    initializeNewsletters(initialItems);
-  }
+  // Initialize newsletters data in useEffect (not during render)
+  useEffect(() => {
+    if (items.length === 0 && !isLoading && !error && initialItems.length > 0) {
+      initializeNewsletters(initialItems);
+    }
+  }, [items.length, isLoading, error, initialItems, initializeNewsletters]);
 
   // Cleanup on unmount - legitimate useEffect for cleanup
   useEffect(() => {

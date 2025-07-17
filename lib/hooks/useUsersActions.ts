@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useUsersStore } from '@/lib/stores/usersStore';
+import { useUsersContext } from '@/lib/contexts/UsersContext';
 
 export const useUsersActions = () => {
   const {
@@ -10,7 +10,7 @@ export const useUsersActions = () => {
     setPendingSearchQuery,
     setIsSearching,
     resetSearch,
-  } = useUsersStore();
+  } = useUsersContext();
 
   // Handle search input change
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

@@ -2,6 +2,7 @@
 
 import { Suspense, memo } from 'react';
 import { NotificationsClient } from './NotificationsClient';
+import { NotificationsProvider } from '@/lib/contexts/NotificationsContext';
 import { Loader2 } from "lucide-react";
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
 import { useSidebar } from '@/components/ui/sidebar-context';
@@ -58,12 +59,12 @@ NotificationsLoading.displayName = 'NotificationsLoading';
  */
 const NotificationsClientWrapper = memo(() => {
   return (
-    <>
+    <NotificationsProvider>
       <NotificationsHeader />
       <Suspense fallback={<NotificationsLoading />}>
         <NotificationsClient />
       </Suspense>
-    </>
+    </NotificationsProvider>
   );
 });
 

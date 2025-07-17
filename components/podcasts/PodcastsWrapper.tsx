@@ -2,7 +2,7 @@
 
 import { memo, useEffect } from 'react';
 import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
-import { usePodcastsStore } from '@/lib/stores/podcastsStore';
+import { usePodcastsStore } from '@/lib/contexts/PodcastsContext';
 import { usePodcastsActions } from '@/lib/hooks/usePodcastsActions';
 import { PodcastItem } from '@/lib/types';
 
@@ -14,10 +14,12 @@ export const PodcastsWrapper = memo<PodcastsWrapperProps>(({ initialItems }) => 
   const { items, isLoading, error, announceMessage } = usePodcastsStore();
   const { initializePodcasts, resetPodcasts } = usePodcastsActions();
 
-  // Initialize podcasts data directly during render - React best practice
-  if (items.length === 0 && !isLoading && !error) {
-    initializePodcasts(initialItems);
-  }
+  // Initialize podcasts data in useEffect (not during render)
+  useEffect(() => {
+    if (items.length === 0 && !isLoading && !error && initialItems.length > 0) {
+      initializePodcasts(initialItems);
+    }
+  }, [items.length, isLoading, error, initialItems, initializePodcasts]);
 
   // Cleanup on unmount - legitimate useEffect for cleanup
   useEffect(() => {

@@ -1291,8 +1291,7 @@ export interface RSSFeedActions {
   }) => void;
 }
 
-// Combined RSS Feed Store Interface
-export interface RSSFeedStore extends RSSFeedState, RSSFeedActions {}
+
 
 // RSS Feed Component Props
 export interface RSSFeedClientProps {

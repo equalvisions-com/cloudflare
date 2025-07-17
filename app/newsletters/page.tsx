@@ -2,6 +2,8 @@ import { type Metadata } from 'next';
 import { memo, Suspense } from 'react';
 import dynamicImport from 'next/dynamic';
 import { getFeaturedNewsletters } from '@/lib/getFeaturedNewsletters';
+import { NewslettersProvider } from '@/lib/contexts/NewslettersContext';
+import { EntriesProvider } from '@/lib/contexts/EntriesContext';
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { NewslettersPageSkeleton } from "@/components/newsletters/NewslettersSkeleton";
@@ -125,11 +127,15 @@ const NewslettersPage = memo(async () => {
           role="main"
           aria-label="Newsletters directory"
         >
-          <ErrorBoundary fallback={<NewslettersErrorFallback />}>
-            <Suspense fallback={<NewslettersPageSkeleton />}>
-              <NewslettersWrapper initialItems={typedItems} />
-            </Suspense>
-          </ErrorBoundary>
+          <NewslettersProvider>
+            <EntriesProvider>
+              <ErrorBoundary fallback={<NewslettersErrorFallback />}>
+                <Suspense fallback={<NewslettersPageSkeleton />}>
+                  <NewslettersWrapper initialItems={typedItems} />
+                </Suspense>
+              </ErrorBoundary>
+            </EntriesProvider>
+          </NewslettersProvider>
         </main>
       </StandardSidebarLayout>
     </>

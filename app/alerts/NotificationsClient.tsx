@@ -9,7 +9,7 @@ import Image from 'next/image';
 import { Virtuoso } from 'react-virtuoso';
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useNotificationStore } from '@/lib/stores/notificationStore';
+import { useNotificationsContext } from '@/lib/contexts/NotificationsContext';
 import { useNotificationActions } from '@/lib/hooks/useNotificationActions';
 import { useNotificationsVirtualization } from '@/hooks/useNotificationsVirtualization';
 import NotificationErrorBoundary from '@/components/notifications/NotificationErrorBoundary';
@@ -31,7 +31,7 @@ const NotificationItemComponent = memo(({
   operationInProgressRef: React.MutableRefObject<Set<string>>;
 }) => {
   const { handleAcceptRequest, handleDeclineRequest, handleRemoveFriend } = useNotificationActions();
-  const { isLoading } = useNotificationStore();
+  const { isLoading } = useNotificationsContext();
   
   // Error state for this specific notification
   const [operationError, setOperationError] = useState<{

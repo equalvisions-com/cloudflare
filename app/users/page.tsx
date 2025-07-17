@@ -4,6 +4,7 @@ import dynamicImport from "next/dynamic";
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { UsersSearchSkeleton } from "@/components/users/UsersSkeleton";
+import { UsersProvider } from "@/lib/contexts/UsersContext";
 
 // Dynamic import of PeopleSearchWrapper with skeleton fallback
 const PeopleSearchWrapper = dynamicImport(
@@ -124,9 +125,11 @@ const PeoplePage = memo(() => {
 
       {/* Existing UI – keeps the client-search behaviour unchanged */}
       <StandardSidebarLayout rightSidebar={<MemoizedRightSidebar />}>
-        <Suspense fallback={<UsersSearchSkeleton />}>
-        <PeopleSearchWrapper />
-        </Suspense>
+        <UsersProvider>
+          <Suspense fallback={<UsersSearchSkeleton />}>
+            <PeopleSearchWrapper />
+          </Suspense>
+        </UsersProvider>
       </StandardSidebarLayout>
     </>
   );

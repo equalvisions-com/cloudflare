@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useEntriesStore } from '@/lib/stores/entriesStore';
+import { useEntriesContext } from '@/lib/contexts/EntriesContext';
 import { EntriesRSSEntry, InteractionStates } from '@/lib/types';
 import { useState } from 'react';
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
@@ -75,7 +75,7 @@ export const useEntriesData = ({
     setCommentDrawerOpen,
     setSelectedCommentEntry,
     reset,
-  } = useEntriesStore();
+  } = useEntriesContext();
 
   // Extract loading states from loadingState object
   const { isLoading, isInitialLoad, isMetricsLoading } = loadingState;

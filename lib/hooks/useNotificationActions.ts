@@ -4,7 +4,7 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useToast } from '@/components/ui/use-toast';
 import { useSidebar } from '@/components/ui/sidebar-context';
-import { useNotificationStore } from '@/lib/stores/notificationStore';
+import { useNotificationsContext } from '@/lib/contexts/NotificationsContext';
 
 /**
  * Custom hook for notification actions following React best practices
@@ -16,7 +16,7 @@ import { useNotificationStore } from '@/lib/stores/notificationStore';
 export function useNotificationActions() {
   const { toast } = useToast();
   const { pendingFriendRequestCount } = useSidebar();
-  const { setAccepting, setDeclining } = useNotificationStore();
+  const { setAccepting, setDeclining } = useNotificationsContext();
   
   // Mutations
   const acceptRequest = useMutation(api.friends.acceptFriendRequest);

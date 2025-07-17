@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { useNewslettersStore } from '@/lib/stores/newslettersStore';
+import { useNewslettersContext } from '@/lib/contexts/NewslettersContext';
 import { NewsletterItem } from '@/lib/types';
 
 export const useNewslettersActions = () => {
-  const { setItems, setSelectedCategory, setLoading, setError, reset } = useNewslettersStore();
+  const { setItems, setSelectedCategory, setLoading, setError, reset } = useNewslettersContext();
 
   // Initialize newsletters data
   const initializeNewsletters = useCallback(async (initialItems?: NewsletterItem[]) => {

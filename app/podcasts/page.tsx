@@ -2,6 +2,8 @@ import { type Metadata } from 'next';
 import { memo, Suspense } from 'react';
 import dynamicImport from 'next/dynamic';
 import { getFeaturedPodcasts } from '@/lib/getFeaturedPodcasts';
+import { PodcastsProvider } from '@/lib/contexts/PodcastsContext';
+import { EntriesProvider } from '@/lib/contexts/EntriesContext';
 import { StandardSidebarLayout } from "@/components/ui/StandardSidebarLayout";
 import { RightSidebar } from "@/components/homepage/RightSidebar";
 import { PodcastsPageSkeleton } from "@/components/podcasts/PodcastsSkeleton";
@@ -125,11 +127,15 @@ const PodcastsPage = memo(async () => {
           role="main"
           aria-label="Podcasts directory"
         >
-          <ErrorBoundary fallback={<PodcastsErrorFallback />}>
-            <Suspense fallback={<PodcastsPageSkeleton />}>
-              <PodcastsWrapper initialItems={typedItems} />
-            </Suspense>
-          </ErrorBoundary>
+          <PodcastsProvider>
+            <EntriesProvider>
+              <ErrorBoundary fallback={<PodcastsErrorFallback />}>
+                <Suspense fallback={<PodcastsPageSkeleton />}>
+                  <PodcastsWrapper initialItems={typedItems} />
+                </Suspense>
+              </ErrorBoundary>
+            </EntriesProvider>
+          </PodcastsProvider>
         </main>
       </StandardSidebarLayout>
     </>
