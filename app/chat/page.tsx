@@ -10,6 +10,7 @@ import { TrendingWidgetSkeleton } from '@/components/trending/TrendingWidgetSkel
 import { FeaturedPostsWidget } from '@/components/widgets/FeaturedPostsWidget';
 import { FeaturedPostsWidgetSkeleton } from '@/components/widgets/FeaturedPostsWidgetSkeleton';
 import { LegalWidget } from '@/components/widgets/LegalWidget';
+import { WidgetDataProvider } from '@/components/ui/WidgetDataProvider';
 import { Suspense } from 'react';
 
 // Add the Edge Runtime configuration at the top of the file
@@ -110,15 +111,18 @@ export default function Page() {
                 {/* Notifications Widget */}
                 <NotificationsWidgetServer />
                 
-                {/* Trending Widget */}
-                <Suspense fallback={<TrendingWidgetSkeleton />}>
-                  <TrendingWidget />
-                </Suspense>
-                
-                {/* Featured Posts Widget */}
-                <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
-                  <FeaturedPostsWidget />
-                </Suspense>
+                {/* Widget Data Provider - eliminates duplicate queries between TrendingWidget and FeaturedPostsWidget */}
+                <WidgetDataProvider>
+                  {/* Trending Widget */}
+                  <Suspense fallback={<TrendingWidgetSkeleton />}>
+                    <TrendingWidget />
+                  </Suspense>
+                  
+                  {/* Featured Posts Widget */}
+                  <Suspense fallback={<FeaturedPostsWidgetSkeleton />}>
+                    <FeaturedPostsWidget />
+                  </Suspense>
+                </WidgetDataProvider>
                 
                 {/* Legal Widget */}
                 <LegalWidget />

@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, User, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
+import { Bell, LogOut, UserPlus, LogIn, Settings } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
@@ -74,21 +74,12 @@ const UserMenuClientComponent = () => {
             {pendingFriendRequestCount > 0 && (
               <div className="absolute -top-0 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background z-10"></div>
             )}
-            {profileImage ? (
+            {profileImage && (
               <UserMenuImage 
                 key={`user-menu-${profileImage}`}
                 src={profileImage} 
                 alt={displayName || 'User'} 
               />
-            ) : (
-              <Button 
-                variant="secondary" 
-                size="icon" 
-                className="rounded-full h-8 w-8 p-0 shadow-none text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none" 
-              >
-                <User className="h-5 w-5" strokeWidth={2.5} />
-                <span className="sr-only">Toggle user menu</span>
-              </Button>
             )}
           </div>
         </DropdownMenuTrigger>
