@@ -1,5 +1,4 @@
 import React from "react";
-import { BadgeCheck } from "lucide-react";
 
 interface VerifiedBadgeProps {
   className?: string;
