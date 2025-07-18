@@ -78,7 +78,7 @@ export const useProfileData = ({
         description,
         url: `${siteUrl}/@${normalizedUsername}`,
         type: 'profile',
-        images: [`${siteUrl}/api/og/profile?user=${normalizedUsername}`]
+                  images: [`${siteUrl}/favicon.ico`]
       },
       twitter: {
         card: 'summary_large_image',

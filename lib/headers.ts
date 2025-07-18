@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 /**
- * Validates request headers to prevent basic automation abuse
+ * Validates request headers to prevent basic automation abuse and CSRF attacks
  * Edge runtime compatible - uses hostname detection instead of NODE_ENV
  */
 export function validateHeaders(request: NextRequest): boolean {
@@ -18,9 +18,24 @@ export function validateHeaders(request: NextRequest): boolean {
   
   // Production validation (socialnetworksandbox.com only)
   const userAgent = request.headers.get('user-agent') || '';
+  const origin = request.headers.get('origin') || '';
+  const referer = request.headers.get('referer') || '';
   
   // Block obvious automation
-  return userAgent.length > 0 && 
-         !userAgent.startsWith('curl') && 
-         !userAgent.startsWith('python');
+  const isValidUserAgent = userAgent.length > 0 && 
+                          !userAgent.startsWith('curl') && 
+                          !userAgent.startsWith('python') &&
+                          !userAgent.includes('bot') &&
+                          !userAgent.includes('scraper');
+  
+  // CSRF Protection: Require requests to come from our domain
+  // Allow requests with proper origin/referer or direct navigation (empty origin/referer)
+  const isValidOrigin = !origin || 
+                       origin.includes('socialnetworksandbox.com') ||
+                       origin === 'null'; // Direct navigation
+  
+  const isValidReferer = !referer || 
+                        referer.includes('socialnetworksandbox.com');
+  
+  return isValidUserAgent && isValidOrigin && isValidReferer;
 } 

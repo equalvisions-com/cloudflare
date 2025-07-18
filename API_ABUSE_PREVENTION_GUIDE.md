@@ -183,7 +183,7 @@ export function validateStrictHeaders(request: NextRequest): boolean {
 
 ### Step 2: Apply to All API Routes
 
-Add header validation to **each of your 26 API endpoints**. Here are examples:
+Add header validation to **each of your 25 API endpoints**. Here are examples:
 
 #### Example 1: POST Endpoint (Standard Protection)
 ```typescript
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
 
 ### Step 3: Complete Endpoint List to Update
 
-Add the validation code to **all 26 API endpoints**:
+Add the validation code to **all 25 API endpoints**:
 
 #### RSS & Content APIs (7 endpoints):
 ```typescript
@@ -300,7 +300,6 @@ if (!validateHeaders(request)) {
 #### User Activity APIs (6 endpoints):
 - `app/api/activity/route.ts` (POST)
 - `app/api/likes/route.ts` (POST)
-- `app/api/likes/[guid]/route.ts` (GET)
 - `app/api/bookmarks/route.ts` (POST)
 - `app/api/bookmarks/search/route.ts` (POST)
 - `app/api/follows/[postId]/route.ts` (GET)

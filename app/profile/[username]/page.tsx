@@ -225,7 +225,7 @@ const generateProfileMetadata = cache(async (username: string): Promise<Metadata
       description,
       url: `${siteUrl}/@${normalizedUsername}`,
       type: 'profile',
-      images: profile.profileImage ? [profile.profileImage] : [`${siteUrl}/api/og/profile?user=${normalizedUsername}`],
+              images: profile.profileImage ? [profile.profileImage] : [`${siteUrl}/favicon.ico`],
     },
     twitter: {
       card: 'summary_large_image',

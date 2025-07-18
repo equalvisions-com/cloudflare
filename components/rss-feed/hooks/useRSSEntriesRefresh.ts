@@ -304,8 +304,8 @@ export const useRSSEntriesRefresh = ({
     if (!isMountedRef.current) return;
     
     try {
-      const FOLLOWED_POSTS_KEY = '/api/rss/followed-posts';
-      const cacheKey = `${FOLLOWED_POSTS_KEY}?t=${Date.now()}`;
+      const FOLLOWED_POSTS_KEY = '/api/rss?refresh=true';
+      const cacheKey = `${FOLLOWED_POSTS_KEY}&t=${Date.now()}`;
       
       const data = await retryWithBackoff(async () => {
         const response = await fetch(cacheKey);
@@ -350,7 +350,7 @@ export const useRSSEntriesRefresh = ({
   }, [triggerOneTimeRefresh, setFetchError, setRefreshError, setRefreshing, setHasRefreshed]);
 
   // Listen for global followed posts changes - this IS external synchronization
-  const FOLLOWED_POSTS_KEY = '/api/rss/followed-posts';
+  const FOLLOWED_POSTS_KEY = '/api/rss?refresh=true';
   useSWR(FOLLOWED_POSTS_KEY, null, {
     refreshInterval: 0,
     revalidateOnFocus: false,

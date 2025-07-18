@@ -12,45 +12,9 @@ export const usePodcastsActions = () => {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // If no initial items provided, fetch from API
-      const response = await fetch('/api/podcasts');
-      if (!response.ok) {
-        const errorMessage = response.status === 404 
-          ? 'Podcasts service not found. Please try again later.'
-          : response.status === 500
-          ? 'Server error while loading podcasts. Please try again.'
-          : response.status === 429
-          ? 'Too many requests. Please wait a moment and try again.'
-          : `Failed to load podcasts (Error ${response.status}). Please try again.`;
-        
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      const items = data.items || [];
-      
-      if (items.length === 0) {
-        setError('No podcasts available at the moment. Please check back later.');
-        return;
-      }
-      
-      setItems(items);
-    } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : 'Unable to load podcasts. Please check your internet connection and try again.';
-      
-      setError(errorMessage);
-      
-      // Error logging removed for production readiness
-    } finally {
-      setLoading(false);
-    }
-  }, [setItems, setLoading, setError]);
+    // No API fallback needed - podcasts page always provides initial data via server-side getFeaturedPodcasts()
+    setError('No podcasts data provided. This should not happen in normal usage.');
+  }, [setItems, setError]);
 
   // Handle category selection
   const handleCategoryChange = useCallback((category: string | null) => {
