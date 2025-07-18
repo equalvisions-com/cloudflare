@@ -62,7 +62,8 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
       hasEmptySearchResults: hasSearchQuery && !hasResults,
       shouldShowLoading: hasSearchQuery && (isSearching || !searchResults),
       shouldShowEmptyState: hasSearchQuery && !hasResults && !isSearching,
-      shouldShowSearchResults: hasSearchQuery && hasResults
+      shouldShowSearchResults: hasSearchQuery && hasResults,
+      shouldShowInitialBookmarks: !hasSearchQuery // Show initial bookmarks when no search query
     };
   }, [searchQuery, searchResults?.bookmarks.length, isSearching]);
   
@@ -88,6 +89,7 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
     return (
       <ErrorBoundary fallback={({ retry }) => <BookmarksFeedError onRetry={retry} />}>
         <BookmarksFeed 
+          key="search-results"
           userId={userId} 
           initialData={searchResults!}
           pageSize={30} 
@@ -105,6 +107,7 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
   return (
     <ErrorBoundary fallback={({ retry }) => <BookmarksFeedError onRetry={retry} />}>
       <BookmarksFeed 
+        key="initial-bookmarks"
         userId={userId} 
         initialData={initialData}
         pageSize={30} 

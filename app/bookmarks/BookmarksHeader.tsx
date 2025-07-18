@@ -23,6 +23,7 @@ const SearchErrorFallback = ({ error, retry }: { error: Error; retry: () => void
     </button>
   </div>
 );
+SearchErrorFallback.displayName = 'SearchErrorFallback';
 
 // Performance optimization: Memoized search input component
 const SearchInput = memo(({ 

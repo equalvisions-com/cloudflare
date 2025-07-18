@@ -117,22 +117,6 @@ export const BookmarksProvider = React.memo(({ children, userId }: BookmarksProv
     }, 300); // 300ms debounce
   }, [userId, toast]);
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!userId) {
-      console.error('Unexpected: userId is null on protected route');
-      return;
-    }
-
-    setSearchQuery(query);
-
-    if (!query.trim()) {
-      handleClearSearch();
-      return;
-    }
-
-    await debouncedSearch(query);
-  }, [userId, debouncedSearch]);
-
   const handleClearSearch = useCallback(() => {
     // Clear debounce timeout
     if (debounceTimeoutRef.current) {
@@ -150,6 +134,22 @@ export const BookmarksProvider = React.memo(({ children, userId }: BookmarksProv
     setSearchResults(null);
     setIsSearching(false);
   }, []);
+
+  const handleSearch = useCallback(async (query: string) => {
+    if (!userId) {
+      console.error('Unexpected: userId is null on protected route');
+      return;
+    }
+
+    setSearchQuery(query);
+
+    if (!query.trim()) {
+      handleClearSearch();
+      return;
+    }
+
+    await debouncedSearch(query);
+  }, [userId, debouncedSearch, handleClearSearch]);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo((): BookmarksContextType => ({
