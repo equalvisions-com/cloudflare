@@ -800,7 +800,7 @@ function FeaturedContentComponent({
         restoreStateFrom={undefined}
       />
     );
-  }, [paginatedEntries.length, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
+  }, [paginatedEntries, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
 
   if (paginatedEntries.length === 0 && !isInitializing) {
     return (

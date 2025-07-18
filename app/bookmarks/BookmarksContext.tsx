@@ -126,7 +126,20 @@ export const BookmarksProvider = React.memo(({ children, userId }: BookmarksProv
     setSearchQuery(query);
 
     if (!query.trim()) {
-      handleClearSearch();
+      // Clear search logic inline to avoid circular dependency
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+      
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      setSearchQuery('');
+      setSearchResults(null);
+      setIsSearching(false);
       return;
     }
 

@@ -232,7 +232,6 @@ export const VirtualizedFollowingItem = memo(({
     router, 
     currentUserFollowStatus, 
     item?.following,
-    item?.post?.title,
     followMutation,
     unfollowMutation,
     onUpdateFollowStatus,
@@ -264,6 +263,7 @@ export const VirtualizedFollowingItem = memo(({
             {item.post.featuredImg && imageProps ? (
               <Image
                 {...imageProps}
+                alt={item.post.title}
               />
             ) : (
               <div className="h-full w-full bg-muted flex items-center justify-center">

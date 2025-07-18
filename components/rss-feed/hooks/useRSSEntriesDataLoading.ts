@@ -287,6 +287,8 @@ export const useRSSEntriesDataLoading = ({
     pageSize,
     getApiParams,
     initialData?.feedUrls,
+    initialData?.entries,
+    feedMetadataCache,
     transformEntries,
     setLoading,
     setFetchError,

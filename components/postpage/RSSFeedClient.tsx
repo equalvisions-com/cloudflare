@@ -407,6 +407,9 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
   }, []);
 
   // PHASE 4: Advanced memoization with stable dependencies for timestamp calculation
+  // Extract complex expression to separate variable for static analysis
+  const currentMinuteStamp = Math.floor(Date.now() / (1000 * 60));
+  
   const timestamp = useMemo(() => {
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
     const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -453,7 +456,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
     } else {
       return `${prefix}${diffInMonths}${diffInMonths === 1 ? 'mo' : 'mo'}${suffix}`;
     }
-  }, [entry.pubDate, Math.floor(Date.now() / (1000 * 60))]); // Update every minute
+  }, [entry.pubDate, currentMinuteStamp]); // Update every minute
 
   // Memoize handlers to prevent recreating them on every render
   const handleCardClick = useCallback((e: React.MouseEvent) => {

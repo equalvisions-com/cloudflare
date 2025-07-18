@@ -244,7 +244,7 @@ export function UserProfileTabs({
     // CRITICAL FIX: Remove startTransition to make tab changes synchronous
     // This prevents components from staying mounted during tab switch
     setSelectedTabIndex(index);
-  }, [likesState.status, fetchLikesData]);
+  }, [likesState.status, fetchLikesData, currentUserId]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [

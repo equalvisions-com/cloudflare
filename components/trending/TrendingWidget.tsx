@@ -521,7 +521,7 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [trendingPostsSource, isLoadingPosts]);
+  }, [trendingPostsSource, isLoadingPosts, retryFetch, setRssEntries]);
   
   // Data transformation - simple operations, no memoization needed
   const mergedItems = !trendingPostsSource ? [] : trendingPostsSource

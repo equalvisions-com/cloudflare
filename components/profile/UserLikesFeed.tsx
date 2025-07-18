@@ -511,7 +511,7 @@ const ActivityCard = memo(({
   const isPodcast = useMemo(() => {
     if (!entryDetails) return false;
     return entryDetails.post_media_type?.toLowerCase() === 'podcast' || entryDetails.mediaType?.toLowerCase() === 'podcast';
-  }, [entryDetails?.post_media_type, entryDetails?.mediaType]);
+  }, [entryDetails]);
   
   // Handle podcast card click - move outside of conditional
   const handleCardClick = useCallback((e: React.MouseEvent) => {

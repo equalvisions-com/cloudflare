@@ -690,7 +690,7 @@ const ActivityCard = React.memo(({
     if (interactions) {
       onOpenCommentDrawer(activity.entryGuid, activity.feedUrl, { count: interactions.comments?.count || 0 });
     }
-  }, [activity.entryGuid, activity.feedUrl, interactions?.comments?.count, onOpenCommentDrawer]);
+  }, [activity.entryGuid, activity.feedUrl, interactions, onOpenCommentDrawer]);
 
   // Add handler to prevent focus when clicking non-interactive elements
   const handleNonInteractiveMouseDown = useCallback((e: React.MouseEvent) => {
@@ -721,13 +721,13 @@ const ActivityCard = React.memo(({
     const defaultImage = '/placeholder-image.jpg';
     
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetail?.post_featured_img, entryDetail?.image]);
+  }, [entryDetail]);
 
   // Memoize entry content image source (for card content)
   const entryImageSrc = useMemo(() => {
     if (!entryDetail?.image) return '/placeholder-image.jpg';
     return entryDetail.image;
-  }, [entryDetail?.image]);
+  }, [entryDetail]);
 
   // If we don't have entry details, show a simplified card
   if (!entryDetail) {
@@ -1459,13 +1459,13 @@ const ActivityGroupRenderer = React.memo(({
     const defaultImage = '/placeholder-image.jpg';
     
     return primaryImage || fallbackImage || defaultImage;
-  }, [entryDetail?.post_featured_img, entryDetail?.image]);
+  }, [entryDetail]);
 
   // Memoize entry content image source (for card content)
   const groupEntryImageSrc = useMemo(() => {
     if (!entryDetail?.image) return '/placeholder-image.jpg';
     return entryDetail.image;
-  }, [entryDetail?.image]);
+  }, [entryDetail]);
 
   return (
     // Use a unique key for the group
