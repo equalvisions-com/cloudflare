@@ -95,7 +95,7 @@ const NotificationItemComponent = memo(({
       // Clear operation in progress
       operationInProgressRef.current.delete(notification.friendship._id);
     }
-  }, [handleAcceptRequest, notification.friendship._id, onUpdateNotification, operationInProgressRef]);
+  }, [handleAcceptRequest, notification.friendship._id, onUpdateNotification, notification.friendship, operationInProgressRef]);
 
   const handleDeclineClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click

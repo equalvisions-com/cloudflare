@@ -180,7 +180,7 @@ export const EditProfileModal = React.memo(({
     return () => {
       ResourceManager.cleanup(componentId);
     };
-  }, [componentId, imageUpload, previewImage]);
+  }, [componentId, imageUpload.cleanupPreviewUrl, previewImage]);
 
   // Reset form fields when initialData changes (e.g., modal is re-opened for a different user or data is refreshed)
   useEffect(() => {
@@ -188,7 +188,7 @@ export const EditProfileModal = React.memo(({
       dispatch({ type: 'RESET_FORM', payload: initialData });
       imageUpload.resetFileInput();
     }
-  }, [initialData, isOpen, imageUpload]);
+  }, [initialData, isOpen, imageUpload.resetFileInput]);
 
   // Handle form submission - prevent default immediately, then debounce the actual submission
   const handleSubmit = (e: React.FormEvent) => {

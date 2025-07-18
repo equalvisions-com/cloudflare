@@ -289,8 +289,6 @@ export const useRSSEntriesRefresh = ({
   }, [
     isRefreshing, 
     hasRefreshed,
-    currentPostTitles?.length,
-    currentFeedUrls?.length,
     getRefreshRequestBody,
     setRefreshing,
     setRefreshError,

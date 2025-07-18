@@ -64,7 +64,7 @@ const BookmarksContentComponent = ({ userId, initialData }: BookmarksContentProp
       shouldShowEmptyState: hasSearchQuery && !hasResults && !isSearching,
       shouldShowSearchResults: hasSearchQuery && hasResults
     };
-  }, [searchQuery, searchResults, isSearching]);
+  }, [searchQuery, searchResults?.bookmarks.length, isSearching]);
   
   // Note: Authentication is guaranteed by middleware protection
   if (!userId) {

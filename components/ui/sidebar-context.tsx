@@ -93,8 +93,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       viewer?.profileImage,
       viewer?._id,
       pendingFriendRequestCount,
-      authHints.isAuthenticated,
-      isLoading
+      authHints.isAuthenticated
     ]
   );
 

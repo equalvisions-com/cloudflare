@@ -972,8 +972,8 @@ function EntriesContentComponent({
         restoreStateFrom={undefined}
       />
     );
-  // FIXED: Include paginatedEntries so Virtuoso re-renders when entries are added
-  }, [paginatedEntries, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
+  // FIXED: Include paginatedEntries.length so Virtuoso re-renders when entries are added
+  }, [paginatedEntries.length, itemContentCallback, isInitializing, virtuosoRef, virtuosoComponents, virtuosoStyle]);
 
   // Check if this is truly empty (not just initial loading)
   if (paginatedEntries.length === 0 && !isInitializing) {
@@ -1299,7 +1299,8 @@ const RSSEntriesClientComponent = ({
     initialData.hasMore,
     initialData.postTitles,
     initialData.feedUrls,
-    initialData.mediaTypes
+    initialData.mediaTypes,
+    feedMetadataCache.current
   ]);
 
   const memoizedCommentHandlers = useMemo(() => ({

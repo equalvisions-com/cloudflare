@@ -44,7 +44,7 @@ export function WidgetDataProvider({ children }: WidgetDataProviderProps) {
     isLoading: widgetPosts === undefined,
     isLoadingFollowStates: isAuthenticated && widgetPosts !== undefined && followStates === undefined,
     error: widgetPosts === null
-  }), [widgetPosts, followStates, isAuthenticated]);
+  }), [widgetPosts, followStates]); // Removed isAuthenticated from dependencies
 
   return (
     <WidgetDataContext.Provider value={contextValue}>

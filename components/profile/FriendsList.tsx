@@ -293,7 +293,7 @@ export function FriendsList({ username, initialCount = 0, initialFriends }: Frie
         }, 150);
       }
     }
-  }, [friendsData.error, friendsActions, accessibilityAnnouncement]);
+  }, [friendsData.error, friendsActions.clearError, accessibilityAnnouncement]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

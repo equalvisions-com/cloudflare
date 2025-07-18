@@ -248,7 +248,7 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
     setTimeout(() => {
       updateState({ isTransitioning: false });
     }, 50);
-  }, [state.searchTab, restoreScrollPosition, searchEmblaApi, updateState]);
+  }, [state.searchTab, state.searchQuery, restoreScrollPosition, searchEmblaApi, updateState]);
 
   // Initialize mobile detection
   useEffect(() => {

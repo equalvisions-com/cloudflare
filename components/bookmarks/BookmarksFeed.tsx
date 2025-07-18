@@ -266,7 +266,7 @@ const BookmarkCard = memo(({
   const entryImageSrc = useMemo(() => {
     if (!entryDetails?.image) return '/placeholder-image.jpg';
     return entryDetails.image;
-  }, [entryDetails]);
+  }, [entryDetails?.image]);
 
   // Audio track data
   const audioTrackData = useMemo(() => {
@@ -757,7 +757,7 @@ const useBookmarksPagination = ({
     } finally {
       requestInFlightRef.current = false;
     }
-  }, [state.isLoading, state.hasMore, state.currentSkip, userId, pageSize, isSearchResults, dispatch]);
+  }, [state.isLoading, state.hasMore, state.currentSkip, userId, pageSize, isSearchResults]);
 
   // Use universal delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreBookmarks, {
@@ -850,7 +850,7 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     if (initialData && !state.bookmarks.length) {
       dispatch({ type: 'INITIALIZE', payload: initialData });
     }
-  }, [initialData, state.bookmarks.length]);
+  }, [initialData]);
 
   // Use custom pagination hook
   const { loadMoreRef, loadMoreBookmarks } = useBookmarksPagination({

@@ -287,7 +287,7 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
   // Memoize the drawer open handler to prevent re-renders
   const handleOpenDrawer = useMemo(() => () => {
     actions.setIsOpen(true);
-  }, [actions]);
+  }, [actions.setIsOpen]);
   
   // Only render the button if buttonOnly is true
   if (buttonOnly) {
