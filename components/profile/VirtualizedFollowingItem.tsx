@@ -285,9 +285,9 @@ export const VirtualizedFollowingItem = memo(({
             )}
           </div>
           
-          {item.post.categorySlug && (
+          {item.post.mediaType && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-              {item.post.categorySlug}
+              {item.post.mediaType.charAt(0).toUpperCase() + item.post.mediaType.slice(1)}
             </p>
           )}
         </div>

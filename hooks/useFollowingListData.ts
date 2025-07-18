@@ -54,9 +54,11 @@ export function useFollowingListData({
           // This ensures follow states are available when content is displayed
           const hasFollowStates = followingQuery.followStates && Object.keys(followingQuery.followStates).length > 0;
           const isEmpty = followingQuery.following.length === 0;
+          const isFollowStatesObject = followingQuery.followStates && typeof followingQuery.followStates === 'object';
           
-          // Initialize if we have complete data (with follow states) or if the list is empty
-          if (hasFollowStates || isEmpty) {
+          // Initialize if we have complete data (with follow states), if the list is empty, 
+          // or if we have a followStates object (even if empty - for unauthenticated users)
+          if (hasFollowStates || isEmpty || isFollowStatesObject) {
             dispatch({
               type: 'INITIALIZE_FOLLOWING',
               payload: {
@@ -67,8 +69,7 @@ export function useFollowingListData({
               },
             });
           }
-          // If we have following items but no follow states, continue showing skeleton
-          // until the optimized query completes with both data and follow states
+          // Only continue showing skeleton if we truly don't have the followStates object yet
         }
       };
       
