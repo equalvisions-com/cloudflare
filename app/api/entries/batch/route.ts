@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeRead } from "@/lib/database";
+import { validateHeaders } from '@/lib/headers';
 
 export const runtime = 'edge';
 
@@ -8,6 +9,10 @@ export const runtime = 'edge';
  * This allows us to get the complete entry data for activity items
  */
 export async function POST(request: NextRequest) {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     const { guids } = await request.json();
     

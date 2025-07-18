@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead } from '@/lib/database';
+import { validateHeaders } from '@/lib/headers';
 
 interface RSSEntry {
   guid: string;
@@ -29,6 +30,10 @@ interface EntriesByFeedUrl {
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     // Parse the request body to get feedUrls
     const body = await request.json();

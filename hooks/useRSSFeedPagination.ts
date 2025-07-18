@@ -59,25 +59,35 @@ export const useRSSFeedPaginationHook = (
   isLoadingRef.current = loading.isLoading;
   isActiveRef.current = isActive;
 
-  // Memoize URL creation to prevent recreating on every render
-  const createApiUrl = useCallback((nextPage: number) => {
-    const { postTitle, feedUrl, pageSize } = feedMetadata;
+  // Memoize request parameters creation to prevent recreating on every render
+  const createRequestParams = useCallback((nextPage: number) => {
+    const { postTitle, feedUrl, pageSize, mediaType } = feedMetadata;
     
-    const baseUrl = new URL(`/api/rss/${encodeURIComponent(postTitle)}`, window.location.origin);
-    baseUrl.searchParams.set('feedUrl', encodeURIComponent(feedUrl));
-    baseUrl.searchParams.set('page', nextPage.toString());
-    baseUrl.searchParams.set('pageSize', pageSize.toString());
+    const requestBody: {
+      feedUrl: string;
+      page: number;
+      pageSize: number;
+      mediaType?: string;
+      totalEntries?: number;
+    } = {
+      feedUrl: feedUrl,
+      page: nextPage,
+      pageSize: pageSize,
+    };
     
     // Pass the cached total entries to avoid unnecessary COUNT queries
     if (pagination.totalEntries) {
-      baseUrl.searchParams.set('totalEntries', pagination.totalEntries.toString());
+      requestBody.totalEntries = pagination.totalEntries;
     }
     
-    if (feedMetadata.mediaType) {
-      baseUrl.searchParams.set('mediaType', encodeURIComponent(feedMetadata.mediaType));
+    if (mediaType) {
+      requestBody.mediaType = mediaType;
     }
     
-    return baseUrl.toString();
+    return {
+      url: `/api/rss/${encodeURIComponent(postTitle)}`,
+      body: requestBody
+    };
   }, [feedMetadata, pagination.totalEntries]); // Stable dependencies
 
   // Memoize entry transformation to prevent recreating on every render
@@ -124,9 +134,15 @@ export const useRSSFeedPaginationHook = (
     const nextPage = currentPageValue + 1;
     
     try {
-      const apiUrl = createApiUrl(nextPage);
+      const { url, body } = createRequestParams(nextPage);
       
-      const response = await fetch(apiUrl);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data: RSSFeedAPIResponse = await response.json();
@@ -167,7 +183,7 @@ export const useRSSFeedPaginationHook = (
     }
   }, [
     customLoadMore,
-    createApiUrl,
+    createRequestParams,
     transformApiEntries,
     dispatch,
     pagination.totalEntries,

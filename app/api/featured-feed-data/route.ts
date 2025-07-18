@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getInitialEntries } from '@/components/featured/FeaturedFeed'; // Path alias should work
 import type { FeaturedEntry as OriginalFeaturedEntry } from '@/lib/featured_kv';
+import { validateHeaders } from '@/lib/headers';
 
 export const runtime = 'edge';
 
@@ -49,7 +50,11 @@ interface KVNamespace {
 // Let's assume KVFEATURED is injected and accessible.
 // It's important to ensure the binding name 'KVFEATURED' matches exactly what's in your Cloudflare Pages dashboard.
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     // Accessing the KV binding. Cloudflare Pages injects bindings into the environment.
     // For Edge Runtime (which App Router handlers on Pages often use),

@@ -6,6 +6,7 @@ import type { RSSEntryRow } from '@/lib/types';
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
+import { validateHeaders } from '@/lib/headers';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
@@ -20,28 +21,24 @@ interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_a
   feed_url: string;
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const postTitlesParam = searchParams.get('postTitles');
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
-    // Get total entries from query params if available (passed from client during pagination)
-    const cachedTotalEntries = searchParams.get('totalEntries') 
-      ? parseInt(searchParams.get('totalEntries') || '0', 10) 
-      : null;
+    // Get parameters from request body instead of query params
+    const body = await request.json();
+    const { 
+      postTitles = [], 
+      feedUrls = [], 
+      page = 1, 
+      pageSize = 30, 
+      totalEntries: cachedTotalEntries = null,
+      currentEntriesCount = null 
+    } = body;
     
-    // CRITICAL FIX: Get current entries count from client to calculate correct offset
-    // This accounts for new entries that may have been added to the top of the feed
-    const currentEntriesCount = searchParams.get('currentEntriesCount')
-      ? parseInt(searchParams.get('currentEntriesCount') || '0', 10)
-      : null;
-    
-    // Get feed URLs from query params, if available
-    const feedUrlsParam = searchParams.get('feedUrls');
-    
-    if (!postTitlesParam && !feedUrlsParam) {
+    if (!postTitles.length && !feedUrls.length) {
       console.error('❌ API: Either post titles or feed URLs are required');
       return NextResponse.json(
         { error: 'Either post titles or feed URLs are required' },
@@ -49,39 +46,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    let postTitles: string[] = [];
-    if (postTitlesParam) {
-      try {
-        postTitles = JSON.parse(decodeURIComponent(postTitlesParam));
-        if (!Array.isArray(postTitles)) {
-          throw new Error('Post titles must be an array');
-        }
-      } catch (error) {
-        console.error('❌ API: Invalid post titles format', error);
-        return NextResponse.json(
-          { error: 'Invalid post titles format' },
-          { status: 400 }
-        );
-      }
+    // Validate arrays
+    if (!Array.isArray(postTitles) || !Array.isArray(feedUrls)) {
+      console.error('❌ API: postTitles and feedUrls must be arrays');
+      return NextResponse.json(
+        { error: 'postTitles and feedUrls must be arrays' },
+        { status: 400 }
+      );
     }
-    
-    // Parse feed URLs if provided
-    let feedUrls: string[] = [];
-    if (feedUrlsParam) {
-      try {
-        feedUrls = JSON.parse(decodeURIComponent(feedUrlsParam));
-        if (!Array.isArray(feedUrls)) {
-          throw new Error('Feed URLs must be an array');
-        }
-      } catch (error) {
-        console.error('❌ API: Invalid feed URLs format', error);
-        return NextResponse.json(
-          { error: 'Invalid feed URLs format' },
-          { status: 400 }
-        );
-      }
-    }
-    
+
     if (postTitles.length === 0 && feedUrls.length === 0) {
       return NextResponse.json({ entries: [], hasMore: false, totalEntries: 0, postTitles: [] });
     }

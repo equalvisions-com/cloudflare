@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
+import { validateHeaders } from '@/lib/headers';
 
 // Use Edge runtime
 export const runtime = 'edge';
@@ -19,7 +20,11 @@ const devLog = (message: string, data?: unknown) => {
   }
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     // Get initial entries with mediaTypes
     const initialRSSData = await getInitialEntries();

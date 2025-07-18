@@ -21,7 +21,7 @@ interface RouteContext {
   params: Promise<{ postTitle: string }>;
 }
 
-export async function GET(
+export async function POST(
   request: NextRequest,
   context: RouteContext
 ): Promise<NextResponse> {
@@ -32,18 +32,16 @@ export async function GET(
     postTitle = params.postTitle;
     const decodedTitle = decodeURIComponent(postTitle);
     
-    // Get pagination parameters
-    const searchParams = request.nextUrl.searchParams;
-    const feedUrl = searchParams.get('feedUrl');
-    const mediaType = searchParams.get('mediaType');
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '30', 10);
-    // Get search query if it exists
-    const searchQuery = searchParams.get('q');
-    // Get cached total entries from query params if available
-    const cachedTotalEntries = searchParams.get('totalEntries')
-      ? parseInt(searchParams.get('totalEntries') || '0', 10)
-      : null;
+    // Get parameters from request body instead of query params
+    const body = await request.json();
+    const {
+      feedUrl,
+      mediaType,
+      page = 1,
+      pageSize = 30,
+      q: searchQuery,
+      totalEntries: cachedTotalEntries
+    } = body;
 
     console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}${searchQuery ? `, search="${searchQuery}"` : ''}`);
 

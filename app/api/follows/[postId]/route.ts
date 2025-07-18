@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { validateHeaders } from '@/lib/headers';
 
 interface RouteContext {
   params: Promise<{ postId: string }>;
@@ -11,9 +12,13 @@ interface RouteContext {
 export const runtime = 'edge';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   context: RouteContext
 ): Promise<Response> {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     const { postId } = await context.params;
     

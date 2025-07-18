@@ -6,6 +6,7 @@ import { executeRead } from '@/lib/database';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { validateHeaders } from '@/lib/headers';
 
 // Define a type for the entry rows to fix type errors
 interface EntryRow {
@@ -287,6 +288,13 @@ async function fetchArticles(topic: string): Promise<Article[]> {
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
+  if (!validateHeaders(req as any)) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  
   try {
     const token = await convexAuthNextjsToken().catch(() => null);
     if (!token) {

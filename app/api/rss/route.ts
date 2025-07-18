@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getInitialEntries, getInitialEntriesWithoutRefresh, invalidateAllCountCaches } from "@/components/rss-feed/RSSEntriesDisplay.server";
+import { validateHeaders } from '@/lib/headers';
 
 // Mark as dynamic to ensure fresh data on follow/unfollow actions
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,10 @@ export const runtime = 'edge';
 export const revalidate = 0;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     const url = new URL(request.url);
     

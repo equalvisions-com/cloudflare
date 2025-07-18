@@ -3,6 +3,7 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
+import { validateHeaders } from '@/lib/headers';
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
@@ -54,6 +55,10 @@ interface LikesResponse {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     // Get userId, currentUserId and pagination parameters from request body
     const body = await request.json();

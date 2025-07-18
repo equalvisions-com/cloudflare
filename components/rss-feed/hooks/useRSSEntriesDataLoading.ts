@@ -173,29 +173,43 @@ export const useRSSEntriesDataLoading = ({
     setLoading(true);
     
     try {
-      const baseUrl = new URL('/api/rss/paginate', window.location.origin);
       const nextPage = currentPageRef.current + 1;
       
       // Get fresh API parameters with current entries count
       const apiParams = getApiParams();
       
-      // Set URL parameters
-      baseUrl.searchParams.set('page', nextPage.toString());
-      baseUrl.searchParams.set('pageSize', pageSize.toString());
-      baseUrl.searchParams.set('postTitles', apiParams.postTitlesParam);
-      baseUrl.searchParams.set('currentEntriesCount', apiParams.currentEntriesCount.toString());
-      baseUrl.searchParams.set('t', Date.now().toString());
+      // Prepare POST body with all parameters
+      const requestBody: {
+        page: number;
+        pageSize: number;
+        postTitles: string[];
+        currentEntriesCount: number;
+        feedUrls?: string[];
+        totalEntries?: number;
+      } = {
+        page: nextPage,
+        pageSize: pageSize,
+        postTitles: JSON.parse(apiParams.postTitlesParam),
+        currentEntriesCount: apiParams.currentEntriesCount,
+      };
       
+      // Add optional parameters
       if (initialData?.feedUrls?.length) {
-        baseUrl.searchParams.set('feedUrls', apiParams.feedUrlsParam);
+        requestBody.feedUrls = JSON.parse(apiParams.feedUrlsParam);
       }
       
       if (apiParams.totalEntries > 0) {
-        baseUrl.searchParams.set('totalEntries', apiParams.totalEntries.toString());
+        requestBody.totalEntries = apiParams.totalEntries;
       }
       
       const response = await retryWithBackoff(async () => {
-        const response = await fetch(baseUrl.toString());
+        const response = await fetch('/api/rss/paginate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }

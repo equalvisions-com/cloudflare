@@ -4,6 +4,7 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { executeRead } from '@/lib/database';
 import { checkAndRefreshFeeds } from '@/lib/rss.server';
+import { validateHeaders } from '@/lib/headers';
 
 // Add Edge Runtime configuration
 export const runtime = 'edge';
@@ -32,7 +33,11 @@ const errorLog = (message: string, error?: unknown) => {
   }
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  if (!validateHeaders(request as any)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     const body = await request.json();
     const { postTitles, feedUrls, mediaTypes, existingGuids = [], newestEntryDate } = body;

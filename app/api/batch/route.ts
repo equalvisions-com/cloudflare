@@ -3,10 +3,15 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { getRSSEntries } from "@/lib/rss.server";
+import { validateHeaders } from '@/lib/headers';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  if (!validateHeaders(request)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  
   try {
     const { feedUrl, postTitle, mediaType } = await request.json();
 
