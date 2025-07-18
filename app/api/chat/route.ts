@@ -298,7 +298,7 @@ export async function POST(req: Request) {
 
     const { messages, activeButton } = await req.json();
     
-    // Check rate limit with Convex
+    // 🔥 CRITICAL FIX: Check rate limit FIRST before any expensive operations
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     convex.setAuth(token);
     
@@ -307,8 +307,8 @@ export async function POST(req: Request) {
       activeButton
     });
 
-    // Corrected to use 'ok' and 'retryAfter' based on the actual API
-    if (rateLimitResult.limited && rateLimitResult.retryAfterMs) { // Check if limited and retryAfterMs is available
+    // 🚨 STOP HERE if rate limited - don't proceed to expensive AI/API calls
+    if (rateLimitResult.limited && rateLimitResult.retryAfterMs) {
       return new Response(JSON.stringify({ 
         error: 'Rate limit exceeded',
         retryAfterMs: rateLimitResult.retryAfterMs 
@@ -319,7 +319,7 @@ export async function POST(req: Request) {
           'Retry-After': String(Math.ceil(rateLimitResult.retryAfterMs / 1000))
         },
       });
-    } else if (rateLimitResult.limited) { // Handle cases where retryAfterMs might not be set but still limited
+    } else if (rateLimitResult.limited) {
        return new Response(JSON.stringify({ 
         error: 'Rate limit exceeded'
       }), {
@@ -330,6 +330,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // ✅ Only proceed to expensive operations if rate limit passed
     // Only keep messages from the most recent user query onward.
     // This assumes that the latest user message indicates a new topic.
     const lastUserIndex = messages.map((m: Message) => m.role).lastIndexOf('user');
