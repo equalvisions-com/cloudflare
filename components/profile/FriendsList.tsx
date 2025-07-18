@@ -116,8 +116,8 @@ const friendsListReducer = (state: FriendsListState, action: FriendsListAction):
       return createInitialState(state.count, undefined);
     
     case 'UPDATE_FRIEND_STATUS':
-      // If status is "cancelled", remove the friend from the list
-      if (action.payload.newStatus === 'cancelled') {
+      // If status is null (friendship deleted), remove the friend from the list
+      if (action.payload.newStatus === null) {
         return {
           ...state,
           friends: state.friends.filter(friend => friend.friendship._id !== action.payload.friendshipId),

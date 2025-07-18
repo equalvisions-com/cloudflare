@@ -1,25 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { RateLimiter } from "@convex-dev/rate-limiter";
-import { components } from "./_generated/api";
+import { actionLimiter } from "./rateLimiters";
 
 /** How many messages a user may send per day. */
 const DAILY_LIMIT = 50;
-/** One day in milliseconds. */
-const DAY = 24 * 60 * 60 * 1000;
-
-// -----------------------------------------------------------------------------
-// Rate-limiter configuration
-// -----------------------------------------------------------------------------
-export const chatLimiter = new RateLimiter(components.rateLimiter, {
-  chat: {
-    kind: "fixed window",
-    period: DAY,
-    rate: DAILY_LIMIT,
-    capacity: DAILY_LIMIT,
-  },
-});
 
 // -----------------------------------------------------------------------------
 // Mutation: sendChatMessage
@@ -34,7 +19,7 @@ export const sendChatMessage = mutation({
     if (!userId) throw new Error("Not authenticated");
 
     // Consume one token from the user's chat bucket
-    const limitResult = await chatLimiter.limit(ctx, "chat", { key: userId });
+    const limitResult = await actionLimiter.limit(ctx, "chat", { key: userId });
     if (!limitResult.ok) {
       return {
         limited: true,
@@ -70,7 +55,7 @@ export const getRateLimitStatus = query({
 
     while (low < high) {
       const mid = Math.ceil((low + high + 1) / 2);
-      const { ok } = await chatLimiter.check(ctx, "chat", {
+      const { ok } = await actionLimiter.check(ctx, "chat", {
         key: userId,
         count: mid,
       });

@@ -1,15 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-
-// Rate limiting constants for retweets
-const RETWEET_RATE_LIMITS = {
-  PER_POST_COOLDOWN: 2000,        // 2 seconds between retweet/unretweet on same post
-  BURST_LIMIT: 3,                 // 3 retweets max
-  BURST_WINDOW: 30000,            // in 30 seconds
-  HOURLY_LIMIT: 25,               // 25 retweets per hour (more restrictive than likes)
-  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
-};
+import { actionLimiter } from "./rateLimiters";
 
 // Retweet an entry
 export const retweet = mutation({
@@ -26,46 +18,38 @@ export const retweet = mutation({
       throw new Error("Not authenticated");
     }
 
-    // 1. Check if already retweeted (per-post cooldown)
+    // Check rate limits before any database operations
+    // 1. Burst limit (3 retweets in 30 seconds)
+    const burstResult = await actionLimiter.limit(ctx, "retweetsBurst", { key: userId });
+    if (!burstResult.ok) {
+      throw new Error("Too many retweets too quickly. Please slow down.");
+    }
+
+    // 2. Hourly limit (25 retweets per hour)
+    const hourlyResult = await actionLimiter.limit(ctx, "retweetsHourly", { key: userId });
+    if (!hourlyResult.ok) {
+      throw new Error("Hourly retweet limit reached. Try again later.");
+    }
+
+    // 3. Daily limit (100 retweets per day)
+    const dailyResult = await actionLimiter.limit(ctx, "retweetsDaily", { key: userId });
+    if (!dailyResult.ok) {
+      throw new Error("Daily retweet limit reached. Try again tomorrow.");
+    }
+
+    // Check if already retweeted
     const existing = await ctx.db
       .query("retweets")
       .withIndex("by_user_entry", (q) => q.eq("userId", userId).eq("entryGuid", args.entryGuid))
       .unique();
 
     if (existing) {
-      // Per-post cooldown: 2 seconds between retweet/unretweet on same post
-      const timeSinceLastAction = Date.now() - existing._creationTime;
-      if (timeSinceLastAction < RETWEET_RATE_LIMITS.PER_POST_COOLDOWN) {
-        throw new Error("Please wait before toggling retweet again");
-      }
-      // If cooldown passed, this is an unretweet action - delete and return
+      // If already retweeted, this is an unretweet action - delete and return
       await ctx.db.delete(existing._id);
       return { action: "unretweeted", retweetId: existing._id };
     }
 
-    // 2. Burst protection: Max 3 retweets in 30 seconds
-    const burstCheck = await ctx.db
-      .query("retweets")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - RETWEET_RATE_LIMITS.BURST_WINDOW))
-      .take(RETWEET_RATE_LIMITS.BURST_LIMIT + 1); // Check for limit + 1
-
-    if (burstCheck.length >= RETWEET_RATE_LIMITS.BURST_LIMIT) {
-      throw new Error("Too many retweets too quickly. Please slow down.");
-    }
-
-    // 3. Hourly limit: Max 25 retweets per hour
-    const hourlyCheck = await ctx.db
-      .query("retweets")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - RETWEET_RATE_LIMITS.HOURLY_WINDOW))
-      .take(RETWEET_RATE_LIMITS.HOURLY_LIMIT + 1); // Check for limit + 1
-
-    if (hourlyCheck.length >= RETWEET_RATE_LIMITS.HOURLY_LIMIT) {
-      throw new Error("Hourly retweet limit reached. Try again later.");
-    }
-
-    // All rate limit checks passed - create new retweet
+    // Create new retweet
     const retweetId = await ctx.db.insert("retweets", {
       userId,
       entryGuid: args.entryGuid,
@@ -98,12 +82,6 @@ export const unretweet = mutation({
 
     if (!existing) {
       return { success: true, notFound: true };
-    }
-
-    // Per-post cooldown: 2 seconds between retweet/unretweet on same post
-    const timeSinceLastAction = Date.now() - existing._creationTime;
-    if (timeSinceLastAction < RETWEET_RATE_LIMITS.PER_POST_COOLDOWN) {
-      throw new Error("Please wait before toggling retweet again");
     }
 
     await ctx.db.delete(existing._id);

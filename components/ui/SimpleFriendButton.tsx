@@ -112,22 +112,14 @@ const SimpleFriendButtonComponent = ({
 
       if (errorMessage.includes("Cannot send friend request to yourself")) {
         toastDescription = "You cannot send a friend request to yourself.";
-      } else if (errorMessage.includes("Please wait before sending another request")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're sending friend requests too quickly. Please slow down.";
       } else if (errorMessage.includes("Friend request already sent")) {
         toastDescription = "You have already sent a friend request to this user.";
       } else if (errorMessage.includes("Friendship already exists")) {
         toastDescription = "You are already friends with this user or a request is pending.";
-      } else if (errorMessage.includes("Too many friend requests too quickly")) {
+      } else if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+                 errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're sending friend requests too quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly friend request limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Hourly friend request limit reached. Try again later.";
-      } else if (errorMessage.includes("Daily friend request limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Daily friend request limit reached. Try again tomorrow.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       }
       toast({ title: toastTitle, description: toastDescription });
     } finally {

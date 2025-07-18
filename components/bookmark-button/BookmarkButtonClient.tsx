@@ -152,21 +152,17 @@ const BookmarkButtonClientComponent = ({
       if (isMountedRef.current) {
         setOptimisticState(null);
 
+        // Show user-friendly error messages - server handles all rate limiting
         const errorMessage = (err as Error).message || 'Something went wrong';
         let toastTitle = "Error";
-        let toastDescription = errorMessage;
+        let toastDescription = "Could not update bookmark status. Please try again.";
 
-        if (errorMessage.includes("Please wait before toggling again")) {
+        // Handle rate limiting errors from server
+        if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+            errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
           toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You're toggling bookmarks too quickly. Please slow down.";
-        } else if (errorMessage.includes("Too many bookmarks too quickly")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "Too many bookmarks too quickly. Please slow down.";
-        } else if (errorMessage.includes("Hourly bookmark limit reached")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "Hourly bookmark limit reached. Try again later.";
+          toastDescription = "You're performing actions too quickly. Please slow down.";
         }
-        // No specific toast for "Not authenticated" as user is redirected.
 
         toast({
           title: toastTitle,

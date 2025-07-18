@@ -59,8 +59,8 @@ const FriendListButton = memo<{
     
     // Update with new friendship status
     const statusUpdate = {
-      exists: newStatus !== "cancelled" && newStatus !== null,
-      status: newStatus === "cancelled" ? null : newStatus,
+      exists: newStatus !== null,
+      status: newStatus,
       direction: newStatus === "pending" ? "sent" : (newStatus === "accepted" ? "accepted" : null),
       friendshipId: newFriendshipId || safeExistingId,
     };
@@ -113,7 +113,13 @@ const FriendListButton = memo<{
     setIsLoading(true);
     try {
       await deleteFriendship({ friendshipId });
-      updateStatus("cancelled");
+      // Since the friendship is deleted, update to null status which will remove from list
+      onStatusChange?.(userId, {
+        exists: false,
+        status: null,
+        direction: null,
+        friendshipId: undefined,
+      });
     } catch (error) {
       toast({ 
         title: "Error", 
@@ -122,7 +128,7 @@ const FriendListButton = memo<{
     } finally {
       setIsLoading(false);
     }
-  }, [friendshipId, deleteFriendship, updateStatus, toast]);
+  }, [friendshipId, deleteFriendship, userId, onStatusChange, toast]);
 
   // Check if this is the current user's own profile - AFTER all hooks
   const isCurrentUser = currentUser?._id === userId;

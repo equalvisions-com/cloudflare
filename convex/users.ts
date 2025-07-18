@@ -4,18 +4,10 @@ import { v } from "convex/values";
 import { r2 } from "./r2";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { RateLimiter } from "@convex-dev/rate-limiter";
-import { components } from "./_generated/api";
-import { chatLimiter } from "./chat";
+import { actionLimiter } from "./rateLimiters";
 
 /** How many profile updates a user may make per day. */
 const DAILY_PROFILE_LIMIT = 3;
-/** One day in milliseconds. */
-const DAY = 24 * 60 * 60 * 1000;
-
-// Use the same rate limiter component as chat but with different limit names
-// This ensures profile updates and chat messages have separate buckets
-export const profileUpdateLimiter = chatLimiter;
 
 export const viewer = query({
   args: {},
@@ -239,15 +231,8 @@ export const updateProfile = mutation({
     }
 
     // Check rate limit - consume one token from the user's daily bucket for profile updates
-    // Use a different limit name than chat to ensure separate buckets
-    const limitResult = await profileUpdateLimiter.limit(ctx, "profileUpdate", { 
+    const limitResult = await actionLimiter.limit(ctx, "profileUpdate", { 
       key: userId,
-      config: {
-        kind: "fixed window",
-        period: DAY,
-        rate: DAILY_PROFILE_LIMIT,
-        capacity: DAILY_PROFILE_LIMIT,
-      }
     });
     if (!limitResult.ok) {
       throw new Error(`Profile update limit exceeded. You can only update your profile ${DAILY_PROFILE_LIMIT} times per day. Try again in ${Math.ceil(limitResult.retryAfter / (1000 * 60))} minutes.`);

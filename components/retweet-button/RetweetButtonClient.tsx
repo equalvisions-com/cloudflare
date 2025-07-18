@@ -173,19 +173,16 @@ const RetweetButtonClientComponent = ({
       if (isMountedRef.current) {
         setOptimisticState(null);
         
+        // Show user-friendly error messages - server handles all rate limiting
         const errorMessage = (err as Error).message || 'Something went wrong';
         let toastTitle = "Error";
-        let toastDescription = errorMessage;
+        let toastDescription = "Could not update share status. Please try again.";
 
-        if (errorMessage.includes("Too many retweets too quickly. Please slow down.")) {
+        // Handle rate limiting errors from server
+        if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+            errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
           toastTitle = "Rate Limit Exceeded";
-          toastDescription = "Too many shares too quickly. Please slow down.";
-        } else if (errorMessage.includes("Please wait before toggling retweet again")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "You're toggling shares too quickly. Please wait a moment.";
-        } else if (errorMessage.includes("Hourly retweet limit reached. Try again later.")) {
-          toastTitle = "Rate Limit Exceeded";
-          toastDescription = "Hourly shares limit reached. Try again later.";
+          toastDescription = "You're performing actions too quickly. Please slow down.";
         }
         
         toast({

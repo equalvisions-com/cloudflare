@@ -2,15 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
-
-// Rate limiting constants for comment likes
-const COMMENT_LIKE_RATE_LIMITS = {
-  PER_COMMENT_COOLDOWN: 500,      // 0.5 seconds between like/unlike on same comment
-  BURST_LIMIT: 5,                // 5 comment likes max
-  BURST_WINDOW: 30000,            // in 30 seconds
-  HOURLY_LIMIT: 50,              // 50 comment likes per hour
-  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
-};
+import { actionLimiter } from "./rateLimiters";
 
 // Toggle like status for a comment
 export const toggleCommentLike = mutation({
@@ -30,7 +22,26 @@ export const toggleCommentLike = mutation({
       
     if (!comment) throw new Error("Comment not found");
 
-    // 1. Check if already liked (per-comment cooldown)
+    // Check rate limits before any database operations
+    // 1. Burst limit (5 comment likes in 30 seconds)
+    const burstResult = await actionLimiter.limit(ctx, "commentLikesBurst", { key: userId });
+    if (!burstResult.ok) {
+      throw new Error("Too many comment likes too quickly. Please slow down.");
+    }
+
+    // 2. Hourly limit (50 comment likes per hour)
+    const hourlyResult = await actionLimiter.limit(ctx, "commentLikesHourly", { key: userId });
+    if (!hourlyResult.ok) {
+      throw new Error("Hourly comment like limit reached. Try again later.");
+    }
+
+    // 3. Daily limit (200 comment likes per day)
+    const dailyResult = await actionLimiter.limit(ctx, "commentLikesDaily", { key: userId });
+    if (!dailyResult.ok) {
+      throw new Error("Daily comment like limit reached. Try again tomorrow.");
+    }
+
+    // Check if already liked
     const existingLike = await ctx.db
       .query("commentLikes")
       .withIndex("by_user_comment", (q) => 
@@ -39,36 +50,9 @@ export const toggleCommentLike = mutation({
       .first();
 
     if (existingLike) {
-      // Per-comment cooldown: 0.5 seconds between like/unlike on same comment
-      const timeSinceLastAction = Date.now() - existingLike._creationTime;
-      if (timeSinceLastAction < COMMENT_LIKE_RATE_LIMITS.PER_COMMENT_COOLDOWN) {
-        throw new Error("Please wait before toggling again");
-      }
-      // If cooldown passed, this is an unlike action - delete and return
+      // If already liked, this is an unlike action - delete and return
       await ctx.db.delete(existingLike._id);
       return { isLiked: false, action: "unliked" };
-    }
-
-    // 2. Burst protection: Max 10 comment likes in 30 seconds
-    const burstCheck = await ctx.db
-      .query("commentLikes")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_LIKE_RATE_LIMITS.BURST_WINDOW))
-      .take(COMMENT_LIKE_RATE_LIMITS.BURST_LIMIT + 1);
-
-    if (burstCheck.length >= COMMENT_LIKE_RATE_LIMITS.BURST_LIMIT) {
-      throw new Error("Too many comment likes too quickly. Please slow down.");
-    }
-
-    // 3. Hourly limit: Max 100 comment likes per hour
-    const hourlyCheck = await ctx.db
-      .query("commentLikes")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_LIKE_RATE_LIMITS.HOURLY_WINDOW))
-      .take(COMMENT_LIKE_RATE_LIMITS.HOURLY_LIMIT + 1);
-
-    if (hourlyCheck.length >= COMMENT_LIKE_RATE_LIMITS.HOURLY_LIMIT) {
-      throw new Error("Hourly comment like limit reached. Try again later.");
     }
 
     // All rate limit checks passed - create new like

@@ -2,17 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
-
-// Rate limiting constants for friend requests
-const FRIEND_RATE_LIMITS = {
-  PER_USER_COOLDOWN: 2000,        // 2 seconds between ANY actions to same user (increased to prevent spam)
-  BURST_LIMIT: 10,                 // 10 requests max
-  BURST_WINDOW: 120000,           // in 2 minutes
-  HOURLY_LIMIT: 25,               // 25 requests per hour
-  HOURLY_WINDOW: 3600000,         // 1 hour in milliseconds
-  DAILY_LIMIT: 75,                // 75 requests per day
-  DAILY_WINDOW: 86400000,         // 24 hours in milliseconds
-};
+import { actionLimiter } from "./rateLimiters";
 
 // Admin user ID for "Tom from MySpace" style friend requests
 const ADMIN_USER_ID: Id<"users"> = "jx7dqbxjjznktr85mwant95t6n7gskcw" as Id<"users">;
@@ -64,13 +54,12 @@ export async function checkFriendshipStatus(
   requesterId: Id<"users">,
   requesteeId: Id<"users">
 ) {
-  // Check if a friendship already exists in either direction (exclude cancelled)
+  // Check if a friendship already exists in either direction
   const sentRequest = await ctx.db
     .query("friends")
     .withIndex("by_users", (q: any) => 
       q.eq("requesterId", requesterId).eq("requesteeId", requesteeId)
     )
-    .filter((q: any) => q.neq(q.field("status"), "cancelled"))
     .first()
     .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
 
@@ -83,13 +72,12 @@ export async function checkFriendshipStatus(
     };
   }
 
-  // Check if there's a request from the other user (exclude cancelled)
+  // Check if there's a request from the other user
   const receivedRequest = await ctx.db
     .query("friends")
     .withIndex("by_users", (q: any) => 
       q.eq("requesterId", requesteeId).eq("requesteeId", requesterId)
     )
-    .filter((q: any) => q.neq(q.field("status"), "cancelled"))
     .first()
     .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
 
@@ -240,7 +228,6 @@ export const getBatchFriendshipStatuses = query({
     const sentFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requester", q => q.eq("requesterId", currentUserId))
-      .filter(q => q.neq(q.field("status"), "cancelled"))
       .collect()
       .then(friendships => friendships.filter(f => userIds.includes(f.requesteeId)));
 
@@ -248,7 +235,6 @@ export const getBatchFriendshipStatuses = query({
     const receivedFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requestee", q => q.eq("requesteeId", currentUserId))
-      .filter(q => q.neq(q.field("status"), "cancelled"))
       .collect()
       .then(friendships => friendships.filter(f => userIds.includes(f.requesterId)));
 
@@ -326,21 +312,19 @@ export const getFriendCountByUsername = query({
     
     const userId = user._id;
     
-    // Count friendships where the user is the requester (exclude cancelled)
+    // Count friendships where the user is the requester
     const sentFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requester")
       .filter(q => q.eq(q.field("requesterId"), userId))
-      .filter(q => q.neq(q.field("status"), "cancelled"))
       .filter(q => status ? q.eq(q.field("status"), status) : true)
       .collect();
       
-    // Count friendships where the user is the requestee (exclude cancelled)
+    // Count friendships where the user is the requestee
     const receivedFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requestee")
       .filter(q => q.eq(q.field("requesteeId"), userId))
-      .filter(q => q.neq(q.field("status"), "cancelled"))
       .filter(q => status ? q.eq(q.field("status"), status) : true)
       .collect();
       
@@ -608,16 +592,26 @@ export const sendFriendRequest = mutation({
       throw new Error("Cannot send friend request to yourself");
     }
 
-    // 1. Per-user cooldown: Check last interaction time with this user (prevents add/cancel/add spam)
-    const lastInteractionTime = await getLastUserInteractionTime(ctx, requesterId, requesteeId);
-    if (lastInteractionTime) {
-      const timeSinceLastAction = Date.now() - lastInteractionTime;
-      if (timeSinceLastAction < FRIEND_RATE_LIMITS.PER_USER_COOLDOWN) {
-        throw new Error("Please wait before sending another request to this user");
-      }
+    // Check rate limits before any database operations
+    // 1. Burst limit (10 requests in 2 minutes)
+    const burstResult = await actionLimiter.limit(ctx, "friendsBurst", { key: requesterId });
+    if (!burstResult.ok) {
+      throw new Error("Too many friend requests too quickly. Please slow down.");
     }
 
-    // Check if there's already an active friendship with this user
+    // 2. Hourly limit (25 requests per hour)
+    const hourlyResult = await actionLimiter.limit(ctx, "friendsHourly", { key: requesterId });
+    if (!hourlyResult.ok) {
+      throw new Error("Hourly friend request limit reached. Try again later.");
+    }
+
+    // 3. Daily limit (75 requests per day)
+    const dailyResult = await actionLimiter.limit(ctx, "friendsDaily", { key: requesterId });
+    if (!dailyResult.ok) {
+      throw new Error("Daily friend request limit reached. Try again tomorrow.");
+    }
+
+    // Check if there's already a friendship with this user
     const existingFriendship = await ctx.db
       .query("friends")
       .withIndex("by_users", (q: any) => 
@@ -627,14 +621,6 @@ export const sendFriendRequest = mutation({
       .then(doc => doc ? { _id: doc._id, status: doc.status, _creationTime: doc._creationTime } : null);
 
     if (existingFriendship) {
-      // If it's cancelled, we can reuse the record
-      if (existingFriendship.status === "cancelled") {
-        return ctx.db.patch(existingFriendship._id, {
-          status: "pending",
-          updatedAt: Date.now(),
-        });
-      }
-      // Otherwise it's active (pending or accepted)
       throw new Error("Friend request already sent");
     }
 
@@ -654,15 +640,6 @@ export const sendFriendRequest = mutation({
           status: "accepted",
           updatedAt: Date.now(),
         });
-      } else if (receivedRequest.status === "cancelled") {
-        // If it's cancelled, reactivate it by updating the existing record
-        // We need to flip the direction since the requester/requestee are reversed
-        return ctx.db.patch(receivedRequest._id, {
-          requesterId,
-          requesteeId,
-          status: "pending",
-          updatedAt: Date.now(),
-        });
       } else if (receivedRequest.status === "accepted") {
         throw new Error("You are already friends with this user");
       } else {
@@ -670,40 +647,7 @@ export const sendFriendRequest = mutation({
       }
     }
 
-    // 2. Burst protection: Max 10 friend requests in 2 minutes
-    const burstCheck = await ctx.db
-      .query("friends")
-      .withIndex("by_requester", (q: any) => q.eq("requesterId", requesterId))
-      .filter((q: any) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.BURST_WINDOW))
-      .take(FRIEND_RATE_LIMITS.BURST_LIMIT + 1);
-
-    if (burstCheck.length >= FRIEND_RATE_LIMITS.BURST_LIMIT) {
-      throw new Error("Too many friend requests too quickly. Please slow down.");
-    }
-
-    // 3. Hourly limit: Max 25 friend requests per hour
-    const hourlyCheck = await ctx.db
-      .query("friends")
-      .withIndex("by_requester", (q: any) => q.eq("requesterId", requesterId))
-      .filter((q: any) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.HOURLY_WINDOW))
-      .take(FRIEND_RATE_LIMITS.HOURLY_LIMIT + 1);
-
-    if (hourlyCheck.length >= FRIEND_RATE_LIMITS.HOURLY_LIMIT) {
-      throw new Error("Hourly friend request limit reached. Try again later.");
-    }
-
-    // 4. Daily limit: Max 75 friend requests per day
-    const dailyCheck = await ctx.db
-      .query("friends")
-      .withIndex("by_requester", (q: any) => q.eq("requesterId", requesterId))
-      .filter((q: any) => q.gte(q.field("_creationTime"), Date.now() - FRIEND_RATE_LIMITS.DAILY_WINDOW))
-      .take(FRIEND_RATE_LIMITS.DAILY_LIMIT + 1);
-
-    if (dailyCheck.length >= FRIEND_RATE_LIMITS.DAILY_LIMIT) {
-      throw new Error("Daily friend request limit reached. Try again tomorrow.");
-    }
-
-    // All rate limit checks passed - create a new friend request
+    // Create a new friend request
     return ctx.db.insert("friends", {
       requesterId,
       requesteeId,
@@ -795,11 +739,10 @@ export const deleteFriendship = mutation({
       throw new Error("Not authorized to delete this friendship");
     }
 
-    // Instead of deleting, mark as cancelled to preserve rate limiting history
-    return ctx.db.patch(friendshipId, {
-      status: "cancelled",
-      updatedAt: Date.now(),
-    });
+    // Delete the friendship record entirely
+    await ctx.db.delete(friendshipId);
+    
+    return { action: "deleted", friendshipId };
   },
 });
 
@@ -822,11 +765,10 @@ export const getFriends = query({
       currentUserId = authUserId;
     }
 
-    // Get friendships where the user is the requester (exclude cancelled)
+    // Get friendships where the user is the requester
     let sentFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requester", (q: any) => q.eq("requesterId", currentUserId))
-      .filter((q: any) => q.neq(q.field("status"), "cancelled"))
       .collect()
       .then(friendships => friendships.map(friendship => ({
         _id: friendship._id,
@@ -837,11 +779,10 @@ export const getFriends = query({
         updatedAt: friendship.updatedAt
       })));
 
-    // Get friendships where the user is the requestee (exclude cancelled)
+    // Get friendships where the user is the requestee
     let receivedFriendships = await ctx.db
       .query("friends")
       .withIndex("by_requestee", (q: any) => q.eq("requesteeId", currentUserId))
-      .filter((q: any) => q.neq(q.field("status"), "cancelled"))
       .collect()
       .then(friendships => friendships.map(friendship => ({
         _id: friendship._id,
@@ -905,7 +846,7 @@ export const getNotifications = query({
     // Parse cursor for pagination
     let startTime = cursor ? parseInt(cursor) : Date.now();
     
-    // Get friend requests received (exclude cancelled) with pagination
+    // Get friend requests received with pagination
     const receivedRequests = await ctx.db
       .query("friends")
       .withIndex("by_requestee", (q: any) => q.eq("requesteeId", userId).eq("status", "pending"))
@@ -1247,7 +1188,7 @@ export const sendAdminFriendRequest = mutation({
       return { success: false, reason: "Cannot send friend request to admin user" };
     }
 
-    // Check if there's already an active friendship with this user
+    // Check if there's already a friendship with this user
     const existingFriendship = await ctx.db
       .query("friends")
       .withIndex("by_users", (q: any) => 
@@ -1257,15 +1198,6 @@ export const sendAdminFriendRequest = mutation({
       .then(doc => doc ? { _id: doc._id, status: doc.status } : null);
 
     if (existingFriendship) {
-      // If it's cancelled, we can reuse the record
-      if (existingFriendship.status === "cancelled") {
-        await ctx.db.patch(existingFriendship._id, {
-          status: "pending",
-          updatedAt: Date.now(),
-        });
-        return { success: true, reason: "Reactivated cancelled friendship" };
-      }
-      // Otherwise it's active (pending or accepted)
       return { success: false, reason: "Friend request already exists" };
     }
 
@@ -1286,16 +1218,6 @@ export const sendAdminFriendRequest = mutation({
           updatedAt: Date.now(),
         });
         return { success: true, reason: "Accepted existing friend request" };
-      } else if (receivedRequest.status === "cancelled") {
-        // If it's cancelled, reactivate it by updating the existing record
-        // We need to flip the direction since the requester/requestee are reversed
-        await ctx.db.patch(receivedRequest._id, {
-          requesterId: ADMIN_USER_ID,
-          requesteeId: newUserId,
-          status: "pending",
-          updatedAt: Date.now(),
-        });
-        return { success: true, reason: "Reactivated friendship with flipped direction" };
       } else if (receivedRequest.status === "accepted") {
         return { success: false, reason: "Already friends with this user" };
       }

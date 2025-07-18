@@ -2,17 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
-
-// Rate limiting constants for comments
-const COMMENT_RATE_LIMITS = {
-  PER_ENTRY_COOLDOWN: 5000,      // 5 seconds between comments on same entry
-  REPLY_COOLDOWN: 2000,          // 2 seconds between replies
-  BURST_LIMIT: 3,                // 3 comments max
-  BURST_WINDOW: 30000,           // in 30 seconds
-  REPLY_BURST_LIMIT: 5,          // 5 replies max in burst window
-  HOURLY_LIMIT: 20,              // 20 comments per hour
-  HOURLY_WINDOW: 3600000,        // 1 hour in milliseconds
-};
+import { actionLimiter } from "./rateLimiters";
 
 export const addComment = mutation({
   args: {
@@ -47,53 +37,23 @@ export const addComment = mutation({
     // Basic content sanitization
     const sanitizedContent = content.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
 
-    // 1. Per-entry cooldown check
-    const cooldownTime = isReply ? 
-      COMMENT_RATE_LIMITS.REPLY_COOLDOWN : 
-      COMMENT_RATE_LIMITS.PER_ENTRY_COOLDOWN;
-
-    const lastCommentOnEntry = await ctx.db
-      .query("comments")
-      .withIndex("by_entry_time", q => 
-        q.eq("entryGuid", args.entryGuid)
-      )
-      .filter(q => q.eq(q.field("userId"), userId))
-      .order("desc")
-      .first();
-
-    if (lastCommentOnEntry) {
-      const timeSinceLastAction = Date.now() - lastCommentOnEntry._creationTime;
-      if (timeSinceLastAction < cooldownTime) {
-        const waitTime = Math.ceil((cooldownTime - timeSinceLastAction) / 1000);
-        throw new Error(`Please wait ${waitTime} seconds before commenting again`);
-      }
+    // Check rate limits before any database operations
+    // 1. Burst limit (5 comments in 30 seconds)
+    const burstResult = await actionLimiter.limit(ctx, "commentsBurst", { key: userId });
+    if (!burstResult.ok) {
+      throw new Error("Too many comments too quickly. Please slow down.");
     }
 
-    // 2. Burst protection
-    const burstLimit = isReply ? 
-      COMMENT_RATE_LIMITS.REPLY_BURST_LIMIT : 
-      COMMENT_RATE_LIMITS.BURST_LIMIT;
-
-    const burstCheck = await ctx.db
-      .query("comments")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_RATE_LIMITS.BURST_WINDOW))
-      .take(burstLimit + 1);
-
-    if (burstCheck.length >= burstLimit) {
-      const actionType = isReply ? "replies" : "comments";
-      throw new Error(`Too many ${actionType} too quickly. Please slow down.`);
-    }
-
-    // 3. Hourly limit
-    const hourlyCheck = await ctx.db
-      .query("comments")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.gte(q.field("_creationTime"), Date.now() - COMMENT_RATE_LIMITS.HOURLY_WINDOW))
-      .take(COMMENT_RATE_LIMITS.HOURLY_LIMIT + 1);
-
-    if (hourlyCheck.length >= COMMENT_RATE_LIMITS.HOURLY_LIMIT) {
+    // 2. Hourly limit (20 comments per hour)
+    const hourlyResult = await actionLimiter.limit(ctx, "commentsHourly", { key: userId });
+    if (!hourlyResult.ok) {
       throw new Error("Hourly comment limit reached. Try again later.");
+    }
+
+    // 3. Daily limit (100 comments per day)
+    const dailyResult = await actionLimiter.limit(ctx, "commentsDaily", { key: userId });
+    if (!dailyResult.ok) {
+      throw new Error("Daily comment limit reached. Try again tomorrow.");
     }
 
     // 4. If this is a reply, verify parent exists and belongs to same entry

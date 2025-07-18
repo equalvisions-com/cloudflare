@@ -45,7 +45,7 @@ const CommentLikeButtonComponent = ({
   const [optimisticIsLiked, setOptimisticIsLiked] = useState<boolean | null>(null);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
   const [optimisticTimestamp, setOptimisticTimestamp] = useState<number | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   
   // AbortController for request cleanup (replaces isMountedRef anti-pattern)
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -142,9 +142,9 @@ const CommentLikeButtonComponent = ({
       router.push("/signin");
       return;
     }
-    if (isSubmitting) return;
+    if (isBusy) return;
     
-    setIsSubmitting(true);
+    setIsBusy(true);
     
     // Optimistic update with timestamp
     const newIsLiked = !isLiked;
@@ -171,25 +171,19 @@ const CommentLikeButtonComponent = ({
       setOptimisticCount(null);
       setOptimisticTimestamp(null);
 
+      // Show user-friendly error messages - server handles all rate limiting
       const errorMessage = (error as Error).message || 'Something went wrong';
       let toastTitle = "Error";
-      let toastDescription = "Could not update like status. Please try again."; // Generic default
+      let toastDescription = "Could not update like status. Please try again.";
 
-      if (errorMessage.includes("Please wait before toggling again")) {
+      // Handle rate limiting errors from server
+      if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+          errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're liking comments too quickly. Please slow down.";
-      } else if (errorMessage.includes("Too many comment likes too quickly")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're liking comments too quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly comment like limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Hourly limit for liking comments reached. Try again later.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       } else if (errorMessage.includes("Comment not found")) {
-        // Keep generic message for this, as it might be a sync issue
-        toastTitle = "Error";
         toastDescription = "Could not find the comment to like. It might have been deleted.";
       }
-      // No specific toast for "Not authenticated" as user is redirected.
 
       toast({
         title: toastTitle,
@@ -198,10 +192,10 @@ const CommentLikeButtonComponent = ({
     } finally {
       // Check if request was aborted before updating state
       if (!abortControllerRef.current?.signal.aborted) {
-        setIsSubmitting(false);
+        setIsBusy(false);
       }
     }
-  }, [isAuthenticated, router, isSubmitting, isLiked, count, toggleLike, commentId, toast]);
+  }, [isAuthenticated, router, isBusy, isLiked, count, toggleLike, commentId, onStoreUpdate, toast]);
   
   return (
     <Button
@@ -209,7 +203,7 @@ const CommentLikeButtonComponent = ({
       size={size === 'sm' ? 'sm' : 'default'}
       className={`gap-1 hover:bg-transparent text-muted-foreground !px-0 items-center justify-center ${size === 'sm' ? 'h-6' : ''}`}
       onClick={handleToggleLike}
-      disabled={isSubmitting}
+      disabled={isBusy}
     >
       <Heart 
         className={`${size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} transition-colors duration-200 ${isLiked ? 'fill-current text-[#f91880]' : ''}`} 

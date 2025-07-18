@@ -286,15 +286,10 @@ export function useCommentSection({
       } else if (errorMessage.includes("Comment too long")) {
         toastTitle = "Validation Error";
         toastDescription = "Your comment is too long. Maximum 500 characters allowed.";
-      } else if (errorMessage.includes("Please wait") && errorMessage.includes("seconds before commenting again")) {
+      } else if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+                 errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're commenting too quickly. Please slow down.";
-      } else if (errorMessage.includes("Too many comments too quickly")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You've posted too many comments quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly comment limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You've reached the hourly limit for comments. Please try again later.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       }
       
       toast({

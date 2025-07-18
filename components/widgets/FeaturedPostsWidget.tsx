@@ -73,16 +73,9 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
   // Add a ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
 
-  // State management like FollowButton
+  // Simple busy state to prevent double-clicks
   const [isBusy, setIsBusy] = useState(false);
   const [visualState, setVisualState] = useState<'following' | 'follow' | null>(null);
-  
-  // Track last operation time to prevent rapid successive clicks
-  const lastClickTime = useRef(0);
-  
-  // Global rate limiting - 1 second between ANY follow/unfollow operations
-  const lastGlobalActionTimeRef = useRef(0);
-  const GLOBAL_COOLDOWN_MS = 1000;
 
   // Set up the mounted ref
   useEffect(() => {
@@ -101,22 +94,6 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
 
     // Don't allow clicks while busy
     if (!isMountedRef.current || isBusy) return;
-    
-    // Check global rate limiting first
-    const now = Date.now();
-    const timeSinceLastGlobalAction = now - lastGlobalActionTimeRef.current;
-    if (timeSinceLastGlobalAction < GLOBAL_COOLDOWN_MS) {
-      return;
-    }
-    
-    // Prevent rapid clicks on same button (debounce)
-    if (now - lastClickTime.current < 500) {
-      return;
-    }
-    
-    // Update both timers
-    lastClickTime.current = now;
-    lastGlobalActionTimeRef.current = now;
     
     // Set busy state to prevent multiple operations
     setIsBusy(true);
@@ -441,6 +418,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
 };
 
 export const FeaturedPostsWidget = memo(FeaturedPostsWidgetComponent);
+FeaturedPostsWidget.displayName = 'FeaturedPostsWidget';
 
 // Export cache stats for monitoring - consistent with TrendingWidget
 export const getFeaturedPostsCacheStats = () => {

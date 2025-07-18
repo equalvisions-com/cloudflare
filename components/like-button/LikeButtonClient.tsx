@@ -150,20 +150,16 @@ export const LikeButtonClient = memo(function LikeButtonClient({
     } catch (err) {
       // Revert optimistic update on error
 
-      
+      // Show user-friendly error messages - server handles all rate limiting
       const errorMessage = (err as Error).message || 'Something went wrong';
       let toastTitle = "Error";
-      let toastDescription = errorMessage;
+      let toastDescription = "Could not update like status. Please try again.";
 
-      if (errorMessage.includes("Too many likes too quickly. Please slow down.")) {
+      // Handle rate limiting errors from server
+      if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+          errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Too many likes too quickly. Please slow down.";
-      } else if (errorMessage.includes("Please wait before toggling again")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're toggling likes too quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly like limit reached. Try again later.")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Hourly like limit reached. Try again later.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       }
 
       // Show user-friendly error message

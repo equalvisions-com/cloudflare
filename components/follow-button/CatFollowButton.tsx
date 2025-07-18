@@ -75,14 +75,11 @@ const FollowButtonComponent = ({
   // Track if we've loaded the initial state
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Add busy state to prevent rapid clicking
+  // Simple busy state to prevent double-clicks
   const [isBusy, setIsBusy] = useState(false);
   
   // Add visual state to show the target state during loading
   const [visualState, setVisualState] = useState<'following' | 'follow' | null>(null);
-  
-  // Track last operation time to prevent rapid successive clicks
-  const lastClickTime = useRef(0);
 
   // Generate a stable key for SWR to prevent unnecessary revalidation
   const cacheKey = useMemo(() => postId ? postId.toString() : null, [postId]);
@@ -145,13 +142,6 @@ const FollowButtonComponent = ({
 
     // Don't allow clicks during initial loading or while busy
     if (!isMountedRef.current || isInitialLoading || isBusy) return;
-    
-    // Prevent rapid clicks (debounce)
-    const now = Date.now();
-    if (now - lastClickTime.current < 500) {
-      return; // Ignore clicks that happen too quickly
-    }
-    lastClickTime.current = now;
     
     // Set busy state to prevent multiple operations
     setIsBusy(true);
@@ -218,31 +208,19 @@ const FollowButtonComponent = ({
         setVisualState(null);
       }
       
-      // Show toast notification for the error
+      // Show user-friendly error messages - server handles all rate limiting
       const errorMessage = (err as Error).message || "An unknown error occurred";
       let toastTitle = "Error";
       let toastDescription = "Could not update follow status. Please try again.";
 
-      if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
+      // Handle rate limiting errors from server
+      if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+          errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
-      } else if (errorMessage.includes("Please wait before toggling follow again")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
-      } else if (errorMessage.includes("Too many follows too quickly")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Too many follows too quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly follow limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Hourly follow limit reached. Try again later.";
-      } else if (errorMessage.includes("Daily follow limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Daily follow limit reached. Try again tomorrow.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       } else if (errorMessage.includes("User not found")) {
-        // Keep generic message for this, as it's a server-side issue
         toastDescription = "Could not update follow status due to a server error.";
       }
-      // No specific toast for "Not authenticated" as user is redirected.
 
       toast({
         title: toastTitle,
@@ -250,9 +228,8 @@ const FollowButtonComponent = ({
       });
 
     } finally {
-      // Clear busy state after operation completes with minimal delay
+      // Clear busy state after operation completes
       if (isMountedRef.current) {
-        // Reduced delay to minimize flickering
         setTimeout(() => {
           if (isMountedRef.current) {
             setIsBusy(false);

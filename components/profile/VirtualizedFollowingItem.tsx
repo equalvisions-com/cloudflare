@@ -51,12 +51,9 @@ export const VirtualizedFollowingItem = memo(({
   // Add a ref to track if component is mounted to prevent state updates after unmount (like FollowButton.tsx)
   const isMountedRef = useRef(true);
   
-  // Enhanced state management to match FollowButton.tsx exactly
+  // Simple state management - just basic busy state
   const [isBusy, setIsBusy] = useState(false);
   const [visualState, setVisualState] = useState<'following' | 'follow' | null>(null);
-  
-  // Track last operation time to prevent rapid successive clicks (like FollowButton.tsx)
-  const lastClickTime = useRef(0);
   
   // Direct Convex mutations (adapted for Following list context)
   const followMutation = useMutation(api.following.follow);
@@ -143,29 +140,22 @@ export const VirtualizedFollowingItem = memo(({
       return;
     }
 
-    // Don't allow clicks while busy (adapted from FollowButton.tsx)
+    // Don't allow clicks while busy
     if (!isMountedRef.current || isBusy) return;
     
-    // Prevent rapid clicks (debounce) - exactly like FollowButton.tsx
-    const now = Date.now();
-    if (now - lastClickTime.current < 500) {
-      return; // Ignore clicks that happen too quickly
-    }
-    lastClickTime.current = now;
-    
-    // Set busy state to prevent multiple operations (exactly like FollowButton.tsx)
+    // Set busy state to prevent multiple operations
     setIsBusy(true);
 
-    // Set visual state to show target state immediately (exactly like FollowButton.tsx)
+    // Set visual state to show target state immediately
     const targetState = currentUserFollowStatus ? 'follow' : 'following';
     setVisualState(targetState);
 
-    // Store current state for potential rollback (adapted from FollowButton.tsx)
+    // Store current state for potential rollback
     const previousState = { isFollowing: currentUserFollowStatus };
     // New state after action
     const newState = { isFollowing: !currentUserFollowStatus };
     
-    // Track if we've already applied the optimistic update (like FollowButton.tsx)
+    // Track if we've already applied the optimistic update
     let optimisticUpdateApplied = false;
 
     try {
@@ -175,7 +165,7 @@ export const VirtualizedFollowingItem = memo(({
         onUpdateFollowStatus(item.following.postId, newState.isFollowing);
       }
       
-      // Perform the actual server operation (adapted from FollowButton.tsx)
+      // Perform the actual server operation
       if (currentUserFollowStatus && item?.following) {
         // Unfollow
         await unfollowMutation({ 
@@ -193,46 +183,34 @@ export const VirtualizedFollowingItem = memo(({
 
       if (!isMountedRef.current) return;
 
-      // Clear visual state immediately on success to prevent flickering (exactly like FollowButton.tsx)
+      // Clear visual state immediately on success to prevent flickering
       if (isMountedRef.current) {
         setVisualState(null);
       }
     } catch (err) {
-      // Roll back to previous state if there was an error (adapted from FollowButton.tsx)
+      // Roll back to previous state if there was an error
       if (isMountedRef.current && optimisticUpdateApplied && onUpdateFollowStatus && item?.following?.postId) {
         onUpdateFollowStatus(item.following.postId, previousState.isFollowing);
       }
 
-      // Reset visual state on error (exactly like FollowButton.tsx)
+      // Reset visual state on error
       if (isMountedRef.current) {
         setVisualState(null);
       }
 
-      // Show toast notification for the error (exactly like FollowButton.tsx)
+      // Show user-friendly error messages - server handles all rate limiting
       const errorMessage = (err as Error).message || "An unknown error occurred";
       let toastTitle = "Error";
       let toastDescription = "Could not update follow status. Please try again.";
 
-      if (errorMessage.includes("Please wait 1 second between follow/unfollow operations")) {
+      // Handle rate limiting errors from server
+      if (errorMessage.includes("rate limit") || errorMessage.includes("Rate limit") || 
+          errorMessage.includes("too quickly") || errorMessage.includes("limit reached")) {
         toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
-      } else if (errorMessage.includes("Please wait before toggling follow again")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "You're following and unfollowing too quickly. Please slow down.";
-      } else if (errorMessage.includes("Too many follows too quickly")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Too many follows too quickly. Please slow down.";
-      } else if (errorMessage.includes("Hourly follow limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Hourly follow limit reached. Try again later.";
-      } else if (errorMessage.includes("Daily follow limit reached")) {
-        toastTitle = "Rate Limit Exceeded";
-        toastDescription = "Daily follow limit reached. Try again tomorrow.";
+        toastDescription = "You're performing actions too quickly. Please slow down.";
       } else if (errorMessage.includes("User not found")) {
-        // Keep generic message for this, as it's a server-side issue (exactly like FollowButton.tsx)
         toastDescription = "Could not update follow status due to a server error.";
       }
-      // No specific toast for "Not authenticated" as user is redirected. (exactly like FollowButton.tsx)
 
       toast({
         title: toastTitle,
@@ -240,9 +218,8 @@ export const VirtualizedFollowingItem = memo(({
       });
 
     } finally {
-      // Clear busy state after operation completes with minimal delay (exactly like FollowButton.tsx)
+      // Clear busy state after operation completes
       if (isMountedRef.current) {
-        // Reduced delay to minimize flickering (exactly like FollowButton.tsx)
         setTimeout(() => {
           if (isMountedRef.current) {
             setIsBusy(false);
@@ -298,35 +275,36 @@ export const VirtualizedFollowingItem = memo(({
           </AspectRatio>
         </div>
         
-        <div className="flex flex-col flex-1 min-w-0">
-          <div className="text-sm font-bold overflow-anywhere line-clamp-2 text-foreground">
-            {item.post.title}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <h3 className="font-medium text-sm text-foreground line-clamp-2 break-words">
+              {item.post.title}
+            </h3>
             {item.post.verified && (
-              <VerifiedBadge className="inline-block align-text-middle ml-0.5 h-3.5 w-3.5" />
+              <VerifiedBadge className="h-3 w-3 flex-shrink-0" />
             )}
           </div>
           
-          {/* Media type indicator */}
-          <div className="text-xs text-muted-foreground mt-1 capitalize">
-            {item.post.mediaType}
-          </div>
+          {item.post.categorySlug && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+              {item.post.categorySlug}
+            </p>
+          )}
         </div>
       </Link>
-      
-      {/* Right side - Action button */}
-      <div className="flex-shrink-0" role="group" aria-label="Follow actions">
+
+      {/* Right side - Follow/Following button */}
+      <div className="flex-shrink-0">
         <Button
           variant={displayState === 'following' ? "ghost" : "default"}
           onClick={handleButtonClick}
           disabled={isPending}
           className={buttonClassName}
           style={{ opacity: 1 }}
+          aria-live="polite"
+          aria-label={`${displayState === 'following' ? 'Unfollow' : 'Follow'} ${item.post.title}`}
         >
-          {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            buttonContent
-          )}
+          {buttonContent}
         </Button>
       </div>
     </div>
