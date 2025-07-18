@@ -155,7 +155,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           <meta name="x-user-onboarded" content={authHints.isOnboarded ? '1' : '0'} />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col force-scrollbar-stable`}
         >
           <ConvexClientProvider>
             <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>

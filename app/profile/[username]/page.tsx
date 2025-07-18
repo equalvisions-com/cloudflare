@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache, Suspense } from "react";
+import { cache } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileContentClient } from "@/components/profile/ProfileContentClient";
@@ -290,15 +290,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             initialFollowing={transformedData.initialFollowing}
           />
           
-          {/* Profile Activity with Suspense boundary */}
-          <Suspense>
-            <ProfileActivityData 
-              userId={profileData.profile.userId} 
-              username={transformedData.normalizedUsername}
-              name={profileData.profile.name || transformedData.normalizedUsername}
-              profileImage={profileData.profile.profileImage}
-            />
-          </Suspense>
+          <ProfileActivityData 
+            userId={profileData.profile.userId} 
+            username={transformedData.normalizedUsername}
+            name={profileData.profile.name || transformedData.normalizedUsername}
+            profileImage={profileData.profile.profileImage}
+          />
         </div>
       </ProfileLayoutManager>
     </>

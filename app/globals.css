@@ -13,6 +13,12 @@
     overscroll-behavior: none;
   }
 
+  /* Force stable scrollbar for components with flickering issues */
+  .force-scrollbar-stable {
+    overflow-y: scroll !important;
+    scrollbar-gutter: stable;
+  }
+
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;
   }
@@ -215,15 +221,38 @@
   html {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans);
+    /* Always reserve the gutter so the content width never changes */
+    scrollbar-gutter: stable;          /* modern engines */
   }
   body {
     margin: 0;
     padding: 0;
     font-family: var(--font-geist-sans);
     @apply bg-background text-foreground;
+    /* Ensure minimum height so scrollbar space is always reserved */
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
   }
   /* Remove all main styling related to height */
 
+}
+
+/* Fallback for any hold-outs that still lack the property */
+@supports not (scrollbar-gutter: stable) {
+  html { overflow-y: scroll; }       /* forces an (empty) scrollbar track */
+}
+
+/* Additional stability for streaming content containers */
+.rss-feed-container,
+.entries-display-container, 
+.bookmarks-feed-container,
+.user-activity-feed-container,
+.user-likes-feed-container,
+.featured-feed-container {
+  /* Prevent layout shift during content streaming */
+  min-height: 50vh;
+  /* Smooth transitions to reduce flicker */
+  transition: none;
 }
 
 @layer base {

@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
-import { cache, Suspense } from "react";
+import { cache } from "react";
 
 // Import the client component
 import { UserProfileTabsWithErrorBoundary } from "./UserProfileTabs";
@@ -61,13 +61,7 @@ const cleanupRequestCache = () => {
   }
 };
 
-function ProfileActivityLoading() {
-  return (
-    <div className="flex items-center justify-center py-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
-  );
-}
+
 
 async function fetchWithRetry(
   url: string, 
@@ -504,11 +498,7 @@ async function ProfileActivityDataWithData({ userId, username, name, profileImag
  * Optimized for high-concurrency scenarios and Edge deployment.
  */
 export async function ProfileActivityData(props: ProfileActivityDataProps) {
-  return (
-    <Suspense fallback={<ProfileActivityLoading />}>
-      <ProfileActivityDataWithData {...props} />
-    </Suspense>
-  );
+  return <ProfileActivityDataWithData {...props} />;
 }
 
 export default ProfileActivityData; 
