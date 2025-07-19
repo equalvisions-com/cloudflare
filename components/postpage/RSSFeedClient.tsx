@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, lazy, Suspense, useReducer, useContext, type JSX } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, useReducer, useContext, type JSX } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";
@@ -269,6 +269,7 @@ import { LikeButtonClient } from "@/components/like-button/LikeButtonClient";
 import { ShareButtonClient } from "@/components/share-button/ShareButtonClient";
 import { RetweetButtonClientWithErrorBoundary } from "@/components/retweet-button/RetweetButtonClient";
 import { BookmarkButtonClient } from "@/components/bookmark-button/BookmarkButtonClient";
+import { CommentSectionClient } from "@/components/comment-section/CommentSectionClient";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import Link from "next/link";
 import { 
@@ -300,17 +301,6 @@ const optimizeRSSEntriesForMemory = (entries: RSSFeedEntry[], maxSize: number = 
   // This ensures we don't run out of memory with very large feeds
   return entries.slice(0, maxSize);
 };
-
-// PHASE 4: Dynamic import for CommentSectionClient to reduce initial bundle size
-const CommentSectionClient = lazy(() => import("@/components/comment-section/CommentSectionClient").then(module => ({ default: module.CommentSectionClient })));
-
-// PHASE 4: Loading fallback component for dynamic imports
-const CommentSectionFallback = () => (
-  <div className="flex items-center justify-center p-4">
-    <Loader2 className="h-4 w-4 animate-spin" />
-    <span className="ml-2 text-sm text-muted-foreground">Loading comments...</span>
-  </div>
-);
 
 // PHASE 4: Enhanced production-ready error logging utility
 const logger = {
@@ -1083,9 +1073,8 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         isInitialRender={loading.isInitialRender}
         getMetrics={getMetrics}
       />
-      {/* PHASE 4: Single global comment drawer with dynamic loading */}
+      {/* Single global comment drawer with direct loading */}
       {commentDrawer.selectedEntry && (
-        <Suspense fallback={<CommentSectionFallback />}>
         <CommentSectionClient
             entryGuid={commentDrawer.selectedEntry.entryGuid}
             feedUrl={commentDrawer.selectedEntry.feedUrl}
@@ -1094,7 +1083,6 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
             setIsOpen={uiHook.handleCommentDrawer.close}
             skipQuery={true}
         />
-        </Suspense>
       )}
     </div>
   );
