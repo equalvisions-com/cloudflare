@@ -77,13 +77,16 @@ function searchResultsReducer(
           searchData: action.payload,
         };
       }
+      
+      const newSearchData = {
+        entries: [...state.searchData.entries, ...action.payload.entries],
+        totalEntries: action.payload.totalEntries || state.searchData.totalEntries,
+        hasMore: action.payload.hasMore ?? false,
+      };
+      
       return {
         ...state,
-        searchData: {
-          entries: [...state.searchData.entries, ...action.payload.entries],
-          totalEntries: action.payload.totalEntries || state.searchData.totalEntries,
-          hasMore: action.payload.hasMore ?? false,
-        },
+        searchData: newSearchData,
       };
     
     case 'RESET':

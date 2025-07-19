@@ -854,10 +854,6 @@ const FeedContent = React.memo(function FeedContent({
           
           {/* Load more indicator */}
           <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-            {(() => {
-              console.log('🔄 RSS Load More Indicator:', { hasMore, isPending, entries: entries.length });
-              return null;
-            })()}
             {hasMore && isPending && <Loader2 className="h-6 w-6 animate-spin" />}
             {!hasMore && entries.length > 0 && <div></div>}
           </div>
@@ -973,6 +969,24 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
     }
   }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, dispatch, pageKey]);
   
+  // Additional effect for search mode - update entries when initialData changes
+  useEffect(() => {
+    if (isSearchMode && initialData) {
+      dispatch({
+        type: 'SET_ENTRIES',
+        payload: initialData.entries || []
+      });
+      dispatch({
+        type: 'SET_TOTAL_ENTRIES',
+        payload: initialData.totalEntries || 0
+      });
+      dispatch({
+        type: 'SET_HAS_MORE',
+        payload: initialData.hasMore || false
+      });
+    }
+  }, [isSearchMode, initialData, dispatch]);
+  
   // Use custom hooks for business logic - pass state and dispatch
   const paginationHook = useRSSFeedPaginationHook(state, dispatch, customLoadMore, isActive);
   const uiHook = useRSSFeedUI(state, dispatch);
@@ -1059,7 +1073,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         entries={optimizedEntries}
         hasMore={hasMore} // PHASE 4: Use granular selector
         loadMoreRef={loadMoreRef}
-        isPending={paginationHook.isLoading} // Use pagination hook's loading state
+        isPending={isSearchMode && externalIsLoading !== undefined ? externalIsLoading : paginationHook.isLoading} // Use external loading only in search mode
         loadMore={paginationHook.loadMoreEntries}
         featuredImg={featuredImg}
         postTitle={postTitle}

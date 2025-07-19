@@ -239,7 +239,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Extract GUIDs for metrics query
         const guids = mappedEntries.map(entry => entry.guid);
         
-        console.log(`🔍 API: Fetching metrics for ${guids.length} paginated entries`);
         const metricsStartTime = Date.now();
         
         // Fetch metrics from Convex
@@ -253,8 +252,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         entryMetrics = Object.fromEntries(
           guids.map((guid, index) => [guid, metrics[index]])
         );
-        
-        console.log(`✅ API: Fetched pagination metrics in ${Date.now() - metricsStartTime}ms`);
       } catch (error) {
         console.error("⚠️ API: Error fetching pagination entry metrics:", error);
         // Continue without metrics

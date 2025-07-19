@@ -8,11 +8,8 @@ import type { FeedTabsContainerClientWrapperProps } from '@/lib/types';
 // Optimized error fallback component with memoization
 const FeedErrorFallback = React.memo(({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) => {
   const errorMessage = useMemo(() => {
-    // Sanitize error message for production
-    if (process.env.NODE_ENV === 'production') {
-      return 'Something went wrong. Please try refreshing the page.';
-    }
-    return error.message || 'An unexpected error occurred';
+    // Sanitize error message for production - always use safe message in edge runtime
+    return 'Something went wrong. Please try refreshing the page.';
   }, [error]);
 
   return (
@@ -62,20 +59,7 @@ function FeedTabsContainerClientWrapperComponent({
 }: FeedTabsContainerClientWrapperProps) {
   // Memoize error boundary configuration
   const errorBoundaryConfig = useMemo(() => ({
-    FallbackComponent: FeedErrorFallback,
-    onError: (error: Error, errorInfo: any) => {
-      // Log errors in production for monitoring
-      if (process.env.NODE_ENV === 'production') {
-        console.error('FeedTabsContainer Error:', error);
-        // Add error reporting service here (e.g., Sentry, LogRocket)
-      }
-    },
-    onReset: () => {
-      // Optional: Add analytics tracking for error recovery
-      if (process.env.NODE_ENV === 'production') {
-        console.log('FeedTabsContainer Error Reset');
-      }
-    }
+    FallbackComponent: FeedErrorFallback
   }), []);
 
   return (

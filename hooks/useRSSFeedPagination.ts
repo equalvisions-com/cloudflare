@@ -146,14 +146,6 @@ export const useRSSFeedPaginationHook = (
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       
       const data: RSSFeedAPIResponse = await response.json();
-      console.log('📄 RSS Pagination: API Response', {
-        entriesCount: data.entries?.length || 0,
-        hasMore: data.hasMore,
-        totalEntries: data.totalEntries,
-        currentPage: nextPage,
-        currentlyLoaded: entries.length,
-        willHaveLoaded: entries.length + (data.entries?.length || 0)
-      });
       
       if (!data.entries?.length) {
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -169,10 +161,6 @@ export const useRSSFeedPaginationHook = (
       // Update hasMore if provided in response
       if (typeof data.hasMore === 'boolean') {
         dispatch({ type: 'SET_HAS_MORE', payload: data.hasMore });
-        console.log('📄 RSS Pagination: Updated hasMore', { 
-          hasMore: data.hasMore,
-          reason: data.hasMore ? 'more entries available' : 'no more entries'
-        });
       }
       
     } catch (error) {

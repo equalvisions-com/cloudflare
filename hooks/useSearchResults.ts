@@ -40,23 +40,37 @@ export const useSearchResults = ({
   // Fetch initial search results
   const fetchInitialSearchResults = useCallback(async () => {
     if (!searchQuery || !postTitle || !feedUrl) {
-      // Skip setting null if searchData is already null/empty to prevent redundant updates
-      if (searchData !== null && searchData?.entries?.length !== 0) {
-        setSearchData(null);
-      }
+      setSearchData(null);
       return;
     }
     
+    // Clear old search data immediately when starting a new search
+    setSearchData(null);
     setIsLoading(true);
     setCurrentPage(1);
     
     try {
-      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=1&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}`;
+      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}`;
       
-      const result = await fetch(apiUrl);
+      const requestBody = {
+        feedUrl,
+        q: searchQuery,
+        page: 1,
+        pageSize: 30,
+        ...(mediaType && { mediaType })
+      };
+      
+      const result = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
       
       if (!result.ok) {
-        throw new Error(`Search API error: ${result.status}`);
+        const errorText = await result.text();
+        throw new Error(`Search API error: ${result.status} - ${errorText}`);
       }
       
       const data = await result.json();
@@ -75,7 +89,7 @@ export const useSearchResults = ({
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, postTitle, feedUrl, mediaType, searchData, setSearchData, setIsLoading, setCurrentPage]);
+  }, [searchQuery, postTitle, feedUrl, mediaType, setSearchData, setIsLoading, setCurrentPage]);
 
   // Load more search results for pagination
   const loadMoreSearchResults = useCallback(async () => {
@@ -93,9 +107,24 @@ export const useSearchResults = ({
     const nextPage = currentPageValue + 1;
     
     try {
-      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}?feedUrl=${encodeURIComponent(feedUrl)}&q=${encodeURIComponent(searchQuery)}&page=${nextPage}&pageSize=30${mediaType ? `&mediaType=${encodeURIComponent(mediaType)}` : ''}&totalEntries=${currentSearchData.totalEntries}`;
+      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}`;
       
-      const result = await fetch(apiUrl);
+      const requestBody = {
+        feedUrl,
+        q: searchQuery,
+        page: nextPage,
+        pageSize: 30,
+        totalEntries: currentSearchData.totalEntries,
+        ...(mediaType && { mediaType })
+      };
+      
+      const result = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
       
       if (!result.ok) {
         throw new Error(`Search pagination API error: ${result.status}`);
@@ -112,13 +141,14 @@ export const useSearchResults = ({
         
         appendSearchData(newData);
         setCurrentPage(nextPage);
+      } else {
       }
     } catch (error) {
       // Error logging removed for production readiness
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, postTitle, feedUrl, mediaType, appendSearchData, setCurrentPage, setIsLoading]);
+  }, [searchQuery, postTitle, feedUrl, mediaType, searchData, appendSearchData, setCurrentPage, setIsLoading]);
 
   // Reset search results when search query changes
   useEffect(() => {

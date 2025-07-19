@@ -43,10 +43,7 @@ export async function POST(
       totalEntries: cachedTotalEntries
     } = body;
 
-    console.log(`📡 API: /api/rss/${postTitle} called with feedUrl=${feedUrl}, mediaType=${mediaType}, page=${page}, pageSize=${pageSize}${searchQuery ? `, search="${searchQuery}"` : ''}`);
-
     if (!feedUrl) {
-      console.error('❌ API: Feed URL is required');
       return NextResponse.json(
         { error: 'Feed URL is required' },
         { status: 400 }
@@ -56,14 +53,13 @@ export async function POST(
     // Only check if the feed needs refreshing on the first page
     // This prevents unnecessary refresh checks during pagination
     if (page === 1) {
-      console.log(`🔄 API: Checking if feed needs refreshing (first page only): ${decodedTitle}`);
       await checkAndRefreshFeeds(
         [decodedTitle],
         [feedUrl],
         mediaType ? [mediaType] : undefined
       );
     } else {
-      console.log(`⏩ API: Skipping refresh check for page ${page} of ${decodedTitle}`);
+      // console.log(`⏩ API: Skipping refresh check for page ${page} of ${decodedTitle}`);
     }
     
     // Calculate offset for pagination
@@ -103,9 +99,10 @@ export async function POST(
     // Get total entries count if needed
     let totalEntries: number;
     
-    if (cachedTotalEntries === null) {
-      // Only perform the count query if we don't have a cached value
-      console.log(`🔢 API: Fetching total entries count for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''}`);
+    if (cachedTotalEntries === null || searchQuery) {
+      // Always perform the count query if:
+      // 1. We don't have a cached value (cachedTotalEntries === null), OR
+      // 2. We're doing a search (searchQuery exists) - because search results have different totals
       
       let countQuery: string;
       let countParams: any[];
@@ -130,11 +127,9 @@ export async function POST(
       
       const countResult = await executeRead(countQuery, countParams);
       totalEntries = Number((countResult.rows[0] as { total: number }).total);
-      console.log(`🔢 API: Found ${totalEntries} total entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (from database)`);
     } else {
       // Use the cached value
       totalEntries = cachedTotalEntries;
-      console.log(`🔢 API: Using cached total count: ${totalEntries} entries for ${decodedTitle}`);
     }
     
     // Execute entries query
@@ -143,15 +138,15 @@ export async function POST(
     // Log query execution time
     const queryEndTime = performance.now();
     const queryDuration = queryEndTime - queryStartTime;
-    console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
+    // console.log(`⏱️ API: Query execution completed in ${queryDuration.toFixed(2)}ms`);
     
     const entries = entriesResult.rows as JoinedRSSEntry[];
     
-    console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
-    console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
+    // console.log(`✅ API: Retrieved ${entries.length} entries for page ${page} of ${Math.ceil(totalEntries / pageSize)}`);
+    // console.log(`📊 API: Pagination details - page ${page}, offset ${offset}, pageSize ${pageSize}, total ${totalEntries}`);
     
     if (!entries || entries.length === 0) {
-      console.log(`⚠️ API: No entries found for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''}`);
+      // console.log(`⚠️ API: No entries found for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''}`);
       return NextResponse.json({ 
         entries: [], 
         totalEntries: 0,
@@ -177,17 +172,17 @@ export async function POST(
     // Simple and reliable calculation: if we got a full page and there are more entries beyond current offset
     const hasMore = entries.length === pageSize && totalEntries > (offset + entries.length);
     
-    console.log('📄 API hasMore calculation:', {
-      entriesReturned: entries.length,
-      pageSize,
-      totalEntries,
-      offset,
-      currentPosition: offset + entries.length,
-      hasMore,
-      calculation: `${entries.length} === ${pageSize} && ${totalEntries} > ${offset + entries.length}`
-    });
+    // console.log('📄 API hasMore calculation:', {
+    //   entriesReturned: entries.length,
+    //   pageSize,
+    //   totalEntries,
+    //   offset,
+    //   currentPosition: offset + entries.length,
+    //   hasMore,
+    //   calculation: `${entries.length} === ${pageSize} && ${totalEntries} > ${offset + entries.length}`
+    // });
     
-    console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (total: ${totalEntries}, hasMore: ${hasMore})`);
+    // console.log(`🚀 API: Processed ${mappedEntries.length} entries for ${decodedTitle}${searchQuery ? ` with search "${searchQuery}"` : ''} (total: ${totalEntries}, hasMore: ${hasMore})`);
 
     // Get auth token for Convex queries
     const token = await convexAuthNextjsToken().catch(() => null);
@@ -213,17 +208,28 @@ export async function POST(
     headers.set('CDN-Cache-Control', 'max-age=300');
     headers.set('Surrogate-Control', 'max-age=300');
     
-    console.log(`🚀 API: Returning ${entriesWithPublicData.length} entries for ${decodedTitle}`);
-    return NextResponse.json({
+    // console.log(`🚀 API: Returning ${entriesWithPublicData.length} entries for ${decodedTitle}`);
+    
+    const responseData = {
       entries: entriesWithPublicData,
       totalEntries: totalEntries,
       hasMore: hasMore,
       searchQuery: searchQuery || undefined
-    }, {
+    };
+    
+    // console.log(`🔥 API: Final response data:`, {
+    //   entriesCount: responseData.entries.length,
+    //   totalEntries: responseData.totalEntries,
+    //   hasMore: responseData.hasMore,
+    //   searchQuery: responseData.searchQuery,
+    //   hasMoreCalculation: `${entriesWithPublicData.length} === ${pageSize} && ${totalEntries} > ${offset + entriesWithPublicData.length}`
+    // });
+    
+    return NextResponse.json(responseData, {
       headers
     });
   } catch (error) {
-    console.error(`❌ API: Error in RSS route for feed ${postTitle}:`, error);
+    // console.error(`❌ API: Error in RSS route for feed ${postTitle}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
