@@ -1241,9 +1241,14 @@ const RSSEntriesClientComponent = ({
     return metrics;
   }, [initialData?.entries]);
 
+  // CRITICAL: Always pass entryGuids to maintain reactivity across tab switches
+  // The hook will handle disabled queries gracefully and maintain subscription state
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
-    isActive ? entryGuids : [],
-    { initialMetrics }
+    entryGuids, // Keep stable GUIDs to maintain reactivity
+    { 
+      initialMetrics,
+      skipInitialQuery: !isActive // Skip queries when inactive but maintain subscription
+    }
   );
 
   // Perform initialization when possible
