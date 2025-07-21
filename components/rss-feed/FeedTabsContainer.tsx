@@ -22,6 +22,7 @@ import type { FeedTabsContainerProps } from '@/lib/types';
  * - Preserved dynamic imports with skeletons
  * - Single context usage to prevent re-renders
  * - Stable refs to prevent stale closures
+ * - Enhanced bfcache support
  */
 
 export function FeedTabsContainer({ 
@@ -47,52 +48,57 @@ export function FeedTabsContainer({
   });
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Stable refs to prevent stale closures in useEffect
-  const rssDataRef = useRef(rssData);
-  const loadingRef = useRef(loading);
-  const featuredDataRef = useRef(featuredData);
-  const errorsRef = useRef(errors);
+  // bfcache restoration tracking
+  const [isBfCacheRestoration, setIsBfCacheRestoration] = useState(false);
+  const pageShowHandledRef = useRef(false);
   
-  // Circuit breaker to prevent infinite retry loops
-  const retryAttemptsRef = useRef({ rss: 0, featured: 0 });
+  // Track retry attempts to prevent infinite loops
+  const retryAttemptsRef = useRef({
+    rss: 0,
+    featured: 0
+  });
   const MAX_RETRY_ATTEMPTS = 3;
-  
-  // Update refs when state changes
+
+  // Detect bfcache restoration
   useEffect(() => {
-    rssDataRef.current = rssData;
-  }, [rssData]);
-  
-  useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
-  
-  useEffect(() => {
-    featuredDataRef.current = featuredData;
-  }, [featuredData]);
-  
-  useEffect(() => {
-    errorsRef.current = errors;
-  }, [errors]);
-  
-  // Removed useTransition to fix tab switching timing issues
-  
-  // Custom hook for data fetching - simplified to accept callbacks
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && !pageShowHandledRef.current) {
+        // Page restored from bfcache
+        setIsBfCacheRestoration(true);
+        pageShowHandledRef.current = true;
+        
+        // Reset state to force re-initialization if on Following tab
+        if (activeTabIndex === 1) {
+          setHasInitialized(false);
+          setRssData(null);
+          setErrors(prev => ({ ...prev, rss: null }));
+        }
+        
+        // Reset bfcache flag after processing
+        setTimeout(() => {
+          setIsBfCacheRestoration(false);
+          pageShowHandledRef.current = false;
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [activeTabIndex]);
+
+  // Enhanced data fetching hook with bfcache support
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
     router,
-    onRSSDataFetched: setRssData,
-    onFeaturedDataFetched: setFeaturedData,
-    onRSSLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, rss: loading })),
-    onFeaturedLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, featured: loading })),
-    onRSSError: (error: string | null) => setErrors(prev => ({ ...prev, rss: error })),
-    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error }))
+    onRSSDataFetched: useCallback((data) => setRssData(data), []),
+    onFeaturedDataFetched: useCallback((data) => setFeaturedData(data), []),
+    onRSSLoadingChange: useCallback((loading) => setLoading(prev => ({ ...prev, rss: loading })), []),
+    onFeaturedLoadingChange: useCallback((loading) => setLoading(prev => ({ ...prev, featured: loading })), []),
+    onRSSError: useCallback((error) => setErrors(prev => ({ ...prev, rss: error })), []),
+    onFeaturedError: useCallback((error) => setErrors(prev => ({ ...prev, featured: error })), [])
   });
-  
-  // Stable cleanup reference to prevent dependency issues
-  const cleanupRef = useRef(cleanup);
-  cleanupRef.current = cleanup;
-  
-  // Stable retry handlers to prevent re-renders
+
+  // Retry handlers
   const handleRetryRSS = useCallback(() => {
     // Reset error and retry attempt counter
     setErrors(prev => ({ ...prev, rss: null }));
@@ -154,55 +160,70 @@ export function FeedTabsContainer({
     }
   }, [hasInitialized]);
   
-  // Data fetching coordination effect
+  // Data fetching effects with enhanced bfcache support
   useEffect(() => {
     if (!hasInitialized) return;
     
-    // For Following tab, only fetch if authenticated AND onboarded
-    if (activeTabIndex === 1 && isAuthenticated && isBoarded && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
-      fetchRSSData();
-    } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {
-      fetchFeaturedData();
+    // If on Following tab and no RSS data, fetch it
+    if (activeTabIndex === 1 && (!rssData || isBfCacheRestoration)) {
+      if (isAuthenticated && isBoarded) {
+        if (retryAttemptsRef.current.rss < MAX_RETRY_ATTEMPTS) {
+          retryAttemptsRef.current.rss++;
+          fetchRSSData();
+        }
+      }
     }
-  }, [activeTabIndex, isAuthenticated, isBoarded, hasInitialized, fetchRSSData, fetchFeaturedData]);
+    
+    // If on Discover tab and no featured data, fetch it
+    if (activeTabIndex === 0 && (!featuredData || isBfCacheRestoration)) {
+      if (retryAttemptsRef.current.featured < MAX_RETRY_ATTEMPTS) {
+        retryAttemptsRef.current.featured++;
+        fetchFeaturedData();
+      }
+    }
+  }, [
+    hasInitialized,
+    activeTabIndex,
+    rssData,
+    featuredData,
+    isAuthenticated,
+    isBoarded,
+    isBfCacheRestoration,
+    fetchRSSData,
+    fetchFeaturedData
+  ]);
 
-  // Cleanup effect to prevent memory leaks - stable cleanup reference
+  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      cleanupRef.current();
-    };
-  }, []); // Empty dependencies - cleanup is stable via ref
+    return cleanup;
+  }, [cleanup]);
 
-  // Memoized authentication UI helpers to prevent recalculation
-  const authUIConfig = useMemo(() => ({
-    shouldShowUserMenu: isAuthenticated,
-    shouldShowSignInButton: !isAuthenticated,
-    userMenuProps: isAuthenticated ? {
-      initialDisplayName: displayName || '',
-      isBoarded,
-      initialProfileImage: profileImage || undefined,
-      pendingFriendRequestCount
-    } : null
-  }), [isAuthenticated, displayName, isBoarded, profileImage, pendingFriendRequestCount]);
+  // Memoize sign-in content to prevent re-renders
+  const signInContent = useMemo(() => (
+    <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+      <h2 className="text-lg font-semibold mb-4">Sign in to view your following feed</h2>
+      <SignInButton />
+    </div>
+  ), []);
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
-        <div>
-          {authUIConfig.shouldShowUserMenu && authUIConfig.userMenuProps && (
+      {/* Mobile header with search and user menu */}
+      <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md border-b px-4 py-3 md:hidden">
+        <div className="flex items-center gap-3">
+          <MobileSearch />
+          {isAuthenticated && displayName && (
             <UserMenuClientWithErrorBoundary />
           )}
         </div>
-        <div className="flex justify-end items-center gap-2">
-          {authUIConfig.shouldShowSignInButton && <SignInButton />}
-          <MobileSearch />
-        </div>
       </div>
-     
-      <SwipeableTabs 
-        tabs={tabs} 
+
+      {/* Feed tabs */}
+      <SwipeableTabs
+        tabs={tabs}
+        defaultTabIndex={activeTabIndex}
         onTabChange={handleTabChange}
-        defaultTabIndex={activeTabIndex} 
+        className="w-full"
       />
     </div>
   );
