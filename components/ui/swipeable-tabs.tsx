@@ -532,8 +532,9 @@ const SwipeableTabsComponent = ({
                   touchAction: 'pan-y' 
                 }}
               >
-                {/* CRITICAL FIX: Only render active tab component to prevent inactive tabs from running queries */}
-                {isActive ? renderTab() : null}
+                {/* REACT BEST PRACTICE: Always render tab content to preserve state */}
+                {/* Use isActive prop to control component behavior instead of conditional rendering */}
+                {renderTab()}
               </div>
             );
           })}
