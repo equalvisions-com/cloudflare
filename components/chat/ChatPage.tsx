@@ -12,7 +12,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { MessageContent, MessageSchema } from '@/app/types/article';
+import { MessageContent } from '@/lib/types';
+import { MessageSchema } from '@/app/types/article';
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useAudioPlayerPlayTrack } from '@/lib/stores/audioPlayerStore';

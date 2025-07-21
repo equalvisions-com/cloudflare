@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useChatContext } from '@/lib/contexts/ChatContext';
 import { ActiveButton, SelectionState, ChatMessage } from '@/lib/types';
+import { type Message as UIMessage } from 'ai/react';
 import { useToast } from '@/components/ui/use-toast';
 
 export const useChatActions = () => {
@@ -159,8 +160,8 @@ export const useChatActions = () => {
 
   // Reset chat handler
   const resetChat = useCallback((
-    messages: ChatMessage[],
-    setMessages: (messages: ChatMessage[]) => void,
+    messages: UIMessage[],
+    setMessages: (messages: UIMessage[]) => void,
     textareaRef: React.RefObject<HTMLTextAreaElement | null>
   ) => {
     if (messages.length > 0) {
