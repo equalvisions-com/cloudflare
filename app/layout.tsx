@@ -100,11 +100,11 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   const isAuthenticated = !!hasConvexAuth;
   const isOnboarded = onboardedCookie?.value === 'true';
   
-  // Create auth hints for client-side components
+  // Create auth hints for client-side components that match middleware behavior
   const authHints = {
-    // For hints: if user has valid auth token, they're authenticated
-    // Onboarding requirements are handled by middleware redirects and client logic
-    isAuthenticated: isAuthenticated,
+    // Only consider fully authenticated if they have auth AND onboarding cookie
+    // This prevents showing authenticated nav to users who should be redirected
+    isAuthenticated: isAuthenticated && isOnboarded,
     isOnboarded: isOnboarded
   };
 

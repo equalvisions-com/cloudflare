@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFeedTabsMemoryManagement } from './useFeedTabsMemoryManagement';
 import type { 
@@ -16,7 +16,7 @@ import type {
  * - Preserves all data fetching business logic
  * - Maintains proper error handling and loading states
  * - Keeps request deduplication and abort handling
- * - Authentication-aware fetching with bfcache support
+ * - Authentication-aware fetching
  * 
  * @param props - Hook configuration props with callbacks
  * @returns Data fetching functions and utilities
@@ -51,76 +51,6 @@ export const useFeedTabsDataFetching = ({
   const lastErrorTimeRef = useRef({ rss: 0, featured: 0 });
   const MAX_ERROR_COUNT = 3;
   const ERROR_RESET_TIME = 60000; // 1 minute
-
-  // bfcache detection and auth rehydration tracking
-  const isBfCacheRestorationRef = useRef(false);
-  const authHintsRef = useRef<{ isAuthenticated?: boolean }>({});
-
-  // Read auth hints on mount to detect bfcache scenarios
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isAuthenticatedHint = document.documentElement.getAttribute('data-user-authenticated') === '1';
-      authHintsRef.current = { isAuthenticated: isAuthenticatedHint };
-    }
-  }, []);
-
-  // Detect bfcache restoration
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        // Page restored from bfcache
-        isBfCacheRestorationRef.current = true;
-        
-        // Reset after a brief period
-        setTimeout(() => {
-          isBfCacheRestorationRef.current = false;
-        }, 2000);
-      }
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
-  }, []);
-
-  /**
-   * Enhanced auth check that handles bfcache scenarios
-   */
-  const checkAuthWithBfCacheSupport = useCallback(async (): Promise<boolean> => {
-    // If we have clear authentication, proceed
-    if (isAuthenticated) {
-      return true;
-    }
-
-    // Check if this might be a bfcache scenario where auth hasn't rehydrated yet
-    const authHints = authHintsRef.current;
-    const isBfCacheScenario = isBfCacheRestorationRef.current || 
-      (authHints.isAuthenticated && !isAuthenticated);
-
-    if (isBfCacheScenario) {
-      // Wait for potential auth rehydration
-      let retries = 0;
-      const maxRetries = 5; // Max 500ms wait
-      
-      while (retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retries++;
-        
-        // Check if auth rehydrated during wait
-        if (isAuthenticated) {
-          return true;
-        }
-      }
-      
-      // If auth hints said authenticated but Convex auth never rehydrated,
-      // trust the hints for bfcache scenarios
-      if (authHints.isAuthenticated) {
-        return true;
-      }
-    }
-
-    // No authentication available
-    return false;
-  }, [isAuthenticated]);
 
   /**
    * Fetches featured data with proper error handling and deduplication
@@ -207,7 +137,7 @@ export const useFeedTabsDataFetching = ({
   ]);
 
   /**
-   * Fetches RSS data with enhanced authentication checks and bfcache support
+   * Fetches RSS data with authentication checks and proper error handling
    */
   const fetchRSSData = useCallback(async (): Promise<void> => {
     // Skip if fetch is already in progress
@@ -215,9 +145,8 @@ export const useFeedTabsDataFetching = ({
       return;
     }
 
-    // Enhanced auth check with bfcache support
-    const isAuthAllowed = await checkAuthWithBfCacheSupport();
-    if (!isAuthAllowed) {
+    // Check authentication before fetching RSS data
+    if (!isAuthenticated) {
       router.push('/signin');
       return;
     }
@@ -271,7 +200,7 @@ export const useFeedTabsDataFetching = ({
       }
     });
   }, [
-    checkAuthWithBfCacheSupport,
+    isAuthenticated,
     router,
     onRSSDataFetched,
     onRSSLoadingChange,
@@ -282,19 +211,22 @@ export const useFeedTabsDataFetching = ({
   ]);
 
   /**
-   * Cleanup function
+   * Cleanup function to abort any in-progress requests and clean up memory
    */
   const cleanup = useCallback(() => {
-    // Abort any pending requests
+    // Legacy cleanup for any remaining abortController
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     
-    // Reset fetch states
-    fetchInProgressRef.current = { rss: false, featured: false };
+    // Reset fetch progress flags
+    fetchInProgressRef.current = {
+      rss: false,
+      featured: false
+    };
     
-    // Call memory cleanup
+    // Use memory management cleanup for comprehensive cleanup
     memoryCleanup();
   }, [memoryCleanup]);
 

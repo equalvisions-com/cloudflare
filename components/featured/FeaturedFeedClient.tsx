@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
-import Link from "next/link";
+import { PrefetchAnchor } from "@/utils/PrefetchAnchor";
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
 import type { 
   FeaturedFeedClientProps,
@@ -432,9 +432,8 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
               onClick={handleLinkInteraction}
               onTouchStart={handleLinkInteraction}
             >
-              <Link 
+              <PrefetchAnchor 
                 href={postUrl}
-                prefetch={false}
                 aria-label={`View ${postMetadata.title || decodedContent.title} ${postMetadata.mediaType || 'content'}`}
               >
                 <AspectRatio ratio={1}>
@@ -447,7 +446,7 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
                     priority={isPriority}
                   />
                 </AspectRatio>
-              </Link>
+              </PrefetchAnchor>
             </NoFocusLinkWrapper>
           )}
           
@@ -462,12 +461,12 @@ const FeaturedEntry = React.memo(({ entryWithData: { entry, initialData, postMet
                       onClick={handleLinkInteraction}
                       onTouchStart={handleLinkInteraction}
                     >
-                      <Link href={postUrl} prefetch={false}>
+                      <PrefetchAnchor href={postUrl}>
                         <h2 id={titleId} className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {postMetadata.title}
                           {isVerified && <VerifiedBadge className="inline-block align-middle ml-1" />}
                         </h2>
-                      </Link>
+                      </PrefetchAnchor>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h2 id={titleId} className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">

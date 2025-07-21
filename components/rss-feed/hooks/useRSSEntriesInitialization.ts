@@ -1,41 +1,5 @@
-import { useCallback, useRef, useEffect } from 'react';
-import type { 
-  RSSEntriesDisplayEntry
-} from '@/lib/types';
-
-interface UseRSSEntriesInitializationProps {
-  hasInitialized: boolean;
-  isMountedRef: React.MutableRefObject<boolean>;
-  preRefreshNewestEntryDateRef: React.MutableRefObject<string | undefined>;
-  entriesStateRef: React.MutableRefObject<RSSEntriesDisplayEntry[]>;
-  currentPageRef: React.MutableRefObject<number>;
-  hasMoreRef: React.MutableRefObject<boolean>;
-  totalEntriesRef: React.MutableRefObject<number>;
-  postTitlesRef: React.MutableRefObject<string[]>;
-  feedMetadataCache: React.MutableRefObject<Record<string, RSSEntriesDisplayEntry['postMetadata']>>;
-  initialData?: {
-    entries: RSSEntriesDisplayEntry[];
-    totalEntries?: number;
-    hasMore?: boolean;
-    postTitles?: string[];
-    feedUrls?: string[];
-    mediaTypes?: string[];
-  };
-  initialize: (data: {
-    entries: RSSEntriesDisplayEntry[];
-    totalEntries: number;
-    hasMore: boolean;
-    postTitles: string[];
-    feedUrls: string[];
-    mediaTypes: string[];
-  }) => void;
-}
-
-interface UseRSSEntriesInitializationReturn {
-  canInitialize: boolean;
-  performInitialization: () => void;
-  isBfCacheRestoration: boolean;
-}
+import { useCallback, useMemo } from 'react';
+import type { RSSEntriesDisplayEntry, RSSItem, InternalPostMetadata } from '@/lib/types';
 
 // Helper function to consistently parse dates from the database
 const parseEntryDate = (dateString: string | Date): Date => {
@@ -74,10 +38,37 @@ const formatDateForAPI = (date: Date): string => {
 
 
 
+interface UseRSSEntriesInitializationProps {
+  hasInitialized: boolean;
+  isMountedRef: React.MutableRefObject<boolean>;
+  preRefreshNewestEntryDateRef: React.MutableRefObject<string | undefined>;
+  entriesStateRef: React.MutableRefObject<RSSEntriesDisplayEntry[]>;
+  currentPageRef: React.MutableRefObject<number>;
+  hasMoreRef: React.MutableRefObject<boolean>;
+  totalEntriesRef: React.MutableRefObject<number>;
+  postTitlesRef: React.MutableRefObject<string[]>;
+  feedMetadataCache: React.MutableRefObject<Record<string, RSSEntriesDisplayEntry['postMetadata']>>;
+  initialData?: {
+    entries: RSSEntriesDisplayEntry[];
+    totalEntries?: number;
+    hasMore?: boolean;
+    postTitles?: string[];
+    feedUrls?: string[];
+    mediaTypes?: string[];
+  };
+  initialize: (data: {
+    entries: RSSEntriesDisplayEntry[];
+    totalEntries: number;
+    hasMore: boolean;
+    postTitles: string[];
+    feedUrls: string[];
+    mediaTypes: string[];
+  }) => void;
+}
+
 /**
- * Custom hook for handling RSS entries initialization
- * Manages the initial data setup and determines when initialization should occur
- * Enhanced with bfcache support for proper restoration
+ * Custom hook for handling component initialization in RSS Entries Display
+ * Follows React best practices - returns computed values and functions
  */
 export const useRSSEntriesInitialization = ({
   hasInitialized,
@@ -91,125 +82,99 @@ export const useRSSEntriesInitialization = ({
   feedMetadataCache,
   initialData,
   initialize,
-}: UseRSSEntriesInitializationProps): UseRSSEntriesInitializationReturn => {
-  
-  // bfcache detection and tracking
-  const isBfCacheRestorationRef = useRef(false);
-  const pageShowHandledRef = useRef(false);
+}: UseRSSEntriesInitializationProps) => {
 
-  // Detect bfcache restoration
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted && !pageShowHandledRef.current) {
-        // Page restored from bfcache
-        isBfCacheRestorationRef.current = true;
-        pageShowHandledRef.current = true;
+  // Compute initialization data - derived state
+  const initializationData = useMemo(() => {
+    if (!initialData?.entries?.length) {
+      return null;
+    }
+
+    // Process entries and extract metadata
+    const processedEntries: RSSEntriesDisplayEntry[] = [];
+    const extractedPostTitles: string[] = [];
+    const extractedFeedUrls: string[] = [];
+    const extractedMediaTypes: string[] = [];
+
+    initialData.entries.forEach(entryWithData => {
+      if (entryWithData?.entry && entryWithData.postMetadata) {
+        processedEntries.push(entryWithData);
         
-        // Reset initialization flag to force re-initialization
-        if (hasInitialized) {
-          // Clear current state to force fresh initialization
-          entriesStateRef.current = [];
-          currentPageRef.current = 1;
-          hasMoreRef.current = true;
-          totalEntriesRef.current = 0;
-          postTitlesRef.current = [];
-          feedMetadataCache.current = {};
-          preRefreshNewestEntryDateRef.current = undefined;
+        // Extract metadata
+        const { title, mediaType } = entryWithData.postMetadata;
+        const feedUrl = entryWithData.entry.feedUrl || '';
+        
+        if (title && !extractedPostTitles.includes(title)) {
+          extractedPostTitles.push(title);
         }
         
-        // Reset bfcache flag after processing
-        setTimeout(() => {
-          isBfCacheRestorationRef.current = false;
-          pageShowHandledRef.current = false;
-        }, 1000);
-      }
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
-  }, [hasInitialized, entriesStateRef, currentPageRef, hasMoreRef, totalEntriesRef, postTitlesRef, feedMetadataCache, preRefreshNewestEntryDateRef]);
-
-  // Determine if initialization should occur
-  const canInitialize = !hasInitialized || isBfCacheRestorationRef.current;
-
-  // Process metadata cache from initial data
-  const processMetadataCache = useCallback(() => {
-    if (!initialData?.entries) return;
-    
-    // Build metadata cache from initial data
-    const cache: Record<string, any> = {};
-    initialData.entries.forEach((entry: RSSEntriesDisplayEntry) => {
-      if (entry?.entry?.feedUrl && entry?.postMetadata) {
-        cache[entry.entry.feedUrl] = entry.postMetadata;
+        if (feedUrl && !extractedFeedUrls.includes(feedUrl)) {
+          extractedFeedUrls.push(feedUrl);
+        }
+        
+        if (mediaType && !extractedMediaTypes.includes(mediaType)) {
+          extractedMediaTypes.push(mediaType);
+        }
+        
+        // Cache metadata
+        if (feedUrl) {
+          feedMetadataCache.current[feedUrl] = entryWithData.postMetadata;
+        }
       }
     });
-    
-    feedMetadataCache.current = { ...feedMetadataCache.current, ...cache };
-  }, [initialData?.entries, feedMetadataCache]);
 
-  // Perform initialization with enhanced bfcache support
+    // Find newest entry date for refresh tracking
+    let newestEntryDate: string | undefined;
+    if (processedEntries.length > 0) {
+      try {
+        const newestEntry = processedEntries[0];
+        if (newestEntry?.entry?.pubDate) {
+          const parsedDate = parseEntryDate(newestEntry.entry.pubDate);
+          newestEntryDate = formatDateForAPI(parsedDate);
+        }
+              } catch (error) {
+          // Error is handled gracefully - no console output in production
+        }
+    }
+
+    return {
+      entries: processedEntries,
+      totalEntries: initialData.totalEntries || processedEntries.length,
+      hasMore: initialData.hasMore ?? true,
+      postTitles: initialData.postTitles || extractedPostTitles,
+      feedUrls: initialData.feedUrls || extractedFeedUrls,
+      mediaTypes: initialData.mediaTypes || extractedMediaTypes,
+      newestEntryDate,
+    };
+  }, [initialData, feedMetadataCache]);
+
+  // Function to perform initialization
   const performInitialization = useCallback(() => {
-    if (!canInitialize || !isMountedRef.current || !initialData) return;
+    if (hasInitialized || !initializationData || !isMountedRef.current) {
+      return;
+    }
 
     try {
-      // Process metadata cache first
-      processMetadataCache();
-
-      // Validate initial data structure
-      const entries = initialData.entries || [];
-      const totalEntries = initialData.totalEntries || entries.length;
-      const hasMore = initialData.hasMore ?? (entries.length < totalEntries);
-      const postTitles = initialData.postTitles || [];
-      const feedUrls = initialData.feedUrls || [];
-      const mediaTypes = initialData.mediaTypes || [];
-
-      // Set pre-refresh newest entry date for refresh logic
-      if (entries.length > 0) {
-        const sortedEntries = [...entries].sort((a, b) => {
-          const dateA = new Date(a.entry.pubDate).getTime();
-          const dateB = new Date(b.entry.pubDate).getTime();
-          return dateB - dateA; // Newest first
-        });
-        
-        if (sortedEntries[0]) {
-          preRefreshNewestEntryDateRef.current = sortedEntries[0].entry.pubDate;
-        }
+      // Update refs first
+      entriesStateRef.current = initializationData.entries;
+      currentPageRef.current = 1;
+      hasMoreRef.current = initializationData.hasMore;
+      totalEntriesRef.current = initializationData.totalEntries;
+      postTitlesRef.current = initializationData.postTitles;
+      
+      if (initializationData.newestEntryDate) {
+        preRefreshNewestEntryDateRef.current = initializationData.newestEntryDate;
       }
 
-      // Update all refs with initialized data
-      entriesStateRef.current = entries;
-      currentPageRef.current = 1;
-      hasMoreRef.current = hasMore;
-      totalEntriesRef.current = totalEntries;
-      postTitlesRef.current = postTitles;
-
-      // Initialize the component state via callback
-      initialize({
-        entries,
-        totalEntries,
-        hasMore,
-        postTitles,
-        feedUrls,
-        mediaTypes
-      });
-
-    } catch (error) {
-      console.error('RSS Entries Initialization Error:', error);
-      // Initialize with empty state if there's an error
-      initialize({
-        entries: [],
-        totalEntries: 0,
-        hasMore: false,
-        postTitles: [],
-        feedUrls: [],
-        mediaTypes: []
-      });
-    }
+      // Initialize store state
+      initialize(initializationData);
+          } catch (error) {
+        // Error is handled gracefully - no console output in production
+      }
   }, [
-    canInitialize,
+    hasInitialized,
+    initializationData,
     isMountedRef,
-    initialData,
-    processMetadataCache,
     entriesStateRef,
     currentPageRef,
     hasMoreRef,
@@ -220,8 +185,9 @@ export const useRSSEntriesInitialization = ({
   ]);
 
   return {
-    canInitialize,
     performInitialization,
-    isBfCacheRestoration: isBfCacheRestorationRef.current
+    // Return computed state
+    canInitialize: !hasInitialized && !!initializationData && isMountedRef.current,
+    initializationData,
   };
 }; 
