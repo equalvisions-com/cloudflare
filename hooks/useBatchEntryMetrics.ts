@@ -25,12 +25,6 @@ export function useBatchEntryMetrics(
 ) {
   const { skipInitialQuery = false, initialMetrics = {}, includeCommentLikes = false } = options;
   
-  // Track if this hook has ever been active (visited)
-  const hasBeenActiveRef = useRef(false);
-  if (!skipInitialQuery) {
-    hasBeenActiveRef.current = true;
-  }
-  
   // Track previous values to detect changes
   const prevEntryGuidsRef = useRef<string[]>([]);
   const prevLengthRef = useRef(0);
@@ -73,19 +67,14 @@ export function useBatchEntryMetrics(
 
   // Determine which GUIDs need to be fetched from Convex
   const guidsToFetch = useMemo(() => {
-    // If component is currently active, always fetch
-    if (!skipInitialQuery) {
-      return uniqueGuids;
+    // Always pass GUIDs when we have them - let Convex handle caching
+    // Skip only when there are no GUIDs or when explicitly requested to skip
+    if (skipInitialQuery) {
+      return []; // Only skip when explicitly requested
     }
     
-    // If component is inactive but has been active before, keep subscription live
-    if (hasBeenActiveRef.current) {
-      return uniqueGuids; // Keep subscription active for reactivity
-    }
-    
-    // If component has never been active, don't fetch anything
-    return [];
-  }, [uniqueGuids.join(','), skipInitialQuery]); // Removed forceRefresh - no longer needed
+    return uniqueGuids;
+  }, [uniqueGuids.join(','), skipInitialQuery]);
 
   // Single batch query for entries that need fresh data
   // CRITICAL: Skip query when no GUIDs to fetch
