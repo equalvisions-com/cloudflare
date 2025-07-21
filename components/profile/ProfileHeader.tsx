@@ -89,6 +89,8 @@ const ProfileHeaderComponent = ({
             username={normalizedUsername}
             userId={profile.userId}
             profileData={{
+              _id: profile._id,
+              userId: profile.userId,
               name: profile.name,
               bio: profile.bio,
               profileImage: profile.profileImage,
