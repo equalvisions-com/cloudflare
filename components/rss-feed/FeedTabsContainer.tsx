@@ -122,9 +122,8 @@ export function FeedTabsContainer({
   
   // Tab change handler with authentication checks
   const handleTabChange = useCallback((index: number) => {
-    // If switching to the "Following" tab (index 1), check authentication
-    // Since logout + bfcache is impossible, we can trust the auth state
-    if (index === 1 && !isAuthenticated) {
+    // If switching to the "Following" tab (index 1), check authentication AND onboarding
+    if (index === 1 && (!isAuthenticated || !isBoarded)) {
       router.push('/signin');
       return;
     }
@@ -137,17 +136,16 @@ export function FeedTabsContainer({
     // CRITICAL FIX: Remove startTransition to make tab changes synchronous
     // This prevents the Featured Feed from staying mounted during RSS tab switch
     setActiveTabIndex(index);
-  }, [isAuthenticated, router, activeTabIndex]);
+  }, [isAuthenticated, isBoarded, router, activeTabIndex]);
   
-  // Auth state management - reset to Discover tab when user signs out
-  // Note: This only triggers on actual logout, not bfcache restoration
+  // Auth state management - reset to Discover tab when user signs out OR becomes unboarded
   useEffect(() => {
-    if (!isAuthenticated && activeTabIndex === 1) {
+    if ((!isAuthenticated || !isBoarded) && activeTabIndex === 1) {
       setActiveTabIndex(0);
       setRssData(null);
       setErrors(prev => ({ ...prev, rss: null }));
     }
-  }, [isAuthenticated, activeTabIndex]);
+  }, [isAuthenticated, isBoarded, activeTabIndex]);
   
   // Initialize component state on mount
   useEffect(() => {
@@ -160,13 +158,13 @@ export function FeedTabsContainer({
   useEffect(() => {
     if (!hasInitialized) return;
     
-    // For Following tab, only fetch if authenticated
-    if (activeTabIndex === 1 && isAuthenticated && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
+    // For Following tab, only fetch if authenticated AND onboarded
+    if (activeTabIndex === 1 && isAuthenticated && isBoarded && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
       fetchRSSData();
     } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {
       fetchFeaturedData();
     }
-  }, [activeTabIndex, isAuthenticated, hasInitialized, fetchRSSData, fetchFeaturedData]);
+  }, [activeTabIndex, isAuthenticated, isBoarded, hasInitialized, fetchRSSData, fetchFeaturedData]);
 
   // Cleanup effect to prevent memory leaks - stable cleanup reference
   useEffect(() => {
