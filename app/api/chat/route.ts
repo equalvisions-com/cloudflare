@@ -1,7 +1,8 @@
 import { Message } from 'ai';
 import { streamText, jsonSchema } from 'ai';
 import { openai as openaiClient } from '@ai-sdk/openai';
-import { Article, RapidAPINewsResponse, MessageSchema } from '@/app/types/article';
+import { Article, RapidAPINewsResponse } from '@/lib/types';
+import { MessageSchema } from '@/app/types/article';
 import { executeRead } from '@/lib/database';
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
