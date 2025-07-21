@@ -163,7 +163,7 @@ export const useFeedTabsDataFetching = ({
       onRSSError(null);
 
       try {
-        const response = await fetch('/api/rss?refresh=true', { signal });
+        const response = await fetch('/api/rss-feed', { signal });
         
         if (!response.ok) {
           throw new Error('Failed to fetch RSS feed data');

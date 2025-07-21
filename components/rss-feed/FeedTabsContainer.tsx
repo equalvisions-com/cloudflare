@@ -161,7 +161,7 @@ export function FeedTabsContainer({
     
     // Fetch data based on active tab - using refs to prevent stale closures
     // CRITICAL: Don't fetch if there's already an error to prevent infinite loops
-    if (activeTabIndex === 1 && isAuthenticated && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
+    if (activeTabIndex === 1 && isAuthenticated && !loadingRef.current.rss && !errorsRef.current.rss) {
       fetchRSSData();
     } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {
       fetchFeaturedData();
