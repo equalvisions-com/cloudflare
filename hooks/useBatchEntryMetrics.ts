@@ -25,6 +25,12 @@ export function useBatchEntryMetrics(
 ) {
   const { skipInitialQuery = false, initialMetrics = {}, includeCommentLikes = false } = options;
   
+  // Track if this hook has ever been active (visited)
+  const hasBeenActiveRef = useRef(false);
+  if (!skipInitialQuery) {
+    hasBeenActiveRef.current = true;
+  }
+  
   // Track previous values to detect changes
   const prevEntryGuidsRef = useRef<string[]>([]);
   const prevLengthRef = useRef(0);
@@ -50,9 +56,6 @@ export function useBatchEntryMetrics(
   // Use stable GUIDs for all computations
   const stableGuids = stableGuidsRef.current;
   
-  // Track when component becomes active to force fresh queries
-  const [forceRefresh, setForceRefresh] = useState(0);
-  
   // Persistent metrics cache to prevent flashing during pagination
   const [persistentMetrics, setPersistentMetrics] = useState<Map<string, EntryMetrics>>(new Map());
   
@@ -70,14 +73,19 @@ export function useBatchEntryMetrics(
 
   // Determine which GUIDs need to be fetched from Convex
   const guidsToFetch = useMemo(() => {
+    // If component is currently active, always fetch
     if (!skipInitialQuery) {
-      return uniqueGuids; // Fetch all if not skipping (component is active)
+      return uniqueGuids;
     }
     
-    // If skipping initial query (component is inactive), don't fetch anything
-    // This maintains the subscription but doesn't make network requests
+    // If component is inactive but has been active before, keep subscription live
+    if (hasBeenActiveRef.current) {
+      return uniqueGuids; // Keep subscription active for reactivity
+    }
+    
+    // If component has never been active, don't fetch anything
     return [];
-  }, [uniqueGuids.join(','), skipInitialQuery, forceRefresh]); // Include forceRefresh to trigger fresh queries
+  }, [uniqueGuids.join(','), skipInitialQuery]); // Removed forceRefresh - no longer needed
 
   // Single batch query for entries that need fresh data
   // CRITICAL: Skip query when no GUIDs to fetch
@@ -86,19 +94,7 @@ export function useBatchEntryMetrics(
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
   
-  // CRITICAL FIX: Force refresh when component becomes active after being inactive
-  // This ensures fresh data is fetched instead of showing stale cached data
-  useEffect(() => {
-    const wasInactive = prevSkipInitialQueryRef.current;
-    const isNowActive = !skipInitialQuery;
-    
-    if (wasInactive && isNowActive) {
-      // Component just became active - force a fresh query
-      setForceRefresh(prev => prev + 1);
-    }
-    
-    prevSkipInitialQueryRef.current = skipInitialQuery;
-  }, [skipInitialQuery]);
+
 
   // Update persistent cache when new metrics arrive
   useEffect(() => {
@@ -144,7 +140,8 @@ export function useBatchEntryMetrics(
   
   // Determine loading state - we're loading if we're fetching fresh data
   const isLoading = useMemo(() => {
-    // If component is inactive (skipInitialQuery = true), we're never "loading"
+    // If component is currently inactive (skipInitialQuery = true), we're never "loading"
+    // Even if the subscription is live in the background
     if (skipInitialQuery) {
       return false;
     }
