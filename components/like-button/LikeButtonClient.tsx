@@ -60,8 +60,18 @@ export const LikeButtonClient = memo(function LikeButtonClient({
   // Track if the metrics have been loaded at least once
   const [metricsLoaded, setMetricsLoaded] = useState(false);
   
-  // Use state for optimistic updates
-  const [optimisticState, setOptimisticState] = useState<{isLiked: boolean, count: number, timestamp: number} | null>(null);
+  // Use ref for optimistic updates to persist across tab switches
+  const optimisticStateRef = useRef<{isLiked: boolean, count: number, timestamp: number} | null>(null);
+  const [optimisticTrigger, setOptimisticTrigger] = useState(0); // Trigger re-renders when optimistic state changes
+  
+  // Helper to update optimistic state and trigger re-render
+  const setOptimisticState = useCallback((newState: {isLiked: boolean, count: number, timestamp: number} | null) => {
+    optimisticStateRef.current = newState;
+    setOptimisticTrigger(prev => prev + 1); // Force re-render
+  }, []);
+  
+  // Get current optimistic state
+  const optimisticState = optimisticStateRef.current;
   
   // Set up the mounted ref
   useEffect(() => {
@@ -115,7 +125,7 @@ export const LikeButtonClient = memo(function LikeButtonClient({
         setOptimisticState(null);
       }
     }
-  }, [metrics, optimisticState, skipQuery, initialData]);
+  }, [metrics, optimisticTrigger, skipQuery, initialData, setOptimisticState]);
 
   const handleClick = useCallback(async () => {
     if (!isAuthenticated) {
