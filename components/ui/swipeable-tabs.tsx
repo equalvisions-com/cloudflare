@@ -12,7 +12,8 @@ import {
   useTabEventHandlers, 
   useEdgeSafeResizeObserver 
 } from '@/hooks/useSwipeableTabsHooks';
-import { useTabsState, type TabsAction } from '@/hooks/useSwipeableTabsReducer';
+import { useTabsState } from '@/hooks/useSwipeableTabsReducer';
+import type { TabsAction } from '@/lib/types';
 
 // Memoized tab header component to prevent re-renders
 const TabHeaders = React.memo(({ 

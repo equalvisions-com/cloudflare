@@ -1870,9 +1870,8 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
   }) => dispatch({ type: 'LOAD_MORE_SUCCESS', payload }), []);
 
-  const loadMoreFailure = useCallback(() => dispatch({ type: 'LOAD_MORE_FAILURE' }), []);
-  const setInitialLoadComplete = useCallback(() => dispatch({ type: 'SET_INITIAL_LOAD_COMPLETE' }), []);
-  const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
+  const loadMoreError = useCallback((error: string) => dispatch({ type: 'LOAD_MORE_FAILURE' }), []);
+  const resetError = useCallback(() => dispatch({ type: 'RESET' }), []);
 
   // Use custom hooks for business logic - now passing state and actions
   const {
@@ -1903,9 +1902,8 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     setInitialData,
     startLoadingMore,
     loadMoreSuccess,
-    loadMoreFailure,
-    setInitialLoadComplete,
-    reset,
+    loadMoreError,
+    resetError,
   });
 
   const {
