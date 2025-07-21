@@ -977,12 +977,11 @@ const FeaturedFeedClientComponent = ({
   }, [initialData?.entries]); // Only depend on initial server data
   
   // Use batch metrics hook with server metrics for immediate correct rendering
-  // ALWAYS maintain live subscription for real-time updates across tabs
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
-    entryGuids, // Always pass GUIDs for live subscription
+    isActive ? entryGuids : [], // Only query when feed is active
     { 
       initialMetrics
-      // No skipInitialQuery - always keep subscription live for reactivity
+      // Reactive subscription for cross-feed updates
     }
   );
 

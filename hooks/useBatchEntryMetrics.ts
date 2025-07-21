@@ -30,9 +30,6 @@ export function useBatchEntryMetrics(
   const prevLengthRef = useRef(0);
   const hasInitialMetricsRef = useRef(Object.keys(initialMetrics).length > 0);
   
-  // Track previous skipInitialQuery state to detect active/inactive transitions
-  const prevSkipInitialQueryRef = useRef(skipInitialQuery);
-  
   // CRITICAL FIX: Use ref to track stable GUIDs and only update when they actually change
   const stableGuidsRef = useRef<string[]>([]);
   const stableGuidsStringRef = useRef<string>('');
@@ -67,14 +64,13 @@ export function useBatchEntryMetrics(
 
   // Determine which GUIDs need to be fetched from Convex
   const guidsToFetch = useMemo(() => {
-    // Always pass GUIDs when we have them - let Convex handle caching
-    // Skip only when there are no GUIDs or when explicitly requested to skip
-    if (skipInitialQuery) {
-      return []; // Only skip when explicitly requested
+    if (!skipInitialQuery) {
+      return uniqueGuids; // Fetch all if not skipping
     }
     
-    return uniqueGuids;
-  }, [uniqueGuids.join(','), skipInitialQuery]);
+    // If skipping initial query, only fetch GUIDs we don't have metrics for
+    return uniqueGuids.filter(guid => !initialMetrics[guid]);
+  }, [uniqueGuids.join(','), skipInitialQuery, Object.keys(initialMetrics).sort().join(',')]); // Stable dependencies
 
   // Single batch query for entries that need fresh data
   // CRITICAL: Skip query when no GUIDs to fetch
@@ -83,8 +79,6 @@ export function useBatchEntryMetrics(
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
   
-
-
   // Update persistent cache when new metrics arrive
   useEffect(() => {
     if (metricsArray && guidsToFetch.length > 0) {
@@ -129,15 +123,14 @@ export function useBatchEntryMetrics(
   
   // Determine loading state - we're loading if we're fetching fresh data
   const isLoading = useMemo(() => {
-    // If component is currently inactive (skipInitialQuery = true), we're never "loading"
-    // Even if the subscription is live in the background
-    if (skipInitialQuery) {
+    // If we have initial metrics for all requested GUIDs, we're not loading
+    if (skipInitialQuery && uniqueGuids.every(guid => initialMetrics[guid])) {
       return false;
     }
     
-    // If component is active, we're loading if the query is undefined and we have GUIDs to fetch
+    // Otherwise, we're loading if the query is undefined and we have GUIDs to fetch
     return guidsToFetch.length > 0 && metricsArray === undefined;
-  }, [skipInitialQuery, guidsToFetch.length, metricsArray]);
+  }, [skipInitialQuery, uniqueGuids, initialMetrics, guidsToFetch.length, metricsArray]);
   
   return {
     getMetrics,

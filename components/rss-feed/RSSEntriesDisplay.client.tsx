@@ -1241,13 +1241,9 @@ const RSSEntriesClientComponent = ({
     return metrics;
   }, [initialData?.entries]);
 
-  // ALWAYS maintain live subscription for real-time updates across tabs
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
-    entryGuids, // Always pass GUIDs for live subscription
-    { 
-      initialMetrics
-      // No skipInitialQuery - always keep subscription live for reactivity
-    }
+    isActive ? entryGuids : [],
+    { initialMetrics }
   );
 
   // Perform initialization when possible

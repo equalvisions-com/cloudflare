@@ -61,18 +61,8 @@ const RetweetButtonClientComponent = ({
   // Track if the metrics have been loaded at least once
   const [metricsLoaded, setMetricsLoaded] = useState(false);
   
-  // Use ref for optimistic updates to persist across tab switches
-  const optimisticStateRef = useRef<{isRetweeted: boolean, count: number, timestamp: number} | null>(null);
-  const [optimisticTrigger, setOptimisticTrigger] = useState(0); // Trigger re-renders when optimistic state changes
-  
-  // Helper to update optimistic state and trigger re-render
-  const setOptimisticState = useCallback((newState: {isRetweeted: boolean, count: number, timestamp: number} | null) => {
-    optimisticStateRef.current = newState;
-    setOptimisticTrigger(prev => prev + 1); // Force re-render
-  }, []);
-  
-  // Get current optimistic state
-  const optimisticState = optimisticStateRef.current;
+  // Use state for optimistic updates
+  const [optimisticState, setOptimisticState] = useState<{isRetweeted: boolean, count: number, timestamp: number} | null>(null);
   
   // Set up the mounted ref
   useEffect(() => {
@@ -128,7 +118,7 @@ const RetweetButtonClientComponent = ({
         setOptimisticState(null);
       }
     }
-  }, [metrics, optimisticTrigger, skipQuery, initialData, setOptimisticState]);
+  }, [metrics, optimisticState, skipQuery, initialData]);
 
   // Memoize the click handler to prevent unnecessary recreations between renders
   const handleClick = useCallback(async () => {
