@@ -1,17 +1,5 @@
 import { useReducer } from 'react';
-
-// Tabs state interface
-export interface TabsState {
-  selectedTab: number;
-  isTransitioning: boolean;
-  isInteracting: boolean;
-}
-
-// Action types
-export type TabsAction = 
-  | { type: 'SET_SELECTED_TAB'; payload: number }
-  | { type: 'SET_TRANSITIONING'; payload: boolean }
-  | { type: 'SET_INTERACTING'; payload: boolean };
+import type { TabsState, TabsAction } from '@/lib/types';
 
 // Reducer function
 const tabsReducer = (state: TabsState, action: TabsAction): TabsState => {

@@ -2601,7 +2601,7 @@ export interface FriendsListPerformanceConfig {
   
   // Error handling
   maxRetries: number;
-  retryDelay: number;
+  retryDelay: number
 }
 
 export interface FriendsListVirtualizationProps {
@@ -3920,4 +3920,281 @@ export interface SimpleFriendButtonProps {
 
 // ===================================================================
 // END PEOPLE DISPLAY TYPES
+// ===================================================================
+
+// ===================================================================
+// CENTRALIZED TYPES FROM SCATTERED FILES - Phase 1: Consolidation
+// ===================================================================
+
+// Types from lib/rss.server.ts (exported interfaces)
+export interface MediaItem {
+  "@_url"?: string;
+  "@_medium"?: string;
+  "@_type"?: string;
+  attr?: {
+    "@_url"?: string;
+    "@_medium"?: string;
+    "@_type"?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface EnclosureItem {
+  "@_url"?: string;
+  "@_type"?: string;
+  "@_length"?: string;
+  attr?: {
+    "@_url"?: string;
+    "@_type"?: string;
+    "@_length"?: string;
+    [key: string]: unknown;
+  };
+  url?: string;
+  [key: string]: unknown;
+}
+
+export interface ItunesImage {
+  "@_href"?: string;
+  attr?: {
+    "@_href"?: string;
+    [key: string]: unknown;
+  };
+  url?: string;
+  href?: string;
+  [key: string]: unknown;
+}
+
+// Types from lib/rss.server.ts (internal interfaces now centralized)
+export type LogParams = string | number | boolean | object | null | undefined;
+
+export interface RSSFeed {
+  title: string;
+  description: string;
+  link: string;
+  items: RSSItem[];
+  mediaType?: string;
+}
+
+export interface ParsedChannel {
+  title: string | Record<string, unknown>;
+  description?: string | Record<string, unknown>;
+  link?: string | Record<string, unknown>;
+  item?: Record<string, unknown>[] | Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ParsedXMLCacheEntry {
+  timestamp: number;
+  result: Record<string, unknown>;
+}
+
+export interface ParsedXML {
+  rss?: {
+    channel?: ParsedChannel;
+  };
+  feed?: {
+    title?: string | Record<string, unknown>;
+    link?: string | Record<string, unknown> | Record<string, unknown>[];
+    entry?: Record<string, unknown>[] | Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+// Types from lib/featured_kv.ts
+export interface KVNamespace {
+  get<T = string>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<T | null>;
+  getWithMetadata<T = string, Metadata = unknown>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<{ value: T | null; metadata: Metadata | null }>;
+  put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expiration?: number; expirationTtl?: number; metadata?: unknown; }): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number; cursor?: string; }): Promise<{ keys: { name: string; expiration?: number; metadata?: unknown }[]; list_complete: boolean; cursor?: string; }>;
+}
+
+export interface RssEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_url: string;
+}
+
+export interface FeaturedEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_url: string;
+  post_title?: string; // From Convex post
+  category?: string; // From Convex post
+}
+
+export interface KVStoredData {
+  entries: FeaturedEntry[];
+  fetchedAt: number; // Timestamp of when the data was fetched
+}
+
+// Types from app/types/article.ts (Chat/News API types)
+export interface RapidAPINewsResponse {
+  is_successful: boolean;
+  message: string;
+  data?: {
+    articles: RapidAPIArticle[];
+  };
+}
+
+export interface RapidAPIArticle {
+  headline?: string | null;
+  external_url?: string | null;
+  publish_timestamp?: number | null;
+  publisher?: string | null;
+  publisher_icon_url?: string | null;
+  photo_url?: string | null;
+}
+
+// Note: ArticleSchema and MessageSchema (Zod schemas) remain in app/types/article.ts
+// as they're specific to that module and include runtime validation logic
+export interface Article {
+  title: string;
+  link: string;
+  date: string;
+  source: string;
+  publisherIconUrl?: string;
+  photo_url?: string;
+}
+
+export interface MessageContent {
+  message: string;
+  articles: Article[];
+}
+
+// Chat Message Types (from 'ai' library integration)
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt?: Date;
+  // Additional fields from AI SDK
+  experimental_attachments?: unknown[];
+  toolInvocations?: unknown[];
+}
+
+// Activity Feed Types (for proper typing of activity arrays)
+export interface ActivityFeedActivity {
+  type: "like" | "comment" | "retweet";
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string | Id<"comments">;
+  replies?: ActivityFeedComment[]; // Include replies for comments
+}
+
+export interface ActivityFeedEntryDetails {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_title?: string;
+  feed_url?: string;
+  mediaType?: string;
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+
+
+// Types from lib/rss.ts (additional internal interfaces)
+export interface RSSEntryResponse {
+  entries: Array<{ entry: RSSItem }>;
+}
+
+// Types from lib/cloudflare-loader.ts
+export type LoaderProps = { src: string; width: number; quality?: number };
+
+// Types from hooks/useSwipeableTabsReducer.ts (commonly used across components)
+export interface TabsState {
+  selectedTab: number;
+  isTransitioning: boolean;
+  isInteracting: boolean;
+}
+
+export type TabsAction = 
+  | { type: 'SET_SELECTED_TAB'; payload: number }
+  | { type: 'SET_TRANSITIONING'; payload: boolean }
+  | { type: 'SET_INTERACTING'; payload: boolean };
+
+// API Route Types (duplicated across multiple API routes)
+export interface APIActivityItem {
+  type: "like" | "comment" | "retweet";
+  timestamp: number;
+  entryGuid: string;
+  feedUrl: string;
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  _id: string;
+}
+
+export interface APIRSSEntry {
+  id: number;
+  feed_id: number;
+  guid: string;
+  title: string;
+  link: string;
+  description?: string;
+  pub_date: string;
+  image?: string;
+  feed_title?: string;
+  feed_url?: string;
+  mediaType?: string;
+  post_title?: string;
+  post_featured_img?: string;
+  post_media_type?: string;
+  category_slug?: string;
+  post_slug?: string;
+  verified?: boolean;
+}
+
+// Retry configuration interface used across error handlers and network operations
+export interface RetryConfig {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffFactor?: number; // For exponential backoff (notification error handler)
+  timeoutMs?: number; // For timeout-based operations (profile activity data)
+}
+
+// Internal post metadata interface used in RSS entries components
+export interface InternalPostMetadata {
+  title: string;
+  featuredImg?: string;
+  mediaType?: string;
+  categorySlug?: string;
+  postSlug?: string;
+  verified?: boolean;
+}
+
+// ===================================================================
+// END CENTRALIZED TYPES FROM SCATTERED FILES
 // ===================================================================

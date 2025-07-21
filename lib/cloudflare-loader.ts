@@ -1,5 +1,5 @@
 // cloudflare-loader.ts
-type LoaderProps = { src: string; width: number; quality?: number }
+import type { LoaderProps } from './types';
 
 export default function cloudflareLoader({ src, width, quality }: LoaderProps) {
   /** 1. In development (`next dev`) keep <Image> as a plain <img>. */

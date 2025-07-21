@@ -16,6 +16,7 @@ import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import type { ProfileData } from "@/lib/types";
 
 // Lazy load the EditProfileModal component
 const EditProfileModal = lazy(() => import("./EditProfileModal").then(mod => ({ default: mod.EditProfileModal })));
@@ -26,13 +27,6 @@ type FriendshipStatus = {
   direction: string | null;
   friendshipId: Id<"friends"> | null;
 };
-
-interface ProfileData {
-  name?: string | null;
-  bio?: string | null;
-  profileImage?: string | null;
-  username: string;
-}
 
 interface FriendButtonProps {
   username: string;

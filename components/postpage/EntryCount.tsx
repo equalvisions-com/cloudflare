@@ -14,12 +14,12 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useState } from "react";
 
-interface Props {
+interface FollowerCountProps {
   followerCount: number;
   postId: Id<"posts">;
 }
 
-export function FollowerCount({ followerCount, postId }: Props) {
+export function FollowerCount({ followerCount, postId }: FollowerCountProps) {
   const [isOpen, setIsOpen] = useState(false);
   const followers = useQuery(api.following.getFollowers, 
     isOpen ? { postId } : "skip"

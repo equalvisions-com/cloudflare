@@ -1,13 +1,5 @@
-// Type definition for Cloudflare KVNamespace if not globally available
-interface KVNamespace {
-  get<T = string>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<T | null>;
-  getWithMetadata<T = string, Metadata = unknown>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<{ value: T | null; metadata: Metadata | null }>;
-  put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expiration?: number; expirationTtl?: number; metadata?: unknown; }): Promise<void>;
-  delete(key: string): Promise<void>;
-  list(options?: { prefix?: string; limit?: number; cursor?: string; }): Promise<{ keys: { name: string; expiration?: number; metadata?: unknown }[]; list_complete: boolean; cursor?: string; }>;
-}
-
 import { cache } from "react";
+import type { KVNamespace } from "@/lib/types";
 import { getFeaturedEntriesKV } from "@/lib/featured_kv";
 import { FeaturedFeedClientWithErrorBoundary } from "@/components/featured/FeaturedFeedClient";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";

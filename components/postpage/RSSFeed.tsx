@@ -6,21 +6,11 @@ import { cache } from "react";
 import { RSSFeedClient } from "./RSSFeedClient";
 import { checkAndRefreshFeeds } from '@/lib/rss.server';
 import { executeRead } from '@/lib/database';
+import type { RSSEntryRow } from "@/lib/types";
 import 'server-only';
 
 // Add caching configuration with 5-minute revalidation
 export const revalidate = 300; // 5 minutes in seconds
-
-interface RSSEntryRow {
-  guid: string;
-  title: string;
-  link: string;
-  description: string | null;
-  pub_date: string;
-  image: string | null;
-  media_type: string | null;
-  feed_id: number;
-}
 
 // Server-side in-memory cache for COUNT queries
 // This is a module-level variable that persists between requests

@@ -3,27 +3,27 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Logger } from 'next-axiom';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode | ((props: { error: Error; retry: () => void }) => ReactNode);
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private log: Logger;
 
-  constructor(props: Props) {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
     // Initialize Axiom logger for client-side error boundary
     this.log = typeof window !== 'undefined' ? new Logger() : { error: () => {} } as any;
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 

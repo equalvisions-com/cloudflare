@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
+import type { ActivityFeedActivity, ActivityFeedEntryDetails, ActivityFeedItem, ActivityFeedGroupedActivity } from '@/lib/types';
 
 interface UseActivityLoadingProps {
   userId: string;
@@ -7,13 +8,13 @@ interface UseActivityLoadingProps {
   apiEndpoint: string;
   pageSize: number;
   isActive: boolean;
-  initialActivities: any[];
-  initialEntryDetails: Record<string, any>;
+  initialActivities: any[]; // Complex transformation - keeping as any for now
+  initialEntryDetails: Record<string, ActivityFeedEntryDetails>;
   initialHasMore: boolean;
   initialCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
   // State values passed from parent component
-  activities: any[];
-  entryDetails: Record<string, any>;
+  activities: any[]; // Complex transformation - keeping as any for now  
+  entryDetails: Record<string, ActivityFeedEntryDetails>;
   hasMore: boolean;
   isLoading: boolean;
   currentSkip: number;
@@ -21,21 +22,20 @@ interface UseActivityLoadingProps {
   commentLikes: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
   // Action dispatchers passed from parent component
   setInitialData: (payload: { 
-    activities: any[], 
-    entryDetails: Record<string, any>, 
+    activities: any[], // Complex transformation - keeping as any for now
+    entryDetails: Record<string, ActivityFeedEntryDetails>, 
     hasMore: boolean,
     commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
   }) => void;
   startLoadingMore: () => void;
   loadMoreSuccess: (payload: { 
-    activities: any[], 
-    entryDetails: Record<string, any>, 
+    activities: any[], // Complex transformation - keeping as any for now
+    entryDetails: Record<string, ActivityFeedEntryDetails>, 
     hasMore: boolean,
     commentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>
   }) => void;
-  loadMoreFailure: () => void;
-  setInitialLoadComplete: () => void;
-  reset: () => void;
+  loadMoreError: (error: string) => void;
+  resetError: () => void;
 }
 
 export function useActivityLoading({
@@ -60,9 +60,8 @@ export function useActivityLoading({
     setInitialData,
     startLoadingMore,
     loadMoreSuccess,
-    loadMoreFailure,
-    setInitialLoadComplete,
-    reset
+    loadMoreError,
+    resetError
 }: UseActivityLoadingProps) {
   // Initialize store with initial data using useEffect to prevent re-initialization
   useEffect(() => {
@@ -163,9 +162,9 @@ export function useActivityLoading({
         commentLikes: data.commentLikes || {}
       });
     } catch (error) {
-      loadMoreFailure();
+      loadMoreError('Failed to load more activities');
     }
-  }, [isActive, apiEndpoint, pageSize, userId, currentUserId, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [isActive, apiEndpoint, pageSize, userId, currentUserId, startLoadingMore, loadMoreSuccess, loadMoreError]);
 
   // Use the shared delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
@@ -281,7 +280,6 @@ export function useActivityLoading({
     
     // Actions
     loadMoreActivities,
-    reset,
-    setInitialLoadComplete,
+    resetError,
   };
 } 

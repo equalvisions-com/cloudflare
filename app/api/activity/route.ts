@@ -4,43 +4,10 @@ import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 import { validateHeaders } from '@/lib/headers';
+import type { APIActivityItem, APIRSSEntry } from "@/lib/types";
 
 // Use Edge runtime for this API route
 export const runtime = 'edge';
-
-// Import types from UserActivityFeed
-type ActivityItem = {
-  type: "like" | "comment" | "retweet";
-  timestamp: number;
-  entryGuid: string;
-  feedUrl: string;
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  content?: string;
-  _id: string;
-};
-
-type RSSEntry = {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_title?: string;
-  feed_url?: string;
-  mediaType?: string;
-  // Additional fields from Convex posts
-  post_title?: string;
-  post_featured_img?: string;
-  post_media_type?: string;
-  category_slug?: string;
-  post_slug?: string;
-  verified?: boolean;
-};
 
 // Define the shape of interaction states for batch metrics
 interface InteractionStates {
@@ -51,7 +18,7 @@ interface InteractionStates {
 }
 
 interface ActivityResponse {
-  activities: ActivityItem[];
+  activities: APIActivityItem[];
   totalCount: number;
   hasMore: boolean;
 }
@@ -99,10 +66,10 @@ export async function POST(request: NextRequest) {
     };
 
     // Extract GUIDs from activities to fetch entry details
-    const guids = result.activities.map((activity: ActivityItem) => activity.entryGuid);
+    const guids = result.activities.map((activity: APIActivityItem) => activity.entryGuid);
     
     // If we have GUIDs, fetch entry details from PlanetScale
-    let entryDetails: Record<string, RSSEntry> = {};
+          let entryDetails: Record<string, APIRSSEntry> = {};
     
     if (guids.length > 0) {
       try {
@@ -124,14 +91,14 @@ export async function POST(request: NextRequest) {
           
           // Create a map of guid to entry details
           entryDetails = Object.fromEntries(
-            data.entries.map((entry: RSSEntry) => [entry.guid, entry])
+            data.entries.map((entry: APIRSSEntry) => [entry.guid, entry])
           );
           
           console.log(`✅ API: Fetched details for ${Object.keys(entryDetails).length} entries`);
           
           // Extract feed titles to fetch post data from Convex
           const feedTitles = [...new Set(data.entries
-            .map((entry: RSSEntry) => entry.feed_title)
+            .map((entry: APIRSSEntry) => entry.feed_title)
             .filter(Boolean) as string[])];
           
           if (feedTitles.length > 0) {

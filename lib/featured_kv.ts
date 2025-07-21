@@ -1,13 +1,10 @@
-// Type definition for Cloudflare KVNamespace if not globally available
-// You might not need this if your project already has Cloudflare Worker types configured.
-interface KVNamespace {
-  get<T = string>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<T | null>;
-  getWithMetadata<T = string, Metadata = unknown>(key: string, type?: "text" | "json" | "arrayBuffer" | "stream"): Promise<{ value: T | null; metadata: Metadata | null }>;
-  put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expiration?: number; expirationTtl?: number; metadata?: unknown; }): Promise<void>;
-  delete(key: string): Promise<void>;
-  list(options?: { prefix?: string; limit?: number; cursor?: string; }): Promise<{ keys: { name: string; expiration?: number; metadata?: unknown }[]; list_complete: boolean; cursor?: string; }>;
-}
-
+// Import types from centralized location
+import type { 
+  KVNamespace, 
+  RssEntry, 
+  FeaturedEntry, 
+  KVStoredData 
+} from './types';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import { fetchRssEntriesFromPlanetScale, getFeedIdsByUrls } from './planetscale';
@@ -29,38 +26,7 @@ const CACHE_EXPIRATION_SECONDS = 4 * 60 * 60; // 4 hours
 const LOCK_EXPIRATION_SECONDS = 90; // 90 seconds for best-effort lock
 // const STALE_WHILE_REVALIDATE_SECONDS = 5 * 60; // No longer primarily used in getFeaturedEntriesKV for SWR logic
 
-// Interface for RSS entry from PlanetScale
-interface RssEntry {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_url: string;
-}
-
-// Interface for featured entries
-export interface FeaturedEntry {
-  id: number;
-  feed_id: number;
-  guid: string;
-  title: string;
-  link: string;
-  description?: string;
-  pub_date: string;
-  image?: string;
-  feed_url: string;
-  post_title?: string; // From Convex post
-  category?: string; // From Convex post
-}
-
-interface KVStoredData {
-  entries: FeaturedEntry[];
-  fetchedAt: number; // Timestamp of when the data was fetched
-}
+// Types are now imported from centralized location
 
 // This function contains the original logic to fetch data from Convex and PlanetScale
 async function fetchAndCacheFromSources(): Promise<FeaturedEntry[]> {

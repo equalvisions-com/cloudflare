@@ -23,8 +23,7 @@ import { executeRead, executeWrite, getWriteConnection } from './database';
  * these issues without compromising type safety where it matters.
  */
 
-// Define types for logging
-type LogParams = string | number | boolean | object | null | undefined;
+// Import LogParams from centralized types
 
 // Add a production-ready logging utility
 const logger = {
@@ -166,85 +165,13 @@ const executeQuery = async <T = Record<string, unknown>>(
   }
 };
 
-// Define interfaces for RSS item related types
-// These interfaces are exported for use in other files
-export interface MediaItem {
-  "@_url"?: string;
-  "@_medium"?: string;
-  "@_type"?: string;
-  attr?: {
-    "@_url"?: string;
-    "@_medium"?: string;
-    "@_type"?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-export interface EnclosureItem {
-  "@_url"?: string;
-  "@_type"?: string;
-  "@_length"?: string;
-  attr?: {
-    "@_url"?: string;
-    "@_type"?: string;
-    "@_length"?: string;
-    [key: string]: unknown;
-  };
-  url?: string;
-  [key: string]: unknown;
-}
-
-export interface ItunesImage {
-  "@_href"?: string;
-  attr?: {
-    "@_href"?: string;
-    [key: string]: unknown;
-  };
-  url?: string;
-  href?: string;
-  [key: string]: unknown;
-}
-
-// Add RSSFeed interface definition
-interface RSSFeed {
-  title: string;
-  description: string;
-  link: string;
-  items: RSSItem[];
-  mediaType?: string;
-}
-
-// This is the parsed channel or feed object structure
-interface ParsedChannel {
-  title: string | Record<string, unknown>;
-  description?: string | Record<string, unknown>;
-  subtitle?: string | Record<string, unknown>;
-  link?: string | Record<string, unknown> | Array<Record<string, unknown>>;
-  item?: Record<string, unknown>[];
-  entry?: Record<string, unknown>[];
-  [key: string]: unknown;
-}
+// Import interfaces from centralized types
+import type { MediaItem, EnclosureItem, ItunesImage, LogParams, RSSFeed, ParsedChannel, ParsedXMLCacheEntry, ParsedXML } from './types';
 
 // Add a simple in-memory cache for parsed XML
 // This will avoid re-parsing the same feed multiple times in a short period
-interface ParsedXMLCacheEntry {
-  timestamp: number;
-  result: Record<string, unknown>;
-}
-
 const parsedXMLCache = new Map<string, ParsedXMLCacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-// Define a type for the parsed XML result
-interface ParsedXML {
-  rss?: {
-    channel: ParsedChannel;
-    [key: string]: unknown;
-  };
-  feed?: ParsedChannel;
-  [key: string]: unknown;
-}
 
 // Function to parse XML with caching
 function parseXMLWithCache(xml: string, url: string): ParsedXML {

@@ -13,6 +13,7 @@ import {
   EntriesRSSEntry, 
   ProfileFeedData,
   InteractionStates,
+  RetryConfig,
   ProfileActivityDataConvexPost,
   ProfileActivityDataConvexActivity,
   ProfileActivityDataConvexLike,
@@ -28,16 +29,10 @@ interface ProfileActivityDataProps {
   readonly userId: Id<"users">;
   readonly username: string;
   readonly name?: string;
-  readonly profileImage?: string | null;
-}
+      readonly profileImage?: string | null;
+  }
 
 // Retry configuration for robust network handling
-interface RetryConfig {
-  maxRetries: number;
-  baseDelay: number;
-  maxDelay: number;
-  timeoutMs: number;
-}
 
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxRetries: 3,

@@ -1,15 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import type { RSSEntriesDisplayEntry, RSSItem } from '@/lib/types';
-
-// Interface for post metadata used within the component
-interface InternalPostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  categorySlug?: string;
-  postSlug?: string;
-  verified?: boolean;
-}
+import type { RSSEntriesDisplayEntry, RSSItem, InternalPostMetadata } from '@/lib/types';
 
 interface UseRSSEntriesDataLoadingProps {
   isActive: boolean;

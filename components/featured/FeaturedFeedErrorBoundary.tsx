@@ -12,13 +12,13 @@ const logger = {
   }
 };
 
-interface Props {
+interface FeaturedFeedErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
-interface State {
+interface FeaturedFeedErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
@@ -35,12 +35,12 @@ interface State {
  * - Performance monitoring
  * - Memory leak prevention
  */
-export class FeaturedFeedErrorBoundary extends Component<Props, State> {
+export class FeaturedFeedErrorBoundary extends Component<FeaturedFeedErrorBoundaryProps, FeaturedFeedErrorBoundaryState> {
   private retryTimeoutId: NodeJS.Timeout | null = null;
   private readonly maxRetries = 3;
   private readonly retryDelay = 2000; // 2 seconds
 
-  constructor(props: Props) {
+  constructor(props: FeaturedFeedErrorBoundaryProps) {
     super(props);
     this.state = {
       hasError: false,
@@ -50,7 +50,7 @@ export class FeaturedFeedErrorBoundary extends Component<Props, State> {
     };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
+  static getDerivedStateFromError(error: Error): Partial<FeaturedFeedErrorBoundaryState> {
     // Update state so the next render will show the fallback UI
     return {
       hasError: true,
@@ -91,7 +91,7 @@ export class FeaturedFeedErrorBoundary extends Component<Props, State> {
       });
 
       this.retryTimeoutId = setTimeout(() => {
-        this.setState(prevState => ({
+        this.setState((prevState: FeaturedFeedErrorBoundaryState) => ({
           hasError: false,
           error: null,
           errorInfo: null,

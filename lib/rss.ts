@@ -10,9 +10,8 @@ export interface RSSItem {
   mediaType?: string;
 }
 
-interface RSSEntryResponse {
-  entries: Array<{ entry: RSSItem }>;
-}
+// Import RSSEntryResponse from centralized types
+import type { RSSEntryResponse } from './types';
 
 // Format RSS key to match Convex schema
 export function formatRSSKey(postTitle: string): string {

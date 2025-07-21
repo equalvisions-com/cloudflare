@@ -16,7 +16,7 @@ import type {
 // It applies to the entire component, including all data fetching operations
 export const revalidate = 300; // 5 minutes in seconds
 
-// Define the RSSItem interface to match what's returned from the API
+// Component-specific interface for RSS items with additional properties
 interface RSSItem {
   guid: string;
   title: string;
@@ -29,7 +29,7 @@ interface RSSItem {
   [key: string]: unknown; // For any additional properties
 }
 
-// Define database row type for type safety
+// Component-specific database row type with additional fields
 interface RSSEntryRow {
   guid: string;
   title: string;

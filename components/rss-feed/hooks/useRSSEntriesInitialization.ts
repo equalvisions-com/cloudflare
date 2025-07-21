@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import type { RSSEntriesDisplayEntry, RSSItem } from '@/lib/types';
+import type { RSSEntriesDisplayEntry, RSSItem, InternalPostMetadata } from '@/lib/types';
 
 // Helper function to consistently parse dates from the database
 const parseEntryDate = (dateString: string | Date): Date => {
@@ -36,15 +36,7 @@ const formatDateForAPI = (date: Date): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
 };
 
-// Interface for post metadata used within the component
-interface InternalPostMetadata {
-  title: string;
-  featuredImg?: string;
-  mediaType?: string;
-  categorySlug?: string;
-  postSlug?: string;
-  verified?: boolean;
-}
+
 
 interface UseRSSEntriesInitializationProps {
   hasInitialized: boolean;

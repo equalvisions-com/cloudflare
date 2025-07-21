@@ -1,9 +1,4 @@
-interface RetryConfig {
-  maxRetries: number;
-  baseDelay: number;
-  maxDelay: number;
-  backoffFactor: number;
-}
+import type { RetryConfig } from '@/lib/types';
 
 interface ErrorContext {
   operation: string;
@@ -74,7 +69,7 @@ export class NotificationErrorHandler {
 
         // Calculate delay with exponential backoff
         const delay = Math.min(
-          config.baseDelay * Math.pow(config.backoffFactor, attempt - 1),
+          config.baseDelay * Math.pow(config.backoffFactor || 2, attempt - 1),
           config.maxDelay
         );
 
