@@ -128,10 +128,15 @@ export function FeedTabsContainer({
       return;
     }
     
+    // Reset RSS data when switching away from Following tab to force refetch on return
+    if (activeTabIndex === 1 && index !== 1) {
+      setRssData(null);
+    }
+    
     // CRITICAL FIX: Remove startTransition to make tab changes synchronous
     // This prevents the Featured Feed from staying mounted during RSS tab switch
     setActiveTabIndex(index);
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, activeTabIndex]);
   
   // Auth state management - reset to Discover tab when user signs out
   useEffect(() => {
@@ -161,7 +166,7 @@ export function FeedTabsContainer({
     
     // Fetch data based on active tab - using refs to prevent stale closures
     // CRITICAL: Don't fetch if there's already an error to prevent infinite loops
-    if (activeTabIndex === 1 && isAuthenticated && !loadingRef.current.rss && !errorsRef.current.rss) {
+    if (activeTabIndex === 1 && isAuthenticated && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
       fetchRSSData();
     } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {
       fetchFeaturedData();
