@@ -1727,7 +1727,7 @@ export interface FeedTabsAuthState {
 export interface FeedTabsTabConfig {
   id: string;
   label: string;
-  component: () => React.ReactNode;
+  component: React.ComponentType;
 }
 
 // Note: FeedTabsState and FeedTabsActions removed - now using React useState

@@ -81,16 +81,16 @@ export const useFeedTabsUI = ({
         }
       };
 
-             // Preload the non-active tab component when browser is idle
-       if (activeTabIndex === 0) {
-         schedulePreload('RSSEntriesDisplay', () => 
-           import("@/components/rss-feed/RSSEntriesDisplay.client")
-         );
-       } else if (activeTabIndex === 1) {
-         schedulePreload('FeaturedFeedClientWithErrorBoundary', () => 
-           import("@/components/featured/FeaturedFeedClient")
-         );
-       }
+      // Preload the non-active tab component when browser is idle
+      if (activeTabIndex === 0) {
+        schedulePreload('RSSEntriesDisplay', () => 
+          import("@/components/rss-feed/RSSEntriesDisplay.client")
+        );
+      } else if (activeTabIndex === 1) {
+        schedulePreload('FeaturedFeedClientWithErrorBoundary', () => 
+          import("@/components/featured/FeaturedFeedClient")
+        );
+      }
     };
 
     // Only start preloading after initial render is complete and DOM is ready
@@ -165,7 +165,6 @@ export const useFeedTabsUI = ({
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
-              isActive={activeTabIndex === 1}
             />
           </div>
         );
