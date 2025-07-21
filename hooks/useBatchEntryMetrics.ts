@@ -30,6 +30,9 @@ export function useBatchEntryMetrics(
   const prevLengthRef = useRef(0);
   const hasInitialMetricsRef = useRef(Object.keys(initialMetrics).length > 0);
   
+  // Track previous skipInitialQuery state to detect active/inactive transitions
+  const prevSkipInitialQueryRef = useRef(skipInitialQuery);
+  
   // CRITICAL FIX: Use ref to track stable GUIDs and only update when they actually change
   const stableGuidsRef = useRef<string[]>([]);
   const stableGuidsStringRef = useRef<string>('');
@@ -46,6 +49,9 @@ export function useBatchEntryMetrics(
   
   // Use stable GUIDs for all computations
   const stableGuids = stableGuidsRef.current;
+  
+  // Track when component becomes active to force fresh queries
+  const [forceRefresh, setForceRefresh] = useState(0);
   
   // Persistent metrics cache to prevent flashing during pagination
   const [persistentMetrics, setPersistentMetrics] = useState<Map<string, EntryMetrics>>(new Map());
@@ -71,7 +77,7 @@ export function useBatchEntryMetrics(
     // If skipping initial query (component is inactive), don't fetch anything
     // This maintains the subscription but doesn't make network requests
     return [];
-  }, [uniqueGuids.join(','), skipInitialQuery]); // Removed initialMetrics dependency for reactive behavior
+  }, [uniqueGuids.join(','), skipInitialQuery, forceRefresh]); // Include forceRefresh to trigger fresh queries
 
   // Single batch query for entries that need fresh data
   // CRITICAL: Skip query when no GUIDs to fetch
@@ -80,6 +86,20 @@ export function useBatchEntryMetrics(
     guidsToFetch.length > 0 ? { entryGuids: guidsToFetch, includeCommentLikes } : 'skip'
   );
   
+  // CRITICAL FIX: Force refresh when component becomes active after being inactive
+  // This ensures fresh data is fetched instead of showing stale cached data
+  useEffect(() => {
+    const wasInactive = prevSkipInitialQueryRef.current;
+    const isNowActive = !skipInitialQuery;
+    
+    if (wasInactive && isNowActive) {
+      // Component just became active - force a fresh query
+      setForceRefresh(prev => prev + 1);
+    }
+    
+    prevSkipInitialQueryRef.current = skipInitialQuery;
+  }, [skipInitialQuery]);
+
   // Update persistent cache when new metrics arrive
   useEffect(() => {
     if (metricsArray && guidsToFetch.length > 0) {
