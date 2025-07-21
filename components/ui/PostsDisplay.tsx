@@ -213,8 +213,16 @@ const PostCard = memo(({ post, onUpdatePost }: { post: Post; onUpdatePost: (post
             <div className="flex justify-between items-start gap-4 mt-[-4px]">
               <Link href={postUrl} className="block flex-1" prefetch={false}>
                 <h3 ref={titleRef} className="text-base font-bold leading-tight line-clamp-2 mt-[2px]">
-                  {post.title}
-                  {post.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
+                  {post.verified ? (
+                    <>
+                      {post.title.split(' ').slice(0, -1).join(' ')}{' '}
+                      <span className="whitespace-nowrap">
+                        {post.title.split(' ').slice(-1)[0]}<VerifiedBadge className="inline-block align-middle ml-1" />
+                      </span>
+                    </>
+                  ) : (
+                    post.title
+                  )}
                 </h3>
               </Link>
               {post.feedUrl && (

@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import Image from "next/image";
-import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -20,8 +20,8 @@ import { FOLLOWED_POSTS_KEY } from "@/components/follow-button/FollowButton";
 import { Loader2 } from "lucide-react";
 import { useFeaturedPostsStore } from "@/lib/stores/featuredPostsStore";
 import { useWidgetData } from "@/components/ui/WidgetDataProvider";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { 
-  FeaturedPostsWidgetPost,
   FeaturedPostsWidgetProps,
   FeaturedPostItemProps
 } from "@/lib/types";
@@ -66,7 +66,7 @@ const FeaturedPostSkeleton = () => {
 
 const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: FeaturedPostItemProps) => {
   const router = useRouter();
-  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  const { isAuthenticated, isLoading: isAuthLoading } = useSidebar();
   const followMutation = useMutation(api.following.follow);
   const unfollowMutation = useMutation(api.following.unfollow);
 
@@ -173,8 +173,16 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
                   className="text-sm hover:text-primary hover:no-underline font-semibold line-clamp-2 overflow-hidden"
                   prefetch={false}
                 >
-                  {post.title}
-                  {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
+                  {post.verified ? (
+                    <>
+                      {post.title.split(' ').slice(0, -1).join(' ')}{' '}
+                      <span className="whitespace-nowrap">
+                        {post.title.split(' ').slice(-1)[0]}<VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />
+                      </span>
+                    </>
+                  ) : (
+                    post.title
+                  )}
                 </Link>
               </div>
               <div className="rounded-full h-[23px] w-16 bg-muted animate-pulse flex-shrink-0 mt-0" />
@@ -217,8 +225,16 @@ const FeaturedPostItem = memo(({ post, isFollowing, priority = false }: Featured
                 className="text-sm hover:text-primary hover:no-underline font-semibold line-clamp-2 overflow-hidden"
                 prefetch={false}
               >
-                {post.title}
-                {post.verified && <VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />}
+                {post.verified ? (
+                  <>
+                    {post.title.split(' ').slice(0, -1).join(' ')}{' '}
+                    <span className="whitespace-nowrap">
+                      {post.title.split(' ').slice(-1)[0]}<VerifiedBadge className="inline-block align-middle ml-1 h-3 w-3" />
+                    </span>
+                  </>
+                ) : (
+                  post.title
+                )}
               </Link>
             </div>
             <Button
@@ -245,7 +261,7 @@ FeaturedPostItem.displayName = 'FeaturedPostItem';
 // ===================================================================
 
 const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetProps) => {
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated } = useSidebar();
   
   // Get data from persistent store
   const { posts: storedPosts, followStates: storedFollowStates, setPosts, setFollowStates } = useFeaturedPostsStore();
@@ -291,7 +307,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
 
   // Simple calculations - no memoization needed per React docs
   const postsToShow = featuredPosts || storedPosts;
-  const followStatesToUse = storedFollowStates;
+  const followStatesToUse = isAuthenticated ? storedFollowStates : new Map();
 
   const initialPosts = postsToShow.slice(0, 3);
   const additionalPosts = postsToShow.slice(3, 6);

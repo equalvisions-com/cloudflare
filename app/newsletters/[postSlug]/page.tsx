@@ -287,9 +287,17 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
           <div className="flex flex-col items-start text-left max-w-[70%]">
             {/* Group 1: Title */}
             <div className="w-full">
-              <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0 flex items-center">
-                <span>{post.title}</span>
-                {post.verified && <VerifiedBadge className="ml-1" />}
+              <h1 className="text-2xl font-extrabold leading-none tracking-tight m-0 p-0">
+                {post.verified ? (
+                  <>
+                    {post.title.split(' ').slice(0, -1).join(' ')}{' '}
+                    <span className="whitespace-nowrap">
+                      {post.title.split(' ').slice(-1)[0]}<VerifiedBadge className="inline-block align-middle ml-1" />
+                    </span>
+                  </>
+                ) : (
+                  post.title
+                )}
               </h1>
             </div>
             

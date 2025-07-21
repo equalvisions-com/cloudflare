@@ -12,8 +12,6 @@ import { validateHeaders } from '@/lib/headers';
 export const runtime = 'edge';
 // Mark as dynamic to ensure fresh data for pagination
 export const dynamic = 'force-dynamic';
-// Disable revalidation
-export const revalidate = 0;
 
 // Define interface for the joined query result
 interface JoinedRSSEntry extends Omit<RSSEntryRow, 'id' | 'feed_id' | 'created_at'> {
@@ -278,13 +276,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 entries.length > 0 ? [...new Set(entries.map(e => e.feed_url))] : []
     };
     
-    // Set no-cache headers to ensure fresh results with every request
-    const headers = new Headers();
-    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    headers.set('Pragma', 'no-cache');
-    headers.set('Expires', '0');
-    
-    return NextResponse.json(finalResponseData, { headers });
+    return NextResponse.json(finalResponseData);
     
   } catch (error) {
     console.error('❌ API: Error fetching merged feed', error);

@@ -8,8 +8,6 @@ import { validateHeaders } from '@/lib/headers';
 export const dynamic = 'force-dynamic';
 // Use Edge runtime for this API route
 export const runtime = 'edge';
-// Disable revalidation
-export const revalidate = 0;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!validateHeaders(request)) {
@@ -74,13 +72,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
     
-    // Set no-cache headers to ensure fresh results with every request
-    const headers = new Headers();
-    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    headers.set('Pragma', 'no-cache');
-    headers.set('Expires', '0');
-    
-    return NextResponse.json(data, { headers });
+    return NextResponse.json(data);
   } catch (error) {
     // Handle errors
     console.error('❌ Error in RSS API route:', error);

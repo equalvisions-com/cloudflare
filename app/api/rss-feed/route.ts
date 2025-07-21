@@ -6,8 +6,6 @@ import { validateHeaders } from '@/lib/headers';
 export const runtime = 'edge';
 // Force dynamic to ensure fresh data
 export const dynamic = 'force-dynamic';
-// Disable caching
-export const revalidate = 0;
 
 // Helper function to log only in development
 const devLog = (message: string, data?: unknown) => {
