@@ -123,6 +123,7 @@ export function FeedTabsContainer({
   // Tab change handler with authentication checks
   const handleTabChange = useCallback((index: number) => {
     // If switching to the "Following" tab (index 1), check authentication
+    // Since logout + bfcache is impossible, we can trust the auth state
     if (index === 1 && !isAuthenticated) {
       router.push('/signin');
       return;
@@ -139,6 +140,7 @@ export function FeedTabsContainer({
   }, [isAuthenticated, router, activeTabIndex]);
   
   // Auth state management - reset to Discover tab when user signs out
+  // Note: This only triggers on actual logout, not bfcache restoration
   useEffect(() => {
     if (!isAuthenticated && activeTabIndex === 1) {
       setActiveTabIndex(0);
@@ -154,24 +156,17 @@ export function FeedTabsContainer({
     }
   }, [hasInitialized]);
   
-  // Data fetching coordination effect - with error state protection
+  // Data fetching coordination effect
   useEffect(() => {
     if (!hasInitialized) return;
     
-    // Handle redirect for unauthenticated users trying to access Following tab
-    if (activeTabIndex === 1 && !isAuthenticated) {
-      router.push('/signin');
-      return;
-    }
-    
-    // Fetch data based on active tab - using refs to prevent stale closures
-    // CRITICAL: Don't fetch if there's already an error to prevent infinite loops
+    // For Following tab, only fetch if authenticated
     if (activeTabIndex === 1 && isAuthenticated && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
       fetchRSSData();
     } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {
       fetchFeaturedData();
     }
-  }, [activeTabIndex, isAuthenticated, hasInitialized, fetchRSSData, fetchFeaturedData, router]);
+  }, [activeTabIndex, isAuthenticated, hasInitialized, fetchRSSData, fetchFeaturedData]);
 
   // Cleanup effect to prevent memory leaks - stable cleanup reference
   useEffect(() => {
