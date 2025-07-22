@@ -532,10 +532,8 @@ const SwipeableTabsComponent = ({
                   touchAction: 'pan-y' 
                 }}
               >
-                {/* CRITICAL FIX: Keep both tabs mounted but hide inactive ones for instant switching */}
-                <div style={{ display: isActive ? 'block' : 'none' }}>
-                  {renderTab()}
-                </div>
+                {/* CRITICAL FIX: Only render active tab component to prevent inactive tabs from running queries */}
+                {isActive ? renderTab() : null}
               </div>
             );
           })}

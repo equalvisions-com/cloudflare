@@ -187,7 +187,7 @@ export const useRSSEntriesInitialization = ({
   return {
     performInitialization,
     // Return computed state
-    canInitialize: !hasInitialized && !!initializationData && isMountedRef.current && entriesStateRef.current.length === 0,
+    canInitialize: !hasInitialized && !!initializationData && isMountedRef.current,
     initializationData,
   };
 }; 
