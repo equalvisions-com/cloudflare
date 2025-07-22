@@ -14,6 +14,7 @@ import { useSidebar } from "@/components/ui/sidebar-context";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { formatRSSKey } from "@/lib/rss";
 import type { FollowingListFollowingWithPost } from "@/lib/types";
 
 interface VirtualizedFollowingItemProps {
@@ -166,18 +167,18 @@ export const VirtualizedFollowingItem = memo(({
       }
       
       // Perform the actual server operation
-      if (currentUserFollowStatus && item?.following) {
+      if (currentUserFollowStatus && item?.following && item?.post?.title) {
         // Unfollow
         await unfollowMutation({ 
           postId: item.following.postId, 
-          rssKey: item.following.feedUrl 
+          rssKey: formatRSSKey(item.post.title)
         });
-      } else if (item?.following) {
+      } else if (item?.following && item?.post?.title) {
         // Follow
         await followMutation({ 
           postId: item.following.postId, 
           feedUrl: item.following.feedUrl, 
-          rssKey: item.following.feedUrl 
+          rssKey: formatRSSKey(item.post.title)
         });
       }
 
