@@ -187,7 +187,6 @@ export const useRSSEntriesInitialization = ({
   return {
     performInitialization,
     // Return computed state
-    // BFCACHE FIX: Don't re-initialize if we already have entries, even if initialData becomes null
     canInitialize: !hasInitialized && !!initializationData && isMountedRef.current && entriesStateRef.current.length === 0,
     initializationData,
   };
