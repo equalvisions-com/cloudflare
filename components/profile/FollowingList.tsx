@@ -30,7 +30,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import type {
   FollowingListProps,
@@ -48,6 +48,36 @@ import { MemoizedVirtualizedFollowingItem } from "./VirtualizedFollowingItem";
 import { FollowingListErrorBoundary } from "./FollowingListErrorBoundary";
 import { FollowingListDrawerSkeleton } from "./FollowingListSkeleton";
 import { FollowingListEmptyState } from "./FollowingListEmptyState";
+
+// FollowingEmptyState component
+function FollowingEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+      {/* Background subtle pattern */}
+      <div className="absolute inset-0 opacity-[0.02]">
+        <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+        <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+        <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+        <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+      </div>
+
+      {/* Icon cluster */}
+      <div className="relative mb-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+          <Eye className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+      </div>
+
+      {/* Text content */}
+      <div className="text-center space-y-2">
+        <h3 className="text-foreground font-medium text-base">Not following anyone yet</h3>
+        <p className="text-muted-foreground text-sm max-w-[200px] leading-relaxed">
+          Follow your favorite newsletters and podcasts
+        </p>
+      </div>
+    </div>
+  )
+}
 
 // Create initial state from props
 const createInitialState = (
@@ -375,8 +405,8 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
   })();
 
   const EmptyPlaceholderComponent = () => (
-    <div className="flex items-center justify-center py-8">
-      <span className="text-sm text-muted-foreground">No items to display</span>
+    <div className="h-full flex items-center justify-center">
+      <FollowingEmptyState />
     </div>
   );
 
@@ -434,16 +464,9 @@ export function FollowingList({ username, initialCount = 0, initialFollowing }: 
                 className="h-full"
               />
             ) : shouldShowEmptyState ? (
-              <FollowingListEmptyState
-                variant="default"
-                username={username}
-                isOwnProfile={true} // You might want to determine this based on current user
-                onExplore={() => {
-                  // Navigate to newsletters page
-                  router.push('/newsletters');
-                }}
-                className="h-full"
-              />
+              <div className="h-full flex items-center justify-center">
+                <FollowingEmptyState />
+              </div>
             ) : shouldShowVirtualizedList ? (
               <Virtuoso
                 data={state.followingItems}

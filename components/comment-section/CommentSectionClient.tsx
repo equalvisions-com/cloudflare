@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { MessageCircle, X, ChevronDown } from "lucide-react";
+import { MessageCircle, X, ChevronDown, Users, Heart } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
@@ -32,6 +32,36 @@ import {
   CommentFromAPI
 } from '@/lib/types';
 import { useCommentSection } from '@/hooks/useCommentSection';
+
+// CommentsEmptyState component
+function CommentsEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+      {/* Background subtle pattern */}
+      <div className="absolute inset-0 opacity-[0.02]">
+        <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+        <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+        <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+        <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+      </div>
+
+      {/* Icon cluster */}
+      <div className="relative mb-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+          <MessageCircle className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+      </div>
+
+      {/* Text content */}
+      <div className="text-center space-y-2">
+        <h3 className="text-foreground font-medium text-base">No comments yet</h3>
+        <p className="text-muted-foreground text-sm max-w-[200px] leading-relaxed">
+          Start the conversation and share your thoughts
+        </p>
+      </div>
+    </div>
+  )
+}
 
 // Memoized Comment component for optimal performance
 const Comment = memo<CommentProps>(({ 
@@ -308,10 +338,10 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
           </DrawerTitle>
           </DrawerHeader>
           
-          <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
-            <div className="mt-0">
-              {commentHierarchy.length > 0 ? (
-                commentHierarchy.map(comment => (
+          {commentHierarchy.length > 0 ? (
+            <ScrollArea className="h-[calc(75vh-160px)]" scrollHideDelay={0} type="always">
+              <div className="mt-0">
+                {commentHierarchy.map(comment => (
                   <Comment
                     key={comment._id}
                     comment={comment}
@@ -326,14 +356,14 @@ export const CommentSectionClient = memo<CommentSectionProps>(({
                     onUpdateCommentLikeCount={updateCommentLikeCount}
                     getCommentLikeData={getCommentLikeData}
                   />
-                ))
-              ) : (
-              <p className="text-muted-foreground py-4 text-center">
-                No comments yet. Be the first to comment!
-              </p>
-              )}
+                ))}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="h-[calc(75vh-160px)] flex items-center justify-center">
+              <CommentsEmptyState />
             </div>
-          </ScrollArea>
+          )}
           
           <div className="flex flex-col gap-2 mt-2 border-t border-border p-4">
             <div className="flex flex-col gap-2">
