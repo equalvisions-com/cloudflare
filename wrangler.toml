@@ -1,0 +1,17 @@
+name = "grasper"
+compatibility_date = "2025-02-04"
+compatibility_flags = ["nodejs_compat"]
+
+# Hyperdrive configuration for production
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3d141b67fa544bd4829df63176461c04"
+
+# Pages configuration for Next.js
+[build]
+command = "npm run build"
+publish = ".next"
+
+# Environment variables (add your production secrets in Cloudflare dashboard)
+[vars]
+NODE_ENV = "production" 
