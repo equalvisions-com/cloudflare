@@ -11,6 +11,7 @@ This guide implements a two-layer defense system for your Next.js app on Cloudfl
 
 ---
 
+
 ## 🚀 Part 1: Cloudflare Configuration
 
 ### Step 1: Access Cloudflare WAF
