@@ -17,6 +17,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import UserMenuImage from "./UserMenuImage";
+import { clearOnboardingCookieAction } from "@/app/onboarding/actions";
 
 export const UserMenuClientWithErrorBoundary = memo(function UserMenuClientWithErrorBoundary() {
   return (
@@ -51,8 +52,8 @@ const UserMenuClientComponent = () => {
   const onSignOut = useCallback(async () => {
     try {
       await signOut();
-      // Clear the onboarding cookie on sign out to prevent it persisting to new users
-      document.cookie = 'user_onboarded=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Clear the httpOnly onboarding cookie using server action
+      await clearOnboardingCookieAction();
     } catch (error) {
       console.error("Sign out error:", error);
     }

@@ -25,6 +25,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useMountedRef } from "@/hooks";
 import { SIDEBAR_CONSTANTS } from "@/lib/layout-constants";
 import type { NavItem } from "@/lib/types";
+import { clearOnboardingCookieAction } from "@/app/onboarding/actions";
 
 /**
  * Fixed-width sidebar component with error boundary
@@ -201,8 +202,8 @@ const SidebarComponent = () => {
     if (!isMountedRef.current) return;
     try {
       await signOut();
-      // Clear the onboarding cookie on sign out to prevent it persisting to new users
-      document.cookie = 'user_onboarded=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Clear the httpOnly onboarding cookie using server action
+      await clearOnboardingCookieAction();
       router.push('/');
     } catch (error) {
       console.error("Sign out error:", error);
