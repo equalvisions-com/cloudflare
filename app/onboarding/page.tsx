@@ -27,14 +27,8 @@ export async function finalizeOnboardingCookieAction(): Promise<{ success: boole
 }
 */
 
-// Interface for profile data passed from client
-interface FinalizeOnboardingArgs {
-  username: string;
-  name?: string;
-  bio?: string;
-  profileImageKey?: string;
-  defaultProfileGradientUri?: string;
-}
+// Import centralized types
+import type { FinalizeOnboardingArgs, OnboardingStep, OnboardingFeaturedPost, UsernameValidationResult } from '@/lib/types';
 
 // --- We'll use Server Components differently --- 
 // Don't directly import server components in client components
@@ -72,18 +66,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRSSKey } from '@/lib/rss';
 import { EdgeAuthWrapper } from "@/components/auth/EdgeAuthWrapper";
 
-// Define step types for onboarding
-type OnboardingStep = 'profile' | 'follow';
+// Using centralized OnboardingStep type from @/lib/types
 
 // Props interface for our new FeaturedPostItem component
 interface FeaturedPostItemProps {
-  post: {
-    _id: Id<"posts">;
-    title: string;
-    body: string;
-    featuredImg?: string | null;
-    feedUrl: string;
-  };
+  post: OnboardingFeaturedPost;
   followedPosts: string[];
   handleFollowToggle: (postId: Id<"posts">, feedUrl: string, postTitle: string) => void;
 }

@@ -7,17 +7,8 @@ import { fetchQuery } from "convex/nextjs";
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 import AutoRedirect from './AutoRedirect';
 
-// Define type for the user profile response
-interface UserProfile {
-  userId?: string;
-  username?: string;
-  name?: string;
-  bio?: string;
-  profileImage?: string;
-  rssKeys?: string[];
-  isBoarded?: boolean;
-  [key: string]: any; // Allow other properties
-}
+// Import centralized types
+import type { OnboardingUserProfile } from '@/lib/types';
 
 // This is a proper server action that can set cookies and redirect
 export async function setOnboardedCookieAndRedirect(): Promise<void> {
@@ -44,14 +35,14 @@ export async function setOnboardedCookieAndRedirect(): Promise<void> {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper function to fetch profile with timeout
-async function fetchProfileWithTimeout(token: string, timeoutMs = 5000): Promise<UserProfile | null> {
+async function fetchProfileWithTimeout(token: string, timeoutMs = 5000): Promise<OnboardingUserProfile | null> {
   try {
     const profilePromise = fetchQuery(api.users.getProfile, {}, { token });
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("Profile query timed out")), timeoutMs)
     );
     
-    return await Promise.race([profilePromise, timeoutPromise]) as UserProfile | null;
+    return await Promise.race([profilePromise, timeoutPromise]) as OnboardingUserProfile | null;
   } catch (error) {
     return null;
   }
@@ -75,7 +66,7 @@ export default async function VerifyOnboardingStatus() {
     
     // CLOUDFLARE EDGE RESILIENCE: Implement aggressive retry logic for Convex queries
     // Edge runtime can have connectivity issues during cold starts
-    let profile: UserProfile | null = null;
+    let profile: OnboardingUserProfile | null = null;
     let retries = 0;
     const MAX_RETRIES = 3; // Increased retries for edge runtime
     

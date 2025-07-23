@@ -6,22 +6,11 @@ import { api } from "@/convex/_generated/api";
 import { fetchAction } from "convex/nextjs";
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 
-// Interface for profile data passed from client
-interface FinalizeOnboardingArgs {
-  username: string;
-  name?: string;
-  bio?: string;
-  profileImageKey?: string;
-  defaultProfileGradientUri?: string;
-}
+// Import centralized types
+import type { FinalizeOnboardingArgs, OnboardingActionResponse, OnboardingCookieActionResponse } from '@/lib/types';
 
 // Atomic action that handles both database update and cookie setting
-export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingArgs): Promise<{ 
-  success: boolean; 
-  error?: string; 
-  redirectUrl?: string;
-  message?: string;
-}> {
+export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingArgs): Promise<OnboardingActionResponse> {
   try {
     // 1. Get the Convex token
     const token = await convexAuthNextjsToken().catch(err => {
@@ -88,7 +77,7 @@ export async function atomicFinalizeOnboarding(profileData: FinalizeOnboardingAr
   }
 }
 
-export async function clearOnboardingCookieAction(): Promise<{ success: boolean; error?: string }> {
+export async function clearOnboardingCookieAction(): Promise<OnboardingCookieActionResponse> {
   "use server";
   try {
     (await cookies()).delete('user_onboarded');

@@ -571,7 +571,7 @@ export interface FriendWithProfile {
     userId: Id<"users">;
     username: string;
     name?: string;
-    profileImage?: string;
+    profileImage: string;
     bio?: string;
   };
 }
@@ -4197,4 +4197,96 @@ export interface InternalPostMetadata {
 
 // ===================================================================
 // END CENTRALIZED TYPES FROM SCATTERED FILES
+// ===================================================================
+
+// ===================================================================
+// ONBOARDING SYSTEM TYPES - Phase 1: Type Centralization
+// ===================================================================
+
+// Core Onboarding Interface (centralized from local definitions)
+export interface FinalizeOnboardingArgs {
+  username: string;
+  name?: string;
+  bio?: string;
+  profileImageKey?: string;
+  defaultProfileGradientUri?: string;
+}
+
+// Onboarding Server Action Response
+export interface OnboardingActionResponse {
+  success: boolean;
+  error?: string;
+  redirectUrl?: string;
+  message?: string;
+}
+
+// Onboarding Step Types
+export type OnboardingStep = 'profile' | 'follow';
+
+// Featured Post for Onboarding Selection
+export interface OnboardingFeaturedPost {
+  _id: Id<"posts">;
+  title: string;
+  body: string;
+  featuredImg?: string | null;
+  feedUrl: string;
+}
+
+// User Profile for Onboarding Verification
+export interface OnboardingUserProfile {
+  userId?: string;
+  username?: string;
+  name?: string;
+  bio?: string;
+  profileImage?: string;
+  rssKeys?: string[];
+  isBoarded?: boolean;
+  [key: string]: any; // Allow other properties
+}
+
+// Username Validation Result
+export interface UsernameValidationResult {
+  available: boolean;
+  message?: string;
+}
+
+// Onboarding Form State for Profile Step
+export interface OnboardingProfileFormState {
+  name: string;
+  username: string;
+  bio: string;
+  isSubmitting: boolean;
+  isUploading: boolean;
+  previewImage: string | null;
+  selectedFile: File | null;
+  profileImageKey: string | null;
+  usernameError: string | null;
+  isCheckingUsername: boolean;
+  isUsernameInputFocused: boolean;
+}
+
+// Onboarding Follow State
+export interface OnboardingFollowState {
+  followedPosts: string[];
+  requiredFollows: number;
+}
+
+// Auto Redirect Component Props
+export interface AutoRedirectProps {
+  // No props needed - purely functional component
+}
+
+// Onboarding Verification Props
+export interface OnboardingVerificationProps {
+  // Server component - no props needed
+}
+
+// Cookie Management Actions
+export interface OnboardingCookieActionResponse {
+  success: boolean;
+  error?: string;
+}
+
+// ===================================================================
+// END ONBOARDING SYSTEM TYPES
 // ===================================================================
