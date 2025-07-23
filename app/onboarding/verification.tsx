@@ -103,7 +103,7 @@ export default async function VerifyOnboardingStatus() {
       redirect('/signin');
     }
     
-    if (profile.isBoarded) {
+    if (profile.isBoarded === true) {
       // User is already onboarded according to database (source of truth)
       
       // Check if cookie doesn't match Convex status
@@ -116,6 +116,7 @@ export default async function VerifyOnboardingStatus() {
       }
     } else {
       // User is not onboarded according to database (source of truth)
+      // This handles both isBoarded: false and isBoarded: undefined
       
       // Check if cookie incorrectly says they're onboarded
       if (onboardedCookie?.value === 'true') {
