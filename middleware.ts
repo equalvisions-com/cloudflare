@@ -10,7 +10,7 @@ import { Logger } from 'next-axiom';
 
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isOnboardingPage = createRouteMatcher(["/onboarding"]);
-const isProtectedRoute = createRouteMatcher(["/settings", "/alerts", "/bookmarks"]);
+const isProtectedRoute = createRouteMatcher(["/settings", "/alerts", "/bookmarks", "/users"]);
 const isDynamicContentRoute = createRouteMatcher([
   "/newsletters/:postSlug*", 
   "/podcasts/:postSlug*"
