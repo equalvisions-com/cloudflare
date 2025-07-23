@@ -134,7 +134,7 @@ export default convexAuthNextjsMiddleware(
 
     // Handle onboarding redirect - check this before profile routes
     // Don't redirect if already on onboarding page
-    if (!isOnboardingPage(request) && isAuthenticated && isBoarded === false) {
+    if (!isOnboardingPage(request) && isAuthenticated && isBoarded !== true) {
       logger.info('Redirecting unauthenticated user to onboarding', { 
         from: request.nextUrl.pathname,
         to: '/onboarding' 
