@@ -49,17 +49,21 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Accessing the KV binding. Cloudflare Pages injects bindings into the environment.
-    // For Edge Runtime (which App Router handlers on Pages often use),
-    // they might be available directly or on a specific context object if provided by next-on-pages.
-    // A common pattern is also `(process.env as any).YOUR_BINDING`.
-    // Let's try to access it as if it's available in the global scope or process.env.
-    // Cloudflare's documentation for Pages + Next.js App Router would be the definitive source.
-    // @ts-ignore KVFEATURED is injected by Cloudflare Pages runtime
-    const kvBinding = (globalThis as any).KVFEATURED || (process.env as any).KVFEATURED as KVNamespace | undefined;
+    // For Cloudflare Pages + Next.js Edge Runtime, bindings are accessed via process.env
+    // after being configured in the Pages dashboard
+    const kvBinding = (process.env as any).KVFEATURED as KVNamespace | undefined;
+
+    // Debug logging to see what's available
+    console.log('KV Binding Debug:', {
+      hasBinding: !!kvBinding,
+      processEnvKeys: Object.keys(process.env).filter(key => key.includes('KV') || key.includes('FEATURED')),
+      globalThisKeys: Object.keys(globalThis).filter(key => key.includes('KV') || key.includes('FEATURED'))
+    });
 
     if (!kvBinding) {
-      console.error("KVFEATURED binding not found. Ensure it is correctly bound in Cloudflare Pages settings and accessible to the Next.js Edge Function.");
+      console.error("KVFEATURED binding not found. Ensure it is correctly bound in Cloudflare Pages settings.");
+      console.error("Available process.env keys:", Object.keys(process.env).slice(0, 10));
+      
       // Return empty data instead of error to prevent infinite loops in frontend
       return NextResponse.json({ 
         entries: [], 
@@ -83,7 +87,11 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error) {
         errorMessage = error.message;
     }
-    // In a real app, you might log error.stack to a logging service
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    // Return 200 with error message to prevent cascade failures
+    return NextResponse.json({ 
+      entries: [], 
+      totalEntries: 0, 
+      error: errorMessage 
+    }, { status: 200 });
   }
 } 
