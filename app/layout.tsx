@@ -8,6 +8,7 @@ import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { GlobalErrorBoundary } from "../components/GlobalErrorBoundary";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
@@ -157,25 +158,27 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col force-scrollbar-stable`}
         >
-          <ConvexClientProvider>
-            <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
-              <ClientOnlyComponents>
-                <SidebarProvider>
-                  <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
-                    <p>Something went wrong. Please refresh the page.</p>
-                  </div>}>
-                    <ScrollResetter>
-                      <div className="">
-                        {children}
-                      </div>
-                      <MobileDock />
-                    </ScrollResetter>
-                  </ErrorBoundary>
-                </SidebarProvider>
-                <Toaster />
-              </ClientOnlyComponents>
-            </ThemeProvider>
-          </ConvexClientProvider>
+          <GlobalErrorBoundary showDetails={true}>
+            <ConvexClientProvider>
+              <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
+                <ClientOnlyComponents>
+                  <SidebarProvider>
+                    <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
+                      <p>Something went wrong. Please refresh the page.</p>
+                    </div>}>
+                      <ScrollResetter>
+                        <div className="">
+                          {children}
+                        </div>
+                        <MobileDock />
+                      </ScrollResetter>
+                    </ErrorBoundary>
+                  </SidebarProvider>
+                  <Toaster />
+                </ClientOnlyComponents>
+              </ThemeProvider>
+            </ConvexClientProvider>
+          </GlobalErrorBoundary>
           <LogClientErrors />
           <AxiomWebVitals />
         </body>
