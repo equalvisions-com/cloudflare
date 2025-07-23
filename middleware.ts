@@ -92,8 +92,10 @@ export default convexAuthNextjsMiddleware(
     response.headers.set('x-skip-onboarding-check', skipOnboardingCheck ? '1' : '0');
 
     // Handle existing auth logic with additional logging
-    if (isSignInPage(request) && isAuthenticated) {
-      logger.info('Redirecting authenticated user from signin', { to: '/' });
+    // Note: We now allow authenticated users to stay on signin briefly
+    // because all sign-in flows redirect to /onboarding for fresh verification
+    if (isSignInPage(request) && isAuthenticated && isBoarded) {
+      logger.info('Redirecting fully authenticated and onboarded user from signin', { to: '/' });
       // Ensure logs are flushed before redirect
       event.waitUntil(logger.flush());
       return nextjsMiddlewareRedirect(request, "/");
