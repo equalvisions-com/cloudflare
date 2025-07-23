@@ -654,14 +654,6 @@ const LoadingSpinner = memo(() => (
 ));
 LoadingSpinner.displayName = 'LoadingSpinner';
 
-// Empty state component
-const EmptyState = memo(() => (
-  <div className="text-center py-8 text-muted-foreground">
-    <p>No likes found for this user.</p>
-  </div>
-));
-EmptyState.displayName = 'EmptyState';
-
 // Create a memoized version of the component with error boundary
 const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
   // Get current user ID from sidebar context to optimize API calls
@@ -892,9 +884,9 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     return <LoadingSpinner />;
   }
 
-  // No likes state
+  // No likes state - handled by UserProfileTabs
   if (state.activities.length === 0 && !state.isLoading) {
-    return <EmptyState />;
+    return null;
   }
 
   return (

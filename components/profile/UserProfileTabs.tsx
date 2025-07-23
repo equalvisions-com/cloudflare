@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
+import { Heart, Activity } from "lucide-react";
 import { 
   ProfileFeedData, 
   UserProfileTabsProps,
@@ -90,10 +91,31 @@ const ActivityTabContent = React.memo(({
   pageSize,
   isActive = false
 }: ActivityTabContentProps & { isActive?: boolean }) => {
-  if (!activityData) {
+  if (!activityData || !activityData.activities || activityData.activities.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No activity found for this user.</p>
+      <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+        {/* Background subtle pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+          <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+        </div>
+
+        {/* Icon cluster */}
+        <div className="relative mb-6">
+          <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Activity className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+          </div>
+        </div>
+
+        {/* Text content */}
+        <div className="text-center space-y-2">
+          <h3 className="text-foreground font-medium text-base">No activity yet</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            User activity will appear here
+          </p>
+        </div>
       </div>
     );
   }
@@ -137,8 +159,29 @@ const LikesTabContent = React.memo(({
 
   if (!likesData || likesData.activities.length === 0) {
     return (
-      <div className="h-screen text-center py-8 text-muted-foreground">
-        <p>No likes found for this user.</p>
+      <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+        {/* Background subtle pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+          <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+        </div>
+
+        {/* Icon cluster */}
+        <div className="relative mb-6">
+          <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Heart className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+          </div>
+        </div>
+
+        {/* Text content */}
+        <div className="text-center space-y-2">
+          <h3 className="text-foreground font-medium text-base">No likes yet</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Liked posts will appear here
+          </p>
+        </div>
       </div>
     );
   }

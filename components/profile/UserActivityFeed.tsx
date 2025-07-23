@@ -2040,9 +2040,7 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : uiHasNoActivities ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No activity found for this user.</p>
-        </div>
+        null
       ) : (
         <>
           <div className="min-h-screen">
