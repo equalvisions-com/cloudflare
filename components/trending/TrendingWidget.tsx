@@ -50,9 +50,32 @@ const HTML_ENTITIES: Record<string, string> = {
   '&trade;': '™',
 };
 
-// Pure function to decode HTML entities (no DOM manipulation)
+// Pure function to decode HTML entities including Unicode character references
 const decodeHtmlEntities = (text: string): string => {
-  return text.replace(/&[#\w]+;/g, (entity) => HTML_ENTITIES[entity] || entity);
+  return text
+    // First handle numeric character references (decimal)
+    .replace(/&#(\d+);/g, (match, dec) => {
+      try {
+        return String.fromCharCode(parseInt(dec, 10));
+      } catch {
+        return match;
+      }
+    })
+    // Then handle hexadecimal character references
+    .replace(/&#x([0-9A-Fa-f]+);/g, (match, hex) => {
+      try {
+        const codePoint = parseInt(hex, 16);
+        // Handle surrogate pairs for emojis and other Unicode characters beyond BMP
+        if (codePoint > 0xFFFF) {
+          return String.fromCodePoint(codePoint);
+        }
+        return String.fromCharCode(codePoint);
+      } catch {
+        return match;
+      }
+    })
+    // Finally handle named entities
+    .replace(/&[#\w]+;/g, (entity) => HTML_ENTITIES[entity] || entity);
 };
 
 
