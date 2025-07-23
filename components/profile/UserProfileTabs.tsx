@@ -203,7 +203,7 @@ export function UserProfileTabs({
           skip: 0,
           limit: pageSize
         }),
-        cache: 'no-store'
+        // Note: cache option removed for Edge Runtime compatibility
       });
       
       if (!response.ok) {

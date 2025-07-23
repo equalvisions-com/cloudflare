@@ -10,10 +10,8 @@
  * Adds cache control headers to prevent static generation issues
  */
 export async function edgeFetch(url: string, options: RequestInit = {}) {
-  // Ensure we're using 'no-store' for any fetch in Edge to prevent static generation issues
-  options.cache = 'no-store';
-  
-  // Add appropriate headers
+  // Note: cache option removed for Edge Runtime compatibility
+  // Add appropriate headers instead
   const headers = new Headers(options.headers);
   headers.set('Cache-Control', 'no-store, must-revalidate');
   

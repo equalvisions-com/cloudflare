@@ -294,8 +294,7 @@ const BookmarksPageClientScopeComponent = ({ rightSidebar }: BookmarksPageClient
           limit: 30
         }),
         signal,
-        // Edge Runtime optimization: Add caching headers
-        cache: 'no-store', // Ensure fresh data for bookmarks
+        // Note: cache option removed for Edge Runtime compatibility
       });
 
       if (!response.ok) {

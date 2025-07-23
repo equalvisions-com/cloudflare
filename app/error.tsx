@@ -64,9 +64,38 @@ export default function ErrorPage({
   const router = useRouter()
   const pathname = usePathname()
 
-  // Handle error recovery
+  // Enhanced error logging
   useEffect(() => {
-    // Attempt to detect if this is a cold start connection timeout
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      digest: error.digest,
+      name: error.name,
+      cause: error.cause,
+      pathname: pathname,
+      timestamp: new Date().toISOString(),
+      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'unknown'
+    };
+
+    // Log to console for immediate debugging
+    console.error('🚨 Server Component Error Details:', errorDetails);
+
+    // Send to error logging endpoint
+    fetch('/api/log-error', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'server_component_error',
+        error: errorDetails,
+        url: typeof window !== 'undefined' ? window.location.href : pathname
+      })
+    }).catch(logError => {
+      console.error('Failed to log error to endpoint:', logError);
+    });
+
+    // Handle error recovery
     const isColdStartError = 
       error.message?.includes('timeout') || 
       error.message?.includes('network') ||
@@ -81,7 +110,7 @@ export default function ErrorPage({
       
       return () => clearTimeout(timer)
     }
-  }, [error, reset])
+  }, [error, reset, pathname])
 
   return (
     <>
@@ -93,6 +122,17 @@ export default function ErrorPage({
         <p className="max-w-md text-lg text-muted-foreground">
           {error.message || 'An unexpected error occurred while loading the page.'}
         </p>
+        
+        {/* Show digest in development or if it's a non-sensitive error */}
+        {(process.env.NODE_ENV === 'development' || error.digest) && (
+          <div className="mt-4 p-4 bg-muted rounded-lg text-sm font-mono max-w-lg">
+            <p className="font-semibold mb-2">Error Details:</p>
+            {error.digest && <p>Digest: {error.digest}</p>}
+            {error.name && <p>Type: {error.name}</p>}
+            <p>Path: {pathname}</p>
+            <p>Time: {new Date().toLocaleString()}</p>
+          </div>
+        )}
         
         <div className="mt-6 flex gap-4">
           <Button onClick={reset} variant="default">
