@@ -201,6 +201,8 @@ const SidebarComponent = () => {
     if (!isMountedRef.current) return;
     try {
       await signOut();
+      // Clear the onboarding cookie on sign out to prevent it persisting to new users
+      document.cookie = 'user_onboarded=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       router.push('/');
     } catch (error) {
       console.error("Sign out error:", error);
