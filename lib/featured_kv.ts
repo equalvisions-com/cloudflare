@@ -5,8 +5,7 @@ import type {
   FeaturedEntry, 
   KVStoredData 
 } from './types';
-import { fetchQuery } from "convex/nextjs";
-import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import { fetchRssEntriesFromPlanetScale, getFeedIdsByUrls } from './planetscale';
 
@@ -33,17 +32,15 @@ const LOCK_EXPIRATION_SECONDS = 90; // 90 seconds for best-effort lock
 async function fetchAndCacheFromSources(): Promise<FeaturedEntry[]> {
   try {
     console.log('KV_FETCH: Fetching featured posts from Convex and entries from PlanetScale');
-    
-    // Get auth token for server-side Convex query
-    const token = await convexAuthNextjsToken();
-    const featuredPosts = await fetchQuery(api.featured.getFeaturedPosts, {}, { token });
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const featuredPosts = await convex.query(api.featured.getFeaturedPosts);
 
     if (!featuredPosts || featuredPosts.length === 0) {
       console.log('KV_FETCH: No featured posts found in Convex');
       return [];
     }
 
-    const feedUrls = featuredPosts.map((post: any) => post.feedUrl);
+    const feedUrls = featuredPosts.map(post => post.feedUrl);
     const feedsData = await getFeedIdsByUrls(feedUrls);
 
     if (!feedsData || feedsData.length === 0) {
@@ -62,7 +59,7 @@ async function fetchAndCacheFromSources(): Promise<FeaturedEntry[]> {
     console.log(`KV_FETCH: Retrieved ${entries.length} entries from the last 24 hours`);
 
     const feedUrlToPostMap = new Map();
-    featuredPosts.forEach((post: any) => {
+    featuredPosts.forEach(post => {
       feedUrlToPostMap.set(post.feedUrl, {
         title: post.title,
         category: post.category

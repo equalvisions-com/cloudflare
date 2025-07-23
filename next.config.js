@@ -5,16 +5,15 @@ const nextConfig = {
   // Disable React Strict Mode to prevent double mounting in production
   reactStrictMode: false,
   images: {
-    // Temporarily disable custom loader to test if it's causing 404s
-    // loader: 'custom',
-    // loaderFile: './lib/cloudflare-loader.ts',
-    unoptimized: true, // Disable optimization temporarily
+    loader: 'custom',
+    loaderFile: './lib/cloudflare-loader.ts',
     remotePatterns: [
       {
         protocol: "https",
         hostname: "**",
       },
     ],
+    unoptimized: false, // keep <Image>'s src-set logic
     deviceSizes: [516], // Only the exact size we need for cards
     imageSizes: [16, 36, 40, 48, 56, 64, 82, 96], // All the specific sizes used in the app
   },

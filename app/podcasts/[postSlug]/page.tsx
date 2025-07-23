@@ -29,44 +29,23 @@ export const runtime = 'edge';
 // Optimize data fetching with aggressive caching
 const getPageData = cache(async (postSlug: string): Promise<PostPageData | null> => {
   try {
-    // Validate the postSlug parameter
-    if (!postSlug || typeof postSlug !== 'string' || postSlug.trim() === '') {
-      console.error('Invalid postSlug:', postSlug);
-      return null;
-    }
-
-    console.log('🔍 Fetching page data for postSlug:', postSlug);
-
     // First get the post data - we need this for everything else
     const post = await fetchQuery(api.posts.getByMediaTypeAndSlug, { 
       mediaType: "podcast", 
-      postSlug: postSlug.trim()
+      postSlug 
     }) as PostWithFollowerCount;
 
-    console.log('📄 Post query result:', post ? 'Found' : 'Not found');
-
-    if (!post) {
-      console.error('Post not found for slug:', postSlug);
-      return null;
-    }
+    if (!post) return null;
 
     // Get auth state first since we need it for both main post and related posts
     const isAuthenticated = await isAuthenticatedNextjs();
-    const token = isAuthenticated ? await convexAuthNextjsToken().catch((error) => {
-      console.error('Failed to get Convex auth token:', error);
-      return undefined;
-    }) : undefined;
-
-    console.log('🔐 Auth state:', { isAuthenticated, hasToken: !!token });
+    const token = isAuthenticated ? await convexAuthNextjsToken().catch(() => undefined) : undefined;
 
     // Now run auth and RSS fetches in parallel
     const [mainFollowState, rssData] = await Promise.all([
       // Get follow state for main post
       isAuthenticated && token 
-        ? fetchQuery(api.following.isFollowing, { postId: post._id }, { token }).catch((error) => {
-            console.error('Failed to fetch follow state:', error);
-            return false;
-          })
+        ? fetchQuery(api.following.isFollowing, { postId: post._id }, { token })
         : Promise.resolve(false),
 
       // Get RSS data using post data we already have
@@ -74,16 +53,8 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
         post.title,
         post.feedUrl,
         post.mediaType
-      ).catch((error) => {
-        console.error('Failed to fetch RSS data:', error);
-        return null;
-      })
+      )
     ]);
-
-    console.log('📊 Data fetched:', { 
-      hasFollowState: typeof mainFollowState === 'boolean', 
-      hasRssData: !!rssData 
-    });
 
     return {
       post,
@@ -94,23 +65,14 @@ const getPageData = cache(async (postSlug: string): Promise<PostPageData | null>
       }
     };
   } catch (error) {
-    console.error('🚨 Error in getPageData for slug:', postSlug, error);
     return null;
   }
 });
 
 // Get just the post data for metadata - reuse the same cache
 const getPostData = cache(async (postSlug: string): Promise<PostWithFollowerCount | null> => {
-  try {
-    console.log('🔍 Getting post data for metadata, slug:', postSlug);
-    const pageData = await getPageData(postSlug);
-    const result = pageData?.post || null;
-    console.log('📄 Post data for metadata:', result ? 'Found' : 'Not found');
-    return result;
-  } catch (error) {
-    console.error('🚨 Error in getPostData:', error);
-    return null;
-  }
+  const pageData = await getPageData(postSlug);
+  return pageData?.post || null;
 });
 
 // Generate metadata using cached post data

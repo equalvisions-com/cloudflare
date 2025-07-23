@@ -77,7 +77,7 @@ async function fetchWithRetry(
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
-        // Note: cache option removed for Edge Runtime compatibility
+        cache: 'no-store'
       });
       
       clearTimeout(timeoutId);
@@ -135,7 +135,7 @@ async function enrichEntryDetails(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ guids }),
-        // Note: cache option removed for Edge Runtime compatibility
+        cache: 'no-store'
       },
       {
         maxRetries: 2,

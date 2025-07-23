@@ -8,7 +8,6 @@ import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { GlobalErrorBoundary } from "../components/GlobalErrorBoundary";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
 import { AxiomWebVitals } from 'next-axiom';
@@ -154,51 +153,29 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           {/* ✅ AUTH HINTS: Pass server-side auth state to client without queries */}
           <meta name="x-user-authenticated" content={authHints.isAuthenticated ? '1' : '0'} />
           <meta name="x-user-onboarded" content={authHints.isOnboarded ? '1' : '0'} />
-
-          <script dangerouslySetInnerHTML={{
-            __html: `
-              // Intercept fetch to catch cache option usage
-              (function() {
-                const originalFetch = window.fetch;
-                window.fetch = function(input, init) {
-                  if (init && init.cache) {
-                    console.error('🚨 FETCH WITH CACHE DETECTED:', {
-                      url: typeof input === 'string' ? input : input.url,
-                      cache: init.cache,
-                      stack: new Error().stack,
-                      timestamp: new Date().toISOString()
-                    });
-                  }
-                  return originalFetch.apply(this, arguments);
-                };
-              })();
-            `
-          }} />
         </head>
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased no-overscroll min-h-screen flex flex-col force-scrollbar-stable`}
         >
-          <GlobalErrorBoundary showDetails={true}>
-            <ConvexClientProvider>
-              <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
-                <ClientOnlyComponents>
-                  <SidebarProvider>
-                    <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
-                      <p>Something went wrong. Please refresh the page.</p>
-                    </div>}>
-                      <ScrollResetter>
-                        <div className="">
-                          {children}
-                        </div>
-                        <MobileDock />
-                      </ScrollResetter>
-                    </ErrorBoundary>
-                  </SidebarProvider>
-                  <Toaster />
-                </ClientOnlyComponents>
-              </ThemeProvider>
-            </ConvexClientProvider>
-          </GlobalErrorBoundary>
+          <ConvexClientProvider>
+            <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange={true}>
+              <ClientOnlyComponents>
+                <SidebarProvider>
+                  <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center">
+                    <p>Something went wrong. Please refresh the page.</p>
+                  </div>}>
+                    <ScrollResetter>
+                      <div className="">
+                        {children}
+                      </div>
+                      <MobileDock />
+                    </ScrollResetter>
+                  </ErrorBoundary>
+                </SidebarProvider>
+                <Toaster />
+              </ClientOnlyComponents>
+            </ThemeProvider>
+          </ConvexClientProvider>
           <LogClientErrors />
           <AxiomWebVitals />
         </body>
