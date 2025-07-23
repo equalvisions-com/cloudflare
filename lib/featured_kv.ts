@@ -9,12 +9,8 @@ import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import { fetchRssEntriesFromPlanetScale, getFeedIdsByUrls } from './planetscale';
 
-// KV Namespace Binding Name - ensure this matches the binding name in your wrangler.toml or Cloudflare dashboard
-// For example, if your wrangler.toml has:
-// [[kv_namespaces]]
-// binding = "FEATURED_FEED_KV"
-// id = "f1bc80c723d14a31b015bce648de2982"
-// Then FEATURED_FEED_KV is your binding.
+// KV Namespace Binding Name - ensure this matches the binding name in your Cloudflare Pages dashboard
+// The binding "KVFEATURED" should be configured in your Pages project settings.
 // This code expects the KVNamespace object to be passed directly to functions.
 
 // Define the KV keys

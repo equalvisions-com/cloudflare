@@ -31,27 +31,18 @@ export async function GET(request: NextRequest) {
     const endTime = Date.now();
     const duration = endTime - startTime;
     
-    // Comprehensive environment detection
-    const environmentInfo = {
-      NODE_ENV: process.env.NODE_ENV,
-      CF_PAGES: process.env.CF_PAGES,
-      ENVIRONMENT: process.env.ENVIRONMENT,
-      CF_PAGES_URL: typeof globalThis !== 'undefined' ? (globalThis as any).CF_PAGES_URL : undefined,
-      HYPERDRIVE_WORKER_URL: process.env.HYPERDRIVE_WORKER_URL ? '✓ Configured' : '✗ Not configured',
-      HYPERDRIVE_WORKER_TOKEN: process.env.HYPERDRIVE_WORKER_TOKEN ? '✓ Configured' : '✗ Not configured',
-      shouldUseHyperdrive: shouldUseHyperdrive()
-    };
+    const isHyperdriveEnabled = shouldUseHyperdrive();
     
     return NextResponse.json({
       success: true,
       hyperdrive: {
-        enabled: shouldUseHyperdrive(),
-        workerUrl: process.env.HYPERDRIVE_WORKER_URL || 'Not configured',
-        status: shouldUseHyperdrive() 
-          ? '🚀 Hyperdrive Worker should be used' 
-          : '🔗 Direct PlanetScale connection should be used'
+        enabled: isHyperdriveEnabled,
+        status: isHyperdriveEnabled 
+          ? 'Hyperdrive acceleration active' 
+          : 'Direct PlanetScale connection',
+        workerConfigured: !!process.env.HYPERDRIVE_WORKER_URL,
+        tokenConfigured: !!process.env.HYPERDRIVE_WORKER_TOKEN
       },
-      environment: environmentInfo,
       performance: {
         queryDuration: `${duration}ms`,
         timestamp: new Date().toISOString()
@@ -62,9 +53,10 @@ export async function GET(request: NextRequest) {
         connectionId: (result.rows[0] as any)?.connection_id,
         rowCount: result.rows.length
       },
-      instructions: {
-        message: "Check the console logs to see which connection method was actually used",
-        logs: "Look for 🚀 HYPERDRIVE or 🔗 PLANETSCALE prefixes in your deployment logs"
+      environment: {
+        runtime: 'edge',
+        nodeEnv: process.env.NODE_ENV,
+        cfPages: process.env.CF_PAGES
       }
     });
     
@@ -74,13 +66,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      environment: {
-        NODE_ENV: process.env.NODE_ENV,
-        CF_PAGES: process.env.CF_PAGES,
-        ENVIRONMENT: process.env.ENVIRONMENT,
-        HYPERDRIVE_WORKER_URL: process.env.HYPERDRIVE_WORKER_URL ? '✓ Configured' : '✗ Not configured',
-        HYPERDRIVE_WORKER_TOKEN: process.env.HYPERDRIVE_WORKER_TOKEN ? '✓ Configured' : '✗ Not configured',
-        shouldUseHyperdrive: shouldUseHyperdrive()
+      hyperdrive: {
+        enabled: shouldUseHyperdrive(),
+        workerConfigured: !!process.env.HYPERDRIVE_WORKER_URL,
+        tokenConfigured: !!process.env.HYPERDRIVE_WORKER_TOKEN
       },
       timestamp: new Date().toISOString()
     }, { status: 500 });
@@ -115,10 +104,7 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString()
       },
       hyperdrive: {
-        enabled: shouldUseHyperdrive(),
-        status: shouldUseHyperdrive() 
-          ? '🚀 Hyperdrive Worker should be used' 
-          : '🔗 Direct PlanetScale connection should be used'
+        enabled: shouldUseHyperdrive()
       }
     });
     

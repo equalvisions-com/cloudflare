@@ -6,7 +6,11 @@ let readConnection: Connection | null = null;
 
 /**
  * Check if we're running in a production environment where Hyperdrive should be used
- * In Cloudflare Pages, we need to check multiple indicators, not just NODE_ENV
+ * 
+ * ✅ EDGE RUNTIME COMPATIBLE:
+ * - process.env: Available in Cloudflare Pages edge runtime
+ * - globalThis: Standard Web API, available everywhere
+ * - typeof checks: Standard JavaScript, works everywhere
  */
 function shouldUseHyperdrive(): boolean {
   // Must have Hyperdrive Worker URL configured
@@ -16,24 +20,28 @@ function shouldUseHyperdrive(): boolean {
   
   // Check multiple production indicators for Cloudflare Pages
   const isProd = 
-    process.env.NODE_ENV === 'production' ||           // Standard Node.js env
-    process.env.CF_PAGES === '1' ||                    // Cloudflare Pages indicator
-    process.env.ENVIRONMENT === 'production' ||        // Custom env variable
+    process.env.NODE_ENV === 'production' ||           // ✅ Available in edge runtime
+    process.env.CF_PAGES === '1' ||                    // ✅ Cloudflare Pages indicator
+    process.env.ENVIRONMENT === 'production' ||        // ✅ Custom env variable
     typeof globalThis !== 'undefined' && 
-    (globalThis as any).CF_PAGES_URL;                  // CF Pages runtime global
+    (globalThis as any).CF_PAGES_URL;                  // ✅ Standard Web API
   
   return isProd;
 }
 
 /**
  * Get a connection to the primary (write) database
+ * 
+ * ✅ EDGE RUNTIME COMPATIBLE:
+ * - @planetscale/database is specifically designed for edge runtime
+ * - connect() function works in all JavaScript environments
  */
 export function getWriteConnection(): Connection {
   if (!writeConnection) {
     writeConnection = connect({
-      host: process.env.PLANETSCALE_HOST,
-      username: process.env.PLANETSCALE_USERNAME,
-      password: process.env.PLANETSCALE_PASSWORD,
+      host: process.env.PLANETSCALE_HOST,        // ✅ Available in edge runtime
+      username: process.env.PLANETSCALE_USERNAME, // ✅ Available in edge runtime
+      password: process.env.PLANETSCALE_PASSWORD, // ✅ Available in edge runtime
     });
   }
   return writeConnection;
@@ -41,6 +49,8 @@ export function getWriteConnection(): Connection {
 
 /**
  * Get a connection to a read replica
+ * 
+ * ✅ EDGE RUNTIME COMPATIBLE: Same as writeConnection
  */
 export function getReadConnection(): Connection {
   if (!readConnection) {
@@ -56,6 +66,11 @@ export function getReadConnection(): Connection {
 /**
  * Execute a read query against a replica
  * In production, this will use Hyperdrive acceleration through a Worker
+ * 
+ * ✅ EDGE RUNTIME COMPATIBLE:
+ * - fetch(): Standard Web API, available in edge runtime
+ * - JSON.stringify/parse: Standard JavaScript
+ * - Error handling: Standard JavaScript
  */
 export async function executeRead<T = Record<string, unknown>>(
   query: string,
@@ -63,9 +78,8 @@ export async function executeRead<T = Record<string, unknown>>(
 ): Promise<ExecutedQuery> {
   // Check if we should use Hyperdrive acceleration
   if (shouldUseHyperdrive()) {
-    console.log('🚀 HYPERDRIVE: Using Hyperdrive Worker for read query');
-    
     try {
+      // ✅ fetch() is available in edge runtime (it's a Web Standard API)
       const response = await fetch(process.env.HYPERDRIVE_WORKER_URL!, {
         method: 'POST',
         headers: {
@@ -82,32 +96,24 @@ export async function executeRead<T = Record<string, unknown>>(
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          console.log('✅ HYPERDRIVE: Query successful via Hyperdrive Worker');
           return result.data;
-        } else {
-          console.warn('⚠️ HYPERDRIVE: Worker returned unsuccessful result:', result);
         }
-      } else {
-        console.warn('⚠️ HYPERDRIVE: Worker response not ok:', response.status, response.statusText);
       }
       
       // Fall back to direct connection if Hyperdrive Worker fails
-      console.warn('🔄 HYPERDRIVE: Falling back to direct PlanetScale connection');
+      console.warn('Hyperdrive Worker failed, falling back to direct PlanetScale connection');
     } catch (error) {
-      console.warn('❌ HYPERDRIVE: Worker error, falling back to direct connection:', error);
+      console.warn('Hyperdrive Worker error, falling back to direct connection:', error);
     }
-  } else {
-    console.log('🔗 PLANETSCALE: Using direct PlanetScale connection (Hyperdrive not configured)');
   }
 
   // Default: Use direct PlanetScale connection
+  // ✅ @planetscale/database is edge runtime compatible
   const connection = getReadConnection();
   try {
-    const result = await connection.execute(query, params);
-    console.log('✅ PLANETSCALE: Query successful via direct connection');
-    return result;
+    return await connection.execute(query, params);
   } catch (error) {
-    console.error(`❌ PLANETSCALE: Read query error: ${error}`);
+    console.error(`Database read query error: ${error}`);
     throw error;
   }
 }
@@ -115,6 +121,8 @@ export async function executeRead<T = Record<string, unknown>>(
 /**
  * Execute a write query against the primary database
  * In production, this will use Hyperdrive acceleration through a Worker
+ * 
+ * ✅ EDGE RUNTIME COMPATIBLE: Same APIs as executeRead
  */
 export async function executeWrite<T = Record<string, unknown>>(
   query: string,
@@ -122,8 +130,6 @@ export async function executeWrite<T = Record<string, unknown>>(
 ): Promise<ExecutedQuery> {
   // Check if we should use Hyperdrive acceleration
   if (shouldUseHyperdrive()) {
-    console.log('🚀 HYPERDRIVE: Using Hyperdrive Worker for write query');
-    
     try {
       const response = await fetch(process.env.HYPERDRIVE_WORKER_URL!, {
         method: 'POST',
@@ -141,32 +147,23 @@ export async function executeWrite<T = Record<string, unknown>>(
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          console.log('✅ HYPERDRIVE: Write query successful via Hyperdrive Worker');
           return result.data;
-        } else {
-          console.warn('⚠️ HYPERDRIVE: Worker returned unsuccessful result:', result);
         }
-      } else {
-        console.warn('⚠️ HYPERDRIVE: Worker response not ok:', response.status, response.statusText);
       }
       
       // Fall back to direct connection if Hyperdrive Worker fails
-      console.warn('🔄 HYPERDRIVE: Falling back to direct PlanetScale connection');
+      console.warn('Hyperdrive Worker failed, falling back to direct PlanetScale connection');
     } catch (error) {
-      console.warn('❌ HYPERDRIVE: Worker error, falling back to direct connection:', error);
+      console.warn('Hyperdrive Worker error, falling back to direct connection:', error);
     }
-  } else {
-    console.log('🔗 PLANETSCALE: Using direct PlanetScale connection (Hyperdrive not configured)');
   }
 
   // Default: Use direct PlanetScale connection
   const connection = getWriteConnection();
   try {
-    const result = await connection.execute(query, params);
-    console.log('✅ PLANETSCALE: Write query successful via direct connection');
-    return result;
+    return await connection.execute(query, params);
   } catch (error) {
-    console.error(`❌ PLANETSCALE: Write query error: ${error}`);
+    console.error(`Database write query error: ${error}`);
     throw error;
   }
 } 
