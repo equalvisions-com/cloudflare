@@ -5,6 +5,27 @@ let writeConnection: Connection | null = null;
 let readConnection: Connection | null = null;
 
 /**
+ * Check if we're running in a production environment where Hyperdrive should be used
+ * In Cloudflare Pages, we need to check multiple indicators, not just NODE_ENV
+ */
+function shouldUseHyperdrive(): boolean {
+  // Must have Hyperdrive Worker URL configured
+  if (!process.env.HYPERDRIVE_WORKER_URL) {
+    return false;
+  }
+  
+  // Check multiple production indicators for Cloudflare Pages
+  const isProd = 
+    process.env.NODE_ENV === 'production' ||           // Standard Node.js env
+    process.env.CF_PAGES === '1' ||                    // Cloudflare Pages indicator
+    process.env.ENVIRONMENT === 'production' ||        // Custom env variable
+    typeof globalThis !== 'undefined' && 
+    (globalThis as any).CF_PAGES_URL;                  // CF Pages runtime global
+  
+  return isProd;
+}
+
+/**
  * Get a connection to the primary (write) database
  */
 export function getWriteConnection(): Connection {
@@ -34,16 +55,18 @@ export function getReadConnection(): Connection {
 
 /**
  * Execute a read query against a replica
- * In production, this could optionally use Hyperdrive acceleration through a Worker
+ * In production, this will use Hyperdrive acceleration through a Worker
  */
 export async function executeRead<T = Record<string, unknown>>(
   query: string,
   params: unknown[] = []
 ): Promise<ExecutedQuery> {
-  // Check if we should use Hyperdrive acceleration in production
-  if (process.env.NODE_ENV === 'production' && process.env.HYPERDRIVE_WORKER_URL) {
+  // Check if we should use Hyperdrive acceleration
+  if (shouldUseHyperdrive()) {
+    console.log('🚀 HYPERDRIVE: Using Hyperdrive Worker for read query');
+    
     try {
-      const response = await fetch(process.env.HYPERDRIVE_WORKER_URL, {
+      const response = await fetch(process.env.HYPERDRIVE_WORKER_URL!, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,39 +82,50 @@ export async function executeRead<T = Record<string, unknown>>(
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
+          console.log('✅ HYPERDRIVE: Query successful via Hyperdrive Worker');
           return result.data;
+        } else {
+          console.warn('⚠️ HYPERDRIVE: Worker returned unsuccessful result:', result);
         }
+      } else {
+        console.warn('⚠️ HYPERDRIVE: Worker response not ok:', response.status, response.statusText);
       }
       
       // Fall back to direct connection if Hyperdrive Worker fails
-      console.warn('Hyperdrive Worker failed, falling back to direct connection');
+      console.warn('🔄 HYPERDRIVE: Falling back to direct PlanetScale connection');
     } catch (error) {
-      console.warn('Hyperdrive Worker error, falling back to direct connection:', error);
+      console.warn('❌ HYPERDRIVE: Worker error, falling back to direct connection:', error);
     }
+  } else {
+    console.log('🔗 PLANETSCALE: Using direct PlanetScale connection (Hyperdrive not configured)');
   }
 
   // Default: Use direct PlanetScale connection
   const connection = getReadConnection();
   try {
-    return await connection.execute(query, params);
+    const result = await connection.execute(query, params);
+    console.log('✅ PLANETSCALE: Query successful via direct connection');
+    return result;
   } catch (error) {
-    console.error(`Read query error: ${error}`);
+    console.error(`❌ PLANETSCALE: Read query error: ${error}`);
     throw error;
   }
 }
 
 /**
  * Execute a write query against the primary database
- * In production, this could optionally use Hyperdrive acceleration through a Worker
+ * In production, this will use Hyperdrive acceleration through a Worker
  */
 export async function executeWrite<T = Record<string, unknown>>(
   query: string,
   params: unknown[] = []
 ): Promise<ExecutedQuery> {
-  // Check if we should use Hyperdrive acceleration in production
-  if (process.env.NODE_ENV === 'production' && process.env.HYPERDRIVE_WORKER_URL) {
+  // Check if we should use Hyperdrive acceleration
+  if (shouldUseHyperdrive()) {
+    console.log('🚀 HYPERDRIVE: Using Hyperdrive Worker for write query');
+    
     try {
-      const response = await fetch(process.env.HYPERDRIVE_WORKER_URL, {
+      const response = await fetch(process.env.HYPERDRIVE_WORKER_URL!, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,23 +141,32 @@ export async function executeWrite<T = Record<string, unknown>>(
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
+          console.log('✅ HYPERDRIVE: Write query successful via Hyperdrive Worker');
           return result.data;
+        } else {
+          console.warn('⚠️ HYPERDRIVE: Worker returned unsuccessful result:', result);
         }
+      } else {
+        console.warn('⚠️ HYPERDRIVE: Worker response not ok:', response.status, response.statusText);
       }
       
       // Fall back to direct connection if Hyperdrive Worker fails
-      console.warn('Hyperdrive Worker failed, falling back to direct connection');
+      console.warn('🔄 HYPERDRIVE: Falling back to direct PlanetScale connection');
     } catch (error) {
-      console.warn('Hyperdrive Worker error, falling back to direct connection:', error);
+      console.warn('❌ HYPERDRIVE: Worker error, falling back to direct connection:', error);
     }
+  } else {
+    console.log('🔗 PLANETSCALE: Using direct PlanetScale connection (Hyperdrive not configured)');
   }
 
   // Default: Use direct PlanetScale connection
   const connection = getWriteConnection();
   try {
-    return await connection.execute(query, params);
+    const result = await connection.execute(query, params);
+    console.log('✅ PLANETSCALE: Write query successful via direct connection');
+    return result;
   } catch (error) {
-    console.error(`Write query error: ${error}`);
+    console.error(`❌ PLANETSCALE: Write query error: ${error}`);
     throw error;
   }
 } 
