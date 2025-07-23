@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMemo, memo, useCallback, useState, useEffect, useRef, useOptimistic, useTransition, useDeferredValue, startTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckIcon, XIcon, UserIcon, Loader2 } from "lucide-react";
+import { CheckIcon, XIcon, UserIcon, Loader2, Bell } from "lucide-react";
 import Image from 'next/image';
 import { Virtuoso } from 'react-virtuoso';
 
@@ -644,15 +644,32 @@ export const NotificationsClient = memo(({ className }: NotificationsClientProps
   // Empty state
   if ((!initialQuery.notifications || initialQuery.notifications.length === 0) && !isLoadingMore) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <UserIcon className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-extrabold mb-2">No Alerts</h3>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          When you receive friend requests or your requests are accepted, they&apos;ll appear here.
-        </p> 
-    </div>
-  );
-} 
+      <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+        {/* Background subtle pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+          <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+        </div>
+
+        {/* Icon cluster */}
+        <div className="relative mb-6">
+          <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Bell className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+          </div>
+        </div>
+
+        {/* Text content */}
+        <div className="text-center space-y-2">
+          <h3 className="text-foreground font-medium text-base">No alerts yet</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Notifications and friend requests will appear here
+          </p>
+        </div>
+      </div>
+    );
+  } 
 
   return (
     <section 

@@ -2,7 +2,7 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Podcast, Mail, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { Virtuoso } from 'react-virtuoso';
 
@@ -942,8 +942,29 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
   // No bookmarks state
   if (state.bookmarks.length === 0 && !state.isLoading) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>You haven&apos;t bookmarked any posts yet.</p>
+      <div className="flex flex-col items-center justify-center py-12 px-6 relative">
+        {/* Background subtle pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
+          <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
+          <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
+        </div>
+
+        {/* Icon cluster */}
+        <div className="relative mb-6">
+          <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Bookmark className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+          </div>
+        </div>
+
+        {/* Text content */}
+        <div className="text-center space-y-2">
+          <h3 className="text-foreground font-medium text-base">No bookmarks yet</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Your bookmarks will appear here
+          </p>
+        </div>
       </div>
     );
   }

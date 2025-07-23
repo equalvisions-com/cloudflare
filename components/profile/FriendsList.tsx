@@ -30,7 +30,6 @@ import { MemoizedVirtualizedFriendItem } from '@/components/profile/VirtualizedF
 import FriendsListErrorBoundary, { MinimalFriendsListErrorFallback } from './FriendsListErrorBoundary';
 import { convertProfileSocialDataToFriendsListData } from "@/lib/types";
 import { DrawerLoadingSkeleton } from './FriendsListSkeleton';
-import { FriendsListEmptyState } from './FriendsListEmptyState';
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
