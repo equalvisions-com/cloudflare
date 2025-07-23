@@ -106,7 +106,7 @@ export class GlobalErrorBoundary extends React.Component<
               Something went wrong
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              An unexpected error occurred. We've been notified and are working to fix it.
+              An unexpected error occurred. We&apos;ve been notified and are working to fix it.
             </p>
             
             {showDetails && error && (
