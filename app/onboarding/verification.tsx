@@ -73,21 +73,26 @@ export default async function VerifyOnboardingStatus() {
       redirect('/signin');
     }
     
-    // Implement retry logic for Convex queries
+    // CLOUDFLARE EDGE RESILIENCE: Implement aggressive retry logic for Convex queries
+    // Edge runtime can have connectivity issues during cold starts
     let profile: UserProfile | null = null;
     let retries = 0;
-    const MAX_RETRIES = 2;
+    const MAX_RETRIES = 3; // Increased retries for edge runtime
     
     while (retries <= MAX_RETRIES) {
-      profile = await fetchProfileWithTimeout(token, 5000);
-      
-      if (profile) {
-        break; // Successfully got profile, exit retry loop
+      try {
+        profile = await fetchProfileWithTimeout(token, 3000); // Shorter timeout per attempt
+        
+        if (profile) {
+          break; // Successfully got profile, exit retry loop
+        }
+      } catch (fetchError) {
+        console.error(`Convex query attempt ${retries + 1} failed:`, fetchError);
       }
       
       retries++;
       if (retries <= MAX_RETRIES) {
-        await delay(1000 * retries); // Exponential backoff
+        await delay(Math.min(1000 * retries, 3000)); // Exponential backoff, capped at 3s
       }
     }
     

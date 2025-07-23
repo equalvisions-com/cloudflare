@@ -43,16 +43,20 @@ async function getBasicUserStatus(request: NextRequest) {
         // but allows middleware to proceed without blocking during cold starts
         skipOnboardingCheck = true;
         
-        // CHANGE: For new users (no cookie), assume they are NOT onboarded
-        // This ensures they'll be redirected to the onboarding flow
+        // CRITICAL FOR COLD STARTS: For new users (no cookie), assume they are NOT onboarded
+        // This ensures they'll be redirected to onboarding flow where Convex will verify the truth
+        // Better to have a false positive (send onboarded user to onboarding briefly) 
+        // than false negative (let unonboarded user access the app)
         isBoarded = false;
       }
     }
   } catch (error) {
     console.error("Error in basic user status check:", error);
-    // Default to not authenticated in case of errors
+    // COLD START SAFETY: Default to safe state in case of errors
+    // On Cloudflare Pages edge runtime, token validation might fail during cold starts
     isAuthenticated = false;
     skipOnboardingCheck = true; // Skip onboarding checks on errors
+    isBoarded = false; // Default to not onboarded for safety
   }
 
   return { isAuthenticated, isBoarded, skipOnboardingCheck };

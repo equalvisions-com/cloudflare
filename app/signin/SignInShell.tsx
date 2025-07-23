@@ -66,7 +66,7 @@ function SignInPageContent() {
                     <SignUpVerification
                       email={email}
                       onSuccess={() => {
-                        router.push("/onboarding");        
+                        router.push("/");        
                         setStep("signIn");
                       }}
                     />
@@ -175,7 +175,7 @@ function SignInWithGoogle() {
       variant="outline"
       type="button"
       onClick={() => {
-        void signIn("google", { redirectTo: "/onboarding" });
+        void signIn("google", { redirectTo: "/" });
       }}
     >
       <svg viewBox="0 0 24 24" className="mr-0 h-4 w-4">
@@ -248,7 +248,7 @@ function SignInWithPassword({
             }
           } else if (result && (typeof result.signingIn === 'undefined' || result.signingIn === true )){
             // Assume successful sign-in if signingIn is true or not present (older auth behavior might not have this field on success)
-            router.push("/onboarding");
+            router.push("/");
           } else {
             // Unexpected result structure
             toast({
@@ -500,7 +500,7 @@ function SignUpWithPassword({
                 onSignIn();
               }
             } else {
-              router.push("/onboarding");
+              router.push("/");
             }
           })
           .catch((error) => {
