@@ -74,18 +74,26 @@ export function getReadConnection(): Connection {
  */
 export async function executeRead<T = Record<string, unknown>>(
   query: string,
-  params: unknown[] = []
+  params: unknown[] = [],
+  options: { noCache?: boolean } = {}
 ): Promise<ExecutedQuery> {
   // Check if we should use Hyperdrive acceleration
   if (shouldUseHyperdrive()) {
     try {
       // ✅ fetch() is available in edge runtime (it's a Web Standard API)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.HYPERDRIVE_WORKER_TOKEN || ''}`,
+      };
+      
+      // Add cache-control header to bypass Hyperdrive caching if requested
+      if (options.noCache) {
+        headers['Cache-Control'] = 'no-store, must-revalidate';
+      }
+      
       const response = await fetch(process.env.HYPERDRIVE_WORKER_URL!, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.HYPERDRIVE_WORKER_TOKEN || ''}`,
-        },
+        headers,
         body: JSON.stringify({
           query,
           params,

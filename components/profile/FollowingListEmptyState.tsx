@@ -263,7 +263,7 @@ export const FollowingListEmptyState: React.FC<FollowingListEmptyStateProps> = (
   onExplore,
   className = "",
 }) => {
-  const baseClasses = "flex flex-col items-center justify-center min-h-[400px] bg-white rounded-lg";
+  const baseClasses = "flex flex-col items-center justify-center h-full bg-white rounded-lg";
   
   return (
     <div 

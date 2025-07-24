@@ -11,10 +11,8 @@ import type {
   RSSEntriesDisplayServerProps
 } from "@/lib/types";
 
-// Add caching configuration with 5-minute revalidation
-// This ensures the server component is cached for 5 minutes before revalidating
-// It applies to the entire component, including all data fetching operations
-export const revalidate = 300; // 5 minutes in seconds
+// Remove caching to ensure users always see fresh data including newly refreshed entries
+// This prevents the issue where refreshed entries disappear on page reload due to stale cache
 
 // Component-specific interface for RSS items with additional properties
 interface RSSItem {
@@ -221,9 +219,10 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
         `;
         
         // Execute both queries in parallel for efficiency using read replicas
+        // Use noCache option to ensure fresh data that includes newly refreshed entries
         [countResult, entriesResult] = await Promise.all([
-          executeRead(countQuery, [...postTitles]),
-          executeRead(entriesQuery, [...postTitles, pageSize, offset])
+          executeRead(countQuery, [...postTitles], { noCache: true }),
+          executeRead(entriesQuery, [...postTitles, pageSize, offset], { noCache: true })
         ]);
         
         totalEntries = Number((countResult.rows[0] as { total: number }).total);
@@ -232,8 +231,9 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
         setCachedCount(postTitles, totalEntries);
       } else {
         // Just execute the entries query if we have a cached count
+        // Use noCache to ensure fresh entries that include newly refreshed content
         devLog(`📊 SERVER: Using cached count: ${totalEntries}`);
-        entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize, offset]);
+        entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize, offset], { noCache: true });
       }
 
       const entries = entriesResult.rows as RSSEntryRow[];

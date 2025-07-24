@@ -644,26 +644,18 @@ export const NotificationsClient = memo(({ className }: NotificationsClientProps
   // Empty state
   if ((!initialQuery.notifications || initialQuery.notifications.length === 0) && !isLoadingMore) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 relative">
-        {/* Background subtle pattern */}
-        <div className="absolute inset-0 opacity-[0.02]">
-          <div className="absolute top-8 left-8 w-2 h-2 bg-foreground rounded-full"></div>
-          <div className="absolute top-16 right-12 w-1 h-1 bg-foreground rounded-full"></div>
-          <div className="absolute bottom-12 left-16 w-1.5 h-1.5 bg-foreground rounded-full"></div>
-          <div className="absolute bottom-8 right-8 w-1 h-1 bg-foreground rounded-full"></div>
-        </div>
-
+      <div className="flex flex-col items-center justify-center py-6 px-4">
         {/* Icon cluster */}
-        <div className="relative mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
-            <Bell className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+        <div className="relative mb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Bell className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
           </div>
         </div>
 
         {/* Text content */}
-        <div className="text-center space-y-2">
-          <h3 className="text-foreground font-medium text-base">No alerts yet</h3>
-          <p className="text-muted-foreground text-sm leading-relaxed">
+        <div className="text-center space-y-1">
+          <h3 className="text-foreground font-medium text-sm">No alerts yet</h3>
+          <p className="text-muted-foreground text-xs leading-relaxed">
             Notifications and friend requests will appear here
           </p>
         </div>
