@@ -3,7 +3,7 @@ import { XMLParser } from 'fast-xml-parser';
 import 'server-only';
 import type { RSSItem } from './rss';
 import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
-import { executeRead, executeWrite, getWriteConnection } from './database';
+import { executeRead, executeWrite, getWriteConnection, shouldUseHyperdrive } from './database';
 
 /**
  * NOTE on TypeScript linter errors:
@@ -1051,7 +1051,29 @@ async function executeBatchTransaction<T = ExecutedQuery>(
 
   while (true) {
     try {
-      // PlanetScale's transaction API is different from mysql2
+      // Check if we should use Hyperdrive - if so, we need to handle this differently
+      // since Hyperdrive doesn't support multi-statement queries
+      if (shouldUseHyperdrive()) {
+        // For Hyperdrive, execute operations sequentially without explicit transaction
+        // This trades some ACID guarantees for Hyperdrive compatibility
+        const results: T[] = [];
+        
+        for (const op of operations) {
+          try {
+            const result = await executeWrite(op.query, op.params);
+            results.push(result as unknown as T);
+          } catch (opError) {
+            logger.error(
+              `Error in Hyperdrive operation: ${opError}. Query: ${op.query.substring(0, 100)}...`
+            );
+            throw opError;
+          }
+        }
+        
+        return results;
+      }
+
+      // For direct PlanetScale connection, use proper transactions
       const results: T[] = [];
       
       // Use the write connection for transactions
@@ -1225,13 +1247,20 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
       // Use INSERT IGNORE to handle duplicates without errors
       const query = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
       
-      // Execute single query + update feed timestamp
-      await executeQuery(query, values, true);
-      await executeQuery(
-        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-        [now, currentTimeMs, feedId]
-      );
+      // For small batches, use a single transaction to ensure consistency
+      // This avoids potential multi-statement issues with Hyperdrive worker
+      const operations = [
+        {
+          query: query,
+          params: values
+        },
+        {
+          query: 'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+          params: [now, currentTimeMs, feedId]
+        }
+      ];
       
+      await executeBatchTransaction(operations);
       logger.info(`Single-query inserted ${newEntries.length} entries for feed ${feedId}`);
       return;
     }

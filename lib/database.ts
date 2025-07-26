@@ -12,7 +12,7 @@ let readConnection: Connection | null = null;
  * - globalThis: Standard Web API, available everywhere
  * - typeof checks: Standard JavaScript, works everywhere
  */
-function shouldUseHyperdrive(): boolean {
+export function shouldUseHyperdrive(): boolean {
   // Must have Hyperdrive Worker URL configured
   if (!process.env.HYPERDRIVE_WORKER_URL) {
     return false;
