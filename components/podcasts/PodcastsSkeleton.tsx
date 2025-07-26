@@ -3,7 +3,7 @@ import { memo } from 'react';
 // Individual podcast card skeleton
 const PodcastCardSkeleton = memo(() => (
   <div 
-    className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse"
+    className="bg-background rounded-lg border border-border p-4 animate-pulse"
     role="article"
     aria-label="Loading podcast episode"
     aria-busy="true"
@@ -11,21 +11,21 @@ const PodcastCardSkeleton = memo(() => (
     <div className="flex items-start space-x-3">
       {/* Podcast image skeleton */}
       <div 
-        className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0"
+        className="w-16 h-16 bg-muted rounded-lg flex-shrink-0"
         aria-label="Loading podcast cover image"
       ></div>
       
       <div className="flex-1 min-w-0">
         {/* Title skeleton */}
         <div 
-          className="h-5 bg-gray-200 rounded mb-2 w-3/4"
+          className="h-5 bg-muted rounded mb-2 w-3/4"
           aria-label="Loading podcast title"
         ></div>
         
         {/* Description skeleton */}
         <div className="space-y-1" aria-label="Loading podcast description">
-          <div className="h-3 bg-gray-200 rounded w-full"></div>
-          <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+          <div className="h-3 bg-muted rounded w-full"></div>
+          <div className="h-3 bg-muted rounded w-5/6"></div>
         </div>
         
         {/* Category/metadata skeleton */}
@@ -33,8 +33,8 @@ const PodcastCardSkeleton = memo(() => (
           className="flex items-center mt-3 space-x-2"
           aria-label="Loading podcast metadata"
         >
-          <div className="h-3 bg-gray-200 rounded w-16"></div>
-          <div className="h-3 bg-gray-200 rounded w-20"></div>
+          <div className="h-3 bg-muted rounded w-16"></div>
+          <div className="h-3 bg-muted rounded w-20"></div>
         </div>
       </div>
     </div>
@@ -54,7 +54,7 @@ const CategoryTabsSkeleton = memo(() => (
     {Array.from({ length: 6 }).map((_, i) => (
       <div
         key={i}
-        className="h-8 bg-gray-200 rounded-full animate-pulse flex-shrink-0"
+        className="h-8 bg-muted rounded-full animate-pulse flex-shrink-0"
         style={{ width: `${60 + Math.random() * 40}px` }}
         role="tab"
         aria-label={`Loading category ${i + 1}`}
@@ -98,11 +98,11 @@ export const PodcastsPageSkeleton = memo(() => (
     {/* Header skeleton */}
     <header className="mb-8" aria-label="Loading page header">
       <div 
-        className="h-8 bg-gray-200 rounded mb-2 w-1/3 animate-pulse"
+        className="h-8 bg-muted rounded mb-2 w-1/3 animate-pulse"
         aria-label="Loading page title"
       ></div>
       <div 
-        className="h-4 bg-gray-200 rounded w-2/3 animate-pulse"
+        className="h-4 bg-muted rounded w-2/3 animate-pulse"
         aria-label="Loading page description"
       ></div>
     </header>

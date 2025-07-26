@@ -229,16 +229,17 @@ const EntriesDisplayComponent = ({
         restoreStateFrom={undefined}
       />
       
-      {/* Intersection observer target with loading indicator */}
-      {hasMore && (
-        <div ref={loadMoreRef} className="h-52 flex items-center justify-center mb-20">
-          {isLoading && (
-            <NoFocusWrapper className="flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </NoFocusWrapper>
-          )}
-        </div>
-      )}
+      {/* Footer with spacing for mobile dock - always show for proper mobile UX */}
+      <div 
+        ref={hasMore ? loadMoreRef : undefined} 
+        className="h-52 flex items-center justify-center mb-20"
+      >
+        {hasMore && isLoading && (
+          <NoFocusWrapper className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </NoFocusWrapper>
+        )}
+      </div>
       
       {selectedCommentEntry && (
         <CommentSectionClient
