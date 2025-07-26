@@ -95,22 +95,22 @@ const MobileDockComponent = ({ className }: MobileDockProps) => {
   // Memoize the navItems array to prevent recreation on each render
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
-      { href: "/", icon: Home, label: "Home" },
-      { href: "/newsletters", icon: Mail, label: "Newsletters" },
-      { href: "/podcasts", icon: Podcast, label: "Podcasts" },
-      { href: "/chat", icon: MessageCircle, label: "AI Chat" },
+      { href: "/", icon: Home, label: "Home", prefetch: false },
+      { href: "/newsletters", icon: Mail, label: "Newsletters", prefetch: false },
+      { href: "/podcasts", icon: Podcast, label: "Podcasts", prefetch: false },
+      { href: "/chat", icon: MessageCircle, label: "AI Chat", prefetch: false },
     ];
     
     // ✅ ZERO FLASH: Add bookmarks only if authenticated (using effective state)
     if (effectiveIsAuthenticated) {
-      items.push({ href: "/bookmarks", icon: Bookmark, label: "Bookmarks" });
+      items.push({ href: "/bookmarks", icon: Bookmark, label: "Bookmarks", prefetch: false });
     }
     
     // ✅ ZERO FLASH: Add profile link based on effective authentication state
     items.push(
       effectiveIsAuthenticated 
         ? { href: `/@${username}`, icon: User, label: "Profile", prefetch: false }
-        : { href: "/signin", icon: User, label: "Sign In" }
+        : { href: "/signin", icon: User, label: "Sign In", prefetch: false }
     );
     
     return items;

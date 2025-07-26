@@ -7,7 +7,13 @@ import { ResendOTPVerify } from "./emailVerification/ResendOTPVerify";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
-    Google,
+    Google({
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
+      },
+    }),
     Password({
       verify: ResendOTPVerify,
       reset: ResendOTPPasswordReset,
