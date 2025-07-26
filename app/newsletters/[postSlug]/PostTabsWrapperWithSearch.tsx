@@ -7,6 +7,7 @@ import { RSSFeedClientWithErrorBoundary } from "@/components/postpage/RSSFeedCli
 import { useSearchResults } from "@/hooks/useSearchResults";
 import { useNewsletterPostTabsUI } from "@/hooks/useNewsletterPostTabsUI";
 import { useSearchFeedUI } from "@/hooks/useSearchFeedUI";
+import { Search } from 'lucide-react';
 import type { 
   NewsletterPostTabsWrapperWithSearchProps,
   NewsletterSearchRSSFeedClientProps,
@@ -33,9 +34,21 @@ const SearchEmptyState = React.memo(function SearchEmptyState({
   suggestion
 }: SearchEmptyStateComponentProps) {
   return (
-    <div className="text-center py-8 text-muted-foreground">
-      <p>{message}</p>
-      <p className="text-sm mt-2">{suggestion}</p>
+    <div className="flex flex-col items-center justify-center py-6 px-4">
+      {/* Icon cluster */}
+      <div className="relative mb-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+          <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+      </div>
+
+      {/* Text content */}
+      <div className="text-center space-y-1">
+        <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Try different keywords or browse categories
+        </p>
+      </div>
     </div>
   );
 });

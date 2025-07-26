@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { decode } from 'html-entities';
-import { Podcast, Mail } from 'lucide-react';
+import { Podcast, Mail, Search } from 'lucide-react';
 import { LikeButtonClient } from '@/components/like-button/LikeButtonClient';
 import { CommentSectionClient } from '@/components/comment-section/CommentSectionClient';
 import { RetweetButtonClientWithErrorBoundary } from '@/components/retweet-button/RetweetButtonClient';
@@ -181,8 +181,21 @@ const EntriesDisplayComponent = ({
 
   if (shouldShowEmpty) {
     return (
-      <div className={cn("py-8 text-center", className)}>
-        <p className="text-muted-foreground text-sm">No results found for &quot;{searchQuery}&quot;</p>
+      <div className={cn("flex flex-col items-center justify-center py-6 px-4", className)}>
+        {/* Icon cluster */}
+        <div className="relative mb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+            <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+          </div>
+        </div>
+
+        {/* Text content */}
+        <div className="text-center space-y-1">
+          <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Try different keywords or browse categories
+          </p>
+        </div>
       </div>
     );
   }

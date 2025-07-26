@@ -9,6 +9,7 @@ import { EntriesDisplay } from './EntriesDisplay';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenuClient';
+import { Search } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { SkeletonFeed } from './skeleton-feed';
 import { CategorySliderSkeleton } from './CategorySlider';
@@ -314,11 +315,21 @@ const CategorySwipeableWrapperComponent = ({
               {state.isSearchLoading || (state.searchTab === 'posts' && searchResults === undefined) ? (
                 <PostsDisplaySkeleton count={5} />
               ) : searchResults && searchResults.posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                  <p className="text-muted-foreground mb-2">No matches found</p>
-                  <p className="text-sm text-muted-foreground">
-                    Try different keywords or browse categories
-                  </p>
+                <div className="flex flex-col items-center justify-center py-6 px-4">
+                  {/* Icon cluster */}
+                  <div className="relative mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+                      <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+                    </div>
+                  </div>
+
+                  {/* Text content */}
+                  <div className="text-center space-y-1">
+                    <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      Try different keywords or browse categories
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <Suspense fallback={<PostsDisplaySkeleton count={5} />}>
