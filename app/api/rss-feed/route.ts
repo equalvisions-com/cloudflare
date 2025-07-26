@@ -24,8 +24,13 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Get initial entries with mediaTypes
-    const initialRSSData = await getInitialEntries();
+    // Check for noCache parameter to bypass Hyperdrive cache
+    const url = new URL(request.url);
+    const noCache = url.searchParams.get('noCache') === 'true';
+    
+    // Get initial entries - the function already uses noCache: true for database queries
+    // so we don't need to pass skipRefresh=true to get fresh data
+    const initialRSSData = await getInitialEntries(false);
     
     // If no data returned (user not authenticated or no RSS feeds)
     if (!initialRSSData) {
@@ -45,7 +50,8 @@ export async function GET(request: NextRequest) {
     devLog('Returning RSS data with mediaTypes:', {
       entriesCount: initialRSSData.entries.length,
       mediaTypesCount: initialRSSData.mediaTypes?.length || 0,
-      mediaTypes: initialRSSData.mediaTypes
+      mediaTypes: initialRSSData.mediaTypes,
+      cacheBypass: noCache
     });
     
     // Return the full data from the server component

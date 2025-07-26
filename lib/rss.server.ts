@@ -1577,7 +1577,7 @@ async function ensureRSSLocksTableExists(): Promise<void> {
           lock_key VARCHAR(255) PRIMARY KEY,
           expires_at BIGINT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB;`
+        ) ENGINE=InnoDB`
       );
       
       logger.info('rss_locks table created successfully');

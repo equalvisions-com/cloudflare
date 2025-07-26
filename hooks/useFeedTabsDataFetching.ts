@@ -163,7 +163,9 @@ export const useFeedTabsDataFetching = ({
       onRSSError(null);
 
       try {
-        const response = await fetch('/api/rss-feed', { signal });
+        // Add noCache parameter to bypass Hyperdrive cache when switching back to RSS tab
+        // This ensures we get fresh data that includes any entries added via refresh
+        const response = await fetch('/api/rss-feed?noCache=true', { signal });
         
         if (!response.ok) {
           throw new Error('Failed to fetch RSS feed data');
