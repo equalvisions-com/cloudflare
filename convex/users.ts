@@ -5,6 +5,7 @@ import { r2 } from "./r2";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { actionLimiter } from "./rateLimiters";
+import { alphabet, generateRandomString } from "oslo/crypto";
 
 /** How many profile updates a user may make per day. */
 const DAILY_PROFILE_LIMIT = 3;
@@ -186,8 +187,9 @@ export const getProfileImageUploadUrl = action({
       throw new Error("Unauthenticated");
     }
     
-    // Generate a unique key for the profile image based on the user ID
-    const key = `profile-images/${userId}_${Date.now()}`;
+    // Generate a unique key for the profile image using secure random string
+    const randomId = generateRandomString(32, alphabet("a-z", "A-Z", "0-9"));
+    const key = `profile-images/${randomId}_${Date.now()}`;
     
     try {
       // Generate a signed URL
