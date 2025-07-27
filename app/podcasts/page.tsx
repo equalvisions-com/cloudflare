@@ -1,6 +1,5 @@
 import { type Metadata } from 'next';
-import { memo, Suspense } from 'react';
-import dynamicImport from 'next/dynamic';
+import { memo } from 'react';
 import { getFeaturedPodcasts } from '@/lib/getFeaturedPodcasts';
 import { PodcastsProvider } from '@/lib/contexts/PodcastsContext';
 import { EntriesProvider } from '@/lib/contexts/EntriesContext';
@@ -10,14 +9,7 @@ import { PodcastsPageSkeleton } from "@/components/podcasts/PodcastsSkeleton";
 import { PodcastsErrorFallback } from "@/components/podcasts/PodcastsErrorFallback";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PodcastItem } from '@/lib/types';
-
-// Dynamic import of PodcastsWrapper with skeleton fallback
-const PodcastsWrapper = dynamicImport(
-  () => import("@/components/podcasts/PodcastsWrapper").then(mod => ({ default: mod.PodcastsWrapper })),
-  {
-    loading: () => <PodcastsPageSkeleton />,
-  }
-);
+import { PodcastsWrapper } from "@/components/podcasts/PodcastsWrapper";
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
@@ -130,9 +122,7 @@ const PodcastsPage = memo(async () => {
           <PodcastsProvider>
             <EntriesProvider>
               <ErrorBoundary fallback={<PodcastsErrorFallback />}>
-                <Suspense fallback={<PodcastsPageSkeleton />}>
-                  <PodcastsWrapper initialItems={typedItems} />
-                </Suspense>
+                <PodcastsWrapper initialItems={typedItems} />
               </ErrorBoundary>
             </EntriesProvider>
           </PodcastsProvider>

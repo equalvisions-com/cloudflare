@@ -1,6 +1,5 @@
 import { type Metadata } from 'next';
-import { memo, Suspense } from 'react';
-import dynamicImport from 'next/dynamic';
+import { memo } from 'react';
 import { getFeaturedNewsletters } from '@/lib/getFeaturedNewsletters';
 import { NewslettersProvider } from '@/lib/contexts/NewslettersContext';
 import { EntriesProvider } from '@/lib/contexts/EntriesContext';
@@ -10,14 +9,7 @@ import { NewslettersPageSkeleton } from "@/components/newsletters/NewslettersSke
 import { NewslettersErrorFallback } from "@/components/newsletters/NewslettersErrorFallback";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NewsletterItem } from '@/lib/types';
-
-// Dynamic import of NewslettersWrapper with skeleton fallback
-const NewslettersWrapper = dynamicImport(
-  () => import("@/components/newsletters/NewslettersWrapper").then(mod => ({ default: mod.NewslettersWrapper })),
-  {
-    loading: () => <NewslettersPageSkeleton />,
-  }
-);
+import { NewslettersWrapper } from "@/components/newsletters/NewslettersWrapper";
 
 // Add the Edge Runtime configuration
 export const runtime = 'edge';
@@ -130,9 +122,7 @@ const NewslettersPage = memo(async () => {
           <NewslettersProvider>
             <EntriesProvider>
               <ErrorBoundary fallback={<NewslettersErrorFallback />}>
-                <Suspense fallback={<NewslettersPageSkeleton />}>
-                  <NewslettersWrapper initialItems={typedItems} />
-                </Suspense>
+                <NewslettersWrapper initialItems={typedItems} />
               </ErrorBoundary>
             </EntriesProvider>
           </NewslettersProvider>
