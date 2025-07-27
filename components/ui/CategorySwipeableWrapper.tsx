@@ -12,7 +12,7 @@ import { UserMenuClientWithErrorBoundary } from '@/components/user-menu/UserMenu
 import { Search } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { SkeletonFeed } from './skeleton-feed';
-
+import { CategorySliderSkeleton } from './CategorySlider';
 import { useCategorySwipeable } from '@/lib/hooks/useCategorySwipeable';
 import { useCarouselEffects } from '@/lib/hooks/useCarouselEffects';
 import { 
@@ -102,14 +102,14 @@ SearchTabs.displayName = 'SearchTabs';
 const DynamicCategorySlider = dynamic(
   () => import('./CategorySlider'),
   {
-    loading: () => null,
+    loading: () => <CategorySliderSkeleton />,
     ssr: false
   }
 );
 
 const CategorySlider = (props: any) => {
   if (!props.categories?.length) {
-    return null;
+    return <CategorySliderSkeleton />;
   }
   return <DynamicCategorySlider {...props} />;
 };

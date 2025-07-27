@@ -4,7 +4,6 @@ import { memo, useEffect } from 'react';
 import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
 import { usePodcastsStore } from '@/lib/contexts/PodcastsContext';
 import { usePodcastsActions } from '@/lib/hooks/usePodcastsActions';
-import { PodcastsPageSkeleton } from './PodcastsSkeleton';
 import { PodcastItem } from '@/lib/types';
 
 interface PodcastsWrapperProps {
@@ -58,9 +57,24 @@ export const PodcastsWrapper = memo<PodcastsWrapperProps>(({ initialItems }) => 
     );
   }
 
-  // Loading state with proper skeleton that includes category tabs
+  // Loading state with accessibility
   if (isLoading && items.length === 0) {
-    return <PodcastsPageSkeleton />;
+    return (
+      <div 
+        className="w-full flex items-center justify-center py-8"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading podcasts"
+      >
+        <div className="flex items-center space-x-2">
+          <div 
+            className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+            aria-hidden="true"
+          ></div>
+          <span className="text-gray-600">Loading podcasts...</span>
+        </div>
+      </div>
+    );
   }
 
   // Main content with accessibility

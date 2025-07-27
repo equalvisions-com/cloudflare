@@ -43,29 +43,7 @@ const PodcastCardSkeleton = memo(() => (
 
 PodcastCardSkeleton.displayName = 'PodcastCardSkeleton';
 
-// Category tabs skeleton
-const CategoryTabsSkeleton = memo(() => (
-  <div 
-    className="flex space-x-2 mb-6 overflow-x-auto"
-    role="tablist"
-    aria-label="Loading podcast categories"
-    aria-busy="true"
-  >
-    {Array.from({ length: 6 }).map((_, i) => (
-      <div
-        key={i}
-        className="h-8 bg-muted rounded-full animate-pulse flex-shrink-0"
-        style={{ width: `${60 + Math.random() * 40}px` }}
-        role="tab"
-        aria-label={`Loading category ${i + 1}`}
-        aria-selected="false"
-        tabIndex={-1}
-      ></div>
-    ))}
-  </div>
-));
-
-CategoryTabsSkeleton.displayName = 'CategoryTabsSkeleton';
+// Category tabs skeleton - REMOVED to prevent pill-shaped skeletons
 
 // List of podcast skeletons
 interface PodcastsListSkeletonProps {
@@ -87,7 +65,7 @@ const PodcastsListSkeleton = memo<PodcastsListSkeletonProps>(({ count = 8 }) => 
 
 PodcastsListSkeleton.displayName = 'PodcastsListSkeleton';
 
-// Complete page skeleton
+// Complete page skeleton - simplified to remove pill-shaped categories
 export const PodcastsPageSkeleton = memo(() => (
   <div 
     className="w-full"
@@ -95,22 +73,7 @@ export const PodcastsPageSkeleton = memo(() => (
     aria-label="Loading podcasts page"
     aria-busy="true"
   >
-    {/* Header skeleton */}
-    <header className="mb-8" aria-label="Loading page header">
-      <div 
-        className="h-8 bg-muted rounded mb-2 w-1/3 animate-pulse"
-        aria-label="Loading page title"
-      ></div>
-      <div 
-        className="h-4 bg-muted rounded w-2/3 animate-pulse"
-        aria-label="Loading page description"
-      ></div>
-    </header>
-    
-    {/* Category tabs skeleton */}
-    <CategoryTabsSkeleton />
-    
-    {/* Podcasts list skeleton */}
+    {/* Podcasts list skeleton only - no pill categories */}
     <section aria-label="Loading podcast episodes">
       <PodcastsListSkeleton />
     </section>
@@ -129,4 +92,4 @@ export const PodcastsPageSkeleton = memo(() => (
 PodcastsPageSkeleton.displayName = 'PodcastsPageSkeleton';
 
 // Export individual components for flexibility
-export { PodcastCardSkeleton, CategoryTabsSkeleton, PodcastsListSkeleton }; 
+export { PodcastCardSkeleton, PodcastsListSkeleton }; 

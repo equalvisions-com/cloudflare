@@ -7,7 +7,23 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from './skeleton';
 import { CategorySliderProps } from '@/lib/types';
 
+// Skeleton loader component for the CategorySlider
+export const CategorySliderSkeleton = memo(() => (
+    <div className="grid w-full overflow-hidden">
+      <div className="overflow-hidden">
+        <div className="flex mx-4 gap-6 transform-gpu items-center mt-1 mb-[13px]">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-[15px] w-20 flex-none rounded-md"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+));
 
+CategorySliderSkeleton.displayName = 'CategorySliderSkeleton';
 
 // Custom hook for carousel logic
 const useCarouselLogic = (
@@ -223,9 +239,9 @@ const CategorySliderComponent = ({
   // Use the combined effects hook
   useCarouselEffects(emblaApi, selectedIndex, scrollToCategory, preventOverscroll, setIsDragging);
 
-  // Don't render if no categories available
-  if (!categories?.length) {
-    return null;
+  // Show skeleton while loading
+  if (isLoading || !categories?.length) {
+    return <CategorySliderSkeleton />;
   }
 
   return (

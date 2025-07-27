@@ -4,7 +4,6 @@ import { memo, useEffect } from 'react';
 import { CategorySwipeableWrapper } from "@/components/ui/CategorySwipeableWrapper";
 import { useNewslettersStore } from '@/lib/contexts/NewslettersContext';
 import { useNewslettersActions } from '@/lib/hooks/useNewslettersActions';
-import { NewslettersPageSkeleton } from './NewslettersSkeleton';
 import { NewsletterItem } from '@/lib/types';
 
 interface NewslettersWrapperProps {
@@ -58,9 +57,24 @@ export const NewslettersWrapper = memo<NewslettersWrapperProps>(({ initialItems 
     );
   }
 
-  // Loading state with proper skeleton that includes category tabs
+  // Loading state with accessibility
   if (isLoading && items.length === 0) {
-    return <NewslettersPageSkeleton />;
+    return (
+      <div 
+        className="w-full flex items-center justify-center py-8"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading newsletters"
+      >
+        <div className="flex items-center space-x-2">
+          <div 
+            className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+            aria-hidden="true"
+          ></div>
+          <span className="text-gray-600">Loading newsletters...</span>
+        </div>
+      </div>
+    );
   }
 
   // Main content with accessibility
