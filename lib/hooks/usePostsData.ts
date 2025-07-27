@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useSidebar } from '@/components/ui/sidebar-context';
 import { Post } from '@/lib/types';
+import { mutate as globalMutate } from 'swr';
 
 interface UsePostsDataProps {
   categoryId: string;
   mediaType: string;
   searchQuery?: string;
-  initialPosts?: Post[];
-  isVisible?: boolean;
+  initialPosts: Post[];
+  isVisible: boolean;
   globalFollowStates?: boolean[] | undefined;
 }
 
@@ -16,45 +18,48 @@ export const usePostsData = ({
   categoryId,
   mediaType,
   searchQuery = '',
-  initialPosts = [],
-  isVisible = true,
+  initialPosts,
+  isVisible,
   globalFollowStates,
 }: UsePostsDataProps) => {
-  const { isAuthenticated } = useConvexAuth();
-  
-  // Local state for each PostsDisplay instance
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
+  const { isAuthenticated } = useSidebar();
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [shouldLoadMore, setShouldLoadMore] = useState(false);
-
-  // Track the last category/search to detect changes
-  const lastParamsRef = useRef({ categoryId: '', searchQuery: '', isAuthenticated: false });
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
-  // Track if we've already processed follow states for current posts
+  // Track whether follow states have been processed to prevent double processing
   const followStatesProcessedRef = useRef(false);
 
-  // Memoize query parameters to prevent unnecessary re-renders
-  const queryParams = useMemo(() => {
-    const cursor = shouldLoadMore ? nextCursor : undefined;
-    return searchQuery 
-      ? { query: searchQuery, mediaType, cursor: cursor || undefined, limit: 10 }
-      : { categoryId, mediaType, cursor: cursor || undefined, limit: 10 };
-  }, [searchQuery, mediaType, nextCursor, categoryId, shouldLoadMore]);
-
-  // Query for posts - either search results or category posts (ONLY when visible)
-  // Skip individual queries if we have initial posts (use only for pagination)
+  // Check if we should make individual queries (skip for initial load efficiency)
   const shouldMakeIndividualQuery = useMemo(() => {
-    // Always query for search results
+    // For search queries, always make individual queries since we don't have initial data
     if (searchQuery) return true;
     
-    // For category posts, only query if:
-    // 1. We don't have initial posts (fallback), OR
-    // 2. We're paginating (shouldLoadMore is true)
-    return initialPosts.length === 0 || shouldLoadMore;
-  }, [searchQuery, initialPosts.length, shouldLoadMore]);
+    // For category queries, skip if we have initial posts to use batched approach
+    return initialPosts.length === 0;
+  }, [searchQuery, initialPosts.length]);
+
+  // Build query parameters based on whether it's a search or category query
+  const queryParams = useMemo(() => {
+    if (searchQuery) {
+      return {
+        searchQuery,
+        mediaType,
+        limit: 10,
+        cursor: shouldLoadMore ? nextCursor : null
+      };
+    } else {
+      return {
+        categoryId,
+        mediaType,
+        limit: 10,
+        cursor: shouldLoadMore ? nextCursor : null
+      };
+    }
+  }, [searchQuery, mediaType, categoryId, shouldLoadMore, nextCursor]);
 
   const postsResult = useQuery(
     searchQuery ? api.posts.searchPosts : api.categories.getPostsByCategory,
@@ -86,71 +91,66 @@ export const usePostsData = ({
     }));
   }, [isAuthenticated]);
 
-  // Reset and initialize when category, search, or auth changes
+  // Handle query results for pagination
   useEffect(() => {
-    const currentParams = { categoryId, searchQuery, isAuthenticated };
-    const lastParams = lastParamsRef.current;
-    
-    // Only reset if the parameters actually changed
-    if (lastParams.categoryId !== currentParams.categoryId || 
-        lastParams.searchQuery !== currentParams.searchQuery ||
-        lastParams.isAuthenticated !== currentParams.isAuthenticated) {
-      
-      // Update the ref first to prevent infinite loops
-      lastParamsRef.current = currentParams;
-      
-      // Reset follow states processed flag
-      followStatesProcessedRef.current = false;
-      
-      // Reset local state
-      setPosts([]);
-      setNextCursor(undefined);
-      setHasMore(true);
-      setIsLoading(false);
-      setShouldLoadMore(false);
-      
-      // Initialize with initial posts if provided
-      if (initialPosts.length > 0) {
-        const postsWithAuth = initialPosts.map(post => ({
-          ...post,
-          isAuthenticated,
-        }));
-        setPosts(postsWithAuth);
-        setNextCursor(undefined);
-        setIsInitialLoad(false);
-      } else {
-        setIsInitialLoad(true);
-      }
-    }
-  }, [categoryId, searchQuery, isAuthenticated, initialPosts]);
+    if (!isVisible || !postsResult || !shouldLoadMore) return;
 
-  // Handle query results (both initial and pagination)
-  useEffect(() => {
-    if (isVisible && postsResult) {
-      const newPosts = postsResult.posts as Post[];
-      const postsWithAuth = newPosts.map(post => ({
-        ...post,
-        isAuthenticated,
-      }));
+    const { posts: newPosts, nextCursor: newNextCursor, hasMore: newHasMore } = postsResult;
+
+    if (newPosts && newPosts.length > 0) {
+      const processedNewPosts = processNewPosts(newPosts);
       
-      if (shouldLoadMore) {
-        // This is a pagination request - append to existing posts
-        setPosts(prevPosts => [...prevPosts, ...postsWithAuth]);
-        setShouldLoadMore(false);
-        setIsLoading(false);
-      } else if (isInitialLoad) {
-        // This is the initial load
-        setPosts(postsWithAuth);
+      setPosts(prevPosts => [...prevPosts, ...processedNewPosts]);
+      setNextCursor(newNextCursor || null);
+      setHasMore(newHasMore ?? false);
+    } else {
+      setHasMore(false);
+    }
+
+    setIsLoading(false);
+    setShouldLoadMore(false);
+  }, [isVisible, postsResult, shouldLoadMore, processNewPosts]);
+
+  // Initialize posts and pagination for both initial data and individual queries
+  useEffect(() => {
+    if (!isVisible) return;
+
+    // For search queries or when we don't have initial data, use query results
+    if (shouldMakeIndividualQuery && postsResult && !shouldLoadMore) {
+      const { posts: newPosts, nextCursor: newNextCursor, hasMore: newHasMore } = postsResult;
+      
+      if (newPosts) {
+        const processedPosts = processNewPosts(newPosts);
+        setPosts(processedPosts);
+        setNextCursor(newNextCursor || null);
+        setHasMore(newHasMore ?? false);
         setIsInitialLoad(false);
       }
+    } 
+    // For category queries with initial data, use the provided posts
+    else if (!shouldMakeIndividualQuery && initialPosts.length > 0) {
+      const processedPosts = processNewPosts(initialPosts);
+      setPosts(processedPosts);
       
-      setNextCursor(postsResult.nextCursor);
-      setHasMore(!!postsResult.nextCursor);
-      
-      // Reset follow states processed flag when new posts are loaded
+      // Set pagination state based on initial data
+      setHasMore(processedPosts.length >= 10); // Assume more if we have a full page
+      setNextCursor(null); // Will be set when we need to load more
+      setIsInitialLoad(false);
+    }
+  }, [isVisible, shouldMakeIndividualQuery, postsResult, initialPosts, shouldLoadMore, processNewPosts]);
+
+  // Reset state when query params change (for searches)
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    if (searchQuery) {
+      setPosts([]);
+      setHasMore(true);
+      setNextCursor(null);
+      setIsInitialLoad(true);
       followStatesProcessedRef.current = false;
     }
-  }, [isVisible, postsResult, isAuthenticated, shouldLoadMore, isInitialLoad]);
+  }, [isVisible, searchQuery]);
 
   // Update follow states when they load - handle both global and pagination follow states
   useEffect(() => {
@@ -204,13 +204,23 @@ export const usePostsData = ({
     setShouldLoadMore(true);
   }, [isVisible, hasMore, isLoading, shouldLoadMore, nextCursor]);
 
-  // Update post function for follow button interactions
+  // GLOBAL update post function for follow button interactions
   const updatePost = useCallback((postId: string, updates: Partial<Post>) => {
+    // Update local state
     setPosts(prevPosts => 
       prevPosts.map(post => 
         post._id === postId ? { ...post, ...updates } : post
       )
     );
+    
+    // CRITICAL: Also trigger global SWR mutations to sync across ALL PostsDisplay components
+    // This ensures that when a post is followed in one category, it updates everywhere
+    if (updates.hasOwnProperty('isFollowing')) {
+      // Invalidate all follow-related SWR caches globally
+      globalMutate((key: string) => typeof key === 'string' && key.startsWith('/api/follows'));
+      globalMutate('/api/rss');
+      globalMutate('/api/rss?refresh=true');
+    }
   }, []);
 
   // Cleanup on unmount
