@@ -26,7 +26,7 @@ export const usePostsData = ({
   const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [shouldLoadMore, setShouldLoadMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
@@ -46,17 +46,17 @@ export const usePostsData = ({
   const queryParams = useMemo(() => {
     if (searchQuery) {
       return {
-        searchQuery,
+        query: searchQuery, // API expects 'query', not 'searchQuery'
         mediaType,
         limit: 10,
-        cursor: shouldLoadMore ? nextCursor : null
+        cursor: shouldLoadMore ? nextCursor || undefined : undefined
       };
     } else {
       return {
         categoryId,
         mediaType,
         limit: 10,
-        cursor: shouldLoadMore ? nextCursor : null
+        cursor: shouldLoadMore ? nextCursor || undefined : undefined
       };
     }
   }, [searchQuery, mediaType, categoryId, shouldLoadMore, nextCursor]);
@@ -101,7 +101,7 @@ export const usePostsData = ({
       const processedNewPosts = processNewPosts(newPosts);
       
       setPosts(prevPosts => [...prevPosts, ...processedNewPosts]);
-      setNextCursor(newNextCursor || null);
+      setNextCursor(newNextCursor || undefined);
       setHasMore(newHasMore ?? false);
     } else {
       setHasMore(false);
@@ -122,7 +122,7 @@ export const usePostsData = ({
       if (newPosts) {
         const processedPosts = processNewPosts(newPosts);
         setPosts(processedPosts);
-        setNextCursor(newNextCursor || null);
+        setNextCursor(newNextCursor || undefined);
         setHasMore(newHasMore ?? false);
         setIsInitialLoad(false);
       }
@@ -134,7 +134,7 @@ export const usePostsData = ({
       
       // Set pagination state based on initial data
       setHasMore(processedPosts.length >= 10); // Assume more if we have a full page
-      setNextCursor(null); // Will be set when we need to load more
+      setNextCursor(undefined); // Will be set when we need to load more
       setIsInitialLoad(false);
     }
   }, [isVisible, shouldMakeIndividualQuery, postsResult, initialPosts, shouldLoadMore, processNewPosts]);
@@ -146,7 +146,7 @@ export const usePostsData = ({
     if (searchQuery) {
       setPosts([]);
       setHasMore(true);
-      setNextCursor(null);
+      setNextCursor(undefined);
       setIsInitialLoad(true);
       followStatesProcessedRef.current = false;
     }
