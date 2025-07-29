@@ -79,14 +79,15 @@ export async function POST(request: NextRequest) {
     
     for (const queueMessage of messages) {
       try {
-        devLog('🔍 QUEUE CONSUMER: Message content', queueMessage);
+        // Always log in production for debugging
+        console.log('🔍 QUEUE CONSUMER: Message content', queueMessage);
         
         if (!queueMessage || typeof queueMessage !== 'object') {
           throw new Error('Invalid message: not an object');
         }
         
         if (!queueMessage.feeds || !Array.isArray(queueMessage.feeds)) {
-          devLog('❌ QUEUE CONSUMER: Missing or invalid feeds', {
+          console.log('❌ QUEUE CONSUMER: Missing or invalid feeds', {
             hasFeeds: !!queueMessage.feeds,
             feedsType: typeof queueMessage.feeds,
             messageKeys: Object.keys(queueMessage),

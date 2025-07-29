@@ -45,6 +45,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { postTitles, feedUrls, mediaTypes, existingGuids = [], newestEntryDate, priority = 'normal' } = body;
     
+    // Always log for debugging
+    console.log('📥 QUEUE PRODUCER: Received request', {
+      postTitlesCount: postTitles?.length || 0,
+      feedUrlsCount: feedUrls?.length || 0,
+      mediaTypesCount: mediaTypes?.length || 0,
+      existingGuidsCount: existingGuids?.length || 0,
+      newestEntryDate,
+      priority
+    });
+    
     devLog('📥 QUEUE PRODUCER: Received refresh request', {
       postTitlesCount: postTitles?.length || 0,
       feedUrlsCount: feedUrls?.length || 0,
@@ -109,7 +119,8 @@ export async function POST(request: NextRequest) {
       maxRetries: 3
     };
 
-    devLog('📤 QUEUE PRODUCER: Sending message', {
+    // Always log in production for debugging
+    console.log('📤 QUEUE PRODUCER: Sending message', {
       batchId,
       feedsCount: feeds.length,
       messageStructure: {
