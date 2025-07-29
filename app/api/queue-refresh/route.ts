@@ -109,6 +109,17 @@ export async function POST(request: NextRequest) {
       maxRetries: 3
     };
 
+    devLog('📤 QUEUE PRODUCER: Sending message', {
+      batchId,
+      feedsCount: feeds.length,
+      messageStructure: {
+        hasFeeds: !!queueMessage.feeds,
+        feedsLength: queueMessage.feeds?.length,
+        feedsType: typeof queueMessage.feeds,
+        sampleFeed: queueMessage.feeds?.[0]
+      }
+    });
+
     // Access the queue binding
     // @ts-ignore QUEUE is injected by Cloudflare runtime
     const queue = (globalThis as any).QUEUE || (process.env as any).QUEUE;
