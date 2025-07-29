@@ -103,6 +103,8 @@ export const useRSSEntriesQueueRefresh = ({
   // Track current batch for polling
   const currentBatchRef = useRef<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartTimeRef = useRef<number>(0);
+  const maxPollTimeMs = 30000; // 30 seconds maximum polling
 
   // Helper function to get refresh request body
   const getRefreshRequestBody = useCallback(() => {
@@ -158,6 +160,45 @@ export const useRSSEntriesQueueRefresh = ({
   // Poll for batch completion
   const pollBatchStatus = useCallback(async (batchId: string) => {
     try {
+      // Check if we've been polling too long
+      const pollTime = Date.now() - pollStartTimeRef.current;
+      if (pollTime > maxPollTimeMs) {
+        // Stop polling and fallback to direct processing
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        currentBatchRef.current = null;
+        
+        if (isMountedRef.current) {
+          console.log('⚠️ Queue timeout - falling back to direct refresh');
+          // Fallback to direct refresh
+          try {
+            const directResponse = await fetch('/api/refresh-feeds', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(getRefreshRequestBody()),
+            });
+            
+            if (directResponse.ok) {
+              const data = await directResponse.json();
+              if (data.success) {
+                setHasRefreshed(true);
+                if (data.postTitles?.length) setPostTitles(data.postTitles);
+                if (data.totalEntries) setTotalEntries(data.totalEntries);
+                if (data.refreshedAny && data.entries?.length) {
+                  processNewEntries(data.entries);
+                }
+              }
+            }
+          } catch (fallbackError) {
+            setRefreshError('Refresh failed - please try again');
+          }
+          setRefreshing(false);
+        }
+        return;
+      }
+
       const response = await fetch(`/api/queue-refresh?batchId=${batchId}`);
       
       if (!response.ok) {
@@ -231,7 +272,7 @@ export const useRSSEntriesQueueRefresh = ({
       console.error('Error polling batch status:', error);
       // Don't stop polling on individual poll errors, but limit retries
     }
-  }, [isMountedRef, setHasRefreshed, setPostTitles, setTotalEntries, processNewEntries, setRefreshing, setRefreshError]);
+  }, [isMountedRef, setHasRefreshed, setPostTitles, setTotalEntries, processNewEntries, setRefreshing, setRefreshError, getRefreshRequestBody]);
 
   // Main queue-based refresh function
   const triggerOneTimeRefresh = useCallback(async () => {
@@ -274,6 +315,7 @@ export const useRSSEntriesQueueRefresh = ({
       if (queueResponse.success && queueResponse.batchId) {
         // Store batch ID for tracking
         currentBatchRef.current = queueResponse.batchId;
+        pollStartTimeRef.current = Date.now(); // Record when polling started
         
         // Start polling for completion
         pollIntervalRef.current = setInterval(() => {
