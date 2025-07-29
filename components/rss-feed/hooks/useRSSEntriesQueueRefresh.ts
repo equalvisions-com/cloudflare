@@ -331,6 +331,18 @@ export const useRSSEntriesQueueRefresh = ({
           }
         }, 1000); // Wait 1 second before first poll
         
+        // Quick fallback if queue processing fails
+        setTimeout(() => {
+          if (currentBatchRef.current && isMountedRef.current) {
+            console.log('⚠️ Queue taking too long - using direct fallback');
+            // Trigger fallback after 10 seconds instead of 30
+            const pollTime = Date.now() - pollStartTimeRef.current;
+            if (pollTime > 10000) { // 10 seconds
+              pollBatchStatus(currentBatchRef.current);
+            }
+          }
+        }, 10000); // Quick fallback after 10 seconds
+        
       } else {
         setRefreshError(queueResponse.error || 'Failed to queue refresh');
         setRefreshing(false);
