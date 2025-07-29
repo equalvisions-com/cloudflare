@@ -273,8 +273,8 @@ async function getNewEntriesFromRefresh(
       pubDate: entry.pub_date,
       description: entry.description,
       content: entry.content,
-      image: entry.image,
-      mediaType: entry.media_type,
+      image: entry.image || undefined,
+      mediaType: entry.media_type || undefined,
       feedTitle: entry.feed_title,
       feedUrl: entry.feed_url
     }));
@@ -282,44 +282,23 @@ async function getNewEntriesFromRefresh(
     // Get entry metrics if we have user context
     let entriesWithData: RSSEntriesDisplayEntry[] = [];
     
-    if (userId) {
-      // TODO: Get proper auth token for user context
-      // For now, create entries with default metrics
-      entriesWithData = mappedEntries.map(entry => ({
-        entry,
-        initialData: {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-          retweets: { isRetweeted: false, count: 0 }
-        },
-        postMetadata: {
-          title: entry.feedTitle || entry.title || '',
-          featuredImg: entry.image || '',
-          mediaType: entry.mediaType || null,
-          postSlug: '',
-          categorySlug: '',
-          verified: false
-        }
-      }));
-    } else {
-      // Without user context, return basic format
-      entriesWithData = mappedEntries.map(entry => ({
-        entry,
-        initialData: {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-          retweets: { isRetweeted: false, count: 0 }
-        },
-        postMetadata: {
-          title: entry.feedTitle || '',
-          featuredImg: entry.image || '',
-          mediaType: entry.mediaType || null,
-          postSlug: '',
-          categorySlug: '',
-          verified: false
-        }
-      }));
-    }
+    // Create entries with default metrics (since we don't have user context in queue)
+    entriesWithData = mappedEntries.map(entry => ({
+      entry,
+      initialData: {
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 }
+      },
+      postMetadata: {
+        title: entry.feedTitle || '',
+        featuredImg: entry.image || '',
+        mediaType: entry.mediaType || undefined,
+        postSlug: '',
+        categorySlug: '',
+        verified: false
+      }
+    }));
 
     return { 
       entries: entriesWithData, 
