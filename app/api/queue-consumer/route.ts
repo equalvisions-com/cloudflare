@@ -53,119 +53,139 @@ export async function POST(request: NextRequest) {
   
   try {
     // This endpoint is called by Cloudflare Queues
-    // The queue message will be in the request body
-    const queueMessage: QueueFeedRefreshMessage = await request.json();
+    // Cloudflare sends queue messages in a specific format
+    const requestBody = await request.json();
     
-    devLog('🔄 QUEUE CONSUMER: Processing batch', {
-      batchId: queueMessage.batchId,
-      feedCount: queueMessage.feeds.length,
-      priority: queueMessage.priority,
-      retryCount: queueMessage.retryCount
-    });
+    devLog('🔄 QUEUE CONSUMER: Received request body', requestBody);
+    
+    // Handle Cloudflare Queue message format
+    let messages: QueueFeedRefreshMessage[] = [];
+    
+    if (requestBody.messages && Array.isArray(requestBody.messages)) {
+      // Cloudflare queue format: { messages: [...] }
+      messages = requestBody.messages.map((msg: any) => msg.body);
+    } else if (requestBody.batchId) {
+      // Direct format (for testing)
+      messages = [requestBody];
+    } else {
+      throw new Error('Invalid message format');
+    }
+    
+    devLog(`🔄 QUEUE CONSUMER: Processing ${messages.length} messages`);
+    
+    // Process each message
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+    
+    for (const queueMessage of messages) {
+      try {
+        if (!queueMessage.feeds || !Array.isArray(queueMessage.feeds)) {
+          throw new Error('Invalid message: feeds array missing');
+        }
+        
+        devLog('🔄 QUEUE CONSUMER: Processing batch', {
+          batchId: queueMessage.batchId,
+          feedCount: queueMessage.feeds.length,
+          priority: queueMessage.priority,
+          retryCount: queueMessage.retryCount
+        });
 
-    const { batchId, feeds, existingGuids = [], newestEntryDate, userId } = queueMessage;
+                const { batchId, feeds, existingGuids = [], newestEntryDate, userId } = queueMessage;
 
-    // Extract arrays for processing
-    const postTitles = feeds.map(feed => feed.postTitle);
-    const feedUrls = feeds.map(feed => feed.feedUrl);
-    const mediaTypes = feeds.map(feed => feed.mediaType).filter(Boolean) as string[];
+        // Extract arrays for processing
+        const postTitles = feeds.map(feed => feed.postTitle);
+        const feedUrls = feeds.map(feed => feed.feedUrl);
+        const mediaTypes = feeds.map(feed => feed.mediaType).filter(Boolean) as string[];
 
-    try {
-      // Check which feeds need refreshing (older than 4 hours)
-      const staleFeedTitles = await checkFeedsNeedingRefresh(postTitles);
-      
-      let refreshedAny = false;
-      
-      if (staleFeedTitles.length === 0) {
-        devLog('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
-      } else {
-        devLog(`🔄 QUEUE CONSUMER: Found ${staleFeedTitles.length} stale feeds that need refreshing`, { 
-          batchId, 
-          staleFeedTitles 
+        // Check which feeds need refreshing (older than 4 hours)
+        const staleFeedTitles = await checkFeedsNeedingRefresh(postTitles);
+        
+        let refreshedAny = false;
+        
+        if (staleFeedTitles.length === 0) {
+          devLog('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
+        } else {
+          devLog(`🔄 QUEUE CONSUMER: Found ${staleFeedTitles.length} stale feeds that need refreshing`, { 
+            batchId, 
+            staleFeedTitles 
+          });
+          
+          // Check if any feeds are new (don't exist yet)
+          const allExistingFeeds = await getAllExistingFeeds(postTitles);
+          const newFeeds = postTitles.filter((title: string) => !allExistingFeeds.includes(title));
+          
+          if (newFeeds.length > 0) {
+            devLog(`🆕 QUEUE CONSUMER: Found ${newFeeds.length} new feeds to create`, { 
+              batchId, 
+              newFeeds 
+            });
+            refreshedAny = true;
+          }
+          
+          // Process refresh if needed
+          if (staleFeedTitles.length > 0 || newFeeds.length > 0) {
+            devLog(`🔄 QUEUE CONSUMER: Checking and refreshing feeds`, { batchId });
+            
+            const stringMediaTypes = mediaTypes.map((mt: any) => mt === null ? undefined : mt) as string[] | undefined;
+            await checkAndRefreshFeeds(postTitles, feedUrls, stringMediaTypes);
+            refreshedAny = true;
+          }
+        }
+        
+        // Get new entries that were inserted during this refresh cycle
+        let newEntries: { entries: RSSEntriesDisplayEntry[], totalEntries: number } = { 
+          entries: [], 
+          totalEntries: 0 
+        };
+        
+        if (refreshedAny) {
+          newEntries = await getNewEntriesFromRefresh(postTitles, existingGuids, newestEntryDate, userId);
+          
+          if (newEntries.entries.length > 0) {
+            devLog(`✅ QUEUE CONSUMER: Found ${newEntries.entries.length} new entries from refresh`, { batchId });
+          } else {
+            devLog('✅ QUEUE CONSUMER: No new entries found after refresh', { batchId });
+          }
+        }
+        
+        const processingTime = Date.now() - startTime;
+        
+        // Create result
+        const result: QueueFeedRefreshResult = {
+          batchId,
+          success: true,
+          refreshedAny,
+          entries: newEntries.entries,
+          newEntriesCount: newEntries.entries.length,
+          totalEntries: newEntries.totalEntries,
+          postTitles,
+          refreshTimestamp: new Date().toISOString(),
+          processingTimeMs: processingTime
+        };
+        
+        devLog('✅ QUEUE CONSUMER: Batch processing completed', {
+          batchId,
+          processingTimeMs: processingTime,
+          refreshedAny: result.refreshedAny,
+          newEntriesCount: result.newEntriesCount
         });
         
-        // Check if any feeds are new (don't exist yet)
-        const allExistingFeeds = await getAllExistingFeeds(postTitles);
-        const newFeeds = postTitles.filter((title: string) => !allExistingFeeds.includes(title));
+        // TODO: Store result in KV or send to webhook endpoint for client notification
+        totalSuccessful++;
         
-        if (newFeeds.length > 0) {
-          devLog(`🆕 QUEUE CONSUMER: Found ${newFeeds.length} new feeds to create`, { 
-            batchId, 
-            newFeeds 
-          });
-          refreshedAny = true;
-        }
-        
-        // Process refresh if needed
-        if (staleFeedTitles.length > 0 || newFeeds.length > 0) {
-          devLog(`🔄 QUEUE CONSUMER: Checking and refreshing feeds`, { batchId });
-          
-          const stringMediaTypes = mediaTypes.map((mt: any) => mt === null ? undefined : mt) as string[] | undefined;
-          await checkAndRefreshFeeds(postTitles, feedUrls, stringMediaTypes);
-          refreshedAny = true;
-        }
+      } catch (messageError) {
+        errorLog('❌ QUEUE: Error processing message', messageError);
+        totalFailed++;
       }
-      
-      // Get new entries that were inserted during this refresh cycle
-      let newEntries: { entries: RSSEntriesDisplayEntry[], totalEntries: number } = { 
-        entries: [], 
-        totalEntries: 0 
-      };
-      
-      if (refreshedAny) {
-        newEntries = await getNewEntriesFromRefresh(postTitles, existingGuids, newestEntryDate, userId);
-        
-        if (newEntries.entries.length > 0) {
-          devLog(`✅ QUEUE CONSUMER: Found ${newEntries.entries.length} new entries from refresh`, { batchId });
-        } else {
-          devLog('✅ QUEUE CONSUMER: No new entries found after refresh', { batchId });
-        }
-      }
-      
-      const processingTime = Date.now() - startTime;
-      
-      // Create result
-      const result: QueueFeedRefreshResult = {
-        batchId,
-        success: true,
-        refreshedAny,
-        entries: newEntries.entries,
-        newEntriesCount: newEntries.entries.length,
-        totalEntries: newEntries.totalEntries,
-        postTitles,
-        refreshTimestamp: new Date().toISOString(),
-        processingTimeMs: processingTime
-      };
-      
-      devLog('✅ QUEUE CONSUMER: Batch processing completed', {
-        batchId,
-        processingTimeMs: processingTime,
-        refreshedAny: result.refreshedAny,
-        newEntriesCount: result.newEntriesCount
-      });
-      
-      // TODO: Store result in KV or send to webhook endpoint for client notification
-      // For now, just return success
-      return NextResponse.json({ success: true, result });
-      
-    } catch (processingError) {
-      errorLog('❌ QUEUE CONSUMER: Error processing feeds', processingError);
-      
-      const result: QueueFeedRefreshResult = {
-        batchId,
-        success: false,
-        refreshedAny: false,
-        entries: [],
-        newEntriesCount: 0,
-        totalEntries: 0,
-        postTitles,
-        refreshTimestamp: new Date().toISOString(),
-        error: processingError instanceof Error ? processingError.message : 'Processing failed',
-        processingTimeMs: Date.now() - startTime
-      };
-      
-      return NextResponse.json({ success: false, result });
     }
+    
+    devLog(`✅ QUEUE Consumer: Processed ${totalSuccessful} successful, ${totalFailed} failed`);
+    
+    return NextResponse.json({ 
+      success: true, 
+      processed: totalSuccessful,
+      failed: totalFailed 
+    });
     
   } catch (error) {
     errorLog('❌ QUEUE CONSUMER: Error parsing queue message', error);
