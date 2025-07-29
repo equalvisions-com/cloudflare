@@ -30,7 +30,7 @@ import type {
 // Import custom hooks for business logic
 import { useRSSEntriesMemoryManagement } from './hooks/useRSSEntriesMemoryManagement';
 import { useRSSEntriesDataLoading } from './hooks/useRSSEntriesDataLoading';
-import { useRSSEntriesRefresh } from './hooks/useRSSEntriesRefresh';
+import { useRSSEntriesQueueRefresh } from './hooks/useRSSEntriesQueueRefresh';
 import { useRSSEntriesCommentDrawer } from './hooks/useRSSEntriesCommentDrawer';
 import { useRSSEntriesInitialization } from './hooks/useRSSEntriesInitialization';
 import { useRSSEntriesNewEntries } from './hooks/useRSSEntriesNewEntries';
@@ -1154,7 +1154,7 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
-  const { triggerOneTimeRefresh, handleRefreshAttempt } = useRSSEntriesRefresh({
+  const { triggerOneTimeRefresh, handleRefreshAttempt, cleanup: cleanupQueue } = useRSSEntriesQueueRefresh({
     isActive,
     isRefreshing: state.isRefreshing,
     hasRefreshed: state.hasRefreshed,
@@ -1272,8 +1272,9 @@ const RSSEntriesClientComponent = ({
   React.useEffect(() => {
     return () => {
       cleanup();
+      cleanupQueue();
     };
-  }, [cleanup]);
+  }, [cleanup, cleanupQueue]);
 
   const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]);
   const loadMoreRef = useRef<HTMLDivElement>(null);

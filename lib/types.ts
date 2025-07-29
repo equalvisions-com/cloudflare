@@ -4290,3 +4290,52 @@ export interface OnboardingCookieActionResponse {
 // ===================================================================
 // END ONBOARDING SYSTEM TYPES
 // ===================================================================
+
+// Cloudflare Queue Types for RSS Feed Refresh
+export interface QueueFeedRefreshMessage {
+  // Batch identifier for grouping related refresh requests
+  batchId: string;
+  // Timestamp when the message was created
+  timestamp: number;
+  // User identifier (for auth context)
+  userId: string;
+  // Feed data to refresh
+  feeds: {
+    postTitle: string;
+    feedUrl: string;
+    mediaType?: string;
+  }[];
+  // Optional: existing entry GUIDs to exclude from new results
+  existingGuids?: string[];
+  // Optional: newest entry date for filtering new content
+  newestEntryDate?: string;
+  // Priority level (normal, high)
+  priority?: 'normal' | 'high';
+  // Retry information
+  retryCount?: number;
+  maxRetries?: number;
+}
+
+export interface QueueFeedRefreshResult {
+  batchId: string;
+  success: boolean;
+  refreshedAny: boolean;
+  entries: RSSEntriesDisplayEntry[];
+  newEntriesCount: number;
+  totalEntries: number;
+  postTitles: string[];
+  refreshTimestamp: string;
+  error?: string;
+  processingTimeMs?: number;
+}
+
+// Queue response for tracking batch status
+export interface QueueBatchStatus {
+  batchId: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  queuedAt: number;
+  processedAt?: number;
+  completedAt?: number;
+  result?: QueueFeedRefreshResult;
+  error?: string;
+}

@@ -160,20 +160,6 @@ const executeQuery = async <T = Record<string, unknown>>(
     // Add more context to the error for debugging
     const queryPreview = query.length > 100 ? `${query.substring(0, 100)}...` : query;
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    // Special handling for Hyperdrive multi-statement query errors
-    if (errorMessage.includes('Hyperdrive does not currently support MySQL multi-statement queries')) {
-      logger.error(`HYPERDRIVE MULTI-STATEMENT ERROR: This indicates the query contains multiple statements. Query: ${queryPreview}`);
-      logger.error(`Query parameters count: ${params.length}`);
-      logger.error(`Using Hyperdrive: ${shouldUseHyperdrive()}`);
-      
-      // Check if query contains multiple statements
-      const statements = query.split(';').filter(s => s.trim().length > 0);
-      if (statements.length > 1) {
-        logger.error(`FOUND ${statements.length} STATEMENTS IN QUERY:`, statements.map(s => s.trim().substring(0, 50)));
-      }
-    }
-    
     logger.error(`Database query error: ${errorMessage}. Query: ${queryPreview}`);
     throw error;
   }
@@ -1063,35 +1049,18 @@ async function executeBatchTransaction<T = ExecutedQuery>(
   const maxRetries = 3;
   const baseBackoffMs = 500;
 
-  // Log batch transaction details for debugging
-  logger.debug(`executeBatchTransaction called with ${operations.length} operations, Hyperdrive: ${shouldUseHyperdrive()}`);
-  
-  // NOTE: This function is now primarily used for non-RSS operations
-  // RSS operations should use single compound statements (INSERT...ON DUPLICATE KEY UPDATE)
-  
   while (true) {
     try {
       // Check if we should use Hyperdrive - if so, we need to handle this differently
       // since Hyperdrive doesn't support multi-statement queries
       if (shouldUseHyperdrive()) {
-        logger.warn('executeBatchTransaction called with Hyperdrive - consider using single compound statements instead');
-        
         // For Hyperdrive, execute operations sequentially without explicit transaction
         // This trades some ACID guarantees for Hyperdrive compatibility
         const results: T[] = [];
         
         for (const op of operations) {
           try {
-            // Ensure the query doesn't contain multiple statements
-            const cleanQuery = op.query.trim();
-            if (cleanQuery.includes(';') && !cleanQuery.endsWith(';')) {
-              throw new Error(`Multi-statement query detected for Hyperdrive: ${cleanQuery.substring(0, 100)}...`);
-            }
-            
-            // Remove trailing semicolon if present to avoid issues
-            const singleQuery = cleanQuery.endsWith(';') ? cleanQuery.slice(0, -1) : cleanQuery;
-            
-            const result = await executeWrite(singleQuery, op.params);
+            const result = await executeWrite(op.query, op.params);
             results.push(result as unknown as T);
           } catch (opError) {
             logger.error(
@@ -1243,9 +1212,9 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const currentTimeMs = Date.now();
     
-        // OPTIMIZED: Use single compound statement for better performance and atomicity
+    // OPTIMIZATION: Process small batches differently
     if (newEntries.length <= 25) {
-      // For small batches, use INSERT...ON DUPLICATE KEY UPDATE for atomic upsert
+      // For small batches, use INSERT IGNORE in a single query for better performance
       const placeholders = newEntries.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
       const values = newEntries.flatMap(entry => {
         // Ensure pubDate is properly formatted for MySQL
@@ -1275,48 +1244,38 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
         ];
       });
       
-      // Single compound statement that handles both insert and feed update atomically
-      const upsertQuery = `
-        INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) 
-        VALUES ${placeholders}
-        ON DUPLICATE KEY UPDATE 
-          title = VALUES(title),
-          link = VALUES(link),
-          description = VALUES(description),
-          pub_date = VALUES(pub_date),
-          image = VALUES(image),
-          media_type = VALUES(media_type),
-          updated_at = VALUES(updated_at)
-      `.trim();
+      // Use INSERT IGNORE to handle duplicates without errors
+      const query = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
       
-      // Execute upsert and feed update as separate single statements
-      await executeQuery(upsertQuery, values, true);
+      // For small batches, use a single transaction to ensure consistency
+      // This avoids potential multi-statement issues with Hyperdrive worker
+      const operations = [
+        {
+          query: query,
+          params: values
+        },
+        {
+          query: 'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+          params: [now, currentTimeMs, feedId]
+        }
+      ];
       
-      // Update feed timestamp separately (still single statement)
-      await executeQuery(
-        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-        [now, currentTimeMs, feedId],
-        true
-      );
-      
-      logger.info(`Upserted ${newEntries.length} entries for feed ${feedId}`);
+      await executeBatchTransaction(operations);
+      logger.info(`Single-query inserted ${newEntries.length} entries for feed ${feedId}`);
       return;
     }
     
-    // For larger batches, use chunked compound statements with controlled concurrency
-    const chunkSize = 500; // Larger chunks since we're using single statements
+    // For larger batches, use chunking with transactions
+    // OPTIMIZATION: Increase chunk size from 100 to 250 entries per chunk
+    const chunkSize = 250;
     const chunks = [];
     
     for (let i = 0; i < newEntries.length; i += chunkSize) {
       chunks.push(newEntries.slice(i, i + chunkSize));
     }
     
-    // Import p-limit for concurrency control (add to imports at top of file)
-    const pLimit = (await import('p-limit')).default;
-    const limit = pLimit(8); // Cap at 8 concurrent operations (under Hyperdrive's 10-connection limit)
-    
-    // Create upsert operations for each chunk
-    const chunkOperations = chunks.map(chunk => {
+    // Create operations for each chunk
+    const operations = chunks.map(chunk => {
       const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
       const values = chunk.flatMap(entry => {
         // Ensure pubDate is properly formatted for MySQL
@@ -1346,44 +1305,21 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
         ];
       });
       
-      // Single compound upsert statement per chunk
-      const upsertQuery = `
-        INSERT INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) 
-        VALUES ${placeholders}
-        ON DUPLICATE KEY UPDATE 
-          title = VALUES(title),
-          link = VALUES(link),
-          description = VALUES(description),
-          pub_date = VALUES(pub_date),
-          image = VALUES(image),
-          media_type = VALUES(media_type),
-          updated_at = VALUES(updated_at)
-      `.trim();
-      
-      return () => executeQuery(upsertQuery, values, true);
+      return {
+        // Use INSERT IGNORE to handle duplicates without errors
+        query: `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`,
+        params: values
+      };
     });
     
-    // Execute all chunk operations with controlled concurrency
-    const results = await Promise.allSettled(
-      chunkOperations.map(operation => limit(operation))
-    );
+    // Add the update operation
+    operations.push({
+      query: 'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+      params: [now, currentTimeMs, feedId]
+    });
     
-    // Check for failures
-    const failures = results.filter(result => result.status === 'rejected');
-    if (failures.length > 0) {
-      logger.error(`${failures.length} chunk operations failed out of ${chunks.length}`);
-      failures.forEach((failure, index) => {
-        logger.error(`Chunk ${index} failed:`, failure.reason);
-      });
-      throw new Error(`Failed to insert ${failures.length} chunks of RSS entries`);
-    }
-    
-    // Update feed timestamp separately
-    await executeQuery(
-      'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-      [now, currentTimeMs, feedId],
-      true
-    );
+    // Execute all operations in a transaction
+    await executeBatchTransaction(operations);
     logger.info(`Batch inserted ${newEntries.length} entries for feed ${feedId} in ${chunks.length} chunks of ${chunkSize}`);
   } catch (error) {
     logger.error(`Error storing RSS entries with transaction for feed ${feedId}: ${error}`);

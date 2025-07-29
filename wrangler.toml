@@ -1,0 +1,29 @@
+# Cloudflare Worker configuration for RSS feed refresh queue
+name = "rss-refresh-consumer"
+main = "app/api/queue-consumer/route.ts"
+compatibility_date = "2024-01-15"
+
+# Queue consumer configuration
+[[queues.consumers]]
+queue = "refresh-feed"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "refresh-feed-dlq"
+
+# Environment variables
+[env.production]
+name = "rss-refresh-consumer"
+
+[env.development]
+name = "rss-refresh-consumer-dev"
+
+# KV namespaces for storing queue results (optional)
+[[kv_namespaces]]
+binding = "QUEUE_RESULTS"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# Variables
+[vars]
+ENVIRONMENT = "production" 
