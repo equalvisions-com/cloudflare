@@ -10,6 +10,16 @@ import type {
   QueueBatchStatus 
 } from '@/lib/types';
 
+// Define route context type for Cloudflare Pages Functions
+interface RouteContext {
+  params?: Record<string, string | string[]>;
+  env?: {
+    BATCH_STATUS?: any;
+    BATCH_STATUS_DO?: any;
+    [key: string]: any;
+  };
+}
+
 // KV storage helper functions for batch status
 async function setBatchStatus(batchId: string, status: QueueBatchStatus, contextEnv?: any): Promise<void> {
   try {
@@ -120,7 +130,7 @@ interface RSSEntryRow {
 }
 
 // Main queue consumer function
-export async function POST(request: NextRequest, context?: { env?: any }) {
+export async function POST(request: NextRequest, context?: RouteContext) {
   const startTime = Date.now();
   
   try {

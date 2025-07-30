@@ -6,6 +6,11 @@ export const runtime = 'edge';
 
 interface RouteContext {
   params: Promise<{ batchId: string }>;
+  env?: {
+    BATCH_STATUS?: any;
+    BATCH_STATUS_DO?: any;
+    [key: string]: any;
+  };
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -18,7 +23,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
         // Check if Durable Objects are available (production environment)
-    const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
+    let durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
+    
+    // Try context.env if not found in globalThis
+    if (!durableObjectNamespace && context.env?.BATCH_STATUS_DO) {
+      console.log(`🔍 DO DEBUG: Using context.env for BATCH_STATUS_DO...`);
+      durableObjectNamespace = context.env.BATCH_STATUS_DO;
+    }
+    
     console.log(`🔍 DO DEBUG: Checking for BATCH_STATUS_DO binding...`);
     console.log(`🔍 DO DEBUG: Type of binding:`, typeof durableObjectNamespace);
     console.log(`🔍 DO DEBUG: Binding available:`, !!durableObjectNamespace);
@@ -50,9 +62,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
           })}\n\n`)
         );
 
-        // Get current status once
-        try {
-          const statusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+                      // Get current status once
+              try {
+                let kvBinding = (globalThis as any).BATCH_STATUS;
+                
+                // Try context.env if not found in globalThis
+                if (!kvBinding && context.env?.BATCH_STATUS) {
+                  console.log(`🔍 SSE: Using context.env for initial BATCH_STATUS lookup...`);
+                  kvBinding = context.env.BATCH_STATUS;
+                }
+                
+                const statusJson = await kvBinding?.get(`batch:${batchId}`);
           
           if (statusJson) {
             const status: QueueBatchStatus = JSON.parse(statusJson);
@@ -86,7 +106,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
             pollCount++;
             console.log(`🔍 SSE: Polling attempt #${pollCount} for batch ${batchId}`);
             
-            const updatedStatusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+            let kvBinding = (globalThis as any).BATCH_STATUS;
+            
+            // Try context.env if not found in globalThis
+            if (!kvBinding && context.env?.BATCH_STATUS) {
+              console.log(`🔍 SSE: Using context.env for BATCH_STATUS...`);
+              kvBinding = context.env.BATCH_STATUS;
+            }
+            
+            const updatedStatusJson = await kvBinding?.get(`batch:${batchId}`);
             console.log(`🔍 SSE: KV lookup result:`, updatedStatusJson ? 'found' : 'not found');
             
             if (updatedStatusJson) {
