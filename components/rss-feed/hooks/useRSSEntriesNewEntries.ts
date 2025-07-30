@@ -9,9 +9,7 @@ interface UseRSSEntriesNewEntriesProps {
   isMountedRef: React.MutableRefObject<boolean>;
   createManagedTimeout: (callback: () => void, delay: number) => NodeJS.Timeout;
   clearManagedTimeout: (timeoutId: NodeJS.Timeout) => void;
-  prependEntries: (entries: RSSEntriesDisplayEntry[]) => void;
   setNotification: (show: boolean, count?: number, images?: string[]) => void;
-  clearNewEntries: () => void;
 }
 
 /**
@@ -26,9 +24,7 @@ export const useRSSEntriesNewEntries = ({
   isMountedRef,
   createManagedTimeout,
   clearManagedTimeout,
-  prependEntries,
   setNotification,
-  clearNewEntries,
 }: UseRSSEntriesNewEntriesProps) => {
 
   // Extract images from entries - pure function
@@ -77,19 +73,17 @@ export const useRSSEntriesNewEntries = ({
     }, 5000);
   }, [notificationData, isMountedRef, setNotification, createManagedTimeout]);
 
-  // Function to handle clicking on notification (prepend entries)
+  // Function to handle clicking on notification (dismiss only - entries already prepended)
   const handleNotificationClick = useCallback(() => {
-    if (!newEntries.length || !isMountedRef.current) {
+    console.log('🎯 NOTIFICATION CLICK: Dismissing notification (entries already in feed)');
+    
+    if (!isMountedRef.current) {
       return;
     }
 
-    // Prepend new entries to the feed
-    prependEntries(newEntries);
-    
-    // Clear notification and new entries
+    // Just dismiss the notification - entries are already prepended automatically
     setNotification(false);
-    clearNewEntries();
-  }, [newEntries, isMountedRef, prependEntries, setNotification, clearNewEntries]);
+  }, [isMountedRef, setNotification]);
 
   // Function to dismiss notification without adding entries
   const dismissNotification = useCallback(() => {
@@ -98,8 +92,7 @@ export const useRSSEntriesNewEntries = ({
     }
 
     setNotification(false);
-    clearNewEntries();
-  }, [isMountedRef, setNotification, clearNewEntries]);
+  }, [isMountedRef, setNotification]);
 
   return {
     // Notification state

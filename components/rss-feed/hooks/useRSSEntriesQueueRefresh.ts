@@ -61,6 +61,7 @@ interface UseRSSEntriesQueueRefreshProps {
   setMediaTypes: (types: string[]) => void;
   setNewEntries: (entries: RSSEntriesDisplayEntry[]) => void;
   setNotification: (show: boolean, count?: number, images?: string[]) => void;
+  prependEntries: (entries: RSSEntriesDisplayEntry[]) => void;
   createManagedTimeout: (callback: () => void, delay: number) => void;
 }
 
@@ -99,6 +100,7 @@ export const useRSSEntriesQueueRefresh = ({
   setMediaTypes,
   setNewEntries,
   setNotification,
+  prependEntries,
   createManagedTimeout,
 }: UseRSSEntriesQueueRefreshProps) => {
 
@@ -125,37 +127,36 @@ export const useRSSEntriesQueueRefresh = ({
       );
       
       if (validEntries.length > 0) {
-        processNewEntries(validEntries);
+        const { trulyNewEntries, featuredImages } = processNewEntries(validEntries);
         
-        // Extract featured images for notification (like in useRSSEntriesRefresh)
-        const featuredImages = validEntries
-          .slice(0, 3) // Take only first 3 entries
-          .map((entry: any) => {
-            return entry.postMetadata?.featuredImg || entry.entry?.image || '';
-          })
-          .filter(Boolean);
-        
-        setNotification(true, validEntries.length, featuredImages);
+        // Immediately prepend new entries to the feed
+        if (trulyNewEntries.length > 0) {
+          prependEntries(trulyNewEntries);
+          
+          // Show notification badge as indicator only (entries already added)
+          setNotification(true, trulyNewEntries.length, featuredImages);
+        }
       }
     }
-  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setTotalEntries, setNotification]);
+  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setTotalEntries, setNotification, prependEntries]);
 
   // Process new entries (filter duplicates, sort by date)
   const processNewEntries = useCallback((validEntries: RSSEntriesDisplayEntry[]) => {
     const preRefreshDate = preRefreshNewestEntryDateRef.current;
     
+    let trulyNewEntries: RSSEntriesDisplayEntry[];
+    
     if (!preRefreshDate) {
       // No previous entries, add all
-      setNewEntries(validEntries);
-      return;
+      trulyNewEntries = validEntries;
+    } else {
+      // Filter for truly new entries (published after our newest entry)
+      trulyNewEntries = validEntries.filter(entry => {
+        const entryDate = new Date(entry.entry.pubDate).getTime();
+        const preRefreshDateTime = new Date(preRefreshDate).getTime();
+        return entryDate > preRefreshDateTime;
+      });
     }
-
-    // Filter for truly new entries (published after our newest entry)
-    const trulyNewEntries = validEntries.filter(entry => {
-      const entryDate = new Date(entry.entry.pubDate).getTime();
-      const preRefreshDateTime = new Date(preRefreshDate).getTime();
-      return entryDate > preRefreshDateTime;
-    });
 
     if (trulyNewEntries.length > 0) {
       // Sort by publication date (newest first)
@@ -163,9 +164,22 @@ export const useRSSEntriesQueueRefresh = ({
         return new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime();
       });
       
-      setNewEntries(trulyNewEntries);
+      console.log('🎉 QUEUE REFRESH: Found', trulyNewEntries.length, 'truly new entries');
+      console.log('🎉 QUEUE REFRESH: Truly new entries:', trulyNewEntries);
+    } else {
+      console.log('⚠️ QUEUE REFRESH: No truly new entries found after filtering');
     }
-  }, [setNewEntries]);
+
+    // Extract featured images for notification
+    const featuredImages = trulyNewEntries
+      .slice(0, 3) // Take only first 3 entries
+      .map((entry: any) => {
+        return entry.postMetadata?.featuredImg || entry.entry?.image || '';
+      })
+      .filter(Boolean);
+
+    return { trulyNewEntries, featuredImages };
+  }, []);
 
   // Clean up SSE connection
   const cleanupSSE = useCallback(() => {

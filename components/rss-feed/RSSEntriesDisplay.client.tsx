@@ -281,7 +281,12 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       return { ...state, entries: [...state.entries, ...action.payload] };
     
     case 'PREPEND_ENTRIES':
-      return { ...state, entries: [...action.payload, ...state.entries] };
+      console.log('🚀 REDUCER PREPEND_ENTRIES: Adding', action.payload.length, 'entries to the front');
+      console.log('🚀 REDUCER PREPEND_ENTRIES: Current entries count:', state.entries.length);
+      console.log('🚀 REDUCER PREPEND_ENTRIES: New entries:', action.payload);
+      const newState = { ...state, entries: [...action.payload, ...state.entries] };
+      console.log('🚀 REDUCER PREPEND_ENTRIES: New total entries count:', newState.entries.length);
+      return newState;
     
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload };
@@ -324,9 +329,12 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       };
     
     case 'SET_NEW_ENTRIES':
+      console.log('📥 REDUCER SET_NEW_ENTRIES: Setting', action.payload.length, 'new entries');
+      console.log('📥 REDUCER SET_NEW_ENTRIES: New entries:', action.payload);
       return { ...state, newEntries: action.payload };
     
     case 'CLEAR_NEW_ENTRIES':
+      console.log('🗑️ REDUCER CLEAR_NEW_ENTRIES: Clearing new entries');
       return { ...state, newEntries: [] };
     
     case 'UPDATE_ENTRY_METRICS':
@@ -1182,6 +1190,7 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
+    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
     createManagedTimeout,
   });
 
@@ -1203,12 +1212,10 @@ const RSSEntriesClientComponent = ({
     isMountedRef,
     createManagedTimeout,
     clearManagedTimeout,
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
     setNotification: useCallback((show, count, images) => dispatch({ 
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    clearNewEntries: useCallback(() => dispatch({ type: 'CLEAR_NEW_ENTRIES' }), []),
   });
 
   // Sync refs with state
