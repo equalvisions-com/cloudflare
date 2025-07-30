@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     let durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
     
     // Try context.env if not found in globalThis
-    if (!durableObjectNamespace && context.env.BATCH_STATUS_DO) {
+    if (!durableObjectNamespace && context.env?.BATCH_STATUS_DO) {
       console.log(`🔍 DO DEBUG: Using context.env for BATCH_STATUS_DO...`);
       durableObjectNamespace = context.env.BATCH_STATUS_DO;
     }
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
                 let kvBinding = (globalThis as any).BATCH_STATUS;
                 
                 // Try context.env if not found in globalThis
-                if (!kvBinding && context.env.BATCH_STATUS) {
+                if (!kvBinding && context.env?.BATCH_STATUS) {
                   console.log(`🔍 SSE: Using context.env for initial BATCH_STATUS lookup...`);
                   kvBinding = context.env.BATCH_STATUS;
                 }
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             let kvBinding = (globalThis as any).BATCH_STATUS;
             
             // Try context.env if not found in globalThis
-            if (!kvBinding && context.env.BATCH_STATUS) {
+            if (!kvBinding && context.env?.BATCH_STATUS) {
               console.log(`🔍 SSE: Using context.env for BATCH_STATUS...`);
               kvBinding = context.env.BATCH_STATUS;
             }
