@@ -155,7 +155,7 @@ export const config = {
   // except static assets and includes specific API routes
   matcher: [
     // Include all pages that require dynamic rendering
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/queue-consumer|api/queue-refresh|api/batch-stream).*)',
     '/',
     '/api/featured-feed',
     '/api/rss/:path*',
