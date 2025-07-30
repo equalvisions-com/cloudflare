@@ -17,9 +17,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Batch ID required' }, { status: 400 });
     }
 
-    // Check if Durable Objects are available (production environment)
+        // Check if Durable Objects are available (production environment)
     const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
-    
+    console.log(`🔍 DO DEBUG: Checking for BATCH_STATUS_DO binding...`);
+    console.log(`🔍 DO DEBUG: Type of binding:`, typeof durableObjectNamespace);
+    console.log(`🔍 DO DEBUG: Binding available:`, !!durableObjectNamespace);
+
     if (durableObjectNamespace) {
       // Use Durable Object for true real-time updates (NO POLLING!)
       const durableObjectId = durableObjectNamespace.idFromName(batchId);
