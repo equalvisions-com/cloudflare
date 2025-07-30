@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead } from '@/lib/database';
 
+// Edge Runtime configuration for Cloudflare Pages
+export const runtime = 'edge';
+
 // Lightweight API to check which feeds need refreshing
 // Called by Worker to determine stale feeds
 export async function POST(request: NextRequest) {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
+// Edge Runtime configuration for Cloudflare Pages
+export const runtime = 'edge';
+
 // Lightweight API to receive Worker completion results
 // Updates batch status and notifies Durable Object for SSE
 export async function POST(request: NextRequest) {

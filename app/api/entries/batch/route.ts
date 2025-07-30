@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead, executeWrite } from '@/lib/database';
 
+// Edge Runtime configuration for Cloudflare Pages
+export const runtime = 'edge';
+
 // Lightweight API to store RSS entries from Worker
 // Called by Worker after RSS parsing is complete
 export async function POST(request: NextRequest) {
