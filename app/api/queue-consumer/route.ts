@@ -12,8 +12,8 @@ import type {
 
 // Define route context type for Cloudflare Pages Functions
 interface RouteContext {
-  params?: Record<string, string | string[]>;
-  env?: {
+  params: Promise<{}>;
+  env: {
     BATCH_STATUS?: any;
     BATCH_STATUS_DO?: any;
     [key: string]: any;
@@ -130,7 +130,7 @@ interface RSSEntryRow {
 }
 
 // Main queue consumer function
-export async function POST(request: NextRequest, context?: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const startTime = Date.now();
   
   try {
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest, context?: RouteContext) {
     devLog('🔄 QUEUE CONSUMER: Received request body', requestBody);
     
     // Debug: Check if bindings are available via context
-    if (context?.env) {
+    if (context.env) {
       console.log('🔍 KV: Context env available, checking for BATCH_STATUS...');
       console.log('🔍 KV: Context env keys:', Object.keys(context.env));
     }
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest, context?: RouteContext) {
             processedAt: Date.now() - processingTime,
             completedAt: Date.now(),
             result: result
-          }, context?.env);
+          }, context.env);
           
           console.log('📊 QUEUE CONSUMER: Updated batch status in KV', {
             batchId,
@@ -304,7 +304,7 @@ export async function POST(request: NextRequest, context?: RouteContext) {
             processedAt: Date.now(),
             completedAt: Date.now(),
             error: messageError instanceof Error ? messageError.message : 'Processing failed'
-          }, context?.env);
+          }, context.env);
           
           console.log('📊 QUEUE CONSUMER: Updated batch status (failed)', {
             batchId,
