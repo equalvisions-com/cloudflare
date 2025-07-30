@@ -1,85 +1,126 @@
-import { NextRequest, NextResponse } from "next/server";
-import { executeRead } from "@/lib/database";
-import { validateHeaders } from '@/lib/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { executeRead, executeWrite } from '@/lib/database';
 
-export const runtime = 'edge';
-
-/**
- * API route to fetch entry details from PlanetScale by GUIDs
- * This allows us to get the complete entry data for activity items
- */
+// Lightweight API to store RSS entries from Worker
+// Called by Worker after RSS parsing is complete
 export async function POST(request: NextRequest) {
-  if (!validateHeaders(request)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-  
   try {
-    const { guids } = await request.json();
+    const { feed, entries } = await request.json();
     
-    if (!guids || !Array.isArray(guids) || guids.length === 0) {
+    if (!feed || !entries || !Array.isArray(entries)) {
       return NextResponse.json(
-        { error: "Missing or invalid guids parameter" },
+        { error: 'Invalid feed or entries data' },
         { status: 400 }
       );
     }
 
-    // Limit the number of GUIDs to prevent abuse
-    const limitedGuids = guids.slice(0, 100);
+    console.log(`💾 BATCH STORE: Storing ${entries.length} entries for ${feed.postTitle}`);
+
+    // Get or create feed
+    const feedId = await getOrCreateFeed(feed.feedUrl, feed.postTitle, feed.mediaType);
     
-    console.log(`🔍 Fetching ${limitedGuids.length} entries from PlanetScale by GUIDs`);
+    // Store entries in transaction
+    const storedCount = await storeRSSEntriesWithTransaction(feedId, entries, feed.mediaType);
     
-    // Query PlanetScale for entries by GUIDs
-    const query = `
-      SELECT 
-        e.id, 
-        e.feed_id, 
-        e.guid, 
-        e.title, 
-        e.link, 
-        e.description, 
-        e.pub_date, 
-        e.image,
-        e.media_type as mediaType,
-        f.title as feed_title,
-        f.feed_url
-      FROM 
-        rss_entries e
-      LEFT JOIN 
-        rss_feeds f ON e.feed_id = f.id
-      WHERE 
-        e.guid IN (${limitedGuids.map(() => '?').join(',')})
-    `;
-    
-    const entries = await executeRead(query, limitedGuids);
-    
-    // Create a map of guid to entry for easy lookup
-    const entryMap = new Map();
-    
-    // Add type assertion to fix TypeScript error
-    interface EntryRow {
-      guid: string;
-      title: string;
-      link: string;
-      description?: string;
-      pub_date: string;
-      [key: string]: any;
-    }
-    
-    for (const entry of entries.rows as EntryRow[]) {
-      entryMap.set(entry.guid, entry);
-    }
-    
-    // Return entries in the same order as the input guids
-    const orderedEntries = limitedGuids.map(guid => entryMap.get(guid) || null).filter(Boolean);
-    
-    console.log(`✅ Returning ${orderedEntries.length} entries`);
-    
-    return NextResponse.json({ entries: orderedEntries });
+    // Update feed last_fetched timestamp
+    await executeWrite(
+      'UPDATE rss_feeds SET last_fetched = ? WHERE id = ?',
+      [Date.now(), feedId]
+    );
+
+    console.log(`✅ BATCH STORE: Successfully stored ${storedCount} entries for ${feed.postTitle}`);
+
+    return NextResponse.json({
+      success: true,
+      feedId,
+      storedCount,
+      feedTitle: feed.postTitle
+    });
+
   } catch (error) {
-    console.error("Error fetching entries by GUIDs:", error);
+    console.error('❌ BATCH STORE: Error storing entries:', error);
     return NextResponse.json(
-      { error: "Failed to fetch entries" },
+      { error: 'Failed to store entries' },
       { status: 500 }
     );
   }
-} 
+}
+
+// Get or create feed helper
+async function getOrCreateFeed(feedUrl: string, title: string, mediaType?: string): Promise<number> {
+  try {
+    // Check if feed exists
+    const existingFeedResult = await executeRead(
+      'SELECT id FROM rss_feeds WHERE feed_url = ?',
+      [feedUrl]
+    );
+
+    if (existingFeedResult.rows.length > 0) {
+      return Number((existingFeedResult.rows as any)[0].id);
+    }
+
+    // Create new feed
+    const insertResult = await executeWrite(
+      'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at) VALUES (?, ?, ?, ?, ?)',
+      [feedUrl, title, mediaType || null, Date.now(), Date.now()]
+    );
+
+    const feedId = Number(insertResult.insertId);
+    console.log(`✅ BATCH STORE: Created new feed ${title} with ID ${feedId}`);
+    
+    return feedId;
+
+  } catch (error) {
+    console.error('❌ BATCH STORE: Error getting/creating feed:', error);
+    throw error;
+  }
+}
+
+// Store RSS entries with transaction
+async function storeRSSEntriesWithTransaction(feedId: number, entries: any[], mediaType?: string): Promise<number> {
+  let storedCount = 0;
+  
+  try {
+    for (const entry of entries) {
+      try {
+        // Check if entry already exists
+        const existingEntryResult = await executeRead(
+          'SELECT id FROM rss_entries WHERE guid = ? AND feed_id = ?',
+          [entry.guid, feedId]
+        );
+
+        if (existingEntryResult.rows.length === 0) {
+          // Insert new entry
+          await executeWrite(
+            `INSERT INTO rss_entries (
+              feed_id, title, description, link, pub_date, guid, 
+              image, media_type, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              feedId,
+              entry.title || '',
+              entry.description || '',
+              entry.link || '',
+              entry.pubDate || new Date().toISOString(),
+              entry.guid,
+              entry.enclosure?.url || null,
+              mediaType || entry.mediaType || null,
+              Date.now()
+            ]
+          );
+          
+          storedCount++;
+        }
+      } catch (entryError) {
+        console.error('❌ BATCH STORE: Error storing individual entry:', entryError);
+        // Continue with other entries
+      }
+    }
+
+    return storedCount;
+
+  } catch (error) {
+    console.error('❌ BATCH STORE: Error in transaction:', error);
+    throw error;
+  }
+}

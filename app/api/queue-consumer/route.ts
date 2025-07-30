@@ -1,3 +1,7 @@
+// LIGHTWEIGHT Pages Function for queue processing
+// RSS processing now handled by Worker for better performance and scalability
+// This API primarily handles database queries and batch status updates
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead } from '@/lib/database';
 import { checkAndRefreshFeeds } from '@/lib/rss.server';
@@ -256,14 +260,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
             refreshedAny = true;
           }
           
-          // Process refresh if needed
-          if (staleFeedTitles.length > 0 || newFeeds.length > 0) {
-            devLog(`🔄 QUEUE CONSUMER: Checking and refreshing feeds`, { batchId });
-            
-            const stringMediaTypes = mediaTypes.map((mt: any) => mt === null ? undefined : mt) as string[] | undefined;
-            await checkAndRefreshFeeds(postTitles, feedUrls, stringMediaTypes);
-            refreshedAny = true;
-          }
+                  // RSS processing now handled by Worker - just check if result was passed from Worker
+        const isWorkerResult = request.headers.get('X-Worker-Result') === 'true';
+        
+        if (isWorkerResult) {
+          // This is a result notification from Worker - RSS processing already done
+          devLog(`✅ QUEUE CONSUMER: Received Worker processing result`, { batchId });
+          refreshedAny = true;
+        } else {
+          // Legacy fallback - shouldn't happen with new Worker architecture
+          devLog(`⚠️ QUEUE CONSUMER: No Worker result header - RSS processing may not have occurred`, { batchId });
+        }
         }
         
         // Get new entries that were inserted during this refresh cycle
