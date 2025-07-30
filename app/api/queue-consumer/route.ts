@@ -34,6 +34,12 @@ async function setBatchStatus(batchId: string, status: QueueBatchStatus, context
       kvBinding = contextEnv.BATCH_STATUS;
     }
     
+    // If still not found, try process.env (Pages Functions pattern)
+    if (!kvBinding && process.env.BATCH_STATUS) {
+      console.log(`🔍 KV: Using process.env for BATCH_STATUS...`);
+      kvBinding = (process.env as any).BATCH_STATUS;
+    }
+    
     console.log(`🔍 KV: Runtime environment:`, process.env.NODE_ENV || 'unknown');
     console.log(`🔍 KV: Cloudflare env:`, (globalThis as any).Cloudflare ? 'available' : 'not available');
     console.log(`🔍 KV: KV binding found:`, !!kvBinding);

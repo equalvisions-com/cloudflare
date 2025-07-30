@@ -31,6 +31,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       durableObjectNamespace = context.env.BATCH_STATUS_DO;
     }
     
+    // Try process.env if still not found (Pages Functions pattern)
+    if (!durableObjectNamespace && process.env.BATCH_STATUS_DO) {
+      console.log(`🔍 DO DEBUG: Using process.env for BATCH_STATUS_DO...`);
+      durableObjectNamespace = (process.env as any).BATCH_STATUS_DO;
+    }
+    
     console.log(`🔍 DO DEBUG: Checking for BATCH_STATUS_DO binding...`);
     console.log(`🔍 DO DEBUG: Type of binding:`, typeof durableObjectNamespace);
     console.log(`🔍 DO DEBUG: Binding available:`, !!durableObjectNamespace);
@@ -70,6 +76,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
                 if (!kvBinding && context.env.BATCH_STATUS) {
                   console.log(`🔍 SSE: Using context.env for initial BATCH_STATUS lookup...`);
                   kvBinding = context.env.BATCH_STATUS;
+                }
+                
+                // Try process.env if still not found (Pages Functions pattern)
+                if (!kvBinding && process.env.BATCH_STATUS) {
+                  console.log(`🔍 SSE: Using process.env for initial BATCH_STATUS lookup...`);
+                  kvBinding = (process.env as any).BATCH_STATUS;
                 }
                 
                 const statusJson = await kvBinding?.get(`batch:${batchId}`);
@@ -112,6 +124,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
             if (!kvBinding && context.env.BATCH_STATUS) {
               console.log(`🔍 SSE: Using context.env for BATCH_STATUS...`);
               kvBinding = context.env.BATCH_STATUS;
+            }
+            
+            // Try process.env if still not found (Pages Functions pattern)
+            if (!kvBinding && process.env.BATCH_STATUS) {
+              console.log(`🔍 SSE: Using process.env for BATCH_STATUS...`);
+              kvBinding = (process.env as any).BATCH_STATUS;
             }
             
             const updatedStatusJson = await kvBinding?.get(`batch:${batchId}`);
