@@ -6,21 +6,35 @@ import { api } from "@/convex/_generated/api";
 import type { 
   QueueFeedRefreshMessage, 
   QueueFeedRefreshResult, 
-  RSSEntriesDisplayEntry 
+  RSSEntriesDisplayEntry,
+  QueueBatchStatus 
 } from '@/lib/types';
+
+// KV storage helper functions for batch status
+async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
+  try {
+    await (globalThis as any).BATCH_STATUS?.put(
+      `batch:${batchId}`, 
+      JSON.stringify(status),
+      { ttl: 300 } // 5 minute TTL for auto-cleanup
+    );
+    console.log(`📦 KV: Consumer stored batch status for ${batchId}:`, status.status);
+  } catch (error) {
+    console.error(`❌ KV: Consumer failed to store batch ${batchId}:`, error);
+  }
+}
 
 // Add Edge Runtime configuration
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Helper function to log only in development
+// Helper function to log in production for queue debugging
 const devLog = (message: string, data?: unknown) => {
-  if (process.env.NODE_ENV !== 'production') {
-    if (data) {
-      console.log(message, data);
-    } else {
-      console.log(message);
-    }
+  // Always log queue operations for debugging
+  if (data) {
+    console.log(message, data);
+  } else {
+    console.log(message);
   }
 };
 
@@ -183,11 +197,48 @@ export async function POST(request: NextRequest) {
           newEntriesCount: result.newEntriesCount
         });
         
-        // TODO: Store result in KV or send to webhook endpoint for client notification
+        // Update batch status in KV for SSE streaming
+        if (batchId) {
+          await setBatchStatus(batchId, {
+            batchId,
+            status: 'completed',
+            queuedAt: Date.now() - processingTime, // Approximate queue time
+            processedAt: Date.now() - processingTime,
+            completedAt: Date.now(),
+            result: result
+          });
+          
+          console.log('📊 QUEUE CONSUMER: Updated batch status in KV', {
+            batchId,
+            status: 'completed',
+            entriesCount: result.newEntriesCount
+          });
+        }
+        
         totalSuccessful++;
         
       } catch (messageError) {
         errorLog('❌ QUEUE: Error processing message', messageError);
+        
+        // Update batch status for failed processing
+        const batchId = queueMessage?.batchId;
+        if (batchId) {
+          await setBatchStatus(batchId, {
+            batchId,
+            status: 'failed',
+            queuedAt: Date.now(),
+            processedAt: Date.now(),
+            completedAt: Date.now(),
+            error: messageError instanceof Error ? messageError.message : 'Processing failed'
+          });
+          
+          console.log('📊 QUEUE CONSUMER: Updated batch status (failed)', {
+            batchId,
+            status: 'failed',
+            error: messageError instanceof Error ? messageError.message : 'Unknown error'
+          });
+        }
+        
         totalFailed++;
       }
     }

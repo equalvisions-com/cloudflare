@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import useSWR from 'swr';
+// Removed SWR - now using SSE for real-time updates
 import type { 
   RSSEntriesDisplayEntry, 
   QueueBatchStatus,
@@ -102,75 +102,13 @@ export const useRSSEntriesQueueRefresh = ({
   createManagedTimeout,
 }: UseRSSEntriesQueueRefreshProps) => {
 
-  // Simple state for tracking active batch
+  // SSE state for real-time batch tracking
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
-  const [pollAttempt, setPollAttempt] = useState(0);
+  const eventSourceRef = useRef<EventSource | null>(null);
   
-  // Smart polling interval: exponential backoff (1s → 2s → 4s → 8s → max 30s)
-  const getPollingInterval = useCallback((attempt: number): number => {
-    return Math.min(1000 * Math.pow(2, attempt), 30000);
-  }, []);
+  // SSE connection management (defined after dependencies)
   
-  // Only poll when we have an active batch AND page is visible
-  const shouldPoll = activeBatchId !== null && isActive && !document.hidden;
-  
-  // SWR handles all the heavy lifting: caching, deduplication, retries, etc.
-  const { data: batchStatus, error: pollError } = useSWR(
-    shouldPoll ? `/api/queue-refresh?batchId=${activeBatchId}` : null,
-    async (url: string): Promise<QueueBatchStatus> => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Polling failed: ${response.status}`);
-      return (await response.json()) as QueueBatchStatus;
-    },
-    {
-      // SWR configuration for scalable polling
-      refreshInterval: shouldPoll ? getPollingInterval(pollAttempt) : 0,
-      revalidateOnFocus: false,        // Don't poll on focus (saves resources)
-      revalidateOnReconnect: true,     // Resume when connection restored
-      dedupingInterval: 1000,          // Prevent duplicate requests within 1s
-      errorRetryCount: 3,              // Auto-retry failed requests
-      errorRetryInterval: 2000,        // 2s between retries
-      
-      onSuccess: (data) => {
-        if (!data || !isMountedRef.current) return;
-        
-        if (data.status === 'completed') {
-          console.log('✅ Batch completed via SWR polling');
-          
-          // Stop polling
-          setActiveBatchId(null);
-          setPollAttempt(0);
-          
-          if (data.result?.success) {
-            handleSuccessfulRefresh(data.result);
-          } else {
-            setRefreshError(data.result?.error || 'Processing failed');
-            setRefreshing(false);
-          }
-          
-        } else if (data.status === 'failed') {
-          console.error('❌ Batch failed:', data.error);
-          
-          // Stop polling
-          setActiveBatchId(null);
-          setPollAttempt(0);
-          setRefreshError(data.error || 'Processing failed');
-          setRefreshing(false);
-          
-        } else {
-          // Still processing - increase poll interval (exponential backoff)
-          setPollAttempt(prev => prev + 1);
-        }
-      },
-      
-      onError: (error) => {
-        console.error('🔄 Polling error:', error);
-        setPollAttempt(prev => prev + 1); // Slow down on errors
-      }
-    }
-  );
-
-  // Process successful refresh results
+  // Process successful refresh results  
   const handleSuccessfulRefresh = useCallback((result: QueueFeedRefreshResult) => {
     setHasRefreshed(true);
     setRefreshing(false);
@@ -220,14 +158,109 @@ export const useRSSEntriesQueueRefresh = ({
     }
   }, [setNewEntries]);
 
+  // Clean up SSE connection
+  const cleanupSSE = useCallback(() => {
+    if (eventSourceRef.current) {
+      console.log('🔌 SSE: Closing connection');
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setActiveBatchId(null);
+  }, []);
+
+  // SSE connection management
+  const connectToSSE = useCallback((batchId: string) => {
+    // Cleanup existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    
+    console.log(`📡 SSE: Connecting to batch stream for ${batchId}`);
+    
+    const eventSource = new EventSource(`/api/batch-stream/${batchId}`);
+    eventSourceRef.current = eventSource;
+    
+    eventSource.onopen = () => {
+      console.log(`🔗 SSE: Connected to batch ${batchId}`);
+    };
+    
+    eventSource.onmessage = (event) => {
+      if (!isMountedRef.current) return;
+      
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'connected') {
+          console.log(`✅ SSE: Connected to batch ${data.batchId}`);
+          return;
+        }
+        
+        if (data.type === 'timeout') {
+          console.warn(`⏰ SSE: Timeout for batch ${data.batchId}`);
+          setRefreshError('Processing timeout - please try again');
+          setRefreshing(false);
+          cleanupSSE();
+          return;
+        }
+        
+        if (data.type === 'error') {
+          console.error(`❌ SSE: Error for batch ${data.batchId}:`, data.error);
+          setRefreshError(data.error || 'Stream error');
+          setRefreshing(false);
+          cleanupSSE();
+          return;
+        }
+        
+        // Handle batch status updates
+        if (data.batchId && data.status) {
+          console.log(`📊 SSE: Batch ${data.batchId} status: ${data.status}`);
+          
+          if (data.status === 'completed') {
+            console.log('✅ SSE: Batch completed with real-time update');
+            
+            if (data.result?.success) {
+              handleSuccessfulRefresh(data.result);
+            } else {
+              setRefreshError(data.result?.error || 'Processing failed');
+              setRefreshing(false);
+            }
+            cleanupSSE();
+            
+          } else if (data.status === 'failed') {
+            console.error('❌ SSE: Batch failed:', data.error);
+            setRefreshError(data.error || 'Processing failed');
+            setRefreshing(false);
+            cleanupSSE();
+          }
+          // For 'queued' and 'processing' statuses, just continue listening
+        }
+        
+      } catch (parseError) {
+        console.error('❌ SSE: Failed to parse message:', parseError);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('❌ SSE: Connection error:', error);
+      
+      // Only set error if we're still mounted and refreshing
+      if (isMountedRef.current && isRefreshing) {
+        setRefreshError('Connection lost - please try again');
+        setRefreshing(false);
+      }
+      
+      cleanupSSE();
+    };
+    
+  }, [isMountedRef, isRefreshing, handleSuccessfulRefresh, setRefreshError, setRefreshing, cleanupSSE]);
+
   // Pause/resume polling based on page visibility (HUGE resource saver)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && activeBatchId) {
         console.log('📱 Pausing polling - page hidden');
       } else if (!document.hidden && activeBatchId) {
-        console.log('📱 Resuming polling - page visible');
-        setPollAttempt(0); // Reset to fast polling when coming back
+        console.log('📱 Resuming SSE - page visible');
       }
     };
 
@@ -257,7 +290,6 @@ export const useRSSEntriesQueueRefresh = ({
 
     setRefreshing(true);
     setRefreshError(null);
-    setPollAttempt(0);
 
     try {
       const refreshRequestBody = getRefreshRequestBody();
@@ -292,10 +324,10 @@ export const useRSSEntriesQueueRefresh = ({
           }
           
         } else if (queueResponse.batchId) {
-          // Queue processing - start SWR polling
-          console.log('🔄 Starting SWR polling for batch:', queueResponse.batchId);
+          // Queue processing - start SSE connection for real-time updates
+          console.log('📡 Starting SSE stream for batch:', queueResponse.batchId);
           setActiveBatchId(queueResponse.batchId);
-          // SWR will automatically start polling due to shouldPoll becoming true
+          connectToSSE(queueResponse.batchId);
         }
       } else {
         setRefreshError(queueResponse.error || 'Refresh failed');
@@ -308,7 +340,7 @@ export const useRSSEntriesQueueRefresh = ({
       }
     }
   }, [isRefreshing, hasRefreshed, currentPostTitles, currentFeedUrls, getRefreshRequestBody, 
-      setRefreshing, setRefreshError, handleSuccessfulRefresh]);
+      setRefreshing, setRefreshError, handleSuccessfulRefresh, connectToSSE]);
 
   // Handle when followed posts update (reset refresh state)
   const handleFollowedPostsUpdate = useCallback((
@@ -331,9 +363,8 @@ export const useRSSEntriesQueueRefresh = ({
   // Cleanup function
   const cleanup = useCallback(() => {
     isMountedRef.current = false;
-    setActiveBatchId(null); // This stops SWR polling automatically
-    setPollAttempt(0);
-  }, []);
+    cleanupSSE(); // Close SSE connection and clear batch
+  }, [cleanupSSE]);
 
   // Auto-cleanup on unmount
   useEffect(() => {
@@ -348,8 +379,7 @@ export const useRSSEntriesQueueRefresh = ({
     
     // Debugging/monitoring info
     getCurrentBatch: () => activeBatchId,
-    isPolling: () => shouldPoll,
-    pollAttempt,
-    pollInterval: shouldPoll ? getPollingInterval(pollAttempt) : 0,
+    isStreaming: () => eventSourceRef.current !== null,
+    streamReadyState: () => eventSourceRef.current?.readyState || -1,
   };
 };

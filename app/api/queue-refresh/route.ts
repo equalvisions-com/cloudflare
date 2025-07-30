@@ -7,14 +7,13 @@ import type { QueueFeedRefreshMessage, QueueBatchStatus } from '@/lib/types';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Helper function to log only in development
+// Helper function to log queue operations in production
 const devLog = (message: string, data?: unknown) => {
-  if (process.env.NODE_ENV !== 'production') {
-    if (data) {
-      console.log(message, data);
-    } else {
-      console.log(message);
-    }
+  // Always log queue operations for debugging
+  if (data) {
+    console.log(message, data);
+  } else {
+    console.log(message);
   }
 };
 
@@ -28,7 +27,32 @@ const errorLog = (message: string, error?: unknown) => {
 };
 
 // In-memory store for tracking batch status (in production, use KV or D1)
-const batchStatusStore = new Map<string, QueueBatchStatus>();
+// KV storage helper functions for batch status
+async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
+  try {
+    await (globalThis as any).BATCH_STATUS?.put(
+      `batch:${batchId}`, 
+      JSON.stringify(status),
+      { ttl: 300 } // 5 minute TTL for auto-cleanup
+    );
+    console.log(`📦 KV: Stored batch status for ${batchId}:`, status.status);
+  } catch (error) {
+    console.error(`❌ KV: Failed to store batch ${batchId}:`, error);
+  }
+}
+
+async function getBatchStatus(batchId: string): Promise<QueueBatchStatus | null> {
+  try {
+    const statusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+    if (statusJson) {
+      return JSON.parse(statusJson);
+    }
+    return null;
+  } catch (error) {
+    console.error(`❌ KV: Failed to get batch ${batchId}:`, error);
+    return null;
+  }
+}
 
 // Fallback function to process directly when queue isn't available
 async function processDirectly(queueMessage: QueueFeedRefreshMessage) {
@@ -188,7 +212,7 @@ export async function POST(request: NextRequest) {
           return await processDirectly(queueMessage);
         }
 
-        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/queues/refresh-feed/messages`, {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/queues/ac0fb53bb4eb4fdb9d8e2fa36f8e7504/messages`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiToken}`,
@@ -213,7 +237,7 @@ export async function POST(request: NextRequest) {
         status: 'queued',
         queuedAt: timestamp
       };
-      batchStatusStore.set(batchId, batchStatus);
+      await setBatchStatus(batchId, batchStatus);
 
       // Return immediate response with batch tracking info
       return NextResponse.json({
@@ -257,7 +281,7 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
 
-  const batchStatus = batchStatusStore.get(batchId);
+  const batchStatus = await getBatchStatus(batchId);
   
   if (!batchStatus) {
     return NextResponse.json({ 

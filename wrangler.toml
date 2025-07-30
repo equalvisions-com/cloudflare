@@ -24,6 +24,12 @@ binding = "QUEUE_RESULTS"
 id = "your-kv-namespace-id"
 preview_id = "your-preview-kv-namespace-id"
 
+# KV namespace for batch status tracking (SSE)
+[[kv_namespaces]]
+binding = "BATCH_STATUS"
+id = "32dfe3986c4640a9a7eb5a7376812483"
+preview_id = "77db1cfa35814f73b10cec6dce9db940"
+
 # Variables
 [vars]
 ENVIRONMENT = "production" 
