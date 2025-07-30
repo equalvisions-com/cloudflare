@@ -30,6 +30,40 @@ const errorLog = (message: string, error?: unknown) => {
 // In-memory store for tracking batch status (in production, use KV or D1)
 const batchStatusStore = new Map<string, QueueBatchStatus>();
 
+// Fallback function to process directly when queue isn't available
+async function processDirectly(queueMessage: QueueFeedRefreshMessage) {
+  try {
+    // Call our own consumer endpoint directly
+    const response = await fetch('/api/queue-consumer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(queueMessage),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Direct processing error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    return NextResponse.json({
+      success: true,
+      batchId: queueMessage.batchId,
+      status: 'completed',
+      processedDirectly: true,
+      result: result
+    });
+  } catch (error) {
+    console.error('❌ Direct processing failed:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Processing failed' 
+    }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!validateHeaders(request as any)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -131,26 +165,47 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Access the queue binding
-    // @ts-ignore QUEUE is injected by Cloudflare runtime
+    // Try queue binding first, fallback to HTTP API
     const queue = (globalThis as any).QUEUE || (process.env as any).QUEUE;
     
-    if (!queue) {
-      errorLog('❌ QUEUE PRODUCER: Queue binding not found');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Queue service temporarily unavailable' 
-      }, { status: 503 });
-    }
-
     try {
-      // Send message to queue with batching options
-      await queue.send(queueMessage, {
-        // Batch messages for up to 5 seconds or 10 messages, whichever comes first
-        delaySeconds: priority === 'high' ? 0 : 2, // High priority processes immediately
-      });
+      if (queue) {
+        // Use queue binding if available
+        await queue.send(queueMessage, {
+          delaySeconds: priority === 'high' ? 0 : 2,
+        });
+        console.log('✅ QUEUE PRODUCER: Message sent via binding', { batchId, feedCount: feeds.length });
+      } else {
+        // Fallback: Use Cloudflare REST API to send to queue
+        console.log('⚠️ QUEUE PRODUCER: No binding, using REST API fallback');
+        
+        const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+        const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+        
+        if (!accountId || !apiToken) {
+          console.log('❌ QUEUE PRODUCER: Missing Cloudflare credentials for REST API');
+          // For now, process directly to avoid blocking users
+          return await processDirectly(queueMessage);
+        }
 
-      devLog('✅ QUEUE PRODUCER: Message sent to queue', { batchId, feedCount: feeds.length });
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/queues/refresh-feed/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify([{
+            body: queueMessage,
+            delaySeconds: priority === 'high' ? 0 : 2,
+          }]),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Queue REST API error: ${response.status}`);
+        }
+
+        console.log('✅ QUEUE PRODUCER: Message sent via REST API', { batchId, feedCount: feeds.length });
+      }
 
       // Store batch status for tracking
       const batchStatus: QueueBatchStatus = {

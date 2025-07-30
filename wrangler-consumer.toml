@@ -1,0 +1,11 @@
+name = "refresh-feed-consumer"
+main = "queue-consumer-worker.js"
+compatibility_date = "2024-01-01"
+
+# Queue consumer configuration
+[[queues.consumers]]
+queue = "refresh-feed"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "refresh-feed-dlq"

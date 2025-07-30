@@ -293,7 +293,7 @@ export const useRSSEntriesQueueRefresh = ({
       // Get fresh request body with current state
       const refreshRequestBody = getRefreshRequestBody();
       
-      // Send to queue instead of direct processing
+      // Send to queue (now with REST API fallback)
       const queueResponse = await retryWithBackoff(async () => {
         const response = await fetch('/api/queue-refresh', {
           method: 'POST',
@@ -312,39 +312,38 @@ export const useRSSEntriesQueueRefresh = ({
       
       if (!isMountedRef.current) return;
       
-      if (queueResponse.success && queueResponse.batchId) {
-        // Store batch ID for tracking
-        currentBatchRef.current = queueResponse.batchId;
-        pollStartTimeRef.current = Date.now(); // Record when polling started
-        
-        // Start polling for completion
-        pollIntervalRef.current = setInterval(() => {
-          if (currentBatchRef.current) {
-            pollBatchStatus(currentBatchRef.current);
-          }
-        }, 2000); // Poll every 2 seconds
-        
-        // Initial poll
-        setTimeout(() => {
-          if (currentBatchRef.current) {
-            pollBatchStatus(currentBatchRef.current);
-          }
-        }, 1000); // Wait 1 second before first poll
-        
-        // Quick fallback if queue processing fails
-        setTimeout(() => {
-          if (currentBatchRef.current && isMountedRef.current) {
-            console.log('⚠️ Queue taking too long - using direct fallback');
-            // Trigger fallback after 10 seconds instead of 30
-            const pollTime = Date.now() - pollStartTimeRef.current;
-            if (pollTime > 10000) { // 10 seconds
-              pollBatchStatus(currentBatchRef.current);
+      if (queueResponse.success) {
+        if (queueResponse.processedDirectly) {
+          // Direct processing completed immediately
+          setHasRefreshed(true);
+          if (queueResponse.result?.result) {
+            const result = queueResponse.result.result;
+            if (result.postTitles?.length) setPostTitles(result.postTitles);
+            if (result.totalEntries) setTotalEntries(result.totalEntries);
+            if (result.refreshedAny && result.entries?.length) {
+              processNewEntries(result.entries);
             }
           }
-        }, 10000); // Quick fallback after 10 seconds
-        
+          setRefreshing(false);
+        } else if (queueResponse.batchId) {
+          // Queue processing - start polling
+          currentBatchRef.current = queueResponse.batchId;
+          pollStartTimeRef.current = Date.now();
+          
+          pollIntervalRef.current = setInterval(() => {
+            if (currentBatchRef.current) {
+              pollBatchStatus(currentBatchRef.current);
+            }
+          }, 2000);
+          
+          setTimeout(() => {
+            if (currentBatchRef.current) {
+              pollBatchStatus(currentBatchRef.current);
+            }
+          }, 1000);
+        }
       } else {
-        setRefreshError(queueResponse.error || 'Failed to queue refresh');
+        setRefreshError(queueResponse.error || 'Refresh failed');
         setRefreshing(false);
       }
       
@@ -362,7 +361,10 @@ export const useRSSEntriesQueueRefresh = ({
     getRefreshRequestBody,
     setRefreshing,
     setRefreshError,
-    pollBatchStatus,
+    setHasRefreshed,
+    setPostTitles,
+    setTotalEntries,
+    processNewEntries,
     isMountedRef
   ]);
 
