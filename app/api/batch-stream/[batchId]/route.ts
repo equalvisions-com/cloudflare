@@ -17,81 +17,65 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Batch ID required' }, { status: 400 });
     }
 
-    // Create ReadableStream for SSE
+    // Check if Durable Objects are available (production environment)
+    const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
+    
+    if (durableObjectNamespace) {
+      // Use Durable Object for true real-time updates (NO POLLING!)
+      const durableObjectId = durableObjectNamespace.idFromName(batchId);
+      const durableObject = durableObjectNamespace.get(durableObjectId);
+      
+      // Forward request to Durable Object which handles WebSocket/SSE without polling
+      const response = await durableObject.fetch(request.clone());
+      return response;
+    }
+
+    // Fallback: Single status check (for development/testing)
+    // This is NOT polling - it's a one-time check and immediate close
+    console.log(`📡 SSE: Fallback mode for batch ${batchId} (no Durable Objects)`);
+    
     const stream = new ReadableStream({
-      start(controller) {
-        console.log(`📡 SSE: Starting stream for batch ${batchId}`);
-        
-        // Send initial connection event
+      start: async (controller) => {
         const encoder = new TextEncoder();
+        
+        // Send connection event
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ 
-            type: 'connected', 
-            batchId, 
-            timestamp: Date.now() 
+          encoder.encode(`data: ${JSON.stringify({
+            type: 'connected',
+            batchId,
+            timestamp: Date.now()
           })}\n\n`)
         );
 
-        let pollCount = 0;
-        const maxPolls = 120; // 2 minutes max (120 * 1 second)
-        
-        // Poll KV for batch status updates
-        const pollInterval = setInterval(async () => {
-          try {
-            pollCount++;
-            
-            // Get batch status from KV
-            const statusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
-            
-            if (statusJson) {
-              const status: QueueBatchStatus = JSON.parse(statusJson);
-              
-              // Send status update
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(status)}\n\n`));
-              
-              // Close stream if completed or failed
-              if (status.status === 'completed' || status.status === 'failed') {
-                console.log(`✅ SSE: Batch ${batchId} finished with status: ${status.status}`);
-                clearInterval(pollInterval);
-                controller.close();
-                return;
-              }
-            }
-            
-            // Timeout after max polls
-            if (pollCount >= maxPolls) {
-              console.log(`⏰ SSE: Timeout for batch ${batchId} after ${maxPolls} seconds`);
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ 
-                  type: 'timeout', 
-                  batchId, 
-                  message: 'Stream timeout' 
-                })}\n\n`)
-              );
-              clearInterval(pollInterval);
-              controller.close();
-            }
-          } catch (error) {
-            console.error(`❌ SSE: Error polling batch ${batchId}:`, error);
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ 
-                type: 'error', 
-                batchId, 
-                error: error instanceof Error ? error.message : 'Unknown error' 
-              })}\n\n`)
-            );
-            clearInterval(pollInterval);
-            controller.close();
+        // Get current status once
+        try {
+          const statusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+          
+          if (statusJson) {
+            const status: QueueBatchStatus = JSON.parse(statusJson);
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(status)}\n\n`));
+          } else {
+            // No status found - send queued status
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              batchId,
+              status: 'queued',
+              queuedAt: Date.now()
+            })}\n\n`));
           }
-        }, 1000); // Poll every 1 second
-
-        // Cleanup on client disconnect
-        request.signal.addEventListener('abort', () => {
-          console.log(`🔌 SSE: Client disconnected from batch ${batchId}`);
-          clearInterval(pollInterval);
-          controller.close();
-        });
-      },
+        } catch (error) {
+          console.error(`❌ SSE: Error getting batch status:`, error);
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({
+              type: 'error',
+              batchId,
+              error: 'Failed to get status'
+            })}\n\n`)
+          );
+        }
+        
+        // Close immediately - no polling!
+        controller.close();
+      }
     });
 
     return new Response(stream, {

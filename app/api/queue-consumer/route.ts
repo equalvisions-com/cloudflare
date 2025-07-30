@@ -13,12 +13,34 @@ import type {
 // KV storage helper functions for batch status
 async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
   try {
+    // Store in KV for persistence
     await (globalThis as any).BATCH_STATUS?.put(
       `batch:${batchId}`, 
       JSON.stringify(status),
       { ttl: 300 } // 5 minute TTL for auto-cleanup
     );
     console.log(`📦 KV: Consumer stored batch status for ${batchId}:`, status.status);
+
+    // REAL-TIME UPDATE: Notify Durable Object for instant SSE/WebSocket broadcasting
+    const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
+    if (durableObjectNamespace) {
+      try {
+        const durableObjectId = durableObjectNamespace.idFromName(batchId);
+        const durableObject = durableObjectNamespace.get(durableObjectId);
+        
+        // Send the status update to the Durable Object (NO POLLING!)
+        await durableObject.fetch(new Request('https://batch-status/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(status)
+        }));
+        
+        console.log(`🚀 DO: Notified Durable Object for batch ${batchId} - INSTANT real-time updates!`);
+      } catch (doError) {
+        console.warn(`⚠️ DO: Failed to notify Durable Object for ${batchId}:`, doError);
+        // Continue execution - KV storage succeeded
+      }
+    }
   } catch (error) {
     console.error(`❌ KV: Consumer failed to store batch ${batchId}:`, error);
   }

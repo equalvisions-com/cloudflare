@@ -1,6 +1,6 @@
 # Cloudflare Worker configuration for RSS feed refresh queue
 name = "rss-refresh-consumer"
-main = "app/api/queue-consumer/route.ts"
+main = "workers/queue-consumer-worker.js"
 compatibility_date = "2024-01-15"
 
 # Queue consumer configuration
@@ -18,11 +18,11 @@ name = "rss-refresh-consumer"
 [env.development]
 name = "rss-refresh-consumer-dev"
 
-# KV namespaces for storing queue results (optional)
-[[kv_namespaces]]
-binding = "QUEUE_RESULTS"
-id = "your-kv-namespace-id"
-preview_id = "your-preview-kv-namespace-id"
+# KV namespaces for storing queue results (optional) - commented out for now
+# [[kv_namespaces]]
+# binding = "QUEUE_RESULTS"
+# id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"
 
 # KV namespace for batch status tracking (SSE)
 [[kv_namespaces]]
@@ -30,6 +30,14 @@ binding = "BATCH_STATUS"
 id = "32dfe3986c4640a9a7eb5a7376812483"
 preview_id = "77db1cfa35814f73b10cec6dce9db940"
 
+# Durable Object for real-time batch status (ELIMINATES POLLING!)
+[durable_objects]
+bindings = [
+  { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
+]
+
 # Variables
 [vars]
-ENVIRONMENT = "production" 
+ENVIRONMENT = "production"
+PAGES_FUNCTION_URL = "https://socialnetworksandbox.com"
+PAGES_FUNCTION_TOKEN = "" 
