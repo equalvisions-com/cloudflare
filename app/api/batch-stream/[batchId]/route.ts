@@ -73,8 +73,57 @@ export async function GET(request: NextRequest, context: RouteContext) {
           );
         }
         
-        // Close immediately - no polling!
-        controller.close();
+        // For fallback mode, we need to stay open and check KV periodically
+        // This is temporary until Durable Objects work
+        let pollCount = 0;
+        const maxPolls = 120; // 2 minutes max
+        
+        const checkForUpdates = setInterval(async () => {
+          try {
+            pollCount++;
+            
+            const updatedStatusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+            
+            if (updatedStatusJson) {
+              const updatedStatus = JSON.parse(updatedStatusJson);
+              
+              // Only send if status changed
+              if (updatedStatus.status !== 'queued') {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(updatedStatus)}\n\n`));
+                
+                // Close if completed or failed
+                if (updatedStatus.status === 'completed' || updatedStatus.status === 'failed') {
+                  clearInterval(checkForUpdates);
+                  controller.close();
+                  return;
+                }
+              }
+            }
+            
+            // Timeout after max polls
+            if (pollCount >= maxPolls) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({
+                  type: 'timeout',
+                  batchId,
+                  message: 'Stream timeout'
+                })}\n\n`)
+              );
+              clearInterval(checkForUpdates);
+              controller.close();
+            }
+          } catch (error) {
+            console.error(`❌ SSE: Error checking for updates:`, error);
+            clearInterval(checkForUpdates);
+            controller.close();
+          }
+        }, 2000); // Check every 2 seconds (less aggressive than before)
+        
+        // Clean up on disconnect
+        request.signal.addEventListener('abort', () => {
+          clearInterval(checkForUpdates);
+          controller.close();
+        });
       }
     });
 

@@ -1,0 +1,7 @@
+# Exclude large cache files from Pages deployment
+.next/cache/
+node_modules/
+.git/
+*.log
+.env*
+!.env.example
