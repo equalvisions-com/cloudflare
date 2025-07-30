@@ -39,10 +39,10 @@ interface UseRSSEntriesQueueRefreshProps {
   entriesStateRef: React.MutableRefObject<RSSEntriesDisplayEntry[]>;
   initialData: {
     entries: RSSEntriesDisplayEntry[];
-    hasMore: boolean;
-    totalEntries: number;
-    postTitles: string[];
-    feedUrls: string[];
+    hasMore?: boolean;
+    totalEntries?: number;
+    postTitles?: string[];
+    feedUrls?: string[];
     mediaTypes?: string[];
   };
   currentPostTitles: string[];
@@ -117,10 +117,10 @@ export const useRSSEntriesQueueRefresh = ({
   // SWR handles all the heavy lifting: caching, deduplication, retries, etc.
   const { data: batchStatus, error: pollError } = useSWR(
     shouldPoll ? `/api/queue-refresh?batchId=${activeBatchId}` : null,
-    async (url: string) => {
+    async (url: string): Promise<QueueBatchStatus> => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Polling failed: ${response.status}`);
-      return response.json() as QueueBatchStatus;
+      return (await response.json()) as QueueBatchStatus;
     },
     {
       // SWR configuration for scalable polling
@@ -178,7 +178,7 @@ export const useRSSEntriesQueueRefresh = ({
     
     // Update post metadata
     if (result.postTitles?.length) setPostTitles(result.postTitles);
-    if (result.totalEntries) setTotalEntries(result.totalEntries);
+    if (result.totalEntries !== undefined) setTotalEntries(result.totalEntries);
     
     // Handle new entries
     if (result.refreshedAny && result.entries?.length) {
@@ -241,9 +241,9 @@ export const useRSSEntriesQueueRefresh = ({
     const newestEntryDate = preRefreshNewestEntryDateRef.current;
 
     return {
-      postTitles: currentPostTitles,
-      feedUrls: currentFeedUrls,
-      mediaTypes: currentMediaTypes,
+      postTitles: currentPostTitles || [],
+      feedUrls: currentFeedUrls || [],
+      mediaTypes: currentMediaTypes || [],
       existingGuids,
       newestEntryDate,
       priority: 'normal' as const
