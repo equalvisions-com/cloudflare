@@ -431,6 +431,12 @@ async function getNewEntriesFromRefresh(
     let whereClause = `f.title IN (${placeholders})`;
     const queryParams = [...postTitles];
 
+    // CRITICAL FIX: Get entries created in the last 5 minutes (during this refresh cycle)
+    // This is much more accurate than filtering by publication date
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    whereClause += ` AND e.created_at >= ?`;
+    queryParams.push(fiveMinutesAgo);
+
     // Exclude existing GUIDs if provided
     if (existingGuids && existingGuids.length > 0) {
       const guidPlaceholders = existingGuids.map(() => '?').join(',');
@@ -438,11 +444,7 @@ async function getNewEntriesFromRefresh(
       queryParams.push(...existingGuids);
     }
 
-    // Filter by newest entry date if provided
-    if (newestEntryDate) {
-      whereClause += ` AND e.pub_date > ?`;
-      queryParams.push(newestEntryDate);
-    }
+    console.log(`🔍 QUEUE: Looking for entries created after ${fiveMinutesAgo} for feeds:`, postTitles);
 
     const entriesQuery = `
       SELECT e.*, f.title as feed_title, f.feed_url
@@ -455,13 +457,36 @@ async function getNewEntriesFromRefresh(
 
     const entriesResult = await executeRead(entriesQuery, queryParams);
     const entries = entriesResult.rows as RSSEntryRow[];
+    
+    console.log(`🔍 QUEUE: Found ${entries.length} recently created entries`);
 
-    if (entries.length === 0) {
+    // Apply publication date filter as secondary filter if needed
+    let filteredEntries = entries;
+    if (newestEntryDate && entries.length > 0) {
+      try {
+        const clientNewestDate = new Date(newestEntryDate);
+        if (!isNaN(clientNewestDate.getTime())) {
+          const clientNewestTimestamp = clientNewestDate.getTime();
+          console.log(`🔍 QUEUE: Applying pub_date filter for entries newer than ${newestEntryDate}`);
+          
+          filteredEntries = entries.filter(entry => {
+            const entryDate = new Date(entry.pub_date);
+            return !isNaN(entryDate.getTime()) && entryDate.getTime() > clientNewestTimestamp;
+          });
+          
+          console.log(`🔍 QUEUE: After pub_date filter: ${filteredEntries.length} entries`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ QUEUE: Invalid newestEntryDate ${newestEntryDate}, skipping filter`);
+      }
+    }
+
+    if (filteredEntries.length === 0) {
       return { entries: [], totalEntries: 0 };
     }
 
     // Map entries to expected format
-    const mappedEntries = entries.map(entry => ({
+    const mappedEntries = filteredEntries.map(entry => ({
       guid: entry.guid,
       title: entry.title,
       link: entry.link,
@@ -497,7 +522,7 @@ async function getNewEntriesFromRefresh(
 
     return { 
       entries: entriesWithData, 
-      totalEntries: entries.length 
+      totalEntries: filteredEntries.length 
     };
     
   } catch (error) {
