@@ -111,7 +111,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         // For fallback mode, we need to stay open and check KV periodically
         // This is temporary until Durable Objects work
         let pollCount = 0;
-        const maxPolls = 120; // 2 minutes max
+        const maxPolls = 30; // 1 minute max (reduced from 2 minutes)
         
         const checkForUpdates = setInterval(async () => {
           try {
@@ -173,7 +173,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             clearInterval(checkForUpdates);
             controller.close();
           }
-        }, 2000); // Check every 2 seconds (less aggressive than before)
+        }, 1000); // Check every 1 second (optimized for faster detection)
         
         // Clean up on disconnect
         request.signal.addEventListener('abort', () => {

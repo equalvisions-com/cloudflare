@@ -40,4 +40,10 @@ bindings = [
 [vars]
 ENVIRONMENT = "production"
 PAGES_FUNCTION_URL = "https://socialnetworksandbox.com"
-PAGES_FUNCTION_TOKEN = "" 
+PAGES_FUNCTION_TOKEN = ""
+
+# Pages compatibility for Durable Objects
+[env.production.durable_objects]
+bindings = [
+  { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
+] 

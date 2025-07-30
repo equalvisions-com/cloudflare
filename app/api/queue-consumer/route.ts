@@ -210,7 +210,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
         let refreshedAny = false;
         
         if (staleFeedTitles.length === 0) {
-          devLog('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
+          console.log('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
+          
+          // Early exit optimization - skip heavy processing if no feeds need refresh
+          const quickResult: QueueFeedRefreshResult = {
+            batchId,
+            success: true,
+            refreshedAny: false,
+            entries: [],
+            newEntriesCount: 0,
+            totalEntries: 0,
+            postTitles,
+            refreshTimestamp: new Date().toISOString(),
+            processingTimeMs: Date.now() - startTime
+          };
+          
+          // Update batch status immediately for fast response
+          await setBatchStatus(batchId, {
+            batchId,
+            status: 'completed',
+            queuedAt: Date.now() - quickResult.processingTimeMs,
+            processedAt: Date.now() - quickResult.processingTimeMs,
+            completedAt: Date.now(),
+            result: quickResult
+          }, context.env);
+          
+          console.log('📊 QUEUE CONSUMER: Fast-track completion (no refresh needed)', {
+            batchId,
+            processingTimeMs: quickResult.processingTimeMs,
+            feedCount: feeds.length
+          });
+          
+          totalSuccessful++;
+          continue; // Skip to next message
         } else {
           devLog(`🔄 QUEUE CONSUMER: Found ${staleFeedTitles.length} stale feeds that need refreshing`, { 
             batchId, 
@@ -274,7 +306,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
           batchId,
           processingTimeMs: processingTime,
           refreshedAny: result.refreshedAny,
-          newEntriesCount: result.newEntriesCount
+          newEntriesCount: result.newEntriesCount,
+          // Performance metrics
+          averageTimePerFeed: Math.round(processingTime / feeds.length),
+          throughput: Math.round((feeds.length / processingTime) * 1000), // feeds per second
+          efficiency: result.newEntriesCount > 0 ? 'high' : 'low' // new content found vs no new content
         });
         
         // Update batch status in KV for SSE streaming
