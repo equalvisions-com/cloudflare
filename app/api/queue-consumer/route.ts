@@ -11,14 +11,39 @@ import type {
 } from '@/lib/types';
 
 // KV storage helper functions for batch status
-async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
+async function setBatchStatus(batchId: string, status: QueueBatchStatus, contextEnv?: any): Promise<void> {
   try {
     console.log(`🔄 KV: Attempting to store batch status for ${batchId}:`, status.status);
     
-    // Check if KV binding exists
-    const kvBinding = (globalThis as any).BATCH_STATUS;
+    // Try multiple ways to access KV binding
+    let kvBinding = (globalThis as any).BATCH_STATUS;
+    
+    // If not found in globalThis, try context.env
+    if (!kvBinding && contextEnv) {
+      console.log(`🔍 KV: Trying context.env for BATCH_STATUS...`);
+      kvBinding = contextEnv.BATCH_STATUS;
+    }
+    
+    console.log(`🔍 KV: Runtime environment:`, process.env.NODE_ENV || 'unknown');
+    console.log(`🔍 KV: Cloudflare env:`, (globalThis as any).Cloudflare ? 'available' : 'not available');
+    console.log(`🔍 KV: KV binding found:`, !!kvBinding);
+    
     if (!kvBinding) {
-      console.error(`❌ KV: BATCH_STATUS binding not found! Available bindings:`, Object.keys(globalThis));
+      console.error(`❌ KV: BATCH_STATUS binding not found in globalThis OR context.env!`);
+      console.error(`❌ KV: Available global keys:`, Object.keys(globalThis).filter(key => 
+        key.includes('KV') || key.includes('BATCH') || key.includes('STATUS') || key.toUpperCase() === key
+      ));
+      
+      if (contextEnv) {
+        console.error(`❌ KV: Available context.env keys:`, Object.keys(contextEnv));
+      }
+      
+      // Try alternative binding access methods
+      const envBindings = process.env;
+      console.log(`🔍 KV: Environment variables with BATCH/KV:`, Object.keys(envBindings).filter(key => 
+        key.includes('BATCH') || key.includes('KV')
+      ));
+      
       return;
     }
     
@@ -95,7 +120,7 @@ interface RSSEntryRow {
 }
 
 // Main queue consumer function
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context?: { env?: any }) {
   const startTime = Date.now();
   
   try {
@@ -104,6 +129,12 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json();
     
     devLog('🔄 QUEUE CONSUMER: Received request body', requestBody);
+    
+    // Debug: Check if bindings are available via context
+    if (context?.env) {
+      console.log('🔍 KV: Context env available, checking for BATCH_STATUS...');
+      console.log('🔍 KV: Context env keys:', Object.keys(context.env));
+    }
     
     // Handle Cloudflare Queue message format
     let messages: QueueFeedRefreshMessage[] = [];
@@ -239,7 +270,7 @@ export async function POST(request: NextRequest) {
             processedAt: Date.now() - processingTime,
             completedAt: Date.now(),
             result: result
-          });
+          }, context?.env);
           
           console.log('📊 QUEUE CONSUMER: Updated batch status in KV', {
             batchId,
@@ -263,7 +294,7 @@ export async function POST(request: NextRequest) {
             processedAt: Date.now(),
             completedAt: Date.now(),
             error: messageError instanceof Error ? messageError.message : 'Processing failed'
-          });
+          }, context?.env);
           
           console.log('📊 QUEUE CONSUMER: Updated batch status (failed)', {
             batchId,
