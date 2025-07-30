@@ -13,13 +13,24 @@ import type {
 // KV storage helper functions for batch status
 async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
   try {
+    console.log(`🔄 KV: Attempting to store batch status for ${batchId}:`, status.status);
+    
+    // Check if KV binding exists
+    const kvBinding = (globalThis as any).BATCH_STATUS;
+    if (!kvBinding) {
+      console.error(`❌ KV: BATCH_STATUS binding not found! Available bindings:`, Object.keys(globalThis));
+      return;
+    }
+    
     // Store in KV for persistence
-    await (globalThis as any).BATCH_STATUS?.put(
-      `batch:${batchId}`, 
+    const kvResult = await kvBinding.put(
+      `batch:${batchId}`,
       JSON.stringify(status),
       { ttl: 300 } // 5 minute TTL for auto-cleanup
     );
-    console.log(`📦 KV: Consumer stored batch status for ${batchId}:`, status.status);
+    
+    console.log(`📦 KV: Successfully stored batch status for ${batchId}:`, status.status);
+    console.log(`📦 KV: Storage result:`, kvResult);
 
     // REAL-TIME UPDATE: Notify Durable Object for instant SSE/WebSocket broadcasting
     const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;

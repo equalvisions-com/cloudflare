@@ -84,23 +84,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
         const checkForUpdates = setInterval(async () => {
           try {
             pollCount++;
+            console.log(`🔍 SSE: Polling attempt #${pollCount} for batch ${batchId}`);
             
             const updatedStatusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
+            console.log(`🔍 SSE: KV lookup result:`, updatedStatusJson ? 'found' : 'not found');
             
             if (updatedStatusJson) {
               const updatedStatus = JSON.parse(updatedStatusJson);
+              console.log(`🔍 SSE: Status from KV:`, updatedStatus.status);
               
               // Only send if status changed
               if (updatedStatus.status !== 'queued') {
+                console.log(`📤 SSE: Sending status update:`, updatedStatus.status);
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(updatedStatus)}\n\n`));
                 
                 // Close if completed or failed
                 if (updatedStatus.status === 'completed' || updatedStatus.status === 'failed') {
+                  console.log(`✅ SSE: Job completed, closing stream`);
                   clearInterval(checkForUpdates);
                   controller.close();
                   return;
                 }
               }
+            } else {
+              console.log(`⚠️ SSE: No status found in KV for batch ${batchId}`);
             }
             
             // Timeout after max polls
