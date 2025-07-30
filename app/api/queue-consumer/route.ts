@@ -213,6 +213,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           console.log('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
           
           // Early exit optimization - skip heavy processing if no feeds need refresh
+          const processingTime = Date.now() - startTime;
           const quickResult: QueueFeedRefreshResult = {
             batchId,
             success: true,
@@ -222,24 +223,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
             totalEntries: 0,
             postTitles,
             refreshTimestamp: new Date().toISOString(),
-            processingTimeMs: Date.now() - startTime
+            processingTimeMs: processingTime
           };
           
           // Update batch status immediately for fast response
           await setBatchStatus(batchId, {
             batchId,
             status: 'completed',
-            queuedAt: Date.now() - quickResult.processingTimeMs,
-            processedAt: Date.now() - quickResult.processingTimeMs,
+            queuedAt: Date.now() - processingTime,
+            processedAt: Date.now() - processingTime,
             completedAt: Date.now(),
             result: quickResult
           }, context.env);
           
-          console.log('📊 QUEUE CONSUMER: Fast-track completion (no refresh needed)', {
-            batchId,
-            processingTimeMs: quickResult.processingTimeMs,
-            feedCount: feeds.length
-          });
+                  console.log('📊 QUEUE CONSUMER: Fast-track completion (no refresh needed)', {
+          batchId,
+          processingTimeMs: processingTime,
+          feedCount: feeds.length
+        });
           
           totalSuccessful++;
           continue; // Skip to next message
