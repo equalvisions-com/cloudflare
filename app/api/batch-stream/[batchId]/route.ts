@@ -23,12 +23,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         console.log(`📡 SSE: Starting stream for batch ${batchId}`);
         
         // Send initial connection event
+        const encoder = new TextEncoder();
         controller.enqueue(
-          `data: ${JSON.stringify({ 
+          encoder.encode(`data: ${JSON.stringify({ 
             type: 'connected', 
             batchId, 
             timestamp: Date.now() 
-          })}\n\n`
+          })}\n\n`)
         );
 
         let pollCount = 0;
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               const status: QueueBatchStatus = JSON.parse(statusJson);
               
               // Send status update
-              controller.enqueue(`data: ${JSON.stringify(status)}\n\n`);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(status)}\n\n`));
               
               // Close stream if completed or failed
               if (status.status === 'completed' || status.status === 'failed') {
@@ -61,11 +62,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
             if (pollCount >= maxPolls) {
               console.log(`⏰ SSE: Timeout for batch ${batchId} after ${maxPolls} seconds`);
               controller.enqueue(
-                `data: ${JSON.stringify({ 
+                encoder.encode(`data: ${JSON.stringify({ 
                   type: 'timeout', 
                   batchId, 
                   message: 'Stream timeout' 
-                })}\n\n`
+                })}\n\n`)
               );
               clearInterval(pollInterval);
               controller.close();
@@ -73,11 +74,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
           } catch (error) {
             console.error(`❌ SSE: Error polling batch ${batchId}:`, error);
             controller.enqueue(
-              `data: ${JSON.stringify({ 
+              encoder.encode(`data: ${JSON.stringify({ 
                 type: 'error', 
                 batchId, 
                 error: error instanceof Error ? error.message : 'Unknown error' 
-              })}\n\n`
+              })}\n\n`)
             );
             clearInterval(pollInterval);
             controller.close();
