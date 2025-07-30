@@ -37,7 +37,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const durableObject = durableObjectNamespace.get(durableObjectId);
       
       // Forward request to Durable Object which handles WebSocket/SSE without polling
-      const response = await durableObject.fetch(request.clone());
+      // Create a proper URL for the Durable Object
+      const url = new URL(request.url);
+      url.pathname = `/batch-stream/${batchId}`;
+      
+      const response = await durableObject.fetch(url.toString(), {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
       return response;
     }
 

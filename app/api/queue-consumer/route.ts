@@ -36,6 +36,7 @@ async function setBatchStatus(batchId: string, status: QueueBatchStatus, context
     console.log(`🔍 KV: KV binding found:`, !!kvBinding);
     console.log(`🔍 KV: KV binding type:`, typeof kvBinding);
     console.log(`🔍 KV: KV binding methods:`, kvBinding ? Object.getOwnPropertyNames(kvBinding) : 'none');
+    console.log(`🔍 KV: Dashboard binding test - expecting this to work now!`);
     
     if (!kvBinding) {
       console.error(`❌ KV: BATCH_STATUS binding not found in globalThis OR context.env!`);
