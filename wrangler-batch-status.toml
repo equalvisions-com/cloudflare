@@ -3,7 +3,7 @@
 # ELIMINATES POLLING ENTIRELY
 
 name = "batch-status-manager"
-main = "workers/batch-status-durable-object.ts"
+main = "cloudflare-workers/batch-status-durable-object.ts"
 compatibility_date = "2024-01-15"
 
 # Durable Object bindings

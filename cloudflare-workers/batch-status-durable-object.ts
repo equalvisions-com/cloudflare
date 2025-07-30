@@ -1,12 +1,6 @@
-// workers/batch-status-durable-object.ts
+// cloudflare-workers/batch-status-durable-object.ts
 // Durable Object for managing batch status with real-time WebSocket connections
 // NO POLLING - purely event-driven
-
-// TypeScript interfaces
-interface Env {
-  BATCH_STATUS_DO: DurableObjectNamespace;
-  [key: string]: any;
-}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
