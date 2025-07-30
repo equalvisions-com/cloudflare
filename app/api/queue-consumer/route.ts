@@ -9,6 +9,7 @@ import type {
   RSSEntriesDisplayEntry,
   QueueBatchStatus 
 } from '@/lib/types';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 // Define route context type for Cloudflare Pages Functions
 interface RouteContext {
@@ -25,20 +26,10 @@ async function setBatchStatus(batchId: string, status: QueueBatchStatus, context
   try {
     console.log(`🔄 KV: Attempting to store batch status for ${batchId}:`, status.status);
     
-    // Try multiple ways to access KV binding
-    let kvBinding = (globalThis as any).BATCH_STATUS;
-    
-    // If not found in globalThis, try context.env
-    if (!kvBinding && contextEnv) {
-      console.log(`🔍 KV: Trying context.env for BATCH_STATUS...`);
-      kvBinding = contextEnv.BATCH_STATUS;
-    }
-    
-    // If still not found, try process.env (Pages Functions pattern)
-    if (!kvBinding && process.env.BATCH_STATUS) {
-      console.log(`🔍 KV: Using process.env for BATCH_STATUS...`);
-      kvBinding = (process.env as any).BATCH_STATUS;
-    }
+    // Use getRequestContext to access KV binding
+    const { env } = getRequestContext();
+    const kvBinding = env.BATCH_STATUS;
+    console.log(`🔍 KV: Using getRequestContext for BATCH_STATUS...`);
     
     console.log(`🔍 KV: Runtime environment:`, process.env.NODE_ENV || 'unknown');
     console.log(`🔍 KV: Cloudflare env:`, (globalThis as any).Cloudflare ? 'available' : 'not available');
@@ -74,7 +65,7 @@ async function setBatchStatus(batchId: string, status: QueueBatchStatus, context
     console.log(`📦 KV: Storage result:`, kvResult);
 
     // REAL-TIME UPDATE: Notify Durable Object for instant SSE/WebSocket broadcasting
-    const durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
+    const durableObjectNamespace = env.BATCH_STATUS_DO;
     if (durableObjectNamespace) {
       try {
         const durableObjectId = durableObjectNamespace.idFromName(batchId);

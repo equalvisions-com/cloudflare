@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueueBatchStatus } from '@/lib/types';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 // Use Edge runtime for SSE
 export const runtime = 'edge';
@@ -22,20 +23,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Batch ID required' }, { status: 400 });
     }
 
-        // Check if Durable Objects are available (production environment)
-    let durableObjectNamespace = (globalThis as any).BATCH_STATUS_DO;
-    
-    // Try context.env if not found in globalThis
-    if (!durableObjectNamespace && context.env?.BATCH_STATUS_DO) {
-      console.log(`🔍 DO DEBUG: Using context.env for BATCH_STATUS_DO...`);
-      durableObjectNamespace = context.env.BATCH_STATUS_DO;
-    }
-    
-    // Try process.env if still not found (Pages Functions pattern)
-    if (!durableObjectNamespace && process.env.BATCH_STATUS_DO) {
-      console.log(`🔍 DO DEBUG: Using process.env for BATCH_STATUS_DO...`);
-      durableObjectNamespace = (process.env as any).BATCH_STATUS_DO;
-    }
+        // Check if Durable Objects are available using getRequestContext
+    const { env } = getRequestContext();
+    const durableObjectNamespace = env.BATCH_STATUS_DO;
     
     console.log(`🔍 DO DEBUG: Checking for BATCH_STATUS_DO binding...`);
     console.log(`🔍 DO DEBUG: Type of binding:`, typeof durableObjectNamespace);
@@ -70,19 +60,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
                       // Get current status once
               try {
-                let kvBinding = (globalThis as any).BATCH_STATUS;
-                
-                // Try context.env if not found in globalThis
-                if (!kvBinding && context.env?.BATCH_STATUS) {
-                  console.log(`🔍 SSE: Using context.env for initial BATCH_STATUS lookup...`);
-                  kvBinding = context.env.BATCH_STATUS;
-                }
-                
-                // Try process.env if still not found (Pages Functions pattern)
-                if (!kvBinding && process.env.BATCH_STATUS) {
-                  console.log(`🔍 SSE: Using process.env for initial BATCH_STATUS lookup...`);
-                  kvBinding = (process.env as any).BATCH_STATUS;
-                }
+                const kvBinding = env.BATCH_STATUS;
+                console.log(`🔍 SSE: Using getRequestContext for initial BATCH_STATUS lookup...`);
                 
                 const statusJson = await kvBinding?.get(`batch:${batchId}`);
           
@@ -118,19 +97,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
             pollCount++;
             console.log(`🔍 SSE: Polling attempt #${pollCount} for batch ${batchId}`);
             
-            let kvBinding = (globalThis as any).BATCH_STATUS;
-            
-            // Try context.env if not found in globalThis
-            if (!kvBinding && context.env?.BATCH_STATUS) {
-              console.log(`🔍 SSE: Using context.env for BATCH_STATUS...`);
-              kvBinding = context.env.BATCH_STATUS;
-            }
-            
-            // Try process.env if still not found (Pages Functions pattern)
-            if (!kvBinding && process.env.BATCH_STATUS) {
-              console.log(`🔍 SSE: Using process.env for BATCH_STATUS...`);
-              kvBinding = (process.env as any).BATCH_STATUS;
-            }
+            const kvBinding = env.BATCH_STATUS;
+            console.log(`🔍 SSE: Using getRequestContext for BATCH_STATUS...`);
             
             const updatedStatusJson = await kvBinding?.get(`batch:${batchId}`);
             console.log(`🔍 SSE: KV lookup result:`, updatedStatusJson ? 'found' : 'not found');
