@@ -126,7 +126,16 @@ export const useRSSEntriesQueueRefresh = ({
       
       if (validEntries.length > 0) {
         processNewEntries(validEntries);
-        setNotification(true, validEntries.length);
+        
+        // Extract featured images for notification (like in useRSSEntriesRefresh)
+        const featuredImages = validEntries
+          .slice(0, 3) // Take only first 3 entries
+          .map((entry: any) => {
+            return entry.postMetadata?.featuredImg || entry.entry?.image || '';
+          })
+          .filter(Boolean);
+        
+        setNotification(true, validEntries.length, featuredImages);
       }
     }
   }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setTotalEntries, setNotification]);

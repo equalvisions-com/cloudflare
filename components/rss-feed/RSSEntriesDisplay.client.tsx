@@ -1312,8 +1312,8 @@ const RSSEntriesClientComponent = ({
   const memoizedNotificationClick = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     if ('key' in e && e.key !== 'Enter' && e.key !== ' ') return;
     if ('key' in e) e.preventDefault();
-    dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
-  }, []);
+    handleNotificationClick(); // Use the proper handler that adds entries to feed
+  }, [handleNotificationClick]);
 
   // Error display
   if (state.fetchError) {
