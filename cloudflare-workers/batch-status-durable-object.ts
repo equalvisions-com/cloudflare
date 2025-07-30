@@ -62,7 +62,7 @@ export class BatchStatusDurableObject {
   private async handleSSE(request: Request): Promise<Response> {
     // SSE implementation without polling
     const stream = new ReadableStream({
-      start: (controller) => {
+      start: async (controller) => {
         const encoder = new TextEncoder();
         
         // Send initial connection
@@ -73,7 +73,21 @@ export class BatchStatusDurableObject {
           })}\n\n`)
         );
 
-        // Set up a listener for status changes (no polling!)
+        // CRITICAL: Send current status if it exists (fixes timing issue!)
+        const currentStatus = await this.storage.get('status');
+        if (currentStatus) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(currentStatus)}\n\n`)
+          );
+          
+          // If already completed/failed, close immediately
+          if (currentStatus.status === 'completed' || currentStatus.status === 'failed') {
+            controller.close();
+            return;
+          }
+        }
+
+        // Set up a listener for future status changes (no polling!)
         const listener = (status: any) => {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(status)}\n\n`)
