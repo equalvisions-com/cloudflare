@@ -112,14 +112,19 @@ async function enrichSSEEntriesWithConvex(
     if (postCache && (now - cacheTimestamp) < CACHE_TTL) {
       console.log('⚡ SSE: Using cached posts (performance optimization)');
       // Filter cached posts by needed domains only
-      posts = Array.from(postCache.values()).filter((post: any) => {
-        try {
-          const domain = new URL(post.feedUrl).hostname;
-          return entryDomains.includes(domain);
-        } catch {
-          return false;
+      posts = [];
+      for (const domain of entryDomains) {
+        // Check both newsletter and podcast for each domain
+        const newsletterKey = `${domain}:newsletter`;
+        const podcastKey = `${domain}:podcast`;
+        
+        if (postCache.has(newsletterKey)) {
+          posts.push(postCache.get(newsletterKey));
         }
-      });
+        if (postCache.has(podcastKey)) {
+          posts.push(postCache.get(podcastKey));
+        }
+      }
     } else {
       console.log('🔍 SSE: Cache miss - fetching posts for specific domains');
       // Only fetch posts for the domains we actually need
@@ -130,7 +135,8 @@ async function enrichSSEEntriesWithConvex(
       posts.forEach(post => {
         try {
           const domain = new URL(post.feedUrl).hostname;
-          postCache!.set(domain, post);
+          const cacheKey = `${domain}:${post.mediaType}`;
+          postCache!.set(cacheKey, post);
         } catch {}
       });
       cacheTimestamp = now;
@@ -138,13 +144,14 @@ async function enrichSSEEntriesWithConvex(
     
     console.log('✅ SSE: Fetched Convex posts:', { postsCount: posts.length, posts: posts.map((p: any) => ({ title: p.title, feedUrl: p.feedUrl })) });
     
-    // Create a map of domain to post data for efficient lookup
+    // Create a map of domain:mediaType to post data for efficient lookup
     const domainToPostMap = new Map();
     posts.forEach((post: any) => {
       try {
         if (post.feedUrl) {
           const domain = new URL(post.feedUrl).hostname;
-          domainToPostMap.set(domain, post);
+          const mapKey = `${domain}:${post.mediaType}`;
+          domainToPostMap.set(mapKey, post);
         }
       } catch (error) {
         // Skip posts with invalid feedUrls
@@ -158,9 +165,10 @@ async function enrichSSEEntriesWithConvex(
       try {
         const entryDomain = new URL(flatEntry.link).hostname;
         
-        // Direct domain lookup (much more efficient)
-        const potentialPost = domainToPostMap.get(entryDomain);
-        if (potentialPost && potentialPost.mediaType === flatEntry.media_type) {
+        // Direct domain:mediaType lookup (much more efficient and avoids collisions)
+        const lookupKey = `${entryDomain}:${flatEntry.media_type}`;
+        const potentialPost = domainToPostMap.get(lookupKey);
+        if (potentialPost) {
           matchingPost = potentialPost;
         }
       } catch (error) {
@@ -172,9 +180,11 @@ async function enrichSSEEntriesWithConvex(
           entryTitle: flatEntry.title,
           entryLink: flatEntry.link,
           entryDomain: new URL(flatEntry.link).hostname,
+          entryMediaType: flatEntry.media_type,
+          lookupKey: `${new URL(flatEntry.link).hostname}:${flatEntry.media_type}`,
           matchedPost: matchingPost?.title || 'NO MATCH',
           matchedFeedUrl: matchingPost?.feedUrl || 'N/A',
-          availableDomains: Array.from(domainToPostMap.keys())
+          availableKeys: Array.from(domainToPostMap.keys())
         });
       } catch (logError) {
         console.log('🔗 SSE: Entry matching result (URL parse failed):', {
