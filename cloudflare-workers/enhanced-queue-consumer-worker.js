@@ -280,10 +280,10 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
       const cutoffTime = currentTime - fourHoursInMs;
       
       // Query database for feeds with their last_fetched timestamps
-      const placeholders = postTitles.map(() => '?').join(',');
-      const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`;
+      const escapedTitles = postTitles.map(title => connection.escape(title)).join(',');
+      const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${escapedTitles})`;
       
-      const [result] = await connection.execute(query, postTitles);
+      const [result] = await connection.query(query);
       
       const staleFeedTitles = [];
       
@@ -342,15 +342,42 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
     title: channel.title || '',
     link: feedUrl,
     mediaType,
-    items: items.map((item, index) => ({
-      title: item.title || '',
-      description: item.description || item.summary || '',
-      link: item.link?.href || item.link || '',
-      guid: item.guid || item.id || `${feedUrl}-${Date.now()}-${index}`,
-      pubDate: item.pubDate || item.published || new Date().toISOString(),
-      mediaType,
-      feedUrl
-    }))
+    items: items.map((item, index) => {
+      // Extract GUID properly - handle both string and object formats
+      let guid;
+      if (typeof item.guid === 'string') {
+        guid = item.guid;
+      } else if (item.guid && typeof item.guid === 'object') {
+        // Handle CDATA or complex objects: { __cdata: "actual-guid", @_isPermaLink: false }
+        guid = item.guid.__cdata || item.guid['#text'] || item.guid.value || String(item.guid);
+      } else if (typeof item.id === 'string') {
+        guid = item.id;
+      } else if (item.id && typeof item.id === 'object') {
+        guid = item.id.__cdata || item.id['#text'] || item.id.value || String(item.id);
+      } else {
+        // Fallback to generated GUID
+        guid = `${feedUrl}-${Date.now()}-${index}`;
+      }
+      
+      // Helper function to extract text from potentially complex objects
+      const extractText = (field) => {
+        if (typeof field === 'string') return field;
+        if (field && typeof field === 'object') {
+          return field.__cdata || field['#text'] || field.value || String(field);
+        }
+        return '';
+      };
+      
+      return {
+        title: extractText(item.title) || '',
+        description: extractText(item.description || item.summary) || '',
+        link: item.link?.href || item.link || '',
+        guid: guid,
+        pubDate: item.pubDate || item.published || new Date().toISOString(),
+        mediaType,
+        feedUrl
+      };
+    })
   };
 }
 
@@ -387,11 +414,9 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
     });
     
     try {
-      // Check if feed exists
-      const [existingFeeds] = await connection.execute(
-        'SELECT id, media_type FROM rss_feeds WHERE feed_url = ?',
-        [feedUrl]
-      );
+      // Check if feed exists (use simple query, not prepared statement)
+      const existingFeedsQuery = `SELECT id, media_type FROM rss_feeds WHERE feed_url = ${connection.escape(feedUrl)}`;
+      const [existingFeeds] = await connection.query(existingFeedsQuery);
       
       if (existingFeeds.length > 0) {
         const feedId = existingFeeds[0].id;
@@ -399,10 +424,8 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
         // Update mediaType if provided and different
         if (mediaType && (!existingFeeds[0].media_type || existingFeeds[0].media_type !== mediaType)) {
           const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          await connection.execute(
-            'UPDATE rss_feeds SET media_type = ?, updated_at = ? WHERE id = ?',
-            [mediaType, now, feedId]
-          );
+          const updateQuery = `UPDATE rss_feeds SET media_type = ${connection.escape(mediaType)}, updated_at = ${connection.escape(now)} WHERE id = ${feedId}`;
+          await connection.query(updateQuery);
         }
         
         return feedId;
@@ -412,10 +435,8 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const currentTimeMs = Date.now();
       
-      const [insertResult] = await connection.execute(
-        'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
-      );
+      const insertQuery = `INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (${connection.escape(feedUrl)}, ${connection.escape(postTitle)}, ${connection.escape(mediaType || null)}, ${currentTimeMs}, ${connection.escape(now)}, ${connection.escape(now)})`;
+      const [insertResult] = await connection.query(insertQuery);
       
       return insertResult.insertId;
       
@@ -449,23 +470,18 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const currentTimeMs = Date.now();
         
-        await connection.execute(
-          'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-          [now, currentTimeMs, feedId]
-        );
+        const updateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
+        await connection.query(updateQuery);
         
         console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries)`);
         return;
       }
 
       // Get existing GUIDs to filter duplicates
-      const entryGuids = entries.map(entry => entry.guid);
-      const guidPlaceholders = entryGuids.map(() => '?').join(',');
+      const entryGuids = entries.map(entry => connection.escape(entry.guid)).join(',');
       
-      const [existingEntries] = await connection.execute(
-        `SELECT guid FROM rss_entries WHERE feed_id = ? AND guid IN (${guidPlaceholders})`,
-        [feedId, ...entryGuids]
-      );
+      const existingEntriesQuery = `SELECT guid FROM rss_entries WHERE feed_id = ${feedId} AND guid IN (${entryGuids})`;
+      const [existingEntries] = await connection.query(existingEntriesQuery);
       
       const existingGuids = new Set(existingEntries.map(row => row.guid));
       const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
@@ -477,10 +493,8 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const currentTimeMs = Date.now();
         
-        await connection.execute(
-          'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-          [now, currentTimeMs, feedId]
-        );
+        const updateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
+        await connection.query(updateQuery);
         
         console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries after filtering)`);
         return;
@@ -495,9 +509,8 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
       for (let i = 0; i < newEntries.length; i += batchSize) {
         const batch = newEntries.slice(i, i + batchSize);
         
-        // Prepare batch insert
-        const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-        const values = batch.flatMap(entry => {
+        // Build values for simple query (no prepared statements)
+        const valueRows = batch.map(entry => {
           // Format pubDate for MySQL
           let pubDateForMySQL;
           try {
@@ -509,29 +522,16 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
             pubDateForMySQL = now;
           }
           
-          return [
-            feedId,
-            entry.guid,
-            entry.title,
-            entry.link,
-            entry.description?.slice(0, 200) || '',
-            pubDateForMySQL,
-            entry.image || null,
-            mediaType || entry.mediaType || null,
-            now,
-            now
-          ];
-        });
+          return `(${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(entry.title)}, ${connection.escape(entry.link)}, ${connection.escape(entry.description?.slice(0, 200) || '')}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
+        }).join(', ');
         
-        const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
-        await connection.execute(insertQuery, values);
+        const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${valueRows}`;
+        await connection.query(insertQuery);
       }
       
       // 🔥 CRITICAL: Update last_fetched timestamp
-      await connection.execute(
-        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
-        [now, currentTimeMs, feedId]
-      );
+      const finalUpdateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
+      await connection.query(finalUpdateQuery);
       
       console.log(`✅ WORKER: Inserted ${newEntries.length} new entries and updated last_fetched for feedId ${feedId}`);
       
