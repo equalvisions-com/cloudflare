@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+import { useConvex } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 // Removed SWR - now using SSE for real-time updates
 import type { 
   RSSEntriesDisplayEntry, 
@@ -75,6 +77,98 @@ interface UseRSSEntriesQueueRefreshProps {
  * - Automatic cleanup on unmount
  * - No complex custom state management
  */
+
+// Enrich SSE entries with Convex post metadata
+async function enrichSSEEntriesWithConvex(
+  flatEntries: any[], 
+  currentPostTitles: string[],
+  convex: any
+): Promise<RSSEntriesDisplayEntry[]> {
+  try {
+    console.log('🔄 SSE: Enriching entries with Convex data...', { entriesCount: flatEntries.length });
+    
+    // Get post data from Convex using post titles from worker
+    const posts = await convex.query(api.posts.getByTitles, { titles: currentPostTitles });
+    
+    console.log('✅ SSE: Fetched Convex posts:', { postsCount: posts.length });
+    
+    // Create a map of post title to post data  
+    const postMap = new Map(
+      posts.map((post: any) => [post.title, post])
+    );
+    
+    // Transform entries with proper enrichment
+    return flatEntries.map((flatEntry: any) => {
+      // Try to find matching post by checking if any current post titles match
+      // Since we don't have direct mapping, we'll use a best-effort approach
+      let matchingPost: any = null;
+      for (const title of currentPostTitles) {
+        const post: any = postMap.get(title);
+        if (post && post.mediaType === flatEntry.media_type) {
+          matchingPost = post;
+          break;
+        }
+      }
+      
+      return {
+        entry: {
+          title: flatEntry.title,
+          link: flatEntry.link,
+          description: flatEntry.description || '',
+          pubDate: flatEntry.pub_date,
+          guid: flatEntry.guid,
+          image: flatEntry.image,
+          feedUrl: matchingPost?.feedUrl || '',
+          mediaType: flatEntry.media_type
+        },
+        initialData: {
+          likes: { isLiked: false, count: 0 },
+          comments: { count: 0 },
+          retweets: { isRetweeted: false, count: 0 },
+          bookmarks: { isBookmarked: false }
+        },
+        postMetadata: {
+          title: matchingPost?.title || (flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast'),
+          featuredImg: matchingPost?.featuredImg || flatEntry.image,
+          mediaType: flatEntry.media_type,
+          verified: matchingPost?.verified || false,
+          postSlug: matchingPost?.postSlug,
+          categorySlug: matchingPost?.categorySlug
+        }
+      };
+    });
+    
+  } catch (error) {
+    console.error('❌ SSE: Failed to enrich entries with Convex:', error);
+    
+    // Fallback to basic structure if enrichment fails
+    return flatEntries.map((flatEntry: any) => ({
+      entry: {
+        title: flatEntry.title,
+        link: flatEntry.link,
+        description: flatEntry.description || '',
+        pubDate: flatEntry.pub_date,
+        guid: flatEntry.guid,
+        image: flatEntry.image,
+        feedUrl: '',
+        mediaType: flatEntry.media_type
+      },
+      initialData: {
+        likes: { isLiked: false, count: 0 },
+        comments: { count: 0 },
+        retweets: { isRetweeted: false, count: 0 },
+        bookmarks: { isBookmarked: false }
+      },
+      postMetadata: {
+        title: flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast',
+        featuredImg: flatEntry.image,
+        mediaType: flatEntry.media_type,
+        verified: false
+      }
+    }));
+  }
+}
+
 export const useRSSEntriesQueueRefresh = ({
   isActive,
   isRefreshing,
@@ -103,6 +197,7 @@ export const useRSSEntriesQueueRefresh = ({
   prependEntries,
   createManagedTimeout,
 }: UseRSSEntriesQueueRefreshProps) => {
+  const convex = useConvex();
 
   // SSE state for real-time batch tracking
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
@@ -242,47 +337,32 @@ export const useRSSEntriesQueueRefresh = ({
             console.log('✅ SSE: Batch completed with real-time update');
             console.log('📦 SSE: Received completion data:', data);
             
-            // Transform flat entries from Durable Object to expected structure
-            const transformedEntries = (data.entries || []).map((flatEntry: any) => ({
-              entry: {
-                title: flatEntry.title,
-                link: flatEntry.link,
-                description: flatEntry.description || '',
-                pubDate: flatEntry.pub_date,
-                guid: flatEntry.guid,
-                image: flatEntry.image,
-                feedUrl: '', // We'll need to determine this from context
-                mediaType: flatEntry.media_type
-              },
-              initialData: {
-                likes: { isLiked: false, count: 0 },
-                comments: { count: 0 },
-                retweets: { isRetweeted: false, count: 0 },
-                bookmarks: { isBookmarked: false }
-              },
-              postMetadata: {
-                title: flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast',
-                featuredImg: flatEntry.image,
-                mediaType: flatEntry.media_type,
-                verified: false
-              }
-            }));
-
-            const completionResult = {
-              batchId: data.batchId,
-              success: true,
-              refreshedAny: (data.newEntriesCount || 0) > 0,
-              entries: transformedEntries,
-              newEntriesCount: data.newEntriesCount || 0,
-              totalEntries: data.newEntriesCount || 0,
-              postTitles: currentPostTitles, // Use current post titles from the component
-              refreshTimestamp: data.refreshTimestamp,
-              processingTimeMs: data.processingTimeMs
-            };
-            
-            console.log('🔄 SSE: Processing completion result:', completionResult);
-            handleSuccessfulRefresh(completionResult);
-            cleanupSSE();
+            // Enrich entries with Convex post data
+            enrichSSEEntriesWithConvex(data.entries || [], currentPostTitles, convex)
+              .then(enrichedEntries => {
+                const completionResult = {
+                  batchId: data.batchId,
+                  success: true,
+                  refreshedAny: (data.newEntriesCount || 0) > 0,
+                  entries: enrichedEntries,
+                  newEntriesCount: data.newEntriesCount || 0,
+                  totalEntries: data.newEntriesCount || 0,
+                  postTitles: currentPostTitles,
+                  refreshTimestamp: data.refreshTimestamp,
+                  processingTimeMs: data.processingTimeMs
+                };
+                
+                console.log('🔄 SSE: Processing completion result:', completionResult);
+                handleSuccessfulRefresh(completionResult);
+                cleanupSSE();
+              })
+              .catch(error => {
+                console.error('❌ SSE: Failed to enrich entries:', error);
+                setRefreshError('Failed to enrich entries');
+                setRefreshing(false);
+                cleanupSSE();
+              });
+            return; // Early return to avoid the duplicate code below
             
           } else if (data.status === 'failed') {
             console.error('❌ SSE: Batch failed:', data.error);
