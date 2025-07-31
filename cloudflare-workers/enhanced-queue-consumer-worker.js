@@ -1031,13 +1031,14 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
     });
     
     try {
-      // Query for entries created since the user's newest entry date
+      // Query for entries created since the user's newest entry date (JOIN with feeds to get feedUrl for cache lookup)
       const since = new Date(newestEntryDate).toISOString().slice(0, 19).replace('T', ' ');
       const query = `
-        SELECT guid, title, link, description, pub_date, image, media_type, created_at 
-        FROM rss_entries 
-        WHERE created_at > ${connection.escape(since)}
-        ORDER BY created_at DESC 
+        SELECT e.guid, e.title, e.link, e.description, e.pub_date, e.image, e.media_type, e.created_at, f.feed_url as feedUrl
+        FROM rss_entries e
+        JOIN rss_feeds f ON e.feed_id = f.id
+        WHERE e.created_at > ${connection.escape(since)}
+        ORDER BY e.created_at DESC 
         LIMIT 50
       `;
       

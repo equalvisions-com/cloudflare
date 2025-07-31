@@ -78,155 +78,41 @@ interface UseRSSEntriesQueueRefreshProps {
  * - No complex custom state management
  */
 
-// Enterprise-grade post cache for SSE enrichment
-let postCache: Map<string, any> | null = null;
-let cacheTimestamp: number = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Enrich SSE entries with Convex post metadata (Enterprise Performance)
+// Simple SSE enrichment using Convex directly (Convex handles caching)
 async function enrichSSEEntriesWithConvex(
   flatEntries: any[], 
-  currentPostTitles: string[],
   convex: any
 ): Promise<RSSEntriesDisplayEntry[]> {
-  try {
-    console.log('🔄 SSE: Enriching entries with Convex data...', { entriesCount: flatEntries.length });
+  console.log('🔄 SSE: Enriching entries with Convex...', { entriesCount: flatEntries.length });
+  
+  // Get unique feedUrls from the entries
+  const feedUrls = [...new Set(flatEntries.map(entry => entry.feedUrl).filter(Boolean))];
+  
+  if (feedUrls.length === 0) {
+    console.log('⚠️ SSE: No feedUrls found, using fallback enrichment');
+    return flatEntries.map(flatEntry => createFallbackEntry(flatEntry));
+  }
+  
+  // Query Convex for posts by feedUrls (Convex handles caching internally)
+  const posts = await convex.query(api.posts.getByFeedUrls, { feedUrls });
+  console.log('✅ SSE: Fetched posts from Convex:', { postsCount: posts.length });
+  
+  // Create lookup map by feedUrl
+  const postMap = new Map();
+  posts.forEach((post: any) => {
+    if (post.feedUrl) postMap.set(post.feedUrl, post);
+  });
+  
+  return flatEntries.map((flatEntry: any) => {
+    const post = postMap.get(flatEntry.feedUrl);
     
-    // Step 1: Extract unique domains from entries (only query what we need)
-    const entryDomains = [...new Set(
-      flatEntries.map((entry: any) => {
-        try {
-          return new URL(entry.link).hostname;
-        } catch {
-          return null;
-        }
-      }).filter(Boolean)
-    )];
-    
-    console.log('🎯 SSE: Need posts for domains:', entryDomains);
-    
-    // Step 2: Check cache first (enterprise caching)
-    const now = Date.now();
-    let posts: any[] = [];
-    
-    if (postCache && (now - cacheTimestamp) < CACHE_TTL) {
-      console.log('⚡ SSE: Using cached posts (performance optimization)');
-      // Filter cached posts by needed domains only
-      posts = [];
-      for (const domain of entryDomains) {
-        // Check both newsletter and podcast for each domain
-        const newsletterKey = `${domain}:newsletter`;
-        const podcastKey = `${domain}:podcast`;
-        
-        if (postCache.has(newsletterKey)) {
-          posts.push(postCache.get(newsletterKey));
-        }
-        if (postCache.has(podcastKey)) {
-          posts.push(postCache.get(podcastKey));
-        }
-      }
-    } else {
-      console.log('🔍 SSE: Cache miss - fetching posts for specific domains');
-      // Only fetch posts for the domains we actually need
-      posts = await convex.query(api.posts.getPostsByDomains, { domains: entryDomains });
-      
-      // Update cache with all posts (for future requests)
-      if (!postCache) postCache = new Map();
-      posts.forEach(post => {
-        try {
-          const domain = new URL(post.feedUrl).hostname;
-          const cacheKey = `${domain}:${post.mediaType}`;
-          postCache!.set(cacheKey, post);
-        } catch {}
-      });
-      cacheTimestamp = now;
-    }
-    
-    console.log('✅ SSE: Fetched Convex posts:', { postsCount: posts.length, posts: posts.map((p: any) => ({ title: p.title, feedUrl: p.feedUrl })) });
-    
-    // Create a map of domain:mediaType to post data for efficient lookup
-    const domainToPostMap = new Map();
-    posts.forEach((post: any) => {
-      try {
-        if (post.feedUrl) {
-          const domain = new URL(post.feedUrl).hostname;
-          const mapKey = `${domain}:${post.mediaType}`;
-          domainToPostMap.set(mapKey, post);
-        }
-      } catch (error) {
-        // Skip posts with invalid feedUrls
-      }
+    console.log('🔗 SSE: Entry enrichment:', {
+      entryTitle: flatEntry.title,
+      feedUrl: flatEntry.feedUrl,
+      matchedPost: post?.title || 'NO MATCH'
     });
     
-    // Transform entries with proper enrichment using domain matching
-    return flatEntries.map((flatEntry: any) => {
-      let matchingPost: any = null;
-      
-      try {
-        const entryDomain = new URL(flatEntry.link).hostname;
-        
-        // Direct domain:mediaType lookup (much more efficient and avoids collisions)
-        const lookupKey = `${entryDomain}:${flatEntry.media_type}`;
-        const potentialPost = domainToPostMap.get(lookupKey);
-        if (potentialPost) {
-          matchingPost = potentialPost;
-        }
-      } catch (error) {
-        console.warn('Failed to parse entry URL for matching:', flatEntry.link);
-      }
-      
-      try {
-        console.log('🔗 SSE: Entry matching result:', {
-          entryTitle: flatEntry.title,
-          entryLink: flatEntry.link,
-          entryDomain: new URL(flatEntry.link).hostname,
-          entryMediaType: flatEntry.media_type,
-          lookupKey: `${new URL(flatEntry.link).hostname}:${flatEntry.media_type}`,
-          matchedPost: matchingPost?.title || 'NO MATCH',
-          matchedFeedUrl: matchingPost?.feedUrl || 'N/A',
-          availableKeys: Array.from(domainToPostMap.keys())
-        });
-      } catch (logError) {
-        console.log('🔗 SSE: Entry matching result (URL parse failed):', {
-          entryTitle: flatEntry.title,
-          entryLink: flatEntry.link,
-          matchedPost: matchingPost?.title || 'NO MATCH'
-        });
-      }
-      
-      return {
-        entry: {
-          title: flatEntry.title,
-          link: flatEntry.link,
-          description: flatEntry.description || '',
-          pubDate: flatEntry.pub_date,
-          guid: flatEntry.guid,
-          image: flatEntry.image,
-          feedUrl: matchingPost?.feedUrl || '',
-          mediaType: flatEntry.media_type
-        },
-        initialData: {
-          likes: { isLiked: false, count: 0 },
-          comments: { count: 0 },
-          retweets: { isRetweeted: false, count: 0 },
-          bookmarks: { isBookmarked: false }
-        },
-        postMetadata: {
-          title: matchingPost?.title || (flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast'),
-          featuredImg: matchingPost?.featuredImg || flatEntry.image,
-          mediaType: flatEntry.media_type,
-          verified: matchingPost?.verified || false,
-          postSlug: matchingPost?.postSlug,
-          categorySlug: matchingPost?.categorySlug
-        }
-      };
-    });
-    
-  } catch (error) {
-    console.error('❌ SSE: Failed to enrich entries with Convex:', error);
-    
-    // Fallback to basic structure if enrichment fails
-    return flatEntries.map((flatEntry: any) => ({
+    return {
       entry: {
         title: flatEntry.title,
         link: flatEntry.link,
@@ -234,7 +120,7 @@ async function enrichSSEEntriesWithConvex(
         pubDate: flatEntry.pub_date,
         guid: flatEntry.guid,
         image: flatEntry.image,
-        feedUrl: '',
+        feedUrl: flatEntry.feedUrl || '',
         mediaType: flatEntry.media_type
       },
       initialData: {
@@ -244,13 +130,43 @@ async function enrichSSEEntriesWithConvex(
         bookmarks: { isBookmarked: false }
       },
       postMetadata: {
-        title: flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast',
-        featuredImg: flatEntry.image,
+        title: post?.title || (flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast'),
+        featuredImg: post?.featuredImg || flatEntry.image,
         mediaType: flatEntry.media_type,
-        verified: false
+        verified: post?.verified || false,
+        postSlug: post?.postSlug,
+        categorySlug: post?.categorySlug
       }
-    }));
-  }
+    };
+  });
+}
+
+// Fallback for entries without feedUrls
+function createFallbackEntry(flatEntry: any): RSSEntriesDisplayEntry {
+  return {
+    entry: {
+      title: flatEntry.title,
+      link: flatEntry.link,
+      description: flatEntry.description || '',
+      pubDate: flatEntry.pub_date,
+      guid: flatEntry.guid,
+      image: flatEntry.image,
+      feedUrl: flatEntry.feedUrl || '',
+      mediaType: flatEntry.media_type
+    },
+    initialData: {
+      likes: { isLiked: false, count: 0 },
+      comments: { count: 0 },
+      retweets: { isRetweeted: false, count: 0 },
+      bookmarks: { isBookmarked: false }
+    },
+    postMetadata: {
+      title: flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast',
+      featuredImg: flatEntry.image,
+      mediaType: flatEntry.media_type,
+      verified: false
+    }
+  };
 }
 
 export const useRSSEntriesQueueRefresh = ({
@@ -421,8 +337,8 @@ export const useRSSEntriesQueueRefresh = ({
             console.log('✅ SSE: Batch completed with real-time update');
             console.log('📦 SSE: Received completion data:', data);
             
-            // Enrich entries with Convex post data
-            enrichSSEEntriesWithConvex(data.entries || [], currentPostTitles, convex)
+            // Enrich entries with Convex (simple and reliable)
+            enrichSSEEntriesWithConvex(data.entries || [], convex)
               .then(enrichedEntries => {
                 const completionResult = {
                   batchId: data.batchId,
