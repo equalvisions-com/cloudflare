@@ -240,13 +240,46 @@ export const useRSSEntriesQueueRefresh = ({
           
           if (data.status === 'completed') {
             console.log('✅ SSE: Batch completed with real-time update');
+            console.log('📦 SSE: Received completion data:', data);
             
-            if (data.result?.success) {
-              handleSuccessfulRefresh(data.result);
-            } else {
-              setRefreshError(data.result?.error || 'Processing failed');
-              setRefreshing(false);
-            }
+            // Transform flat entries from Durable Object to expected structure
+            const transformedEntries = (data.entries || []).map((flatEntry: any) => ({
+              entry: {
+                title: flatEntry.title,
+                link: flatEntry.link,
+                description: flatEntry.description || '',
+                pubDate: flatEntry.pub_date,
+                guid: flatEntry.guid,
+                image: flatEntry.image,
+                feedUrl: '', // We'll need to determine this from context
+                mediaType: flatEntry.media_type
+              },
+              initialData: {
+                likes: { isLiked: false, count: 0 },
+                comments: { count: 0 },
+                retweets: { isRetweeted: false, count: 0 },
+                bookmarks: { isBookmarked: false }
+              },
+              postMetadata: {
+                title: flatEntry.media_type === 'newsletter' ? 'Newsletter' : 'Podcast',
+                featuredImg: flatEntry.image,
+                mediaType: flatEntry.media_type,
+                verified: false
+              }
+            }));
+
+            const completionResult = {
+              success: true,
+              refreshedAny: (data.newEntriesCount || 0) > 0,
+              entries: transformedEntries,
+              newEntriesCount: data.newEntriesCount || 0,
+              totalEntries: data.newEntriesCount || 0,
+              refreshTimestamp: data.refreshTimestamp,
+              processingTimeMs: data.processingTimeMs
+            };
+            
+            console.log('🔄 SSE: Processing completion result:', completionResult);
+            handleSuccessfulRefresh(completionResult);
             cleanupSSE();
             
           } else if (data.status === 'failed') {

@@ -92,14 +92,18 @@ export default {
         // Notify Durable Object of completion
         if (env.BATCH_STATUS_DO) {
           try {
+            console.log('🔔 WORKER: Notifying Durable Object of completion', { batchId, newEntriesCount: newEntries.entries.length });
             const durableObject = env.BATCH_STATUS_DO.get(env.BATCH_STATUS_DO.idFromName(batchId));
             await durableObject.fetch('https://worker/notify', {
               method: 'POST',
               body: JSON.stringify(result)
             });
+            console.log('✅ WORKER: Successfully notified Durable Object');
           } catch (doError) {
             console.error('❌ WORKER: Durable Object notification failed:', doError);
           }
+        } else {
+          console.error('❌ WORKER: BATCH_STATUS_DO binding not available');
         }
 
         totalProcessed++;
@@ -252,11 +256,16 @@ function chunkArray(array, chunkSize) {
 }
 
 async function setBatchStatus(batchId, status, env) {
-  if (!env.BATCH_STATUS || !batchId) return;
+  if (!env.BATCH_STATUS || !batchId) {
+    console.error('❌ WORKER: setBatchStatus failed - missing BATCH_STATUS binding or batchId');
+    return;
+  }
   
   try {
+    console.log(`📨 WORKER: Setting batch status to ${status.status}`, { batchId, status: status.status });
     const statusJson = JSON.stringify(status);
     await env.BATCH_STATUS.put(batchId, statusJson, { expirationTtl: 3600 });
+    console.log(`✅ WORKER: Successfully stored batch status: ${status.status}`);
   } catch (error) {
     console.error('❌ WORKER: KV write failed:', error);
   }
@@ -968,8 +977,19 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
             pubDateForMySQL = now;
           }
           
-          // Use escaped string query (Hyperdrive does not support prepared statements)
-          const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES (${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(entry.title)}, ${connection.escape(entry.link)}, ${connection.escape(entry.description?.slice(0, 200) || '')}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
+          // Sanitize content to prevent multi-statement issues
+          const sanitizeContent = (content) => {
+            if (!content) return '';
+            return String(content)
+              .replace(/;/g, ',')      // Replace semicolons with commas
+              .replace(/--/g, '-')     // Replace SQL comment markers
+              .replace(/\/\*/g, '/')   // Replace SQL block comment start
+              .replace(/\*\//g, '/')   // Replace SQL block comment end
+              .slice(0, 200);
+          };
+
+          // Use escaped string query with sanitized content
+          const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES (${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(sanitizeContent(entry.title))}, ${connection.escape(entry.link)}, ${connection.escape(sanitizeContent(entry.description))}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
           
           await connection.query(insertQuery);
           insertedCount++;
@@ -996,14 +1016,63 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
 }
 
 async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, newestEntryDate, env) {
-  // Filter and return new entries
-  const allEntries = processedFeeds.flatMap(pf => pf.data.items);
-  const newEntries = allEntries.filter(entry => !existingGuids.includes(entry.guid));
+  console.log(`🔍 WORKER: Checking for new entries since ${newestEntryDate}`, { existingGuidsCount: existingGuids.length });
   
-  return {
-    entries: newEntries,
-    totalEntries: newEntries.length
-  };
+  try {
+    // Use the mysql2 driver with Hyperdrive credentials
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      disableEval: true
+    });
+    
+    try {
+      // Query for entries created since the user's newest entry date
+      const since = new Date(newestEntryDate).toISOString().slice(0, 19).replace('T', ' ');
+      const query = `
+        SELECT guid, title, link, description, pub_date, image, media_type, created_at 
+        FROM rss_entries 
+        WHERE created_at > ${connection.escape(since)}
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `;
+      
+      const [dbEntries] = await connection.query(query);
+      console.log(`📊 WORKER: Found ${dbEntries.length} entries in database since ${since}`);
+      
+      // Filter out entries that the user already has
+      const newEntries = dbEntries.filter(entry => !existingGuids.includes(entry.guid));
+      console.log(`🆕 WORKER: ${newEntries.length} entries are truly new for this user`);
+      
+      if (newEntries.length > 0) {
+        console.log(`🎯 WORKER: New entry GUIDs:`, newEntries.slice(0, 3).map(e => e.guid));
+      }
+      
+      return {
+        entries: newEntries,
+        totalEntries: newEntries.length
+      };
+      
+    } finally {
+      await connection.end();
+    }
+    
+  } catch (error) {
+    console.error('❌ WORKER: Error checking for new entries:', error);
+    
+    // Fallback: check processed feeds only (old behavior)
+    const allEntries = processedFeeds.flatMap(pf => pf.data.items);
+    const newEntries = allEntries.filter(entry => !existingGuids.includes(entry.guid));
+    
+    return {
+      entries: newEntries,
+      totalEntries: newEntries.length
+    };
+  }
 }
 
 async function acquireFeedRefreshLock(feedUrl, env) {

@@ -31,6 +31,11 @@ export class BatchStatusDurableObject {
       return this.handleStatusUpdate(request);
     }
 
+    if (url.pathname.endsWith('/notify')) {
+      // Handle completion notifications from queue consumer worker
+      return this.handleNotification(request);
+    }
+
     // Handle SSE fallback for browsers that prefer SSE over WebSocket
     return this.handleSSE(request);
   }
@@ -156,6 +161,63 @@ export class BatchStatusDurableObject {
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Failed to update status' 
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  private async handleNotification(request: Request): Promise<Response> {
+    try {
+      const notification = await request.json();
+      console.log('🔔 DURABLE OBJECT: Received notification from worker:', notification);
+      
+      // The notification contains the batch result with new entries
+      const status = {
+        batchId: notification.batchId,
+        status: 'completed',
+        completedAt: Date.now(),
+        newEntriesCount: notification.newEntriesCount,
+        entries: notification.entries,
+        refreshTimestamp: notification.refreshTimestamp,
+        processingTimeMs: notification.processingTimeMs
+      };
+      
+      // Store the status
+      await this.storage.put('status', status);
+      console.log('📨 DURABLE OBJECT: Stored status and broadcasting to SSE listeners');
+      
+      // Broadcast to all connected WebSocket clients
+      const message = JSON.stringify(status);
+      for (const session of this.sessions) {
+        try {
+          session.send(message);
+        } catch (error) {
+          this.sessions.delete(session);
+        }
+      }
+
+      // Broadcast to SSE listeners
+      if ((this as any).sseListeners) {
+        for (const listener of (this as any).sseListeners) {
+          try {
+            listener(status);
+          } catch (error) {
+            (this as any).sseListeners.delete(listener);
+          }
+        }
+      }
+      
+      console.log('✅ DURABLE OBJECT: Successfully broadcast completion notification');
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('❌ DURABLE OBJECT: Failed to handle notification:', error);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Failed to handle notification' 
       }), { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }
