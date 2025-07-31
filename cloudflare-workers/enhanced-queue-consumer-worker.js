@@ -4,18 +4,22 @@
 
 import { XMLParser } from 'fast-xml-parser';
 
-// Initialize XML parser with optimized settings
+// Initialize XML parser with EXACT same settings as rss.server.ts
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
-  textNodeName: "#text",
-  ignoreNameSpace: false,
-  removeNSPrefix: false,
-  parseTagValue: true,
   parseAttributeValue: true,
   trimValues: true,
-  cdataPropName: "__cdata",
+  parseTagValue: false,
+  isArray: (tagName) => {
+    // Common array elements in RSS/Atom feeds
+    return ['item', 'entry', 'link', 'category', 'enclosure'].includes(tagName);
+  },
+  // Add stopNodes for CDATA sections that shouldn't be parsed
+  stopNodes: ['description', 'content:encoded', 'summary'],
+  // Add processing instruction handling for XML declaration
   processEntities: true,
+  htmlEntities: true
 });
 
 // Parallel processing configuration following Cloudflare limits
@@ -326,23 +330,441 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
   }
 }
 
+// Helper function to safely extract text content (from rss.server.ts)
+function getTextContent(node) {
+  if (!node) return '';
+  
+  // Direct string
+  if (typeof node === 'string') {
+    return stripHtmlTags(node);
+  }
+  
+  // Object with text content
+  if (typeof node === 'object' && node !== null) {
+    // fast-xml-parser puts text content in #text property
+    if ('#text' in node) {
+      return stripHtmlTags(String(node['#text'] || ''));
+    }
+    
+    // CDATA content might be in __cdata with newer versions
+    if ('__cdata' in node) {
+      return stripHtmlTags(String(node['__cdata'] || ''));
+    }
+    
+    // Some feeds use direct content
+    if ('content' in node && typeof node.content === 'string') {
+      return stripHtmlTags(node.content);
+    }
+    
+    // For complex objects with both attributes and text
+    if ('attr' in node && '#text' in node) {
+      return stripHtmlTags(String(node['#text'] || ''));
+    }
+  }
+  
+  // Fallback to string conversion
+  return stripHtmlTags(String(node || ''));
+}
+
+// Helper function to strip HTML tags (from rss.server.ts)
+function stripHtmlTags(html) {
+  if (!html) return '';
+  
+  // First replace common entities
+  let text = html
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+  
+  // Remove HTML tags
+  text = text.replace(/<[^>]*>/g, ' ');
+  
+  // Replace multiple spaces with a single space
+  text = text.replace(/\s+/g, ' ');
+  
+  // Trim leading/trailing whitespace
+  return text.trim();
+}
+
+// Helper function to extract link from different formats (from rss.server.ts)
+function getLink(node) {
+  if (!node) return '';
+  
+  // Simple check if this is a podcast feed (has iTunes namespace elements)
+  const isPodcast = Boolean(
+    node['itunes:duration'] || 
+    node['itunes:author'] || 
+    node['itunes:subtitle'] || 
+    node['itunes:explicit'] ||
+    node['itunes:image']
+  );
+  
+  // For podcasts, extract the audio file URL from enclosure
+  if (isPodcast && node.enclosure) {
+    // With our updated parser config, enclosure is always an array
+    const enclosures = Array.isArray(node.enclosure) ? node.enclosure : [node.enclosure];
+    
+    // Try to find an audio enclosure first
+    for (const enc of enclosures) {
+      if (typeof enc !== 'object' || enc === null) continue;
+      
+      const enclosure = enc;
+      // Direct attribute access with fast-xml-parser's @_ prefix
+      if (enclosure['@_url']) {
+        return String(enclosure['@_url']);
+      }
+      
+      // Fallback to nested attr object if direct access fails
+      if (enclosure.attr && typeof enclosure.attr === 'object') {
+        const attr = enclosure.attr;
+        if (attr['@_url']) {
+          return String(attr['@_url']);
+        }
+      }
+      
+      // Last resort - check for url property
+      if (enclosure.url) {
+        return String(enclosure.url);
+      }
+    }
+  }
+  
+  // For regular feeds (newsletters, blogs, etc.), extract the standard link
+  
+  // Case 1: Simple string link (common in many feeds)
+  if (typeof node.link === 'string') {
+    return node.link;
+  }
+  
+  // Case 2: Link as object with text content
+  if (typeof node.link === 'object' && node.link !== null && !Array.isArray(node.link)) {
+    const linkObj = node.link;
+    
+    // Direct attribute access with fast-xml-parser's @_ prefix
+    if (linkObj['@_href']) {
+      return String(linkObj['@_href']);
+    }
+    
+    // Fallback to nested attr object
+    if (linkObj.attr && typeof linkObj.attr === 'object') {
+      const attr = linkObj.attr;
+      if (attr['@_href']) {
+        return String(attr['@_href']);
+      }
+    }
+    
+    // Check for text content
+    if (linkObj['#text']) {
+      return String(linkObj['#text']);
+    }
+  }
+  
+  // Case 3: Array of links (with our updated parser config, link is always an array)
+  if (Array.isArray(node.link) && node.link.length > 0) {
+    // Try to find the main/alternate link first
+    const mainLink = node.link.find(l => {
+      if (typeof l !== 'object' || l === null) return false;
+      const link = l;
+      return link['@_rel'] === 'alternate' || !link['@_rel'];
+    });
+    
+    if (mainLink && typeof mainLink === 'object') {
+      // Direct attribute access
+      if (mainLink['@_href']) {
+        return String(mainLink['@_href']);
+      }
+      
+      // Text content
+      if (mainLink['#text']) {
+        return String(mainLink['#text']);
+      }
+    }
+    
+    // Fallback to first link
+    const firstLink = node.link[0];
+    if (typeof firstLink === 'object' && firstLink !== null) {
+      // Direct attribute access
+      if (firstLink['@_href']) {
+        return String(firstLink['@_href']);
+      }
+      
+      // Nested attr object
+      if (firstLink.attr && typeof firstLink.attr === 'object') {
+        const attr = firstLink.attr;
+        if (attr['@_href']) {
+          return String(attr['@_href']);
+        }
+      }
+      
+      // Text content
+      if (firstLink['#text']) {
+        return String(firstLink['#text']);
+      }
+    }
+    
+    // String representation
+    return String(node.link[0]);
+  }
+  
+  // Fallback to guid if it's a URL
+  if (typeof node.guid === 'string' && node.guid.startsWith('http')) {
+    return node.guid;
+  }
+  
+  return '';
+}
+
+// Helper function to extract image from item (comprehensive version from rss.server.ts)
+function extractImage(item) {
+  try {
+    // Check for itunes:image (for podcasts)
+    if (item['itunes:image']) {
+      // Standard format with attr/@_href
+      if (typeof item['itunes:image'] === 'object' && item['itunes:image'] !== null) {
+        const itunesImage = item['itunes:image'];
+        
+        // Direct @_href attribute (common in libsyn feeds)
+        if (itunesImage['@_href']) {
+          return String(itunesImage['@_href']);
+        }
+        
+        // Nested attr/@_href format
+        if (itunesImage.attr && typeof itunesImage.attr === 'object') {
+          const attr = itunesImage.attr;
+          if (attr['@_href']) {
+            return String(attr['@_href']);
+          }
+        }
+        
+        // Alternative format: url attribute directly on the object
+        if (itunesImage.url) {
+          return String(itunesImage.url);
+        }
+        
+        // Alternative format: href directly on the object
+        if (itunesImage.href) {
+          return String(itunesImage.href);
+        }
+      }
+      
+      // Alternative format: direct string URL
+      if (typeof item['itunes:image'] === 'string' && 
+          item['itunes:image'].match(/^https?:\/\//)) {
+        return item['itunes:image'];
+      }
+    }
+    
+    // Check for enclosures with image types
+    if (item.enclosure) {
+      const enclosures = Array.isArray(item.enclosure) ? item.enclosure : [item.enclosure];
+      
+      for (const enc of enclosures) {
+        if (typeof enc !== 'object' || enc === null) continue;
+        
+        const enclosure = enc;
+        let enclosureUrl = null;
+        
+        // Check for URL in attr
+        if (enclosure.attr && typeof enclosure.attr === 'object') {
+          const attr = enclosure.attr;
+          if (attr['@_url']) {
+            enclosureUrl = String(attr['@_url']);
+          }
+        }
+        
+        // Check for direct URL
+        if (!enclosureUrl && enclosure['@_url']) {
+          enclosureUrl = String(enclosure['@_url']);
+        }
+        
+        if (enclosureUrl) {
+          // Check for image indicators in the URL
+          if (
+            // Check for common image extensions
+            enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
+            // Check for URLs containing image-related terms
+            /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(enclosureUrl)
+          ) {
+            return enclosureUrl;
+          }
+        }
+      }
+    }
+    
+    // Check for image in content
+    const contentFields = ['content', 'description', 'summary', 'content:encoded'];
+    for (const field of contentFields) {
+      const content = item[field];
+      if (typeof content === 'string' && content.length > 0) {
+        // Try different image tag patterns
+        const patterns = [
+          /<img[^>]+src=["']([^"']+)["']/i,
+          /<img[^>]+src=([^ >]+)/i,
+          /src=["']([^"']+\.(?:jpg|jpeg|png|gif|webp))["']/i
+        ];
+        
+        for (const pattern of patterns) {
+          const match = content.match(pattern);
+          if (match && match[1]) {
+            // Ignore data URLs
+            if (!match[1].startsWith('data:')) {
+              return match[1];
+            }
+          }
+        }
+      }
+    }
+    
+    // Use the channelImage property we added in extractFeedData
+    if (item.channelImage && typeof item.channelImage === 'string') {
+      return item.channelImage;
+    }
+    
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Helper function to format date consistently (from rss.server.ts)
+function formatDate(dateStr) {
+  try {
+    // If dateStr is empty or undefined, return current date
+    if (!dateStr) {
+      return new Date().toISOString();
+    }
+    
+    // Special handling for PlanetScale date format
+    if (typeof dateStr === 'string') {
+      // Check if it's a MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+      const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+      if (mysqlDateRegex.test(dateStr)) {
+        // Convert MySQL datetime format to ISO format
+        const [datePart, timePart] = dateStr.split(' ');
+        const isoString = `${datePart}T${timePart}.000Z`;
+        return isoString;
+      }
+    }
+    
+    // Handle PlanetScale's specific date format
+    if (typeof dateStr === 'object' && dateStr !== null) {
+      // If it's a Date object already, just return its ISO string
+      if (dateStr instanceof Date) {
+        return dateStr.toISOString();
+      }
+      
+      // If it has a toISOString method, use it
+      if ('toISOString' in dateStr && typeof dateStr.toISOString === 'function') {
+        return dateStr.toISOString();
+      }
+      
+      // If it has a toString method, use it and then parse
+      if ('toString' in dateStr && typeof dateStr.toString === 'function') {
+        dateStr = dateStr.toString();
+      }
+    }
+    
+    // Ensure we have a string before creating a Date
+    const dateString = typeof dateStr === 'string' 
+      ? dateStr 
+      : dateStr instanceof Date
+        ? dateStr.toISOString()
+        : String(dateStr || '');
+        
+    // Handle common RSS date formats that JavaScript's Date constructor might struggle with
+    let normalizedDateString = dateString;
+    
+    // Handle pubDate without timezone (add Z for UTC)
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateString)) {
+      normalizedDateString = `${dateString}Z`;
+    }
+    
+    // Handle pubDate with only date part
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      normalizedDateString = `${dateString}T00:00:00Z`;
+    }
+    
+    // Create Date object from normalized string
+    const date = new Date(normalizedDateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return new Date().toISOString();
+    }
+    
+    // Return consistent ISO format
+    return date.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 async function extractFeedData(parsedXML, feedUrl, mediaType) {
-  // Extract RSS/Atom data following your existing logic
+  // Handle both RSS and Atom formats (exactly like rss.server.ts)
   let channel, items = [];
   
-  if (parsedXML.rss?.channel) {
+  if (parsedXML.rss && parsedXML.rss.channel) {
+    // RSS format
     channel = parsedXML.rss.channel;
     items = Array.isArray(channel.item) ? channel.item : (channel.item ? [channel.item] : []);
   } else if (parsedXML.feed) {
+    // Atom format
     channel = parsedXML.feed;
     items = Array.isArray(channel.entry) ? channel.entry : (channel.entry ? [channel.entry] : []);
+  } else {
+    throw new Error('Unsupported feed format');
   }
   
-  return {
-    title: channel.title || '',
-    link: feedUrl,
+  // Extract channel-level image for fallback (exactly like rss.server.ts)
+  let channelImage = null;
+  
+  // Check for channel-level iTunes image
+  if (channel['itunes:image']) {
+    if (typeof channel['itunes:image'] === 'object' && channel['itunes:image'] !== null) {
+      const itunesImage = channel['itunes:image'];
+      
+      // Direct @_href attribute (common in libsyn feeds)
+      if (itunesImage['@_href']) {
+        channelImage = String(itunesImage['@_href']);
+      } else if (itunesImage.attr && typeof itunesImage.attr === 'object') {
+        const attr = itunesImage.attr;
+        if (attr['@_href']) {
+          channelImage = String(attr['@_href']);
+        }
+      }
+    }
+  }
+  
+  // Check for standard channel image
+  if (!channelImage && channel.image) {
+    if (typeof channel.image === 'object' && channel.image !== null) {
+      const image = channel.image;
+      if (image.url) {
+        channelImage = String(image.url);
+      }
+    }
+  }
+  
+  // Extract feed information (exactly like rss.server.ts)
+  const feed = {
+    title: getTextContent(channel.title),
+    description: getTextContent(channel.description || channel.subtitle || ''),
+    link: getLink(channel),
     mediaType,
-    items: items.map((item, index) => {
+    items: []
+  };
+  
+  // Process items with comprehensive error handling (exactly like rss.server.ts)
+  feed.items = items.map((item, index) => {
+    try {
+      // Add channel reference to item for image extraction
+      if (channelImage) {
+        item.channelImage = channelImage;
+      }
+      
       // Extract GUID properly - handle both string and object formats
       let guid;
       if (typeof item.guid === 'string') {
@@ -359,26 +781,53 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
         guid = `${feedUrl}-${Date.now()}-${index}`;
       }
       
-      // Helper function to extract text from potentially complex objects
-      const extractText = (field) => {
-        if (typeof field === 'string') return field;
-        if (field && typeof field === 'object') {
-          return field.__cdata || field['#text'] || field.value || String(field);
-        }
-        return '';
+      // Extract image with priority to item-level images
+      const itemImage = extractImage(item);
+      
+      const processedItem = {
+        title: getTextContent(item.title),
+        description: getTextContent(item.description || item.summary || item.content || ''),
+        link: getLink(item),
+        guid: guid,
+        pubDate: formatDate(item.pubDate || item.published || item.updated || new Date().toISOString()),
+        image: itemImage || channelImage || undefined,
+        mediaType, // Ensure mediaType is always set from the parent function
+        feedUrl: feedUrl // Add the feedUrl property which is required by the RSSItem interface
       };
       
+      return processedItem;
+    } catch (itemError) {
+      console.warn(`Error processing feed item ${index}: ${itemError}`);
+      // Return a minimal valid item to prevent the entire feed from failing
       return {
-        title: extractText(item.title) || '',
-        description: extractText(item.description || item.summary) || '',
-        link: item.link?.href || item.link || '',
-        guid: guid,
-        pubDate: item.pubDate || item.published || new Date().toISOString(),
-        mediaType,
-        feedUrl
+        title: 'Error processing item',
+        description: '',
+        link: '',
+        guid: `error-${Date.now()}-${Math.random()}`,
+        pubDate: new Date().toISOString(),
+        image: channelImage || undefined,
+        mediaType, // Ensure even error items have the mediaType
+        feedUrl: feedUrl // Add the feedUrl property here too
       };
-    })
-  };
+    }
+  }).filter((item) => {
+    const isValid = Boolean(item.guid && item.title);
+    if (!isValid) {
+      console.warn(`Filtered out invalid item: guid=${item.guid}, title=${item.title}`);
+    }
+    return isValid;
+  }); // Filter out invalid items
+  
+  // Ensure all items have the feed's mediaType if provided
+  if (mediaType) {
+    feed.items.forEach(item => {
+      if (!item.mediaType) {
+        item.mediaType = mediaType;
+      }
+    });
+  }
+  
+  return feed;
 }
 
 async function storeFeedData(feed, feedData, env) {
