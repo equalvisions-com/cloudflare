@@ -63,9 +63,10 @@ async function getOrCreateFeed(feedUrl: string, title: string, mediaType?: strin
     }
 
     // Create new feed
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const insertResult = await executeWrite(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at) VALUES (?, ?, ?, ?, ?)',
-      [feedUrl, title, mediaType || null, Date.now(), Date.now()]
+      [feedUrl, title, mediaType || null, Date.now(), now]
     );
 
     const feedId = Number(insertResult.insertId);
@@ -93,7 +94,8 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: any[], me
         );
 
         if (existingEntryResult.rows.length === 0) {
-          // Insert new entry
+          // Insert new entry with proper datetime format
+          const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
           await executeWrite(
             `INSERT INTO rss_entries (
               feed_id, title, description, link, pub_date, guid, 
@@ -108,7 +110,7 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: any[], me
               entry.guid,
               entry.enclosure?.url || null,
               mediaType || entry.mediaType || null,
-              Date.now()
+              createdAt
             ]
           );
           
