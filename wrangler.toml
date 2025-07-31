@@ -27,6 +27,11 @@ bindings = [
   { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
 ]
 
+# Hyperdrive for efficient database connections
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3d141b67fa544bd4829df63176461c04"
+
 # Variables - Default
 [vars]
 ENVIRONMENT = "production"
@@ -56,4 +61,9 @@ dead_letter_queue = "refresh-feed-dlq"
 [env.production.durable_objects]
 bindings = [
   { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
-] 
+]
+
+# Hyperdrive for efficient database connections - PRODUCTION
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3d141b67fa544bd4829df63176461c04" 
