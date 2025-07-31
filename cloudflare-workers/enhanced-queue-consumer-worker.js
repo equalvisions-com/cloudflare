@@ -283,7 +283,7 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
       const currentTime = Date.now();
       const cutoffTime = currentTime - fourHoursInMs;
       
-      // Query database for feeds with their last_fetched timestamps
+      // Query database for feeds with their last_fetched timestamps  
       const escapedTitles = postTitles.map(title => connection.escape(title)).join(',');
       const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${escapedTitles})`;
       
@@ -863,7 +863,7 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
     });
     
     try {
-      // Check if feed exists (use simple query, not prepared statement)
+      // Check if feed exists
       const existingFeedsQuery = `SELECT id, media_type FROM rss_feeds WHERE feed_url = ${connection.escape(feedUrl)}`;
       const [existingFeeds] = await connection.query(existingFeedsQuery);
       
@@ -953,13 +953,10 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const currentTimeMs = Date.now();
       
-      // Process in smaller batches for Workers
-      const batchSize = 25;
-      for (let i = 0; i < newEntries.length; i += batchSize) {
-        const batch = newEntries.slice(i, i + batchSize);
-        
-        // Build values for simple query (no prepared statements)
-        const valueRows = batch.map(entry => {
+      // Insert entries one by one to avoid multi-statement issues with Hyperdrive
+      let insertedCount = 0;
+      for (const entry of newEntries) {
+        try {
           // Format pubDate for MySQL
           let pubDateForMySQL;
           try {
@@ -971,18 +968,22 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
             pubDateForMySQL = now;
           }
           
-          return `(${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(entry.title)}, ${connection.escape(entry.link)}, ${connection.escape(entry.description?.slice(0, 200) || '')}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
-        }).join(', ');
-        
-        const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${valueRows}`;
-        await connection.query(insertQuery);
+          // Use escaped string query (Hyperdrive does not support prepared statements)
+          const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES (${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(entry.title)}, ${connection.escape(entry.link)}, ${connection.escape(entry.description?.slice(0, 200) || '')}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
+          
+          await connection.query(insertQuery);
+          insertedCount++;
+        } catch (entryError) {
+          console.warn(`⚠️ WORKER: Failed to insert entry ${entry.guid}:`, entryError);
+          // Continue with other entries
+        }
       }
       
-      // 🔥 CRITICAL: Update last_fetched timestamp
+      // 🔥 CRITICAL: Update last_fetched timestamp (separate query)
       const finalUpdateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
       await connection.query(finalUpdateQuery);
       
-      console.log(`✅ WORKER: Inserted ${newEntries.length} new entries and updated last_fetched for feedId ${feedId}`);
+      console.log(`✅ WORKER: Inserted ${insertedCount} new entries and updated last_fetched for feedId ${feedId}`);
       
     } finally {
       await connection.end();
