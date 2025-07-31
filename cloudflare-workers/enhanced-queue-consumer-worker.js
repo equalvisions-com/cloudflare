@@ -262,47 +262,62 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
   if (!postTitles || postTitles.length === 0) return [];
   
   try {
-    const fourHoursInMs = 4 * 60 * 60 * 1000;
-    const currentTime = Date.now();
-    const cutoffTime = currentTime - fourHoursInMs;
+    // Use the mysql2 driver with Hyperdrive credentials
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      // Required for Workers compatibility
+      disableEval: true
+    });
     
-    // Query database for feeds with their last_fetched timestamps
-    const placeholders = postTitles.map(() => '?').join(',');
-    const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`;
-    
-    const result = await env.HYPERDRIVE.prepare(query)
-      .bind(...postTitles)
-      .all();
-    
-    const staleFeedTitles = [];
-    
-    // Check which feeds need refreshing
-    for (const row of result.results) {
-      const lastFetchedMs = Number(row.last_fetched);
+    try {
+      const fourHoursInMs = 4 * 60 * 60 * 1000;
+      const currentTime = Date.now();
+      const cutoffTime = currentTime - fourHoursInMs;
       
-      if (lastFetchedMs < cutoffTime) {
-        staleFeedTitles.push(row.title);
-        const timeSinceLastFetch = currentTime - lastFetchedMs;
-        const minutesAgo = Math.round(timeSinceLastFetch / 60000);
-        console.log(`💾 WORKER: Feed "${row.title}" is stale (last fetched ${minutesAgo} minutes ago)`);
-      } else {
-        const timeSinceLastFetch = currentTime - lastFetchedMs;
-        const minutesAgo = Math.round(timeSinceLastFetch / 60000);
-        console.log(`✅ WORKER: Feed "${row.title}" is fresh (last fetched ${minutesAgo} minutes ago)`);
+      // Query database for feeds with their last_fetched timestamps
+      const placeholders = postTitles.map(() => '?').join(',');
+      const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${placeholders})`;
+      
+      const [result] = await connection.execute(query, postTitles);
+      
+      const staleFeedTitles = [];
+      
+      // Check which feeds need refreshing
+      for (const row of result) {
+        const lastFetchedMs = Number(row.last_fetched);
+        
+        if (lastFetchedMs < cutoffTime) {
+          staleFeedTitles.push(row.title);
+          const timeSinceLastFetch = currentTime - lastFetchedMs;
+          const minutesAgo = Math.round(timeSinceLastFetch / 60000);
+          console.log(`💾 WORKER: Feed "${row.title}" is stale (last fetched ${minutesAgo} minutes ago)`);
+        } else {
+          const timeSinceLastFetch = currentTime - lastFetchedMs;
+          const minutesAgo = Math.round(timeSinceLastFetch / 60000);
+          console.log(`✅ WORKER: Feed "${row.title}" is fresh (last fetched ${minutesAgo} minutes ago)`);
+        }
       }
+      
+      // Check for feeds that don't exist in database (new feeds)
+      const existingFeedTitles = new Set(result.map(row => row.title));
+      const newFeeds = postTitles.filter(title => !existingFeedTitles.has(title));
+      
+      if (newFeeds.length > 0) {
+        console.log(`🆕 WORKER: Found ${newFeeds.length} new feeds that need to be created:`, newFeeds);
+        staleFeedTitles.push(...newFeeds);
+      }
+      
+      console.log(`🔄 WORKER: ${staleFeedTitles.length} of ${postTitles.length} feeds need refreshing`);
+      return staleFeedTitles;
+      
+    } finally {
+      await connection.end();
     }
-    
-    // Check for feeds that don't exist in database (new feeds)
-    const existingFeedTitles = new Set(result.results.map(row => row.title));
-    const newFeeds = postTitles.filter(title => !existingFeedTitles.has(title));
-    
-    if (newFeeds.length > 0) {
-      console.log(`🆕 WORKER: Found ${newFeeds.length} new feeds that need to be created:`, newFeeds);
-      staleFeedTitles.push(...newFeeds);
-    }
-    
-    console.log(`🔄 WORKER: ${staleFeedTitles.length} of ${postTitles.length} feeds need refreshing`);
-    return staleFeedTitles;
     
   } catch (error) {
     console.error(`❌ WORKER: Error checking feed freshness:`, error);
@@ -359,35 +374,54 @@ async function storeFeedData(feed, feedData, env) {
 
 async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
   try {
-    // Check if feed exists using Hyperdrive connection
-    const existingFeedQuery = `SELECT id, media_type FROM rss_feeds WHERE feed_url = ?`;
-    const existingFeedResult = await env.HYPERDRIVE.prepare(existingFeedQuery)
-      .bind(feedUrl)
-      .all();
+    // Use the mysql2 driver with Hyperdrive credentials
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      // Required for Workers compatibility
+      disableEval: true
+    });
     
-    if (existingFeedResult.results.length > 0) {
-      const feedId = existingFeedResult.results[0].id;
+    try {
+      // Check if feed exists
+      const [existingFeeds] = await connection.execute(
+        'SELECT id, media_type FROM rss_feeds WHERE feed_url = ?',
+        [feedUrl]
+      );
       
-      // Update mediaType if provided and different
-      if (mediaType && (!existingFeedResult.results[0].media_type || existingFeedResult.results[0].media_type !== mediaType)) {
-        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        await env.HYPERDRIVE.prepare(
-          'UPDATE rss_feeds SET media_type = ?, updated_at = ? WHERE id = ?'
-        ).bind(mediaType, now, feedId).run();
+      if (existingFeeds.length > 0) {
+        const feedId = existingFeeds[0].id;
+        
+        // Update mediaType if provided and different
+        if (mediaType && (!existingFeeds[0].media_type || existingFeeds[0].media_type !== mediaType)) {
+          const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          await connection.execute(
+            'UPDATE rss_feeds SET media_type = ?, updated_at = ? WHERE id = ?',
+            [mediaType, now, feedId]
+          );
+        }
+        
+        return feedId;
       }
       
-      return feedId;
+      // Create new feed
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const currentTimeMs = Date.now();
+      
+      const [insertResult] = await connection.execute(
+        'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
+      );
+      
+      return insertResult.insertId;
+      
+    } finally {
+      await connection.end();
     }
-    
-    // Create new feed
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const currentTimeMs = Date.now();
-    
-    const insertResult = await env.HYPERDRIVE.prepare(
-      'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(feedUrl, postTitle, mediaType || null, currentTimeMs, now, now).run();
-    
-    return insertResult.meta.last_row_id;
     
   } catch (error) {
     console.error(`❌ WORKER: Error getting/creating feed for ${feedUrl}:`, error);
@@ -397,92 +431,113 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
 
 async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
   try {
-    if (entries.length === 0) {
-      // Just update the last_fetched timestamp
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const currentTimeMs = Date.now();
-      
-      await env.HYPERDRIVE.prepare(
-        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?'
-      ).bind(now, currentTimeMs, feedId).run();
-      
-      console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries)`);
-      return;
-    }
-
-    // Get existing GUIDs to filter duplicates
-    const entryGuids = entries.map(entry => entry.guid);
-    const guidPlaceholders = entryGuids.map(() => '?').join(',');
+    // Use the mysql2 driver with Hyperdrive credentials
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      // Required for Workers compatibility
+      disableEval: true
+    });
     
-    const existingEntriesResult = await env.HYPERDRIVE.prepare(
-      `SELECT guid FROM rss_entries WHERE feed_id = ? AND guid IN (${guidPlaceholders})`
-    ).bind(feedId, ...entryGuids).all();
-    
-    const existingGuids = new Set(existingEntriesResult.results.map(row => row.guid));
-    const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
-    
-    console.log(`📊 WORKER: Filtered ${entries.length - newEntries.length} existing entries, ${newEntries.length} are new`);
-    
-    if (newEntries.length === 0) {
-      // Just update the last_fetched timestamp
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const currentTimeMs = Date.now();
-      
-      await env.HYPERDRIVE.prepare(
-        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?'
-      ).bind(now, currentTimeMs, feedId).run();
-      
-      console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries after filtering)`);
-      return;
-    }
-
-    // Insert new entries in batches and update timestamp
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const currentTimeMs = Date.now();
-    
-    // Process in smaller batches for Workers
-    const batchSize = 25;
-    for (let i = 0; i < newEntries.length; i += batchSize) {
-      const batch = newEntries.slice(i, i + batchSize);
-      
-      // Prepare batch insert
-      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-      const values = batch.flatMap(entry => {
-        // Format pubDate for MySQL
-        let pubDateForMySQL;
-        try {
-          const date = new Date(entry.pubDate);
-          pubDateForMySQL = isNaN(date.getTime()) 
-            ? now 
-            : date.toISOString().slice(0, 19).replace('T', ' ');
-        } catch {
-          pubDateForMySQL = now;
-        }
+    try {
+      if (entries.length === 0) {
+        // Just update the last_fetched timestamp
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const currentTimeMs = Date.now();
         
-        return [
-          feedId,
-          entry.guid,
-          entry.title,
-          entry.link,
-          entry.description?.slice(0, 200) || '',
-          pubDateForMySQL,
-          entry.image || null,
-          mediaType || entry.mediaType || null,
-          now,
-          now
-        ];
-      });
+        await connection.execute(
+          'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+          [now, currentTimeMs, feedId]
+        );
+        
+        console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries)`);
+        return;
+      }
+
+      // Get existing GUIDs to filter duplicates
+      const entryGuids = entries.map(entry => entry.guid);
+      const guidPlaceholders = entryGuids.map(() => '?').join(',');
       
-      const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
-      await env.HYPERDRIVE.prepare(insertQuery).bind(...values).run();
+      const [existingEntries] = await connection.execute(
+        `SELECT guid FROM rss_entries WHERE feed_id = ? AND guid IN (${guidPlaceholders})`,
+        [feedId, ...entryGuids]
+      );
+      
+      const existingGuids = new Set(existingEntries.map(row => row.guid));
+      const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
+      
+      console.log(`📊 WORKER: Filtered ${entries.length - newEntries.length} existing entries, ${newEntries.length} are new`);
+      
+      if (newEntries.length === 0) {
+        // Just update the last_fetched timestamp
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const currentTimeMs = Date.now();
+        
+        await connection.execute(
+          'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+          [now, currentTimeMs, feedId]
+        );
+        
+        console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries after filtering)`);
+        return;
+      }
+
+      // Insert new entries in batches and update timestamp
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const currentTimeMs = Date.now();
+      
+      // Process in smaller batches for Workers
+      const batchSize = 25;
+      for (let i = 0; i < newEntries.length; i += batchSize) {
+        const batch = newEntries.slice(i, i + batchSize);
+        
+        // Prepare batch insert
+        const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const values = batch.flatMap(entry => {
+          // Format pubDate for MySQL
+          let pubDateForMySQL;
+          try {
+            const date = new Date(entry.pubDate);
+            pubDateForMySQL = isNaN(date.getTime()) 
+              ? now 
+              : date.toISOString().slice(0, 19).replace('T', ' ');
+          } catch {
+            pubDateForMySQL = now;
+          }
+          
+          return [
+            feedId,
+            entry.guid,
+            entry.title,
+            entry.link,
+            entry.description?.slice(0, 200) || '',
+            pubDateForMySQL,
+            entry.image || null,
+            mediaType || entry.mediaType || null,
+            now,
+            now
+          ];
+        });
+        
+        const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES ${placeholders}`;
+        await connection.execute(insertQuery, values);
+      }
+      
+      // 🔥 CRITICAL: Update last_fetched timestamp
+      await connection.execute(
+        'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?',
+        [now, currentTimeMs, feedId]
+      );
+      
+      console.log(`✅ WORKER: Inserted ${newEntries.length} new entries and updated last_fetched for feedId ${feedId}`);
+      
+    } finally {
+      await connection.end();
     }
-    
-    // 🔥 CRITICAL: Update last_fetched timestamp
-    await env.HYPERDRIVE.prepare(
-      'UPDATE rss_feeds SET updated_at = ?, last_fetched = ? WHERE id = ?'
-    ).bind(now, currentTimeMs, feedId).run();
-    
-    console.log(`✅ WORKER: Inserted ${newEntries.length} new entries and updated last_fetched for feedId ${feedId}`);
     
   } catch (error) {
     console.error(`❌ WORKER: Error storing RSS entries for feedId ${feedId}:`, error);
