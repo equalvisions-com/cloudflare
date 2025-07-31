@@ -269,11 +269,13 @@ export const useRSSEntriesQueueRefresh = ({
             }));
 
             const completionResult = {
+              batchId: data.batchId,
               success: true,
               refreshedAny: (data.newEntriesCount || 0) > 0,
               entries: transformedEntries,
               newEntriesCount: data.newEntriesCount || 0,
               totalEntries: data.newEntriesCount || 0,
+              postTitles: currentPostTitles, // Use current post titles from the component
               refreshTimestamp: data.refreshTimestamp,
               processingTimeMs: data.processingTimeMs
             };
