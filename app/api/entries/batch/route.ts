@@ -4,7 +4,7 @@ import { validateHeaders } from '@/lib/headers';
 
 export const runtime = 'edge';
 
-/**
+/** 
  * API route to fetch entry details from PlanetScale by GUIDs
  * This allows us to get the complete entry data for activity items
  */
