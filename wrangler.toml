@@ -1,6 +1,6 @@
 # Cloudflare Worker configuration for RSS feed refresh queue
 name = "rss-refresh-consumer"
-main = "cloudflare-workers/queue-consumer-worker.js"
+main = "cloudflare-workers/enhanced-queue-consumer-worker.js"
 compatibility_date = "2024-01-15"
 
 # Queue consumer configuration

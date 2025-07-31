@@ -1,0 +1,21 @@
+{
+  "name": "enhanced-rss-queue-consumer",
+  "version": "1.0.0",
+  "description": "Enhanced Cloudflare Worker for RSS processing with parallel batching",
+  "main": "enhanced-queue-consumer-worker.js",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "wrangler dev --local"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.3.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.26.1"
+  },
+  "keywords": ["cloudflare", "worker", "rss", "xml", "parser", "queue"],
+  "author": "RSS Processing System",
+  "license": "MIT"
+}
