@@ -78,7 +78,12 @@ interface UseRSSEntriesQueueRefreshProps {
  * - No complex custom state management
  */
 
-// Enrich SSE entries with Convex post metadata
+// Enterprise-grade post cache for SSE enrichment
+let postCache: Map<string, any> | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Enrich SSE entries with Convex post metadata (Enterprise Performance)
 async function enrichSSEEntriesWithConvex(
   flatEntries: any[], 
   currentPostTitles: string[],
@@ -87,27 +92,96 @@ async function enrichSSEEntriesWithConvex(
   try {
     console.log('🔄 SSE: Enriching entries with Convex data...', { entriesCount: flatEntries.length });
     
-    // Get post data from Convex using post titles from worker
-    const posts = await convex.query(api.posts.getByTitles, { titles: currentPostTitles });
-    
-    console.log('✅ SSE: Fetched Convex posts:', { postsCount: posts.length });
-    
-    // Create a map of post title to post data  
-    const postMap = new Map(
-      posts.map((post: any) => [post.title, post])
-    );
-    
-    // Transform entries with proper enrichment
-    return flatEntries.map((flatEntry: any) => {
-      // Try to find matching post by checking if any current post titles match
-      // Since we don't have direct mapping, we'll use a best-effort approach
-      let matchingPost: any = null;
-      for (const title of currentPostTitles) {
-        const post: any = postMap.get(title);
-        if (post && post.mediaType === flatEntry.media_type) {
-          matchingPost = post;
-          break;
+    // Step 1: Extract unique domains from entries (only query what we need)
+    const entryDomains = [...new Set(
+      flatEntries.map((entry: any) => {
+        try {
+          return new URL(entry.link).hostname;
+        } catch {
+          return null;
         }
+      }).filter(Boolean)
+    )];
+    
+    console.log('🎯 SSE: Need posts for domains:', entryDomains);
+    
+    // Step 2: Check cache first (enterprise caching)
+    const now = Date.now();
+    let posts: any[] = [];
+    
+    if (postCache && (now - cacheTimestamp) < CACHE_TTL) {
+      console.log('⚡ SSE: Using cached posts (performance optimization)');
+      // Filter cached posts by needed domains only
+      posts = Array.from(postCache.values()).filter((post: any) => {
+        try {
+          const domain = new URL(post.feedUrl).hostname;
+          return entryDomains.includes(domain);
+        } catch {
+          return false;
+        }
+      });
+    } else {
+      console.log('🔍 SSE: Cache miss - fetching posts for specific domains');
+      // Only fetch posts for the domains we actually need
+      posts = await convex.query(api.posts.getPostsByDomains, { domains: entryDomains });
+      
+      // Update cache with all posts (for future requests)
+      if (!postCache) postCache = new Map();
+      posts.forEach(post => {
+        try {
+          const domain = new URL(post.feedUrl).hostname;
+          postCache!.set(domain, post);
+        } catch {}
+      });
+      cacheTimestamp = now;
+    }
+    
+    console.log('✅ SSE: Fetched Convex posts:', { postsCount: posts.length, posts: posts.map((p: any) => ({ title: p.title, feedUrl: p.feedUrl })) });
+    
+    // Create a map of domain to post data for efficient lookup
+    const domainToPostMap = new Map();
+    posts.forEach((post: any) => {
+      try {
+        if (post.feedUrl) {
+          const domain = new URL(post.feedUrl).hostname;
+          domainToPostMap.set(domain, post);
+        }
+      } catch (error) {
+        // Skip posts with invalid feedUrls
+      }
+    });
+    
+    // Transform entries with proper enrichment using domain matching
+    return flatEntries.map((flatEntry: any) => {
+      let matchingPost: any = null;
+      
+      try {
+        const entryDomain = new URL(flatEntry.link).hostname;
+        
+        // Direct domain lookup (much more efficient)
+        const potentialPost = domainToPostMap.get(entryDomain);
+        if (potentialPost && potentialPost.mediaType === flatEntry.media_type) {
+          matchingPost = potentialPost;
+        }
+      } catch (error) {
+        console.warn('Failed to parse entry URL for matching:', flatEntry.link);
+      }
+      
+      try {
+        console.log('🔗 SSE: Entry matching result:', {
+          entryTitle: flatEntry.title,
+          entryLink: flatEntry.link,
+          entryDomain: new URL(flatEntry.link).hostname,
+          matchedPost: matchingPost?.title || 'NO MATCH',
+          matchedFeedUrl: matchingPost?.feedUrl || 'N/A',
+          availableDomains: Array.from(domainToPostMap.keys())
+        });
+      } catch (logError) {
+        console.log('🔗 SSE: Entry matching result (URL parse failed):', {
+          entryTitle: flatEntry.title,
+          entryLink: flatEntry.link,
+          matchedPost: matchingPost?.title || 'NO MATCH'
+        });
       }
       
       return {

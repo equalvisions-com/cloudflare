@@ -240,6 +240,61 @@ export const getByTitles = query({
  * Fetch posts by feed URLs
  * Only return the fields needed by the bookmarks page components
  */
+// Get all posts for SSE enrichment (when we don't know which feeds the entries are from)
+export const getAllPostsForSSE = query({
+  args: {},
+  handler: async (ctx) => {
+    const posts = await ctx.db
+      .query("posts")
+      .collect();
+      
+    // Return only the fields needed for SSE enrichment
+    return posts.map(post => ({
+      title: post.title,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug
+    }));
+  },
+});
+
+// Enterprise-grade: Get posts by specific domains (for SSE enrichment performance)
+export const getPostsByDomains = query({
+  args: { domains: v.array(v.string()) },
+  handler: async (ctx, { domains }) => {
+    if (!domains.length) return [];
+    
+    const posts = await ctx.db
+      .query("posts")
+      .collect();
+      
+    // Filter posts where feedUrl domain matches any of the requested domains
+    const matchingPosts = posts.filter(post => {
+      if (!post.feedUrl) return false;
+      try {
+        const postDomain = new URL(post.feedUrl).hostname;
+        return domains.includes(postDomain);
+      } catch {
+        return false;
+      }
+    });
+    
+    // Return only the fields needed for SSE enrichment
+    return matchingPosts.map(post => ({
+      title: post.title,
+      featuredImg: post.featuredImg,
+      mediaType: post.mediaType,
+      feedUrl: post.feedUrl,
+      verified: post.verified ?? false,
+      postSlug: post.postSlug,
+      categorySlug: post.categorySlug
+    }));
+  },
+});
+
 export const getByFeedUrls = query({
   args: {
     feedUrls: v.array(v.string()),
