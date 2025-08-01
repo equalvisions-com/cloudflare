@@ -67,12 +67,14 @@ export const useRSSFeedPaginationHook = (
       feedUrl: string;
       page: number;
       pageSize: number;
+      currentEntriesCount: number;
       mediaType?: string;
       totalEntries?: number;
     } = {
       feedUrl: feedUrl,
       page: nextPage,
       pageSize: pageSize,
+      currentEntriesCount: entries.length, // CRITICAL: Pass current entries count for offset calculation
     };
     
     // Pass the cached total entries to avoid unnecessary COUNT queries
@@ -88,7 +90,7 @@ export const useRSSFeedPaginationHook = (
       url: `/api/rss/${encodeURIComponent(postTitle)}`,
       body: requestBody
     };
-  }, [feedMetadata, pagination.totalEntries]); // Stable dependencies
+  }, [feedMetadata, pagination.totalEntries, entries.length]); // Added entries.length to dependencies
 
   // Memoize entry transformation to prevent recreating on every render
   const transformApiEntries = useCallback((apiEntries: Array<{ entry: any; initialData?: any }>) => {

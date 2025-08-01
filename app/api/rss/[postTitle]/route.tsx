@@ -39,6 +39,7 @@ export async function POST(
       mediaType,
       page = 1,
       pageSize = 30,
+      currentEntriesCount,
       q: searchQuery,
       totalEntries: cachedTotalEntries
     } = body;
@@ -62,8 +63,16 @@ export async function POST(
       // console.log(`⏩ API: Skipping refresh check for page ${page} of ${decodedTitle}`);
     }
     
-    // Calculate offset for pagination
-    const offset = (page - 1) * pageSize;
+    // CRITICAL FIX: Calculate offset based on current entries count if available
+    // This prevents duplication when new entries are prepended to the feed
+    let offset: number;
+    if (currentEntriesCount !== null && currentEntriesCount !== undefined && currentEntriesCount > 0) {
+      // Use the current entries count as the offset to get the next batch
+      offset = currentEntriesCount;
+    } else {
+      // Fallback to traditional page-based offset calculation
+      offset = (page - 1) * pageSize;
+    }
     
     // Build the SQL query to fetch entries for this specific feed
     let entriesQuery: string;
