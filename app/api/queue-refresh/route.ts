@@ -27,32 +27,8 @@ const errorLog = (message: string, error?: unknown) => {
 };
 
 // In-memory store for tracking batch status (in production, use KV or D1)
-// KV storage helper functions for batch status
-async function setBatchStatus(batchId: string, status: QueueBatchStatus): Promise<void> {
-  try {
-    await (globalThis as any).BATCH_STATUS?.put(
-      `batch:${batchId}`, 
-      JSON.stringify(status),
-      { ttl: 300 } // 5 minute TTL for auto-cleanup
-    );
-    console.log(`📦 KV: Stored batch status for ${batchId}:`, status.status);
-  } catch (error) {
-    console.error(`❌ KV: Failed to store batch ${batchId}:`, error);
-  }
-}
-
-async function getBatchStatus(batchId: string): Promise<QueueBatchStatus | null> {
-  try {
-    const statusJson = await (globalThis as any).BATCH_STATUS?.get(`batch:${batchId}`);
-    if (statusJson) {
-      return JSON.parse(statusJson);
-    }
-    return null;
-  } catch (error) {
-    console.error(`❌ KV: Failed to get batch ${batchId}:`, error);
-    return null;
-  }
-}
+// Note: Batch status is now handled entirely by Durable Objects
+// KV operations removed to eliminate redundancy
 
 // Fallback function to process directly when queue isn't available
 async function processDirectly(queueMessage: QueueFeedRefreshMessage) {
@@ -231,13 +207,8 @@ export async function POST(request: NextRequest) {
         console.log('✅ QUEUE PRODUCER: Message sent via REST API', { batchId, feedCount: feeds.length });
       }
 
-      // Store batch status for tracking
-      const batchStatus: QueueBatchStatus = {
-        batchId,
-        status: 'queued',
-        queuedAt: timestamp
-      };
-      await setBatchStatus(batchId, batchStatus);
+      // Note: Batch status now tracked entirely by Durable Objects via enhanced worker
+      console.log(`🚀 Queue: Batch ${batchId} queued - status tracked by Durable Objects`);
 
       // Return immediate response with batch tracking info
       return NextResponse.json({
@@ -266,28 +237,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET endpoint to check batch status
+// GET endpoint - Deprecated: Use SSE via /api/batch-stream/[batchId] for real-time updates
 export async function GET(request: NextRequest) {
-  if (!validateHeaders(request as any)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const url = new URL(request.url);
   const batchId = url.searchParams.get('batchId');
 
-  if (!batchId) {
-    return NextResponse.json({ 
-      error: 'Missing batchId parameter' 
-    }, { status: 400 });
-  }
-
-  const batchStatus = await getBatchStatus(batchId);
-  
-  if (!batchStatus) {
-    return NextResponse.json({ 
-      error: 'Batch not found' 
-    }, { status: 404 });
-  }
-
-  return NextResponse.json(batchStatus);
+  return NextResponse.json({ 
+    message: 'Batch status polling deprecated. Use real-time SSE instead.',
+    batchId,
+    sseEndpoint: batchId ? `/api/batch-stream/${batchId}` : '/api/batch-stream/[batchId]',
+    note: 'Connect to SSE endpoint for real-time updates via Durable Objects'
+  }, { status: 200 });
 } 

@@ -16,11 +16,13 @@ dead_letter_queue = "refresh-feed-dlq"
 [env.development]
 name = "rss-refresh-consumer-dev"
 
-# KV namespace for batch status tracking (SSE) - Default/Development
+# KV namespace for feed refresh locks - Default/Development
 [[kv_namespaces]]
-binding = "BATCH_STATUS"
-id = "32dfe3986c4640a9a7eb5a7376812483"
+binding = "KV_BINDING"
+id = "e6d3936cfa754a478a57269e0ee7f90e"
 preview_id = "77db1cfa35814f73b10cec6dce9db940"
+
+
 
 # Durable Object for real-time batch status (ELIMINATES POLLING!) - Default
 [durable_objects]
@@ -44,11 +46,13 @@ PAGES_FUNCTION_TOKEN = ""
 name = "rss-refresh-consumer"
 vars = { ENVIRONMENT = "production", PAGES_FUNCTION_URL = "https://socialnetworksandbox.com", PAGES_FUNCTION_TOKEN = "" }
 
-# KV namespace for batch status tracking (SSE) - PRODUCTION
+# KV namespace for feed refresh locks - PRODUCTION
 [[env.production.kv_namespaces]]
-binding = "BATCH_STATUS"
-id = "32dfe3986c4640a9a7eb5a7376812483"
+binding = "KV_BINDING"
+id = "e6d3936cfa754a478a57269e0ee7f90e"
 preview_id = "77db1cfa35814f73b10cec6dce9db940"
+
+
 
 # Queue consumer for RSS refresh - PRODUCTION
 [[env.production.queues.consumers]]

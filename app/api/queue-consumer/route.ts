@@ -14,11 +14,6 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 // Define route context type for Cloudflare Pages Functions
 interface RouteContext {
   params: Promise<{}>;
-  env: {
-    BATCH_STATUS?: any;
-    BATCH_STATUS_DO?: any;
-    [key: string]: any;
-  };
 }
 
 // KV storage helper functions for batch status
@@ -26,46 +21,9 @@ async function setBatchStatus(batchId: string, status: QueueBatchStatus, context
   try {
     console.log(`🔄 KV: Attempting to store batch status for ${batchId}:`, status.status);
     
-    // Use getRequestContext to access KV binding
+    // Note: BATCH_STATUS KV operations removed - Durable Objects handle all status
     const { env } = getRequestContext();
-    const kvBinding = env.BATCH_STATUS;
-    console.log(`🔍 KV: Using getRequestContext for BATCH_STATUS...`);
-    
-    console.log(`🔍 KV: Runtime environment:`, process.env.NODE_ENV || 'unknown');
-    console.log(`🔍 KV: Cloudflare env:`, (globalThis as any).Cloudflare ? 'available' : 'not available');
-    console.log(`🔍 KV: KV binding found:`, !!kvBinding);
-    console.log(`🔍 KV: KV binding type:`, typeof kvBinding);
-    console.log(`🔍 KV: KV binding methods:`, kvBinding ? Object.getOwnPropertyNames(kvBinding) : 'none');
-    console.log(`🔍 KV: Dashboard binding test - expecting this to work now!`);
-    
-    if (!kvBinding) {
-      console.error(`❌ KV: BATCH_STATUS binding not found in globalThis OR context.env!`);
-      console.error(`❌ KV: Available global keys:`, Object.keys(globalThis).filter(key => 
-        key.includes('KV') || key.includes('BATCH') || key.includes('STATUS') || key.toUpperCase() === key
-      ));
-      
-      if (contextEnv) {
-        console.error(`❌ KV: Available context.env keys:`, Object.keys(contextEnv));
-      }
-      
-      // Try alternative binding access methods
-      const envBindings = process.env;
-      console.log(`🔍 KV: Environment variables with BATCH/KV:`, Object.keys(envBindings).filter(key => 
-        key.includes('BATCH') || key.includes('KV')
-      ));
-      
-      return;
-    }
-    
-    // Store in KV for persistence
-    const kvResult = await kvBinding.put(
-      `batch:${batchId}`,
-      JSON.stringify(status),
-      { ttl: 300 } // 5 minute TTL for auto-cleanup
-    );
-    
-    console.log(`📦 KV: Successfully stored batch status for ${batchId}:`, status.status);
-    console.log(`📦 KV: Storage result:`, kvResult);
+    console.log(`ℹ️ Legacy: setBatchStatus called for ${batchId} (${status.status}) - enhanced worker handles this via Durable Objects`);
 
     // REAL-TIME UPDATE: Notify Durable Object for instant SSE/WebSocket broadcasting
     const durableObjectNamespace = env.BATCH_STATUS_DO;
@@ -142,7 +100,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     
     // Debug: Check if bindings are available via context
     if (context.env) {
-      console.log('🔍 KV: Context env available, checking for BATCH_STATUS...');
+      console.log('🔍 Legacy: Context env available (BATCH_STATUS operations removed)...');
       console.log('🔍 KV: Context env keys:', Object.keys(context.env));
     }
     

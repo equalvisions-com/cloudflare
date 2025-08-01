@@ -46,15 +46,8 @@ export default {
 
         const { batchId, feeds, existingGuids = [], newestEntryDate, userId } = queueMessage;
         
-        // Set batch status to processing
-        await setBatchStatus(batchId, {
-          batchId,
-          status: 'processing',
-          queuedAt: startTime,
-          processedAt: Date.now(),
-          totalFeeds: feeds.length,
-          processedFeeds: 0
-        }, env);
+        // Note: Batch status now handled entirely by Durable Objects via /notify
+        console.log(`🚀 WORKER: Processing batch ${batchId} with ${feeds.length} feeds`);
 
         // ✅ PARALLEL RSS PROCESSING IN WORKER
         const processedFeeds = await processRSSFeedsInParallel(feeds, env);
@@ -80,14 +73,8 @@ export default {
           processingTimeMs: Date.now() - startTime
         };
 
-        await setBatchStatus(batchId, {
-          batchId,
-          status: 'completed',
-          queuedAt: startTime,
-          processedAt: startTime,
-          completedAt: Date.now(),
-          result
-        }, env);
+        // Batch completion status now handled entirely by Durable Objects
+        console.log(`✅ WORKER: Batch ${batchId} completed - notifying Durable Object only`);
 
         // Notify Durable Object of completion
         if (env.BATCH_STATUS_DO) {
@@ -112,16 +99,10 @@ export default {
       } catch (messageError) {
         console.error('❌ WORKER: Error processing message:', messageError);
         
+        // Error handling: Durable Objects will handle timeout/cleanup
         const batchId = message.body?.batchId;
         if (batchId) {
-          await setBatchStatus(batchId, {
-            batchId,
-            status: 'failed',
-            queuedAt: startTime,
-            processedAt: startTime,
-            completedAt: Date.now(),
-            error: messageError.message
-          }, env);
+          console.log(`❌ WORKER: Batch ${batchId} failed - Durable Object will handle cleanup`);
         }
         
         totalFailed++;
@@ -255,21 +236,8 @@ function chunkArray(array, chunkSize) {
   return chunks;
 }
 
-async function setBatchStatus(batchId, status, env) {
-  if (!env.BATCH_STATUS || !batchId) {
-    console.error('❌ WORKER: setBatchStatus failed - missing BATCH_STATUS binding or batchId');
-    return;
-  }
-  
-  try {
-    console.log(`📨 WORKER: Setting batch status to ${status.status}`, { batchId, status: status.status });
-    const statusJson = JSON.stringify(status);
-    await env.BATCH_STATUS.put(batchId, statusJson, { expirationTtl: 3600 });
-    console.log(`✅ WORKER: Successfully stored batch status: ${status.status}`);
-  } catch (error) {
-    console.error('❌ WORKER: KV write failed:', error);
-  }
-}
+// setBatchStatus function removed - batch status now handled entirely by Durable Objects
+// This simplifies the architecture and removes redundant KV operations
 
 async function checkFeedsNeedingRefresh(postTitles, env) {
   if (!postTitles || postTitles.length === 0) return [];
@@ -1077,10 +1045,10 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
 }
 
 async function acquireFeedRefreshLock(feedUrl, env) {
-  // Simple lock implementation using KV
+  // Simple lock implementation using dedicated locks KV
   const lockKey = `lock:${feedUrl}`;
   const lockValue = Date.now().toString();
-  const existingLock = await env.BATCH_STATUS?.get(lockKey);
+  const existingLock = await env.KV_BINDING?.get(lockKey);
   
   if (existingLock) {
     const lockTime = parseInt(existingLock);
@@ -1090,11 +1058,11 @@ async function acquireFeedRefreshLock(feedUrl, env) {
     }
   }
   
-  await env.BATCH_STATUS?.put(lockKey, lockValue, { expirationTtl: 300 }); // 5 minute lock
+  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: 300 }); // 5 minute lock
   return true;
 }
 
 async function releaseFeedRefreshLock(feedUrl, env) {
   const lockKey = `lock:${feedUrl}`;
-  await env.BATCH_STATUS?.delete(lockKey);
+  await env.KV_BINDING?.delete(lockKey);
 }
