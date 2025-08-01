@@ -133,12 +133,35 @@ export async function POST(request: NextRequest) {
     const normalizedFeedUrls = feedUrls.map((url: string) => String(url).trim());
     const normalizedMediaTypes = mediaTypes ? mediaTypes.map((type: string) => String(type).trim()) : [];
 
-    // Create feed objects for the queue message
-    const feeds = normalizedPostTitles.map((title, index) => ({
-      postTitle: title,
-      feedUrl: normalizedFeedUrls[index],
-      mediaType: normalizedMediaTypes[index] || undefined
-    }));
+    // 🔍 CRITICAL: Check staleness BEFORE queuing to prevent unnecessary processing
+    console.log('🔍 QUEUE PRODUCER: Checking which feeds need refreshing...');
+    const staleFeedTitles = await checkFeedsNeedingRefresh(normalizedPostTitles);
+    
+    if (staleFeedTitles.length === 0) {
+      console.log('✅ QUEUE PRODUCER: All feeds are fresh - no queue message needed');
+      return NextResponse.json({
+        success: true,
+        batchId,
+        status: 'skipped',
+        message: 'All feeds are up to date',
+        staleFeedsCount: 0,
+        totalFeedsCount: normalizedPostTitles.length
+      });
+    }
+    
+    // Filter to only include feeds that actually need refreshing
+    const staleFeeds = normalizedPostTitles
+      .map((title, index) => ({
+        postTitle: title,
+        feedUrl: normalizedFeedUrls[index],
+        mediaType: normalizedMediaTypes[index] || undefined
+      }))
+      .filter(feed => staleFeedTitles.includes(feed.postTitle));
+    
+    console.log(`🔄 QUEUE PRODUCER: ${staleFeeds.length} of ${normalizedPostTitles.length} feeds need refreshing`);
+    
+    // Create feed objects for the queue message (only stale feeds)
+    const feeds = staleFeeds;
 
     // Create queue message
     const queueMessage: QueueFeedRefreshMessage = {
@@ -248,4 +271,70 @@ export async function GET(request: NextRequest) {
     sseEndpoint: batchId ? `/api/batch-stream/${batchId}` : '/api/batch-stream/[batchId]',
     note: 'Connect to SSE endpoint for real-time updates via Durable Objects'
   }, { status: 200 });
+}
+
+// Helper function to check which feeds need refreshing (>4 hours old)
+async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]> {
+  if (!postTitles || postTitles.length === 0) return [];
+  
+  try {
+    // Import the database function
+    const { executeRead } = await import('@/lib/database');
+    
+    // Create placeholders for the IN clause
+    const placeholders = postTitles.map(() => '?').join(',');
+    const query = `
+      SELECT post_title, last_fetched 
+      FROM rss_feeds 
+      WHERE post_title IN (${placeholders})
+    `;
+    
+    const result = await executeRead(query, postTitles);
+    const rows = result.rows as Array<{
+      post_title: string;
+      last_fetched: string | null;
+    }>;
+    
+    const now = Date.now();
+    const fourHoursAgo = now - (4 * 60 * 60 * 1000); // 4 hours in milliseconds
+    
+    const staleFeeds: string[] = [];
+    
+    // Check each requested post title
+    for (const postTitle of postTitles) {
+      const feedRow = rows.find(row => row.post_title === postTitle);
+      
+      if (!feedRow) {
+        // Feed doesn't exist in database, needs refreshing
+        staleFeeds.push(postTitle);
+        console.log(`📊 STALENESS: Feed "${postTitle}" not found - needs initial fetch`);
+        continue;
+      }
+      
+      if (!feedRow.last_fetched) {
+        // Feed exists but never fetched, needs refreshing
+        staleFeeds.push(postTitle);
+        console.log(`📊 STALENESS: Feed "${postTitle}" never fetched - needs refresh`);
+        continue;
+      }
+      
+      const lastFetchedTime = new Date(feedRow.last_fetched).getTime();
+      const ageMinutes = Math.round((now - lastFetchedTime) / (1000 * 60));
+      
+      if (lastFetchedTime < fourHoursAgo) {
+        staleFeeds.push(postTitle);
+        console.log(`📊 STALENESS: Feed "${postTitle}" is stale (${ageMinutes} minutes old)`);
+      } else {
+        console.log(`📊 STALENESS: Feed "${postTitle}" is fresh (${ageMinutes} minutes old)`);
+      }
+    }
+    
+    console.log(`📊 STALENESS CHECK: ${staleFeeds.length} of ${postTitles.length} feeds need refreshing`);
+    return staleFeeds;
+    
+  } catch (error) {
+    console.error('❌ Error checking feed staleness:', error);
+    // Return all feeds as stale on error to be safe
+    return postTitles;
+  }
 }
