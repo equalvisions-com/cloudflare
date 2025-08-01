@@ -166,7 +166,6 @@ export async function POST(request: NextRequest) {
   
   // Create temporary API locks for feeds we're about to queue (longer duration for queue delays)
   await createTemporaryAPILocks(feedsNotLocked);
-  await updateLastFetchedForFeeds(feedsNotLocked);
   console.log('✅ QUEUE PRODUCER: Protected feeds from concurrent processing');
     
     // Filter to only include feeds that actually need refreshing AND are not locked
@@ -359,34 +358,7 @@ async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]>
   }
 }
 
-// Helper function to immediately update last_fetched for feeds being processed
-async function updateLastFetchedForFeeds(feedTitles: string[]): Promise<void> {
-  if (!feedTitles || feedTitles.length === 0) return;
-  
-  try {
-    // Import the database function
-    const { executeWrite } = await import('@/lib/database');
-    
-    // Create placeholders for the IN clause
-    const placeholders = feedTitles.map(() => '?').join(',');
-    const query = `
-      UPDATE rss_feeds 
-      SET last_fetched = ? 
-      WHERE title IN (${placeholders})
-    `;
-    
-    const now = Date.now();
-    const params = [now, ...feedTitles];
-    
-    console.log(`🔄 QUEUE PRODUCER: Updating last_fetched for feeds: ${feedTitles.join(', ')}`);
-    const result = await executeWrite(query, params);
-    console.log(`✅ QUEUE PRODUCER: Updated last_fetched for ${result.rowsAffected} feeds`);
-    
-  } catch (error) {
-    console.error('❌ QUEUE PRODUCER: Error updating last_fetched:', error);
-    // Don't throw - we still want to queue the message even if update fails
-  }
-}
+
 
 // Helper function to filter out feeds that are currently locked
 async function filterOutLockedFeeds(feedTitles: string[]): Promise<string[]> {
