@@ -173,7 +173,9 @@ async function processSingleRSSFeed(feed, env) {
   const { postTitle, feedUrl, mediaType } = feed;
   
   try {
-    // Acquire lock for feed processing
+    // 🎯 OPTIMIZED: API already filtered stale feeds - just get lock and process
+    console.log(`🔄 WORKER: Feed ${postTitle} confirmed stale by API - acquiring lock for refresh`);
+    
     const lockAcquired = await acquireFeedRefreshLock(feedUrl, env);
     if (!lockAcquired) {
       console.log(`🔒 WORKER: Feed ${postTitle} is being processed by another worker`);
@@ -182,6 +184,7 @@ async function processSingleRSSFeed(feed, env) {
     console.log(`✅ WORKER: Acquired lock for feed ${postTitle}: ${feedUrl}`);
 
     try {
+      
       // Fetch RSS feed with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -307,6 +310,8 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
     return postTitles;
   }
 }
+
+
 
 // Helper function to safely extract text content (from rss.server.ts)
 function getTextContent(node) {
@@ -1049,7 +1054,7 @@ async function acquireFeedRefreshLock(feedUrl, env) {
   // BULLETPROOF: Database-backed lock with KV fallback for ultimate protection
   const lockKey = `lock:${feedUrl}`;
   const workerId = `worker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const lockTTL = 300; // 5 minutes
+  const lockTTL = 600; // 10 minutes - longer to account for processing time
   
   console.log(`🔍 LOCK: Attempting atomic lock acquisition for ${feedUrl}`);
   console.log(`🎯 LOCK: WorkerID: ${workerId}`);
@@ -1066,10 +1071,10 @@ async function acquireFeedRefreshLock(feedUrl, env) {
       if (existingLock && existingLock !== workerId) {
         const [, timestamp] = existingLock.split('_');
         const lockTime = parseInt(timestamp);
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
         
-        if (lockTime > fiveMinutesAgo) {
-          console.log(`🚫 LOCK: Valid lock exists - owned by ${existingLock} (${Math.round((lockTime - fiveMinutesAgo) / 1000)}s remaining)`);
+        if (lockTime > tenMinutesAgo) {
+          console.log(`🚫 LOCK: Valid lock exists - owned by ${existingLock} (${Math.round((lockTime - tenMinutesAgo) / 1000)}s remaining)`);
           return false;
         }
         console.log(`⏰ LOCK: Expired lock found, attempting takeover`);
