@@ -986,14 +986,12 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          feeds: [{ postTitle, feedUrl, mediaType }],
-          userId: `single-${Math.random().toString(36).substr(2, 9)}`,
-          batchId,
+          postTitles: [postTitle],
+          feedUrls: [feedUrl], 
+          mediaTypes: mediaType ? [mediaType] : ['newsletter'],
           existingGuids: entries.map(e => e.entry.guid),
           newestEntryDate: entries[0]?.entry.pubDate || new Date().toISOString(),
-          priority: 'normal',
-          retryCount: 0,
-          maxRetries: 3
+          priority: 'normal'
         })
       }).catch(() => {}); // Silent fail - page works without refresh
       
