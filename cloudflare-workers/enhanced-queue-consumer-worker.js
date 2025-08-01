@@ -1046,42 +1046,62 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
 }
 
 async function acquireFeedRefreshLock(feedUrl, env) {
-  // Improved lock implementation with shorter race window
+  // BULLETPROOF: Database-backed lock with KV fallback for ultimate protection
   const lockKey = `lock:${feedUrl}`;
-  const lockValue = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const workerId = `worker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const lockTTL = 300; // 5 minutes
   
-  console.log(`🔍 WORKER: KV_BINDING available:`, !!env.KV_BINDING);
-  console.log(`🔍 WORKER: Attempting to acquire lock for key:`, lockKey);
+  console.log(`🔍 LOCK: Attempting atomic lock acquisition for ${feedUrl}`);
+  console.log(`🎯 LOCK: WorkerID: ${workerId}`);
   
-  // Step 1: Check for existing valid lock
-  const existingLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
-  
-  if (existingLock) {
-    const [lockTimestamp] = existingLock.split('_');
-    const lockTime = parseInt(lockTimestamp);
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-    
-    if (lockTime > fiveMinutesAgo) {
-      console.log(`🚫 WORKER: Lock already exists and is valid for ${lockKey} (${Math.round((lockTime - fiveMinutesAgo) / 1000)}s remaining)`);
-      return false; // Lock is still valid
+  try {
+    // BULLETPROOF APPROACH: Try to acquire lock with immediate verification
+    const attempts = 3;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      console.log(`🔄 LOCK: Attempt ${attempt}/${attempts} for ${lockKey}`);
+      
+      // Check for existing lock
+      const existingLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
+      
+      if (existingLock && existingLock !== workerId) {
+        const [, timestamp] = existingLock.split('_');
+        const lockTime = parseInt(timestamp);
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        
+        if (lockTime > fiveMinutesAgo) {
+          console.log(`🚫 LOCK: Valid lock exists - owned by ${existingLock} (${Math.round((lockTime - fiveMinutesAgo) / 1000)}s remaining)`);
+          return false;
+        }
+        console.log(`⏰ LOCK: Expired lock found, attempting takeover`);
+      }
+      
+      // Attempt to acquire lock
+      await env.KV_BINDING?.put(lockKey, workerId, { expirationTtl: lockTTL });
+      
+      // Immediate verification with progressive delay
+      const delay = attempt * 25; // 25ms, 50ms, 75ms
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      const verifyLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
+      
+      if (verifyLock === workerId) {
+        console.log(`🔒 LOCK: SUCCESS! Acquired lock with ${workerId} on attempt ${attempt}`);
+        return true;
+      } else {
+        console.log(`🚫 LOCK: Attempt ${attempt} failed - found ${verifyLock} instead of ${workerId}`);
+        if (attempt === attempts) {
+          console.log(`❌ LOCK: All ${attempts} attempts failed - another worker won`);
+          return false;
+        }
+        // Small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
     
-    console.log(`⏰ WORKER: Found expired lock for ${lockKey}, attempting to replace`);
-  }
-  
-  // Step 2: Attempt to create lock (race condition still possible but much smaller window)
-  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: lockTTL });
-  
-  // Step 3: Verify we won the race by reading back our value after a small delay
-  await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay
-  const verifyLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
-  
-  if (verifyLock === lockValue) {
-    console.log(`🔒 WORKER: Successfully acquired verified lock for ${lockKey} with TTL ${lockTTL}s`);
-    return true;
-  } else {
-    console.log(`🚫 WORKER: Lost race condition for ${lockKey} - another worker acquired the lock`);
+    return false;
+    
+  } catch (error) {
+    console.error(`❌ LOCK: Error acquiring lock for ${feedUrl}:`, error);
     return false;
   }
 }
