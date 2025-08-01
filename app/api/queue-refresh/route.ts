@@ -289,14 +289,14 @@ async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]>
     // Create placeholders for the IN clause
     const placeholders = postTitles.map(() => '?').join(',');
     const query = `
-      SELECT post_title, last_fetched 
+      SELECT title, last_fetched 
       FROM rss_feeds 
-      WHERE post_title IN (${placeholders})
+      WHERE title IN (${placeholders})
     `;
     
     const result = await executeRead(query, postTitles);
     const rows = result.rows as Array<{
-      post_title: string;
+      title: string;
       last_fetched: string | null;
     }>;
     
@@ -307,7 +307,7 @@ async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]>
     
     // Check each requested post title
     for (const postTitle of postTitles) {
-      const feedRow = rows.find(row => row.post_title === postTitle);
+      const feedRow = rows.find(row => row.title === postTitle);
       
       if (!feedRow) {
         // Feed doesn't exist in database, needs refreshing
@@ -357,7 +357,7 @@ async function updateLastFetchedForFeeds(feedTitles: string[]): Promise<void> {
     const query = `
       UPDATE rss_feeds 
       SET last_fetched = ? 
-      WHERE post_title IN (${placeholders})
+      WHERE title IN (${placeholders})
     `;
     
     const now = Date.now();
