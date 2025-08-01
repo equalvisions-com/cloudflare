@@ -56,21 +56,9 @@ function invalidateCountCache(feedUrl: string): void {
 
 export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
   try {
-    // First, check if feeds need refreshing and create if doesn't exist
-    let feedRefreshed = false;
-    try {
-      await checkAndRefreshFeeds(
-        [postTitle], 
-        [feedUrl], 
-        mediaType ? [mediaType] : undefined
-      );
-      
-      // Invalidate cache after refresh
-      invalidateCountCache(feedUrl);
-    } catch (refreshError) {
-      // Silently handle refresh check failures in production
-      // Feed will still work with existing data
-    }
+    // MIGRATED: RSS refresh now handled by queue/worker architecture
+    // Server-side blocking refresh removed for instant page loads
+    // Real-time updates delivered via SSE from workers
 
     // Get feed ID from PlanetScale with type safety
     const feedResult = await executeRead(

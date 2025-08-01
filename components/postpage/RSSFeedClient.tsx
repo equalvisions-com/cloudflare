@@ -937,6 +937,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
 
   // Initialize store on mount - React key handles component reset
   const initializationKeyRef = useRef<string>('');
+  const hasQueuedRef = useRef<boolean>(false);
   
   useEffect(() => {
     if (initialData && initializationKeyRef.current !== pageKey) {
@@ -958,6 +959,28 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
       initializationKeyRef.current = pageKey;
     }
   }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, dispatch, pageKey]);
+
+  // Queue single feed for async refresh using existing infrastructure
+  useEffect(() => {
+    if (postTitle && feedUrl && !hasQueuedRef.current) {
+      fetch('/api/queue-refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feeds: [{ postTitle, feedUrl, mediaType }],
+          userId: `single-${Math.random().toString(36).substr(2, 9)}`,
+          batchId: `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          existingGuids: [],
+          newestEntryDate: new Date().toISOString(),
+          priority: 'normal',
+          retryCount: 0,
+          maxRetries: 3
+        })
+      }).catch(() => {}); // Silent fail - page works without refresh
+      
+      hasQueuedRef.current = true;
+    }
+  }, [postTitle, feedUrl, mediaType]);
   
   // Additional effect for search mode - update entries when initialData changes
   useEffect(() => {
