@@ -248,4 +248,4 @@ export async function GET(request: NextRequest) {
     sseEndpoint: batchId ? `/api/batch-stream/${batchId}` : '/api/batch-stream/[batchId]',
     note: 'Connect to SSE endpoint for real-time updates via Durable Objects'
   }, { status: 200 });
-} 
+}
