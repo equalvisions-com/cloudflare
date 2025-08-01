@@ -7,13 +7,15 @@ import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";
 import Image from "next/image";
 import { format } from "date-fns";
 import { decode } from 'html-entities';
+
 import type { RSSItem } from "@/lib/rss";
 import type { 
   RSSFeedEntry, 
   RSSEntryProps, 
   FeedContentProps, 
   RSSFeedClientProps,
-  RSSFeedAPIResponse
+  RSSFeedAPIResponse,
+  RSSEntriesDisplayEntry
 } from "@/lib/types";
 
 // RSS Feed State Management with useReducer - Replacing Zustand
@@ -65,6 +67,7 @@ interface RSSFeedState {
 type RSSFeedAction =
   | { type: 'SET_ENTRIES'; payload: RSSFeedEntry[] }
   | { type: 'ADD_ENTRIES'; payload: RSSFeedEntry[] }
+  | { type: 'PREPEND_ENTRIES'; payload: RSSFeedEntry[] }
   | { type: 'UPDATE_ENTRY_METRICS'; payload: { entryGuid: string; metrics: RSSFeedEntry['initialData'] } }
   | { type: 'SET_CURRENT_PAGE'; payload: number }
   | { type: 'SET_HAS_MORE'; payload: boolean }
@@ -129,6 +132,17 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
     
     case 'ADD_ENTRIES':
       return { ...state, entries: [...state.entries, ...action.payload] };
+    
+    case 'PREPEND_ENTRIES':
+      console.log('🚀 SINGLE FEED PREPEND_ENTRIES:', { newEntriesCount: action.payload.length });
+      return { 
+        ...state, 
+        entries: [...action.payload, ...state.entries],
+        pagination: { 
+          ...state.pagination, 
+          totalEntries: state.pagination.totalEntries + action.payload.length 
+        }
+      };
     
     case 'UPDATE_ENTRY_METRICS':
       return {
@@ -960,27 +974,87 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
     }
   }, [initialData, postTitle, feedUrl, featuredImg, mediaType, verified, pageSize, dispatch, pageKey]);
 
-  // Queue single feed for async refresh using existing infrastructure
+
+
+  // Queue single feed for async refresh with SSE
   useEffect(() => {
     if (postTitle && feedUrl && !hasQueuedRef.current) {
+      const batchId = `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Start queue processing
       fetch('/api/queue-refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           feeds: [{ postTitle, feedUrl, mediaType }],
           userId: `single-${Math.random().toString(36).substr(2, 9)}`,
-          batchId: `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          existingGuids: [],
-          newestEntryDate: new Date().toISOString(),
+          batchId,
+          existingGuids: entries.map(e => e.entry.guid),
+          newestEntryDate: entries[0]?.entry.pubDate || new Date().toISOString(),
           priority: 'normal',
           retryCount: 0,
           maxRetries: 3
         })
       }).catch(() => {}); // Silent fail - page works without refresh
       
+      // Start SSE listener for real-time updates
+      const eventSource = new EventSource(`/api/batch-stream/${batchId}?batchId=${batchId}`);
+      
+      eventSource.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📡 SINGLE FEED SSE:', data);
+          
+          if (data.status === 'completed' && data.entries?.length > 0) {
+            // OPTIMIZATION: Reuse existing feed metadata (no Convex query needed!)
+            console.log('🚀 SINGLE FEED: Reusing feed metadata instead of querying Convex');
+            
+            const enrichedEntries: RSSFeedEntry[] = data.entries.map((flatEntry: any) => ({
+              entry: {
+                title: flatEntry.title,
+                link: flatEntry.link,
+                description: flatEntry.description || '',
+                pubDate: flatEntry.pub_date,
+                guid: flatEntry.guid,
+                image: flatEntry.image,
+                feedUrl: flatEntry.feedUrl || '',
+                mediaType: flatEntry.media_type
+              },
+              initialData: {
+                likes: { isLiked: false, count: 0 },
+                comments: { count: 0 },
+                retweets: { isRetweeted: false, count: 0 },
+                bookmarks: { isBookmarked: false }
+              },
+              postMetadata: {
+                title: postTitle, // ← Reuse existing metadata
+                featuredImg: featuredImg || flatEntry.image,
+                mediaType: mediaType || flatEntry.media_type,
+                verified: verified,
+                postSlug: undefined, // Single feeds don't need slug routing
+                categorySlug: undefined
+              }
+            }));
+            
+            console.log('✅ SINGLE FEED: Prepending optimized entries (no Convex query):', enrichedEntries.length);
+            dispatch({ type: 'PREPEND_ENTRIES', payload: enrichedEntries });
+            
+            eventSource.close();
+          }
+        } catch (error) {
+          console.error('❌ SINGLE FEED SSE Error:', error);
+          eventSource.close();
+        }
+      };
+      
+      eventSource.onerror = () => {
+        console.log('🔌 SINGLE FEED SSE: Connection closed');
+        eventSource.close();
+      };
+      
       hasQueuedRef.current = true;
     }
-  }, [postTitle, feedUrl, mediaType]);
+  }, [postTitle, feedUrl, mediaType, entries, featuredImg, verified, dispatch]);
   
   // Additional effect for search mode - update entries when initialData changes
   useEffect(() => {
