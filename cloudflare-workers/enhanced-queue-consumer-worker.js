@@ -3,7 +3,6 @@
 // Follows Cloudflare best practices for scalable RSS processing
 
 import { XMLParser } from 'fast-xml-parser';
-import mysql from 'mysql2/promise';
 
 // Initialize XML parser with EXACT same settings as rss.server.ts
 const parser = new XMLParser({
@@ -130,11 +129,19 @@ export default {
 async function processRSSFeedsInParallel(feeds, env) {
   const processedFeeds = [];
   
-  // 🎯 OPTIMIZED: API pre-filtered feeds, all feeds here need refreshing
-  console.log(`🔄 WORKER: Processing ${feeds.length} pre-validated stale feeds in parallel batches`);
+  // Check which feeds need refreshing
+  const staleFeedTitles = await checkFeedsNeedingRefresh(feeds.map(f => f.postTitle), env);
+  const feedsToRefresh = feeds.filter(feed => staleFeedTitles.includes(feed.postTitle));
+  
+  if (feedsToRefresh.length === 0) {
+    console.log('✅ WORKER: All feeds are up to date');
+    return [];
+  }
+
+  console.log(`🔄 WORKER: Processing ${feedsToRefresh.length} stale feeds in parallel batches`);
   
   // Process feeds in parallel batches
-  const feedBatches = chunkArray(feeds, PARALLEL_BATCH_SIZE);
+  const feedBatches = chunkArray(feedsToRefresh, PARALLEL_BATCH_SIZE);
   
   for (let i = 0; i < feedBatches.length; i++) {
     const batch = feedBatches[i];
@@ -166,9 +173,7 @@ async function processSingleRSSFeed(feed, env) {
   const { postTitle, feedUrl, mediaType } = feed;
   
   try {
-    // 🔒 OPTIMIZED: API pre-filtered stale feeds, acquire lock and process
-    console.log(`🔄 WORKER: Processing pre-validated stale feed ${postTitle}`);
-    
+    // Acquire lock for feed processing
     const lockAcquired = await acquireFeedRefreshLock(feedUrl, env);
     if (!lockAcquired) {
       console.log(`🔒 WORKER: Feed ${postTitle} is being processed by another worker`);
@@ -177,7 +182,6 @@ async function processSingleRSSFeed(feed, env) {
     console.log(`✅ WORKER: Acquired lock for feed ${postTitle}: ${feedUrl}`);
 
     try {
-      
       // Fetch RSS feed with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -235,8 +239,6 @@ function chunkArray(array, chunkSize) {
 
 // setBatchStatus function removed - batch status now handled entirely by Durable Objects
 // This simplifies the architecture and removes redundant KV operations
-
-
 
 async function checkFeedsNeedingRefresh(postTitles, env) {
   if (!postTitles || postTitles.length === 0) return [];
@@ -305,8 +307,6 @@ async function checkFeedsNeedingRefresh(postTitles, env) {
     return postTitles;
   }
 }
-
-
 
 // Helper function to safely extract text content (from rss.server.ts)
 function getTextContent(node) {
@@ -1046,128 +1046,29 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
 }
 
 async function acquireFeedRefreshLock(feedUrl, env) {
-  // BULLETPROOF: PlanetScale database-backed atomic lock using existing rss_locks table
-  const lockKey = `feed:${feedUrl}`;
-  const lockTimeoutMs = 10 * 60 * 1000; // 10 minutes
+  // Simple lock implementation using dedicated locks KV
+  const lockKey = `lock:${feedUrl}`;
+  const lockValue = Date.now().toString();
   
-  console.log(`🔍 LOCK: Attempting PlanetScale lock for ${feedUrl}`);
-  console.log(`🎯 LOCK: LockKey: ${lockKey}`);
+  console.log(`🔍 WORKER: KV_BINDING available:`, !!env.KV_BINDING);
+  console.log(`🔍 WORKER: Checking lock for key:`, lockKey);
   
-  try {
-    const connection = await mysql.createConnection({
-      host: env.HYPERDRIVE.host,
-      user: env.HYPERDRIVE.user,
-      password: env.HYPERDRIVE.password,
-      database: env.HYPERDRIVE.database,
-      port: env.HYPERDRIVE.port,
-      disableEval: true
-    });
-    
-    try {
-      const now = Date.now();
-      const expirationTime = now + lockTimeoutMs;
-      const escapedLockKey = connection.escape(lockKey);
-      
-      // Step 1: Try to create a new lock (will fail if exists due to PRIMARY KEY)
-      const insertQuery = `
-        INSERT INTO rss_locks (lock_key, expires_at, created_at) 
-        VALUES (${escapedLockKey}, ${expirationTime}, NOW())
-      `;
-      
-      try {
-        await connection.query(insertQuery);
-        console.log(`🔒 LOCK: SUCCESS! PlanetScale lock acquired for ${feedUrl}`);
-        return true;
-        
-      } catch (insertError) {
-        // Lock already exists, check if it's expired
-        console.log(`🔍 LOCK: Lock exists, checking expiration...`);
-        
-        const selectQuery = `
-          SELECT lock_key, expires_at, created_at 
-          FROM rss_locks 
-          WHERE lock_key = ${escapedLockKey}
-        `;
-        
-        const [lockRows] = await connection.query(selectQuery);
-        
-        if (lockRows.length === 0) {
-          console.log(`🤔 LOCK: Race condition - lock disappeared, retrying...`);
-          return false; // Retry
-        }
-        
-        const existingLock = lockRows[0];
-        const expiresAt = Number(existingLock.expires_at);
-        
-        if (now > expiresAt) {
-          // Lock expired, try to take it over
-          console.log(`⏰ LOCK: Expired lock found, attempting takeover...`);
-          
-          const updateQuery = `
-            UPDATE rss_locks 
-            SET expires_at = ${expirationTime}, created_at = NOW()
-            WHERE lock_key = ${escapedLockKey} AND expires_at = ${expiresAt}
-          `;
-          
-          const [updateResult] = await connection.query(updateQuery);
-          
-          if (updateResult.affectedRows > 0) {
-            console.log(`🔒 LOCK: SUCCESS! Took over expired lock for ${feedUrl}`);
-            return true;
-          } else {
-            console.log(`🚫 LOCK: Another worker took over the expired lock`);
-            return false;
-          }
-          
-        } else {
-          const remainingMs = expiresAt - now;
-          const remainingSeconds = Math.round(remainingMs / 1000);
-          console.log(`🚫 LOCK: Valid lock exists for ${feedUrl} (${remainingSeconds}s remaining)`);
-          return false;
-        }
-      }
-      
-    } finally {
-      await connection.end();
+  const existingLock = await env.KV_BINDING?.get(lockKey);
+  
+  if (existingLock) {
+    const lockTime = parseInt(existingLock);
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    if (lockTime > fiveMinutesAgo) {
+      return false; // Lock is still valid
     }
-    
-  } catch (error) {
-    console.error(`❌ LOCK: PlanetScale error acquiring lock for ${feedUrl}:`, error);
-    return false;
   }
+  
+  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: 300 }); // 5 minute lock
+  console.log(`🔒 WORKER: Created lock for ${lockKey} with TTL 300s`);
+  return true;
 }
 
 async function releaseFeedRefreshLock(feedUrl, env) {
-  const lockKey = `feed:${feedUrl}`;
-  console.log(`🔓 LOCK: Releasing PlanetScale lock for ${feedUrl}`);
-  
-  try {
-    const connection = await mysql.createConnection({
-      host: env.HYPERDRIVE.host,
-      user: env.HYPERDRIVE.user,
-      password: env.HYPERDRIVE.password,
-      database: env.HYPERDRIVE.database,
-      port: env.HYPERDRIVE.port,
-      disableEval: true
-    });
-    
-    try {
-      const escapedLockKey = connection.escape(lockKey);
-      const deleteQuery = `DELETE FROM rss_locks WHERE lock_key = ${escapedLockKey}`;
-      
-      const [result] = await connection.query(deleteQuery);
-      
-      if (result.affectedRows > 0) {
-        console.log(`✅ LOCK: Successfully released PlanetScale lock for ${feedUrl}`);
-      } else {
-        console.log(`ℹ️ LOCK: No lock found to release for ${feedUrl}`);
-      }
-      
-    } finally {
-      await connection.end();
-    }
-    
-  } catch (error) {
-    console.error(`❌ LOCK: Error releasing PlanetScale lock for ${feedUrl}:`, error);
-  }
+  const lockKey = `lock:${feedUrl}`;
+  await env.KV_BINDING?.delete(lockKey);
 }
