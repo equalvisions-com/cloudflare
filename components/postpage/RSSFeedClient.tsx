@@ -43,6 +43,11 @@ interface RSSFeedCommentDrawerState {
 interface RSSFeedUIState {
   isActive: boolean;
   isSearchMode: boolean;
+  notification: {
+    show: boolean;
+    count: number;
+    images: string[];
+  };
 }
 
 interface RSSFeedMetadata {
@@ -80,6 +85,7 @@ type RSSFeedAction =
   | { type: 'SET_ACTIVE'; payload: boolean }
   | { type: 'SET_SEARCH_MODE'; payload: boolean }
   | { type: 'SET_FEED_METADATA'; payload: Partial<RSSFeedMetadata> }
+  | { type: 'SET_NOTIFICATION'; payload: { show: boolean; count?: number; images?: string[] } }
   | { type: 'RESET' }
   | { type: 'INITIALIZE'; payload: {
       entries: RSSFeedEntry[];
@@ -113,6 +119,11 @@ const createInitialRSSFeedState = (): RSSFeedState => ({
   ui: {
     isActive: true,
     isSearchMode: false,
+    notification: {
+      show: false,
+      count: 0,
+      images: [],
+    },
   },
   feedMetadata: {
     postTitle: '',
@@ -261,6 +272,11 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
         ui: {
           isActive: true,
           isSearchMode: false,
+          notification: {
+            show: false,
+            count: 0,
+            images: [],
+          },
         },
         feedMetadata: {
           postTitle,
@@ -269,6 +285,19 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
           mediaType,
           verified,
           pageSize,
+        },
+      };
+    
+    case 'SET_NOTIFICATION':
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          notification: {
+            show: action.payload.show,
+            count: action.payload.count || 0,
+            images: action.payload.images || [],
+          },
         },
       };
     
@@ -290,7 +319,7 @@ import {
   useAudioPlayerCurrentTrack,
   useAudioPlayerPlayTrack
 } from '@/lib/stores/audioPlayerStore';
-import { Podcast, Mail, Loader2 } from "lucide-react";
+import { Podcast, Mail, Loader2, MoveUp } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Button } from "@/components/ui/button";
 import { Virtuoso } from 'react-virtuoso';
@@ -979,9 +1008,7 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   // Queue single feed for async refresh with SSE
   useEffect(() => {
     if (postTitle && feedUrl && !hasQueuedRef.current) {
-      const batchId = `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Start queue processing
+      // Start queue processing and get the server-generated batchId
       fetch('/api/queue-refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -993,62 +1020,98 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
           newestEntryDate: entries[0]?.entry.pubDate || new Date().toISOString(),
           priority: 'normal'
         })
-      }).catch(() => {}); // Silent fail - page works without refresh
-      
-      // Start SSE listener for real-time updates
-      const eventSource = new EventSource(`/api/batch-stream/${batchId}?batchId=${batchId}`);
-      
-      eventSource.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('📡 SINGLE FEED SSE:', data);
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success && result.batchId) {
+          console.log('✅ SINGLE FEED: Queue started, connecting to SSE:', result.batchId);
           
-          if (data.status === 'completed' && data.entries?.length > 0) {
-            // OPTIMIZATION: Reuse existing feed metadata (no Convex query needed!)
-            console.log('🚀 SINGLE FEED: Reusing feed metadata instead of querying Convex');
-            
-            const enrichedEntries: RSSFeedEntry[] = data.entries.map((flatEntry: any) => ({
-              entry: {
-                title: flatEntry.title,
-                link: flatEntry.link,
-                description: flatEntry.description || '',
-                pubDate: flatEntry.pub_date,
-                guid: flatEntry.guid,
-                image: flatEntry.image,
-                feedUrl: flatEntry.feedUrl || '',
-                mediaType: flatEntry.media_type
-              },
-              initialData: {
-                likes: { isLiked: false, count: 0 },
-                comments: { count: 0 },
-                retweets: { isRetweeted: false, count: 0 },
-                bookmarks: { isBookmarked: false }
-              },
-              postMetadata: {
-                title: postTitle, // ← Reuse existing metadata
-                featuredImg: featuredImg || flatEntry.image,
-                mediaType: mediaType || flatEntry.media_type,
-                verified: verified,
-                postSlug: undefined, // Single feeds don't need slug routing
-                categorySlug: undefined
-              }
-            }));
-            
-            console.log('✅ SINGLE FEED: Prepending optimized entries (no Convex query):', enrichedEntries.length);
-            dispatch({ type: 'PREPEND_ENTRIES', payload: enrichedEntries });
-            
-            eventSource.close();
-          }
-        } catch (error) {
-          console.error('❌ SINGLE FEED SSE Error:', error);
-          eventSource.close();
-        }
-      };
+          // Start SSE listener with the server-generated batchId
+          const eventSource = new EventSource(`/api/batch-stream/${result.batchId}?batchId=${result.batchId}`);
       
-      eventSource.onerror = () => {
-        console.log('🔌 SINGLE FEED SSE: Connection closed');
-        eventSource.close();
-      };
+          eventSource.onmessage = async (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              console.log('📡 SINGLE FEED SSE:', data);
+              
+              // Handle connection confirmation
+              if (data.type === 'connected') {
+                console.log('🔗 SINGLE FEED SSE: Connected successfully');
+                return;
+              }
+              
+              // Handle batch completion (matching multi-feed pattern)
+              if (data.batchId && data.status === 'completed') {
+                console.log('✅ SINGLE FEED SSE: Batch completed');
+                
+                if (data.entries && data.entries.length > 0) {
+                  // OPTIMIZATION: Reuse existing feed metadata (no Convex query needed!)
+                  console.log('🚀 SINGLE FEED: Reusing feed metadata instead of querying Convex');
+                  
+                  const enrichedEntries: RSSFeedEntry[] = data.entries.map((flatEntry: any) => ({
+                    entry: {
+                      title: flatEntry.title,
+                      link: flatEntry.link,
+                      description: flatEntry.description || '',
+                      pubDate: flatEntry.pub_date,
+                      guid: flatEntry.guid,
+                      image: flatEntry.image,
+                      feedUrl: flatEntry.feedUrl || '',
+                      mediaType: flatEntry.media_type
+                    },
+                    initialData: {
+                      likes: { isLiked: false, count: 0 },
+                      comments: { count: 0 },
+                      retweets: { isRetweeted: false, count: 0 },
+                      bookmarks: { isBookmarked: false }
+                    },
+                    postMetadata: {
+                      title: postTitle, // ← Reuse existing metadata
+                      featuredImg: featuredImg || flatEntry.image,
+                      mediaType: mediaType || flatEntry.media_type,
+                      verified: verified,
+                      postSlug: undefined, // Single feeds don't need slug routing
+                      categorySlug: undefined
+                    }
+                  }));
+                  
+                  // Show notification badge with reused featuredImg (no Convex query!)
+                  const notificationImages = featuredImg ? [featuredImg] : [];
+                  dispatch({ 
+                    type: 'SET_NOTIFICATION', 
+                    payload: { 
+                      show: true, 
+                      count: enrichedEntries.length, 
+                      images: notificationImages 
+                    } 
+                  });
+                  
+                  // Auto-hide notification after 5 seconds
+                  setTimeout(() => {
+                    dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
+                  }, 5000);
+                  
+                  console.log('✅ SINGLE FEED: Prepending optimized entries (no Convex query):', enrichedEntries.length);
+                  dispatch({ type: 'PREPEND_ENTRIES', payload: enrichedEntries });
+                }
+                
+                eventSource.close();
+              }
+            } catch (error) {
+              console.error('❌ SINGLE FEED SSE Error:', error);
+              eventSource.close();
+            }
+          };
+          
+          eventSource.onerror = () => {
+            console.log('🔌 SINGLE FEED SSE: Connection closed');
+            eventSource.close();
+          };
+        }
+      })
+      .catch(error => {
+        console.error('❌ SINGLE FEED: Queue failed:', error);
+      });
       
       hasQueuedRef.current = true;
     }
@@ -1154,6 +1217,55 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   
   return (
     <div className="w-full rss-feed-container">
+      {/* Notification badge for new entries */}
+      {state.ui.notification.show && (
+        <div 
+          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <button 
+            className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2 cursor-pointer hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            onClick={() => dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
+              }
+            }}
+            tabIndex={0}
+            aria-label={`${state.ui.notification.count} new ${state.ui.notification.count === 1 ? 'post' : 'posts'} available`}
+          >
+            {state.ui.notification.images.length > 0 ? (
+              <div className="flex items-center gap-1">
+                <MoveUp className="h-3 w-3" aria-hidden="true" />
+                <div className="flex items-center -space-x-1">
+                  {state.ui.notification.images.map((imageUrl: string, index: number) => (
+                    <div key={index} className="relative w-4 h-4 rounded-full overflow-hidden">
+                      <Image
+                        src={imageUrl}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="16px"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <MoveUp className="h-3 w-3" aria-hidden="true" />
+                <span className="text-sm font-medium">
+                  {state.ui.notification.count} new {state.ui.notification.count === 1 ? 'post' : 'posts'}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      
       <FeedContent
         entries={optimizedEntries}
         hasMore={hasMore} // PHASE 4: Use granular selector
