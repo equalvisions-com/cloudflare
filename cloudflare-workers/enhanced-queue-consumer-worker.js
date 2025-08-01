@@ -130,19 +130,11 @@ export default {
 async function processRSSFeedsInParallel(feeds, env) {
   const processedFeeds = [];
   
-  // Check which feeds need refreshing
-  const staleFeedTitles = await checkFeedsNeedingRefresh(feeds.map(f => f.postTitle), env);
-  const feedsToRefresh = feeds.filter(feed => staleFeedTitles.includes(feed.postTitle));
-  
-  if (feedsToRefresh.length === 0) {
-    console.log('✅ WORKER: All feeds are up to date');
-    return [];
-  }
-
-  console.log(`🔄 WORKER: Processing ${feedsToRefresh.length} stale feeds in parallel batches`);
+  // 🎯 OPTIMIZED: API pre-filtered feeds, all feeds here need refreshing
+  console.log(`🔄 WORKER: Processing ${feeds.length} pre-validated stale feeds in parallel batches`);
   
   // Process feeds in parallel batches
-  const feedBatches = chunkArray(feedsToRefresh, PARALLEL_BATCH_SIZE);
+  const feedBatches = chunkArray(feeds, PARALLEL_BATCH_SIZE);
   
   for (let i = 0; i < feedBatches.length; i++) {
     const batch = feedBatches[i];
@@ -174,8 +166,8 @@ async function processSingleRSSFeed(feed, env) {
   const { postTitle, feedUrl, mediaType } = feed;
   
   try {
-    // 🔒 STEP 1: Acquire lock first (prevents race conditions)
-    console.log(`🔄 WORKER: Attempting to acquire lock for feed ${postTitle}`);
+    // 🔒 OPTIMIZED: API pre-filtered stale feeds, acquire lock and process
+    console.log(`🔄 WORKER: Processing pre-validated stale feed ${postTitle}`);
     
     const lockAcquired = await acquireFeedRefreshLock(feedUrl, env);
     if (!lockAcquired) {
@@ -183,15 +175,6 @@ async function processSingleRSSFeed(feed, env) {
       return null;
     }
     console.log(`✅ WORKER: Acquired lock for feed ${postTitle}: ${feedUrl}`);
-    
-    // 🔍 STEP 2: Check staleness AFTER acquiring lock (bulletproof)
-    const isStale = await checkSingleFeedStaleness(postTitle, env);
-    if (!isStale) {
-      console.log(`✅ WORKER: Feed ${postTitle} is fresh - releasing lock without processing`);
-      await releaseFeedRefreshLock(feedUrl, env);
-      return null;
-    }
-    console.log(`💾 WORKER: Feed ${postTitle} confirmed stale - proceeding with refresh`);
 
     try {
       
@@ -253,58 +236,7 @@ function chunkArray(array, chunkSize) {
 // setBatchStatus function removed - batch status now handled entirely by Durable Objects
 // This simplifies the architecture and removes redundant KV operations
 
-async function checkSingleFeedStaleness(postTitle, env) {
-  try {
-    const connection = await mysql.createConnection({
-      host: env.HYPERDRIVE.host,
-      user: env.HYPERDRIVE.user, 
-      password: env.HYPERDRIVE.password,
-      database: env.HYPERDRIVE.database,
-      port: env.HYPERDRIVE.port,
-      disableEval: true
-    });
 
-    try {
-      const escapedTitle = connection.escape(postTitle);
-      const [rows] = await connection.query(`
-        SELECT last_fetched 
-        FROM rss_feeds 
-        WHERE post_title = ${escapedTitle}
-      `);
-
-      if (rows.length === 0) {
-        return true; // Feed doesn't exist, needs refresh
-      }
-
-      const lastFetched = rows[0].last_fetched;
-      if (!lastFetched) {
-        return true; // Never fetched, needs refresh
-      }
-
-      const lastFetchedTime = new Date(lastFetched).getTime();
-      const now = Date.now();
-      const fourHoursAgo = now - (4 * 60 * 60 * 1000);
-
-      const isStale = lastFetchedTime < fourHoursAgo;
-      const ageMinutes = Math.round((now - lastFetchedTime) / (1000 * 60));
-      
-      if (isStale) {
-        console.log(`💾 WORKER: Feed "${postTitle}" is stale (last fetched ${ageMinutes} minutes ago)`);
-      } else {
-        console.log(`✅ WORKER: Feed "${postTitle}" is fresh (last fetched ${ageMinutes} minutes ago)`);
-      }
-      
-      return isStale;
-
-    } finally {
-      await connection.end();
-    }
-
-  } catch (error) {
-    console.error(`❌ WORKER: Error checking staleness for ${postTitle}:`, error);
-    return true; // Assume stale on error to be safe
-  }
-}
 
 async function checkFeedsNeedingRefresh(postTitles, env) {
   if (!postTitles || postTitles.length === 0) return [];
