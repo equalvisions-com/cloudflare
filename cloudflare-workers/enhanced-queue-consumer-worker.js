@@ -179,6 +179,7 @@ async function processSingleRSSFeed(feed, env) {
       console.log(`🔒 WORKER: Feed ${postTitle} is being processed by another worker`);
       return null;
     }
+    console.log(`✅ WORKER: Acquired lock for feed ${postTitle}: ${feedUrl}`);
 
     try {
       // Fetch RSS feed with timeout
@@ -1045,21 +1046,44 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
 }
 
 async function acquireFeedRefreshLock(feedUrl, env) {
-  // Simple lock implementation using dedicated locks KV
+  // Improved lock implementation with shorter race window
   const lockKey = `lock:${feedUrl}`;
-  const lockValue = Date.now().toString();
-  const existingLock = await env.KV_BINDING?.get(lockKey);
+  const lockValue = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const lockTTL = 300; // 5 minutes
+  
+  console.log(`🔍 WORKER: KV_BINDING available:`, !!env.KV_BINDING);
+  console.log(`🔍 WORKER: Attempting to acquire lock for key:`, lockKey);
+  
+  // Step 1: Check for existing valid lock
+  const existingLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
   
   if (existingLock) {
-    const lockTime = parseInt(existingLock);
+    const [lockTimestamp] = existingLock.split('_');
+    const lockTime = parseInt(lockTimestamp);
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    
     if (lockTime > fiveMinutesAgo) {
+      console.log(`🚫 WORKER: Lock already exists and is valid for ${lockKey} (${Math.round((lockTime - fiveMinutesAgo) / 1000)}s remaining)`);
       return false; // Lock is still valid
     }
+    
+    console.log(`⏰ WORKER: Found expired lock for ${lockKey}, attempting to replace`);
   }
   
-  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: 300 }); // 5 minute lock
-  return true;
+  // Step 2: Attempt to create lock (race condition still possible but much smaller window)
+  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: lockTTL });
+  
+  // Step 3: Verify we won the race by reading back our value after a small delay
+  await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay
+  const verifyLock = await env.KV_BINDING?.get(lockKey, { type: 'text' });
+  
+  if (verifyLock === lockValue) {
+    console.log(`🔒 WORKER: Successfully acquired verified lock for ${lockKey} with TTL ${lockTTL}s`);
+    return true;
+  } else {
+    console.log(`🚫 WORKER: Lost race condition for ${lockKey} - another worker acquired the lock`);
+    return false;
+  }
 }
 
 async function releaseFeedRefreshLock(feedUrl, env) {
