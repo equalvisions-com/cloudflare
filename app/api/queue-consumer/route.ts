@@ -98,11 +98,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     
     devLog('🔄 QUEUE CONSUMER: Received request body', requestBody);
     
-    // Debug: Check if bindings are available via context
-    if (context.env) {
-      console.log('🔍 Legacy: Context env available (BATCH_STATUS operations removed)...');
-      console.log('🔍 KV: Context env keys:', Object.keys(context.env));
-    }
+    // Note: Legacy context.env debugging removed - using getRequestContext() for bindings
     
     // Handle Cloudflare Queue message format
     let messages: QueueFeedRefreshMessage[] = [];
