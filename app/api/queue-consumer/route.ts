@@ -174,7 +174,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             processingTimeMs: processingTime
           };
           
-          // Update batch status immediately for fast response
+          // Note: Batch status now handled by enhanced worker via Durable Objects
           await setBatchStatus(batchId, {
             batchId,
             status: 'completed',
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             processedAt: Date.now() - processingTime,
             completedAt: Date.now(),
             result: quickResult
-          }, context.env);
+          });
           
                   console.log('📊 QUEUE CONSUMER: Fast-track completion (no refresh needed)', {
           batchId,
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           efficiency: result.newEntriesCount > 0 ? 'high' : 'low' // new content found vs no new content
         });
         
-        // Update batch status in KV for SSE streaming
+        // Note: Batch status now handled by enhanced worker via Durable Objects
         if (batchId) {
           await setBatchStatus(batchId, {
             batchId,
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             processedAt: Date.now() - processingTime,
             completedAt: Date.now(),
             result: result
-          }, context.env);
+          });
           
           console.log('📊 QUEUE CONSUMER: Updated batch status in KV', {
             batchId,
@@ -295,7 +295,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             processedAt: Date.now(),
             completedAt: Date.now(),
             error: messageError instanceof Error ? messageError.message : 'Processing failed'
-          }, context.env);
+          });
           
           console.log('📊 QUEUE CONSUMER: Updated batch status (failed)', {
             batchId,
