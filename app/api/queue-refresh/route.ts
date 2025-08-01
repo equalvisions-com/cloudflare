@@ -154,11 +154,23 @@ export async function POST(request: NextRequest) {
   const feedsNotLocked = await filterOutLockedFeeds(staleFeedTitles);
   
   if (feedsNotLocked.length === 0) {
-    console.log('🔒 QUEUE PRODUCER: All feeds are currently locked - skipping queue');
+    console.log('🔒 QUEUE PRODUCER: All feeds are currently locked - sharing existing batch');
+    
+    // Generate a shared batchId for SSE connection
+    const sharedBatchId = `shared_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create feed objects for the response (even though they're locked)
+    const lockedFeeds = staleFeedTitles.map((title, index) => ({
+      postTitle: title,
+      feedUrl: normalizedFeedUrls[index],
+      mediaType: normalizedMediaTypes[index] || undefined
+    }));
+    
     return NextResponse.json({ 
-      batchId: null,
-      message: 'All feeds are currently being processed by other requests',
-      status: 'skipped'
+      batchId: sharedBatchId,
+      message: 'Feed is being processed by another request, sharing updates',
+      status: 'shared',
+      feeds: lockedFeeds
     }, { status: 200 });
   }
   
