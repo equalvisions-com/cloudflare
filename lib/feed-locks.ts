@@ -47,7 +47,7 @@ export async function acquireFeedLock(
       [lockUntil, feedUrl, now, staleThreshold]
     );
     
-    if (result.meta.changes > 0) {
+    if (result.rowsAffected > 0) {
       return {
         success: true,
         acquired: true,
@@ -190,7 +190,7 @@ export async function cleanupExpiredLocks(): Promise<number> {
       [Date.now()]
     );
     
-    const cleanedCount = result.meta.changes;
+    const cleanedCount = result.rowsAffected;
     
     if (cleanedCount > 0) {
       console.log(`Cleaned up ${cleanedCount} expired feed locks`);

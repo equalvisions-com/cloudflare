@@ -147,7 +147,7 @@ async function acquireFeedLock(feedUrl, env) {
         [lockUntil, feedUrl, now, staleThreshold]
       );
       
-      const acquired = result.changedRows > 0;
+      const acquired = result.affectedRows > 0;
       console.log(`🔒 WORKER V2: Lock acquisition for ${feedUrl}: ${acquired ? 'SUCCESS' : 'DENIED'}`);
       
       return {
