@@ -1,0 +1,18 @@
+/* Styles for SwipeableTabs with Auto Height plugin */
+
+/* Container for the auto height carousel */
+.embla-container-with-auto-height {
+  /* No transition for immediate height changes */
+}
+
+/* Ensure slides align to the top - critical for Auto Height to work */
+.embla-slides-container {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* Ensure each slide takes full width */
+.embla-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+} 

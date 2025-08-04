@@ -1,0 +1,66 @@
+# Cloudflare Worker configuration for RSS feed refresh queue
+name = "rss-refresh-consumer"
+main = "cloudflare-workers/enhanced-queue-consumer-worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Queue consumer configuration
+[[queues.consumers]]
+queue = "refresh-feed"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "refresh-feed-dlq"
+
+# Environment variables
+[env.development]
+name = "rss-refresh-consumer-dev"
+
+# KV binding removed - using database locks instead of KV locks
+
+
+
+# Durable Object for real-time batch status (ELIMINATES POLLING!) - Default
+[durable_objects]
+bindings = [
+  { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
+]
+
+# Hyperdrive for efficient database connections
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3d141b67fa544bd4829df63176461c04"
+
+# Variables - Default
+[vars]
+ENVIRONMENT = "production"
+PAGES_FUNCTION_URL = "https://socialnetworksandbox.com"
+PAGES_FUNCTION_TOKEN = ""
+
+# Production Environment - ALL bindings explicitly defined
+[env.production]
+name = "rss-refresh-consumer"
+vars = { ENVIRONMENT = "production", PAGES_FUNCTION_URL = "https://socialnetworksandbox.com", PAGES_FUNCTION_TOKEN = "" }
+
+# KV binding removed - using database locks instead of KV locks
+
+
+
+# Queue consumer for RSS refresh - PRODUCTION
+[[env.production.queues.consumers]]
+queue = "refresh-feed"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "refresh-feed-dlq"
+
+# Durable Object for real-time batch status - PRODUCTION
+[env.production.durable_objects]
+bindings = [
+  { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject", script_name = "batch-status-manager" }
+]
+
+# Hyperdrive for efficient database connections - PRODUCTION
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3d141b67fa544bd4829df63176461c04" 

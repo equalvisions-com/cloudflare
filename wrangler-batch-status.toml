@@ -1,0 +1,25 @@
+# wrangler-batch-status.toml
+# Durable Object for real-time batch status updates
+# ELIMINATES POLLING ENTIRELY
+
+name = "batch-status-manager"
+main = "cloudflare-workers/batch-status-durable-object.ts"
+compatibility_date = "2024-01-15"
+
+# Durable Object bindings
+[durable_objects]
+bindings = [
+  { name = "BATCH_STATUS_DO", class_name = "BatchStatusDurableObject" }
+]
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["BatchStatusDurableObject"]
+
+# Environment variables
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+[env.preview]
+vars = { ENVIRONMENT = "preview" }

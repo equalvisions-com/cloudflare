@@ -1,0 +1,354 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground)) transparent;
+  }
+  
+  .no-overscroll {
+    overscroll-behavior: none;
+  }
+
+  /* Force stable scrollbar for components with flickering issues */
+  .force-scrollbar-stable {
+    overflow-y: scroll !important;
+    scrollbar-gutter: stable;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+  }
+
+  .custom-scrollbar {
+    overflow-y: scroll;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    margin-top: 24px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 24px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+    margin-top: 24px;
+  }
+  
+  /* Prevent browser back/forward gestures */
+  .prevent-overscroll-navigation {
+    overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y pinch-zoom;
+  }
+
+  /* Hide scrollbars but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
+  /* Prevent hover effects on touch devices for chat filter buttons */
+  @media (hover: none) {
+    /* Inactive buttons */
+    .chat-filter-button:not([data-state='active']):hover,
+    .chat-filter-button:not([data-state='active']):active,
+    .chat-filter-button:not([data-state='active']):focus {
+      background-color: hsl(var(--background) / 0.6) !important;
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
+    }
+    
+    .chat-filter-button:not([data-state='active']) span {
+      color: hsl(var(--foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    .chat-filter-button:not([data-state='active']) svg {
+      color: hsl(var(--foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    /* Active buttons */
+    .chat-filter-button[data-state='active']:hover,
+    .chat-filter-button[data-state='active']:active,
+    .chat-filter-button[data-state='active']:focus {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
+    }
+    
+    .chat-filter-button[data-state='active'] span {
+      color: hsl(var(--primary-foreground)) !important;
+      font-weight: 500 !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    .chat-filter-button[data-state='active'] svg {
+      color: hsl(var(--primary-foreground)) !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+
+    /* Safari-specific fixes */
+    @supports (-webkit-touch-callout: none) {
+      .chat-filter-button {
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-user-select: none !important;
+        background-clip: padding-box !important;
+      }
+
+      .chat-filter-button:active {
+        -webkit-transform: translateZ(0) !important;
+        transform: translateZ(0) !important;
+      }
+    }
+  }
+}
+
+/* Disable tap highlight color and add Safari-specific fixes for all devices */
+.chat-filter-button, 
+.chat-filter-button * {
+  -webkit-tap-highlight-color: transparent !important;
+  tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Touch-specific behaviors - only apply to touch devices */
+@media (hover: none) {
+  .chat-filter-button, 
+  .chat-filter-button * {
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+}
+
+/* To change the theme colors, change the values below
+  or use the "Copy code" button at https://ui.shadcn.com/themes */
+@layer base {
+  :root {
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
+    --background: 0 0% 100%;
+    --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14.3% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14.3% 4.1%;
+    --primary: 24 9.8% 10%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --secondary: 60 4.8% 95.9%;
+    --secondary-foreground: 24 9.8% 10%;
+    --muted: 60 4.8% 95.9%;
+    --muted-foreground: 25 5.3% 44.7%;
+    --accent: 60 4.8% 95.9%;
+    --accent-foreground: 24 9.8% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 20 5.9% 90%;
+    --input: 20 5.9% 90%;
+    --ring: 20 14.3% 4.1%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 20 14.3% 4.1%;
+    --foreground: 60 9.1% 97.8%;
+    --card: 20 14.3% 4.1%;
+    --card-foreground: 60 9.1% 97.8%;
+    --popover: 20 14.3% 4.1%;
+    --popover-foreground: 60 9.1% 97.8%;
+    --primary: 60 9.1% 97.8%;
+    --primary-foreground: 24 9.8% 10%;
+    --secondary: 12 6.5% 15.1%;
+    --secondary-foreground: 60 9.1% 97.8%;
+    --muted: 12 6.5% 15.1%;
+    --muted-foreground: 24 5.4% 63.9%;
+    --accent: 12 6.5% 15.1%;
+    --accent-foreground: 60 9.1% 97.8%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 12 6.5% 15.1%;
+    --input: 12 6.5% 15.1%;
+    --ring: 24 5.7% 82.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  html {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans);
+    /* Always reserve the gutter so the content width never changes */
+    scrollbar-gutter: stable;          /* modern engines */
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-geist-sans);
+    @apply bg-background text-foreground;
+    /* Ensure minimum height so scrollbar space is always reserved */
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+  /* Remove all main styling related to height */
+
+}
+
+/* Fallback for any hold-outs that still lack the property */
+@supports not (scrollbar-gutter: stable) {
+  html { overflow-y: scroll; }       /* forces an (empty) scrollbar track */
+}
+
+/* Additional stability for streaming content containers */
+.rss-feed-container,
+.entries-display-container, 
+.bookmarks-feed-container,
+.user-activity-feed-container,
+.user-likes-feed-container,
+.featured-feed-container {
+  /* Prevent layout shift during content streaming */
+  min-height: 50vh;
+  /* Smooth transitions to reduce flicker */
+  transition: none;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+/* Remove media query styles that control height */
+@media (max-width: 767px) {
+  .w-full.md\:w-\[56\%\].overflow-y-auto.border.bg-card.rounded-lg.mt-6 {
+    border: 0;
+  }
+  main {
+    border: none !important;
+  }
+}
+
+/* Remove scroll-freeze class that controls overflow */
+.scroll-freeze {
+  /* Removed overflow control */
+}
+
+/* SwipeableTabs Component Styles */
+.opacity-0 {
+  transition: opacity 0ms;
+  opacity: 0;
+}
+
+/* Hide scrollbar during tab transitions */
+.embla__swipeable_tabs {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.embla__swipeable_tabs::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Show scrollbar for vertical scrolling only when not transitioning */
+.embla__swipeable_tabs .embla-slide {
+  scrollbar-width: auto;
+  -ms-overflow-style: auto;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar {
+  width: 6px;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.embla__swipeable_tabs .embla-slide::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+/* When transitioning, hide the scrollbar */
+.embla__swipeable_tabs .embla-slide.transitioning {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.embla__swipeable_tabs .embla-slide.transitioning::-webkit-scrollbar {
+  display: none !important;
+}
+
+.embla-slide:not(.opacity-0) {
+  transition: opacity 50ms;
+  opacity: 1;
+}
+
+/* Override default disabled opacity for all elements in the chat interface */
+.disabled-full-opacity button:disabled,
+.disabled-full-opacity input:disabled,
+.disabled-full-opacity textarea:disabled {
+  opacity: 1 !important;
+}
+
+/* Drawer scroll lock optimization - prevent background flash */
+body[style*="position: fixed"] {
+  /* Ensure smooth transition when scroll lock is applied */
+  transition: none !important;
+  /* Prevent any potential layout shifts */
+  will-change: auto;
+}
+
+/* Prevent flash during drawer open/close transitions */
+[data-vaul-drawer] {
+  /* Ensure drawer animations are smooth */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Sidebar styles */
+.sidebar-card {
+  border-radius: 0.5rem;
+}
