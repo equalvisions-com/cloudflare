@@ -1,6 +1,5 @@
-// Enhanced RSS Processing Queue Consumer Worker
-// Processes RSS feeds directly in Worker for maximum performance
-// Follows Cloudflare best practices for scalable RSS processing
+// Enhanced RSS Processing Queue Consumer Worker - Database Locking Version
+// Replaces KV locks with atomic MySQL operations for better performance and reliability
 
 import { XMLParser } from 'fast-xml-parser';
 
@@ -12,24 +11,25 @@ const parser = new XMLParser({
   trimValues: true,
   parseTagValue: false,
   isArray: (tagName) => {
-    // Common array elements in RSS/Atom feeds
     return ['item', 'entry', 'link', 'category', 'enclosure'].includes(tagName);
   },
-  // Add stopNodes for CDATA sections that shouldn't be parsed
   stopNodes: ['description', 'content:encoded', 'summary'],
-  // Add processing instruction handling for XML declaration
   processEntities: true,
   htmlEntities: true
 });
 
-// Parallel processing configuration following Cloudflare limits
-const PARALLEL_BATCH_SIZE = 15; // Optimal for 128MB memory + 6 concurrent connections
-const FETCH_TIMEOUT = 10000; // 10 second timeout per feed
+// Parallel processing configuration
+const PARALLEL_BATCH_SIZE = 15;
+const FETCH_TIMEOUT = 10000;
 const MAX_RETRIES = 3;
+
+// Lock configuration
+const LOCK_DURATION_MS = 5 * 60 * 1000;      // 5 minutes
+const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 export default {
   async queue(batch, env) {
-    console.log(`🔄 ENHANCED WORKER: Processing ${batch.messages.length} messages with RSS parsing`);
+    console.log(`🔄 ENHANCED WORKER V2: Processing ${batch.messages.length} messages with database locking`);
 
     const startTime = Date.now();
     let totalProcessed = 0;
@@ -38,7 +38,7 @@ export default {
     for (const message of batch.messages) {
       try {
         const queueMessage = message.body;
-        console.log('🔍 WORKER: Processing queue message', queueMessage);
+        console.log('🔍 WORKER V2: Processing queue message', queueMessage);
 
         if (!queueMessage?.feeds || !Array.isArray(queueMessage.feeds)) {
           throw new Error('Invalid message: feeds array missing');
@@ -46,10 +46,9 @@ export default {
 
         const { batchId, feeds, existingGuids = [], newestEntryDate, userId } = queueMessage;
         
-        // Note: Batch status now handled entirely by Durable Objects via /notify
-        console.log(`🚀 WORKER: Processing batch ${batchId} with ${feeds.length} feeds`);
+        console.log(`🚀 WORKER V2: Processing batch ${batchId} with ${feeds.length} feeds`);
 
-        // ✅ PARALLEL RSS PROCESSING IN WORKER
+        // Process RSS feeds with database locking
         const processedFeeds = await processRSSFeedsInParallel(feeds, env);
         
         // Get new entries from processed feeds
@@ -73,36 +72,31 @@ export default {
           processingTimeMs: Date.now() - startTime
         };
 
-        // Batch completion status now handled entirely by Durable Objects
-        console.log(`✅ WORKER: Batch ${batchId} completed - notifying Durable Object only`);
+        console.log(`✅ WORKER V2: Batch ${batchId} completed - notifying Durable Object`);
 
         // Notify Durable Object of completion
         if (env.BATCH_STATUS_DO) {
           try {
-            console.log('🔔 WORKER: Notifying Durable Object of completion', { batchId, newEntriesCount: newEntries.entries.length });
             const durableObject = env.BATCH_STATUS_DO.get(env.BATCH_STATUS_DO.idFromName(batchId));
             await durableObject.fetch('https://worker/notify', {
               method: 'POST',
               body: JSON.stringify(result)
             });
-            console.log('✅ WORKER: Successfully notified Durable Object');
+            console.log('✅ WORKER V2: Successfully notified Durable Object');
           } catch (doError) {
-            console.error('❌ WORKER: Durable Object notification failed:', doError);
+            console.error('❌ WORKER V2: Durable Object notification failed:', doError);
           }
-        } else {
-          console.error('❌ WORKER: BATCH_STATUS_DO binding not available');
         }
 
         totalProcessed++;
         message.ack();
         
       } catch (messageError) {
-        console.error('❌ WORKER: Error processing message:', messageError);
+        console.error('❌ WORKER V2: Error processing message:', messageError);
         
-        // Error handling: Durable Objects will handle timeout/cleanup
         const batchId = message.body?.batchId;
         if (batchId) {
-          console.log(`❌ WORKER: Batch ${batchId} failed - Durable Object will handle cleanup`);
+          console.log(`❌ WORKER V2: Batch ${batchId} failed - Durable Object will handle cleanup`);
         }
         
         totalFailed++;
@@ -111,7 +105,7 @@ export default {
     }
 
     const processingTime = Date.now() - startTime;
-    console.log(`✅ ENHANCED WORKER: Completed batch processing`, {
+    console.log(`✅ ENHANCED WORKER V2: Completed batch processing`, {
       totalMessages: batch.messages.length,
       totalProcessed,
       totalFailed,
@@ -121,31 +115,110 @@ export default {
   },
 
   async fetch(request, env) {
-    return new Response('Enhanced RSS Processing Worker', { status: 200 });
+    return new Response('Enhanced RSS Processing Worker V2 - Database Locking', { status: 200 });
   }
 };
 
-// ✅ CORE RSS PROCESSING FUNCTION - Parallel batching
+// Database locking functions - replacing KV locks
+async function acquireFeedLock(feedUrl, env) {
+  try {
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      disableEval: true
+    });
+    
+    try {
+      const now = Date.now();
+      const lockUntil = now + LOCK_DURATION_MS;
+      const staleThreshold = now - STALE_THRESHOLD_MS;
+      
+      // Atomic operation: acquire lock only if feed is stale and not locked
+      const [result] = await connection.query(
+        `UPDATE rss_feeds 
+         SET processing_until = ?
+         WHERE feed_url = ? 
+           AND processing_until < ?
+           AND last_fetched < ?`,
+        [lockUntil, feedUrl, now, staleThreshold]
+      );
+      
+      const acquired = result.affectedRows > 0;
+      console.log(`🔒 WORKER V2: Lock acquisition for ${feedUrl}: ${acquired ? 'SUCCESS' : 'DENIED'}`);
+      
+      return {
+        acquired,
+        lockUntil: acquired ? lockUntil : null
+      };
+      
+    } finally {
+      await connection.end();
+    }
+    
+  } catch (error) {
+    console.error('❌ WORKER V2: Lock acquisition failed:', error);
+    return { acquired: false, lockUntil: null };
+  }
+}
+
+async function releaseFeedLock(feedUrl, success, env) {
+  try {
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: env.HYPERDRIVE.host,
+      user: env.HYPERDRIVE.user,
+      password: env.HYPERDRIVE.password,
+      database: env.HYPERDRIVE.database,
+      port: env.HYPERDRIVE.port,
+      disableEval: true
+    });
+    
+    try {
+      if (success) {
+        // Successful processing: clear lock and update last_fetched
+        await connection.query(
+          `UPDATE rss_feeds 
+           SET processing_until = 0, last_fetched = ?
+           WHERE feed_url = ?`,
+          [Date.now(), feedUrl]
+        );
+        console.log(`✅ WORKER V2: Released lock and updated last_fetched for ${feedUrl}`);
+      } else {
+        // Failed processing: clear lock but don't update last_fetched
+        await connection.query(
+          `UPDATE rss_feeds 
+           SET processing_until = 0
+           WHERE feed_url = ?`,
+          [feedUrl]
+        );
+        console.log(`🔓 WORKER V2: Released lock (failed processing) for ${feedUrl}`);
+      }
+      
+    } finally {
+      await connection.end();
+    }
+    
+  } catch (error) {
+    console.error(`❌ WORKER V2: Lock release failed for ${feedUrl}:`, error);
+  }
+}
+
+// Core RSS processing function with database locking
 async function processRSSFeedsInParallel(feeds, env) {
   const processedFeeds = [];
   
-  // Check which feeds need refreshing
-  const staleFeedTitles = await checkFeedsNeedingRefresh(feeds.map(f => f.postTitle), env);
-  const feedsToRefresh = feeds.filter(feed => staleFeedTitles.includes(feed.postTitle));
-  
-  if (feedsToRefresh.length === 0) {
-    console.log('✅ WORKER: All feeds are up to date');
-    return [];
-  }
-
-  console.log(`🔄 WORKER: Processing ${feedsToRefresh.length} stale feeds in parallel batches`);
+  console.log(`🔄 WORKER V2: Processing ${feeds.length} feeds with database locking`);
   
   // Process feeds in parallel batches
-  const feedBatches = chunkArray(feedsToRefresh, PARALLEL_BATCH_SIZE);
+  const feedBatches = chunkArray(feeds, PARALLEL_BATCH_SIZE);
   
   for (let i = 0; i < feedBatches.length; i++) {
     const batch = feedBatches[i];
-    console.log(`🔄 WORKER: Processing batch ${i + 1}/${feedBatches.length} (${batch.length} feeds)`);
+    console.log(`🔄 WORKER V2: Processing batch ${i + 1}/${feedBatches.length} (${batch.length} feeds)`);
     
     // Process batch in parallel
     const batchResults = await Promise.allSettled(
@@ -160,7 +233,7 @@ async function processRSSFeedsInParallel(feeds, env) {
           data: result.value
         });
       } else {
-        console.error(`❌ WORKER: Failed to process feed ${batch[index].postTitle}:`, result.reason);
+        console.error(`❌ WORKER V2: Failed to process feed ${batch[index].postTitle}:`, result.reason);
       }
     });
   }
@@ -168,29 +241,31 @@ async function processRSSFeedsInParallel(feeds, env) {
   return processedFeeds;
 }
 
-// ✅ SINGLE RSS FEED PROCESSING - Following Cloudflare best practices
+// Single RSS feed processing with database locking
 async function processSingleRSSFeed(feed, env) {
   const { postTitle, feedUrl, mediaType } = feed;
   
   try {
-    // Acquire lock for feed processing
-    const lockAcquired = await acquireFeedRefreshLock(feedUrl, env);
-    if (!lockAcquired) {
-      console.log(`🔒 WORKER: Feed ${postTitle} is being processed by another worker`);
+    // Acquire database lock for feed processing
+    const lockResult = await acquireFeedLock(feedUrl, env);
+    
+    if (!lockResult.acquired) {
+      console.log(`🔒 WORKER V2: Feed ${postTitle} is locked or not stale - skipping`);
       return null;
     }
-    console.log(`✅ WORKER: Acquired lock for feed ${postTitle}: ${feedUrl}`);
+    
+    console.log(`✅ WORKER V2: Acquired database lock for ${postTitle}: ${feedUrl}`);
 
     try {
       // Fetch RSS feed with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
       
-      console.log(`📡 WORKER: Fetching RSS feed for ${postTitle}`);
+      console.log(`📡 WORKER V2: Fetching RSS feed for ${postTitle}`);
       const response = await fetch(feedUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; CloudflareWorker/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; CloudflareWorker/2.0)',
           'Accept': 'application/rss+xml, application/xml, text/xml, */*',
           'Cache-Control': 'no-cache'
         }
@@ -212,23 +287,27 @@ async function processSingleRSSFeed(feed, env) {
       // Store in database using Hyperdrive connection
       if (feedData.items.length > 0) {
         await storeFeedData(feed, feedData, env);
-        console.log(`✅ WORKER: Processed ${feedData.items.length} items for ${postTitle}`);
+        console.log(`✅ WORKER V2: Processed ${feedData.items.length} items for ${postTitle}`);
       }
+      
+      // Release lock with success=true
+      await releaseFeedLock(feedUrl, true, env);
       
       return feedData;
       
-    } finally {
-      await releaseFeedRefreshLock(feedUrl, env);
+    } catch (processingError) {
+      // Release lock with success=false (allows retry before 4 hours)
+      await releaseFeedLock(feedUrl, false, env);
+      throw processingError;
     }
     
   } catch (error) {
-    console.error(`❌ WORKER: Error processing feed ${postTitle}:`, error);
+    console.error(`❌ WORKER V2: Error processing feed ${postTitle}:`, error);
     return null;
   }
 }
 
-// ✅ HELPER FUNCTIONS
-
+// Helper function to chunk arrays
 function chunkArray(array, chunkSize) {
   const chunks = [];
   for (let i = 0; i < array.length; i += chunkSize) {
@@ -237,118 +316,39 @@ function chunkArray(array, chunkSize) {
   return chunks;
 }
 
-// setBatchStatus function removed - batch status now handled entirely by Durable Objects
-// This simplifies the architecture and removes redundant KV operations
-
-async function checkFeedsNeedingRefresh(postTitles, env) {
-  if (!postTitles || postTitles.length === 0) return [];
-  
-  try {
-    // Use the mysql2 driver with Hyperdrive credentials
-    const mysql = await import('mysql2/promise');
-    const connection = await mysql.createConnection({
-      host: env.HYPERDRIVE.host,
-      user: env.HYPERDRIVE.user,
-      password: env.HYPERDRIVE.password,
-      database: env.HYPERDRIVE.database,
-      port: env.HYPERDRIVE.port,
-      // Required for Workers compatibility
-      disableEval: true
-    });
-    
-    try {
-      const fourHoursInMs = 4 * 60 * 60 * 1000;
-      const currentTime = Date.now();
-      const cutoffTime = currentTime - fourHoursInMs;
-      
-      // Query database for feeds with their last_fetched timestamps  
-      const escapedTitles = postTitles.map(title => connection.escape(title)).join(',');
-      const query = `SELECT title, last_fetched FROM rss_feeds WHERE title IN (${escapedTitles})`;
-      
-      const [result] = await connection.query(query);
-      
-      const staleFeedTitles = [];
-      
-      // Check which feeds need refreshing
-      for (const row of result) {
-        const lastFetchedMs = Number(row.last_fetched);
-        
-        if (lastFetchedMs < cutoffTime) {
-          staleFeedTitles.push(row.title);
-          const timeSinceLastFetch = currentTime - lastFetchedMs;
-          const minutesAgo = Math.round(timeSinceLastFetch / 60000);
-          console.log(`💾 WORKER: Feed "${row.title}" is stale (last fetched ${minutesAgo} minutes ago)`);
-        } else {
-          const timeSinceLastFetch = currentTime - lastFetchedMs;
-          const minutesAgo = Math.round(timeSinceLastFetch / 60000);
-          console.log(`✅ WORKER: Feed "${row.title}" is fresh (last fetched ${minutesAgo} minutes ago)`);
-        }
-      }
-      
-      // Check for feeds that don't exist in database (new feeds)
-      const existingFeedTitles = new Set(result.map(row => row.title));
-      const newFeeds = postTitles.filter(title => !existingFeedTitles.has(title));
-      
-      if (newFeeds.length > 0) {
-        console.log(`🆕 WORKER: Found ${newFeeds.length} new feeds that need to be created:`, newFeeds);
-        staleFeedTitles.push(...newFeeds);
-      }
-      
-      console.log(`🔄 WORKER: ${staleFeedTitles.length} of ${postTitles.length} feeds need refreshing`);
-      return staleFeedTitles;
-      
-    } finally {
-      await connection.end();
-    }
-    
-  } catch (error) {
-    console.error(`❌ WORKER: Error checking feed freshness:`, error);
-    // Fallback: refresh all feeds if we can't check database
-    return postTitles;
-  }
-}
-
-// Helper function to safely extract text content (from rss.server.ts)
+// Helper function to safely extract text content
 function getTextContent(node) {
   if (!node) return '';
   
-  // Direct string
   if (typeof node === 'string') {
     return stripHtmlTags(node);
   }
   
-  // Object with text content
   if (typeof node === 'object' && node !== null) {
-    // fast-xml-parser puts text content in #text property
     if ('#text' in node) {
       return stripHtmlTags(String(node['#text'] || ''));
     }
     
-    // CDATA content might be in __cdata with newer versions
     if ('__cdata' in node) {
       return stripHtmlTags(String(node['__cdata'] || ''));
     }
     
-    // Some feeds use direct content
     if ('content' in node && typeof node.content === 'string') {
       return stripHtmlTags(node.content);
     }
     
-    // For complex objects with both attributes and text
     if ('attr' in node && '#text' in node) {
       return stripHtmlTags(String(node['#text'] || ''));
     }
   }
   
-  // Fallback to string conversion
   return stripHtmlTags(String(node || ''));
 }
 
-// Helper function to strip HTML tags (from rss.server.ts)
+// Helper function to strip HTML tags
 function stripHtmlTags(html) {
   if (!html) return '';
   
-  // First replace common entities
   let text = html
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -357,21 +357,16 @@ function stripHtmlTags(html) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
   
-  // Remove HTML tags
   text = text.replace(/<[^>]*>/g, ' ');
-  
-  // Replace multiple spaces with a single space
   text = text.replace(/\s+/g, ' ');
   
-  // Trim leading/trailing whitespace
   return text.trim();
 }
 
-// Helper function to extract link from different formats (from rss.server.ts)
+// Helper function to extract link from different formats
 function getLink(node) {
   if (!node) return '';
   
-  // Simple check if this is a podcast feed (has iTunes namespace elements)
   const isPodcast = Boolean(
     node['itunes:duration'] || 
     node['itunes:author'] || 
@@ -380,114 +375,80 @@ function getLink(node) {
     node['itunes:image']
   );
   
-  // For podcasts, extract the audio file URL from enclosure
   if (isPodcast && node.enclosure) {
-    // With our updated parser config, enclosure is always an array
     const enclosures = Array.isArray(node.enclosure) ? node.enclosure : [node.enclosure];
     
-    // Try to find an audio enclosure first
     for (const enc of enclosures) {
       if (typeof enc !== 'object' || enc === null) continue;
       
-      const enclosure = enc;
-      // Direct attribute access with fast-xml-parser's @_ prefix
-      if (enclosure['@_url']) {
-        return String(enclosure['@_url']);
+      if (enc['@_url']) {
+        return String(enc['@_url']);
       }
       
-      // Fallback to nested attr object if direct access fails
-      if (enclosure.attr && typeof enclosure.attr === 'object') {
-        const attr = enclosure.attr;
-        if (attr['@_url']) {
-          return String(attr['@_url']);
-        }
+      if (enc.attr && typeof enc.attr === 'object' && enc.attr['@_url']) {
+        return String(enc.attr['@_url']);
       }
       
-      // Last resort - check for url property
-      if (enclosure.url) {
-        return String(enclosure.url);
+      if (enc.url) {
+        return String(enc.url);
       }
     }
   }
   
-  // For regular feeds (newsletters, blogs, etc.), extract the standard link
-  
-  // Case 1: Simple string link (common in many feeds)
   if (typeof node.link === 'string') {
     return node.link;
   }
   
-  // Case 2: Link as object with text content
   if (typeof node.link === 'object' && node.link !== null && !Array.isArray(node.link)) {
     const linkObj = node.link;
     
-    // Direct attribute access with fast-xml-parser's @_ prefix
     if (linkObj['@_href']) {
       return String(linkObj['@_href']);
     }
     
-    // Fallback to nested attr object
-    if (linkObj.attr && typeof linkObj.attr === 'object') {
-      const attr = linkObj.attr;
-      if (attr['@_href']) {
-        return String(attr['@_href']);
-      }
+    if (linkObj.attr && typeof linkObj.attr === 'object' && linkObj.attr['@_href']) {
+      return String(linkObj.attr['@_href']);
     }
     
-    // Check for text content
     if (linkObj['#text']) {
       return String(linkObj['#text']);
     }
   }
   
-  // Case 3: Array of links (with our updated parser config, link is always an array)
   if (Array.isArray(node.link) && node.link.length > 0) {
-    // Try to find the main/alternate link first
     const mainLink = node.link.find(l => {
       if (typeof l !== 'object' || l === null) return false;
-      const link = l;
-      return link['@_rel'] === 'alternate' || !link['@_rel'];
+      return l['@_rel'] === 'alternate' || !l['@_rel'];
     });
     
     if (mainLink && typeof mainLink === 'object') {
-      // Direct attribute access
       if (mainLink['@_href']) {
         return String(mainLink['@_href']);
       }
       
-      // Text content
       if (mainLink['#text']) {
         return String(mainLink['#text']);
       }
     }
     
-    // Fallback to first link
     const firstLink = node.link[0];
     if (typeof firstLink === 'object' && firstLink !== null) {
-      // Direct attribute access
       if (firstLink['@_href']) {
         return String(firstLink['@_href']);
       }
       
-      // Nested attr object
-      if (firstLink.attr && typeof firstLink.attr === 'object') {
-        const attr = firstLink.attr;
-        if (attr['@_href']) {
-          return String(attr['@_href']);
-        }
+      if (firstLink.attr && typeof firstLink.attr === 'object' && firstLink.attr['@_href']) {
+        return String(firstLink.attr['@_href']);
       }
       
-      // Text content
       if (firstLink['#text']) {
         return String(firstLink['#text']);
       }
     }
     
-    // String representation
     return String(node.link[0]);
   }
   
-  // Fallback to guid if it's a URL
   if (typeof node.guid === 'string' && node.guid.startsWith('http')) {
     return node.guid;
   }
@@ -495,75 +456,55 @@ function getLink(node) {
   return '';
 }
 
-// Helper function to extract image from item (comprehensive version from rss.server.ts)
+// Helper function to extract image from item
 function extractImage(item) {
   try {
-    // Check for itunes:image (for podcasts)
     if (item['itunes:image']) {
-      // Standard format with attr/@_href
       if (typeof item['itunes:image'] === 'object' && item['itunes:image'] !== null) {
         const itunesImage = item['itunes:image'];
         
-        // Direct @_href attribute (common in libsyn feeds)
         if (itunesImage['@_href']) {
           return String(itunesImage['@_href']);
         }
         
-        // Nested attr/@_href format
-        if (itunesImage.attr && typeof itunesImage.attr === 'object') {
-          const attr = itunesImage.attr;
-          if (attr['@_href']) {
-            return String(attr['@_href']);
-          }
+        if (itunesImage.attr && typeof itunesImage.attr === 'object' && itunesImage.attr['@_href']) {
+          return String(itunesImage.attr['@_href']);
         }
         
-        // Alternative format: url attribute directly on the object
         if (itunesImage.url) {
           return String(itunesImage.url);
         }
         
-        // Alternative format: href directly on the object
         if (itunesImage.href) {
           return String(itunesImage.href);
         }
       }
       
-      // Alternative format: direct string URL
       if (typeof item['itunes:image'] === 'string' && 
           item['itunes:image'].match(/^https?:\/\//)) {
         return item['itunes:image'];
       }
     }
     
-    // Check for enclosures with image types
     if (item.enclosure) {
       const enclosures = Array.isArray(item.enclosure) ? item.enclosure : [item.enclosure];
       
       for (const enc of enclosures) {
         if (typeof enc !== 'object' || enc === null) continue;
         
-        const enclosure = enc;
         let enclosureUrl = null;
         
-        // Check for URL in attr
-        if (enclosure.attr && typeof enclosure.attr === 'object') {
-          const attr = enclosure.attr;
-          if (attr['@_url']) {
-            enclosureUrl = String(attr['@_url']);
-          }
+        if (enc.attr && typeof enc.attr === 'object' && enc.attr['@_url']) {
+          enclosureUrl = String(enc.attr['@_url']);
         }
         
-        // Check for direct URL
-        if (!enclosureUrl && enclosure['@_url']) {
-          enclosureUrl = String(enclosure['@_url']);
+        if (!enclosureUrl && enc['@_url']) {
+          enclosureUrl = String(enc['@_url']);
         }
         
         if (enclosureUrl) {
-          // Check for image indicators in the URL
           if (
-            // Check for common image extensions
             enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
-            // Check for URLs containing image-related terms
             /\/(image|img|photo|thumbnail|cover|banner|logo)s?\//i.test(enclosureUrl)
           ) {
             return enclosureUrl;
@@ -572,12 +513,10 @@ function extractImage(item) {
       }
     }
     
-    // Check for image in content
     const contentFields = ['content', 'description', 'summary', 'content:encoded'];
     for (const field of contentFields) {
       const content = item[field];
       if (typeof content === 'string' && content.length > 0) {
-        // Try different image tag patterns
         const patterns = [
           /<img[^>]+src=["']([^"']+)["']/i,
           /<img[^>]+src=([^ >]+)/i,
@@ -586,17 +525,13 @@ function extractImage(item) {
         
         for (const pattern of patterns) {
           const match = content.match(pattern);
-          if (match && match[1]) {
-            // Ignore data URLs
-            if (!match[1].startsWith('data:')) {
-              return match[1];
-            }
+          if (match && match[1] && !match[1].startsWith('data:')) {
+            return match[1];
           }
         }
       }
     }
     
-    // Use the channelImage property we added in extractFeedData
     if (item.channelImage && typeof item.channelImage === 'string') {
       return item.channelImage;
     }
@@ -607,73 +542,58 @@ function extractImage(item) {
   }
 }
 
-// Helper function to format date consistently (from rss.server.ts)
+// Helper function to format date consistently
 function formatDate(dateStr) {
   try {
-    // If dateStr is empty or undefined, return current date
     if (!dateStr) {
       return new Date().toISOString();
     }
     
-    // Special handling for PlanetScale date format
     if (typeof dateStr === 'string') {
-      // Check if it's a MySQL datetime format (YYYY-MM-DD HH:MM:SS)
       const mysqlDateRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
       if (mysqlDateRegex.test(dateStr)) {
-        // Convert MySQL datetime format to ISO format
         const [datePart, timePart] = dateStr.split(' ');
         const isoString = `${datePart}T${timePart}.000Z`;
         return isoString;
       }
     }
     
-    // Handle PlanetScale's specific date format
     if (typeof dateStr === 'object' && dateStr !== null) {
-      // If it's a Date object already, just return its ISO string
       if (dateStr instanceof Date) {
         return dateStr.toISOString();
       }
       
-      // If it has a toISOString method, use it
       if ('toISOString' in dateStr && typeof dateStr.toISOString === 'function') {
         return dateStr.toISOString();
       }
       
-      // If it has a toString method, use it and then parse
       if ('toString' in dateStr && typeof dateStr.toString === 'function') {
         dateStr = dateStr.toString();
       }
     }
     
-    // Ensure we have a string before creating a Date
     const dateString = typeof dateStr === 'string' 
       ? dateStr 
       : dateStr instanceof Date
         ? dateStr.toISOString()
         : String(dateStr || '');
         
-    // Handle common RSS date formats that JavaScript's Date constructor might struggle with
     let normalizedDateString = dateString;
     
-    // Handle pubDate without timezone (add Z for UTC)
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateString)) {
       normalizedDateString = `${dateString}Z`;
     }
     
-    // Handle pubDate with only date part
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
       normalizedDateString = `${dateString}T00:00:00Z`;
     }
     
-    // Create Date object from normalized string
     const date = new Date(normalizedDateString);
     
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       return new Date().toISOString();
     }
     
-    // Return consistent ISO format
     return date.toISOString();
   } catch {
     return new Date().toISOString();
@@ -681,52 +601,38 @@ function formatDate(dateStr) {
 }
 
 async function extractFeedData(parsedXML, feedUrl, mediaType) {
-  // Handle both RSS and Atom formats (exactly like rss.server.ts)
   let channel, items = [];
   
   if (parsedXML.rss && parsedXML.rss.channel) {
-    // RSS format
     channel = parsedXML.rss.channel;
     items = Array.isArray(channel.item) ? channel.item : (channel.item ? [channel.item] : []);
   } else if (parsedXML.feed) {
-    // Atom format
     channel = parsedXML.feed;
     items = Array.isArray(channel.entry) ? channel.entry : (channel.entry ? [channel.entry] : []);
   } else {
     throw new Error('Unsupported feed format');
   }
   
-  // Extract channel-level image for fallback (exactly like rss.server.ts)
   let channelImage = null;
   
-  // Check for channel-level iTunes image
   if (channel['itunes:image']) {
     if (typeof channel['itunes:image'] === 'object' && channel['itunes:image'] !== null) {
       const itunesImage = channel['itunes:image'];
       
-      // Direct @_href attribute (common in libsyn feeds)
       if (itunesImage['@_href']) {
         channelImage = String(itunesImage['@_href']);
-      } else if (itunesImage.attr && typeof itunesImage.attr === 'object') {
-        const attr = itunesImage.attr;
-        if (attr['@_href']) {
-          channelImage = String(attr['@_href']);
-        }
+      } else if (itunesImage.attr && typeof itunesImage.attr === 'object' && itunesImage.attr['@_href']) {
+        channelImage = String(itunesImage.attr['@_href']);
       }
     }
   }
   
-  // Check for standard channel image
   if (!channelImage && channel.image) {
-    if (typeof channel.image === 'object' && channel.image !== null) {
-      const image = channel.image;
-      if (image.url) {
-        channelImage = String(image.url);
-      }
+    if (typeof channel.image === 'object' && channel.image !== null && channel.image.url) {
+      channelImage = String(channel.image.url);
     }
   }
   
-  // Extract feed information (exactly like rss.server.ts)
   const feed = {
     title: getTextContent(channel.title),
     description: getTextContent(channel.description || channel.subtitle || ''),
@@ -735,31 +641,25 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
     items: []
   };
   
-  // Process items with comprehensive error handling (exactly like rss.server.ts)
   feed.items = items.map((item, index) => {
     try {
-      // Add channel reference to item for image extraction
       if (channelImage) {
         item.channelImage = channelImage;
       }
       
-      // Extract GUID properly - handle both string and object formats
       let guid;
       if (typeof item.guid === 'string') {
         guid = item.guid;
       } else if (item.guid && typeof item.guid === 'object') {
-        // Handle CDATA or complex objects: { __cdata: "actual-guid", @_isPermaLink: false }
         guid = item.guid.__cdata || item.guid['#text'] || item.guid.value || String(item.guid);
       } else if (typeof item.id === 'string') {
         guid = item.id;
       } else if (item.id && typeof item.id === 'object') {
         guid = item.id.__cdata || item.id['#text'] || item.id.value || String(item.id);
       } else {
-        // Fallback to generated GUID
         guid = `${feedUrl}-${Date.now()}-${index}`;
       }
       
-      // Extract image with priority to item-level images
       const itemImage = extractImage(item);
       
       const processedItem = {
@@ -769,14 +669,13 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
         guid: guid,
         pubDate: formatDate(item.pubDate || item.published || item.updated || new Date().toISOString()),
         image: itemImage || channelImage || undefined,
-        mediaType, // Ensure mediaType is always set from the parent function
-        feedUrl: feedUrl // Add the feedUrl property which is required by the RSSItem interface
+        mediaType,
+        feedUrl: feedUrl
       };
       
       return processedItem;
     } catch (itemError) {
       console.warn(`Error processing feed item ${index}: ${itemError}`);
-      // Return a minimal valid item to prevent the entire feed from failing
       return {
         title: 'Error processing item',
         description: '',
@@ -784,8 +683,8 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
         guid: `error-${Date.now()}-${Math.random()}`,
         pubDate: new Date().toISOString(),
         image: channelImage || undefined,
-        mediaType, // Ensure even error items have the mediaType
-        feedUrl: feedUrl // Add the feedUrl property here too
+        mediaType,
+        feedUrl: feedUrl
       };
     }
   }).filter((item) => {
@@ -794,9 +693,8 @@ async function extractFeedData(parsedXML, feedUrl, mediaType) {
       console.warn(`Filtered out invalid item: guid=${item.guid}, title=${item.title}`);
     }
     return isValid;
-  }); // Filter out invalid items
+  });
   
-  // Ensure all items have the feed's mediaType if provided
   if (mediaType) {
     feed.items.forEach(item => {
       if (!item.mediaType) {
@@ -812,23 +710,19 @@ async function storeFeedData(feed, feedData, env) {
   const { postTitle, feedUrl, mediaType } = feed;
   
   try {
-    // Get or create feed and get the feed ID
     const feedId = await getOrCreateFeed(feedUrl, postTitle, mediaType, env);
-    
-    // Store RSS entries and update last_fetched timestamp
     await storeRSSEntriesWithTimestamp(feedId, feedData.items, mediaType, env);
     
-    console.log(`✅ WORKER: Stored ${feedData.items.length} items for ${postTitle} (feedId: ${feedId})`);
+    console.log(`✅ WORKER V2: Stored ${feedData.items.length} items for ${postTitle} (feedId: ${feedId})`);
     
   } catch (error) {
-    console.error(`❌ WORKER: Failed to store feed data for ${postTitle}:`, error);
+    console.error(`❌ WORKER V2: Failed to store feed data for ${postTitle}:`, error);
     throw error;
   }
 }
 
 async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
   try {
-    // Use the mysql2 driver with Hyperdrive credentials
     const mysql = await import('mysql2/promise');
     const connection = await mysql.createConnection({
       host: env.HYPERDRIVE.host,
@@ -836,34 +730,36 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
       password: env.HYPERDRIVE.password,
       database: env.HYPERDRIVE.database,
       port: env.HYPERDRIVE.port,
-      // Required for Workers compatibility
       disableEval: true
     });
     
     try {
-      // Check if feed exists
-      const existingFeedsQuery = `SELECT id, media_type FROM rss_feeds WHERE feed_url = ${connection.escape(feedUrl)}`;
-      const [existingFeeds] = await connection.query(existingFeedsQuery);
+      const [existingFeeds] = await connection.query(
+        'SELECT id, media_type FROM rss_feeds WHERE feed_url = ?',
+        [feedUrl]
+      );
       
       if (existingFeeds.length > 0) {
         const feedId = existingFeeds[0].id;
         
-        // Update mediaType if provided and different
         if (mediaType && (!existingFeeds[0].media_type || existingFeeds[0].media_type !== mediaType)) {
           const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          const updateQuery = `UPDATE rss_feeds SET media_type = ${connection.escape(mediaType)}, updated_at = ${connection.escape(now)} WHERE id = ${feedId}`;
-          await connection.query(updateQuery);
+          await connection.query(
+            'UPDATE rss_feeds SET media_type = ?, updated_at = ? WHERE id = ?',
+            [mediaType, now, feedId]
+          );
         }
         
         return feedId;
       }
       
-      // Create new feed
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const currentTimeMs = Date.now();
       
-      const insertQuery = `INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, created_at, updated_at) VALUES (${connection.escape(feedUrl)}, ${connection.escape(postTitle)}, ${connection.escape(mediaType || null)}, ${currentTimeMs}, ${connection.escape(now)}, ${connection.escape(now)})`;
-      const [insertResult] = await connection.query(insertQuery);
+      const [insertResult] = await connection.query(
+        'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, processing_until, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)',
+        [feedUrl, postTitle, mediaType || null, currentTimeMs, now, now]
+      );
       
       return insertResult.insertId;
       
@@ -872,14 +768,13 @@ async function getOrCreateFeed(feedUrl, postTitle, mediaType, env) {
     }
     
   } catch (error) {
-    console.error(`❌ WORKER: Error getting/creating feed for ${feedUrl}:`, error);
+    console.error(`❌ WORKER V2: Error getting/creating feed for ${feedUrl}:`, error);
     throw error;
   }
 }
 
 async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
   try {
-    // Use the mysql2 driver with Hyperdrive credentials
     const mysql = await import('mysql2/promise');
     const connection = await mysql.createConnection({
       host: env.HYPERDRIVE.host,
@@ -887,55 +782,39 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
       password: env.HYPERDRIVE.password,
       database: env.HYPERDRIVE.database,
       port: env.HYPERDRIVE.port,
-      // Required for Workers compatibility
       disableEval: true
     });
     
     try {
       if (entries.length === 0) {
-        // Just update the last_fetched timestamp
-        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        const currentTimeMs = Date.now();
-        
-        const updateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
-        await connection.query(updateQuery);
-        
-        console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries)`);
+        console.log(`📅 WORKER V2: No entries to store for feedId ${feedId}`);
         return;
       }
 
       // Get existing GUIDs to filter duplicates
-      const entryGuids = entries.map(entry => connection.escape(entry.guid)).join(',');
+      const entryGuids = entries.map(entry => entry.guid);
       
-      const existingEntriesQuery = `SELECT guid FROM rss_entries WHERE feed_id = ${feedId} AND guid IN (${entryGuids})`;
-      const [existingEntries] = await connection.query(existingEntriesQuery);
+      const [existingEntries] = await connection.query(
+        `SELECT guid FROM rss_entries WHERE feed_id = ? AND guid IN (${entryGuids.map(() => '?').join(',')})`,
+        [feedId, ...entryGuids]
+      );
       
       const existingGuids = new Set(existingEntries.map(row => row.guid));
       const newEntries = entries.filter(entry => !existingGuids.has(entry.guid));
       
-      console.log(`📊 WORKER: Filtered ${entries.length - newEntries.length} existing entries, ${newEntries.length} are new`);
+      console.log(`📊 WORKER V2: Filtered ${entries.length - newEntries.length} existing entries, ${newEntries.length} are new`);
       
       if (newEntries.length === 0) {
-        // Just update the last_fetched timestamp
-        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        const currentTimeMs = Date.now();
-        
-        const updateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
-        await connection.query(updateQuery);
-        
-        console.log(`📅 WORKER: Updated last_fetched timestamp for feedId ${feedId} (no new entries after filtering)`);
+        console.log(`📅 WORKER V2: No new entries to store for feedId ${feedId}`);
         return;
       }
 
-      // Insert new entries in batches and update timestamp
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const currentTimeMs = Date.now();
       
-      // Insert entries one by one to avoid multi-statement issues with Hyperdrive
+      // Insert new entries
       let insertedCount = 0;
       for (const entry of newEntries) {
         try {
-          // Format pubDate for MySQL
           let pubDateForMySQL;
           try {
             const date = new Date(entry.pubDate);
@@ -946,49 +825,54 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
             pubDateForMySQL = now;
           }
           
-          // Sanitize content to prevent multi-statement issues
           const sanitizeContent = (content) => {
             if (!content) return '';
             return String(content)
-              .replace(/;/g, ',')      // Replace semicolons with commas
-              .replace(/--/g, '-')     // Replace SQL comment markers
-              .replace(/\/\*/g, '/')   // Replace SQL block comment start
-              .replace(/\*\//g, '/')   // Replace SQL block comment end
+              .replace(/;/g, ',')
+              .replace(/--/g, '-')
+              .replace(/\/\*/g, '/')
+              .replace(/\*\//g, '/')
               .slice(0, 200);
           };
 
-          // Use escaped string query with sanitized content
-          const insertQuery = `INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES (${feedId}, ${connection.escape(entry.guid)}, ${connection.escape(sanitizeContent(entry.title))}, ${connection.escape(entry.link)}, ${connection.escape(sanitizeContent(entry.description))}, ${connection.escape(pubDateForMySQL)}, ${connection.escape(entry.image || null)}, ${connection.escape(mediaType || entry.mediaType || null)}, ${connection.escape(now)}, ${connection.escape(now)})`;
+          await connection.query(
+            'INSERT IGNORE INTO rss_entries (feed_id, guid, title, link, description, pub_date, image, media_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              feedId,
+              entry.guid,
+              sanitizeContent(entry.title),
+              entry.link,
+              sanitizeContent(entry.description),
+              pubDateForMySQL,
+              entry.image || null,
+              mediaType || entry.mediaType || null,
+              now,
+              now
+            ]
+          );
           
-          await connection.query(insertQuery);
           insertedCount++;
         } catch (entryError) {
-          console.warn(`⚠️ WORKER: Failed to insert entry ${entry.guid}:`, entryError);
-          // Continue with other entries
+          console.warn(`⚠️ WORKER V2: Failed to insert entry ${entry.guid}:`, entryError);
         }
       }
       
-      // 🔥 CRITICAL: Update last_fetched timestamp (separate query)
-      const finalUpdateQuery = `UPDATE rss_feeds SET updated_at = ${connection.escape(now)}, last_fetched = ${currentTimeMs} WHERE id = ${feedId}`;
-      await connection.query(finalUpdateQuery);
-      
-      console.log(`✅ WORKER: Inserted ${insertedCount} new entries and updated last_fetched for feedId ${feedId}`);
+      console.log(`✅ WORKER V2: Inserted ${insertedCount} new entries for feedId ${feedId}`);
       
     } finally {
       await connection.end();
     }
     
   } catch (error) {
-    console.error(`❌ WORKER: Error storing RSS entries for feedId ${feedId}:`, error);
+    console.error(`❌ WORKER V2: Error storing RSS entries for feedId ${feedId}:`, error);
     throw error;
   }
 }
 
 async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, newestEntryDate, env) {
-  console.log(`🔍 WORKER: Checking for new entries since ${newestEntryDate}`, { existingGuidsCount: existingGuids.length });
+  console.log(`🔍 WORKER V2: Checking for new entries since ${newestEntryDate}`, { existingGuidsCount: existingGuids.length });
   
   try {
-    // Use the mysql2 driver with Hyperdrive credentials
     const mysql = await import('mysql2/promise');
     const connection = await mysql.createConnection({
       host: env.HYPERDRIVE.host,
@@ -1000,26 +884,25 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
     });
     
     try {
-      // Query for entries created since the user's newest entry date (JOIN with feeds to get feedUrl for cache lookup)
       const since = new Date(newestEntryDate).toISOString().slice(0, 19).replace('T', ' ');
-      const query = `
-        SELECT e.guid, e.title, e.link, e.description, e.pub_date, e.image, e.media_type, e.created_at, f.feed_url as feedUrl
-        FROM rss_entries e
-        JOIN rss_feeds f ON e.feed_id = f.id
-        WHERE e.created_at > ${connection.escape(since)}
-        ORDER BY e.created_at DESC 
-        LIMIT 50
-      `;
       
-      const [dbEntries] = await connection.query(query);
-      console.log(`📊 WORKER: Found ${dbEntries.length} entries in database since ${since}`);
+      const [dbEntries] = await connection.query(
+        `SELECT e.guid, e.title, e.link, e.description, e.pub_date, e.image, e.media_type, e.created_at, f.feed_url as feedUrl
+         FROM rss_entries e
+         JOIN rss_feeds f ON e.feed_id = f.id
+         WHERE e.created_at > ?
+         ORDER BY e.created_at DESC 
+         LIMIT 50`,
+        [since]
+      );
       
-      // Filter out entries that the user already has
+      console.log(`📊 WORKER V2: Found ${dbEntries.length} entries in database since ${since}`);
+      
       const newEntries = dbEntries.filter(entry => !existingGuids.includes(entry.guid));
-      console.log(`🆕 WORKER: ${newEntries.length} entries are truly new for this user`);
+      console.log(`🆕 WORKER V2: ${newEntries.length} entries are truly new for this user`);
       
       if (newEntries.length > 0) {
-        console.log(`🎯 WORKER: New entry GUIDs:`, newEntries.slice(0, 3).map(e => e.guid));
+        console.log(`🎯 WORKER V2: New entry GUIDs:`, newEntries.slice(0, 3).map(e => e.guid));
       }
       
       return {
@@ -1032,9 +915,8 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
     }
     
   } catch (error) {
-    console.error('❌ WORKER: Error checking for new entries:', error);
+    console.error('❌ WORKER V2: Error checking for new entries:', error);
     
-    // Fallback: check processed feeds only (old behavior)
     const allEntries = processedFeeds.flatMap(pf => pf.data.items);
     const newEntries = allEntries.filter(entry => !existingGuids.includes(entry.guid));
     
@@ -1043,32 +925,4 @@ async function getNewEntriesFromProcessedFeeds(processedFeeds, existingGuids, ne
       totalEntries: newEntries.length
     };
   }
-}
-
-async function acquireFeedRefreshLock(feedUrl, env) {
-  // Simple lock implementation using dedicated locks KV
-  const lockKey = `lock:${feedUrl}`;
-  const lockValue = Date.now().toString();
-  
-  console.log(`🔍 WORKER: KV_BINDING available:`, !!env.KV_BINDING);
-  console.log(`🔍 WORKER: Checking lock for key:`, lockKey);
-  
-  const existingLock = await env.KV_BINDING?.get(lockKey);
-  
-  if (existingLock) {
-    const lockTime = parseInt(existingLock);
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-    if (lockTime > fiveMinutesAgo) {
-      return false; // Lock is still valid
-    }
-  }
-  
-  await env.KV_BINDING?.put(lockKey, lockValue, { expirationTtl: 300 }); // 5 minute lock
-  console.log(`🔒 WORKER: Created lock for ${lockKey} with TTL 300s`);
-  return true;
-}
-
-async function releaseFeedRefreshLock(feedUrl, env) {
-  const lockKey = `lock:${feedUrl}`;
-  await env.KV_BINDING?.delete(lockKey);
 }

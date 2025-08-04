@@ -1327,44 +1327,8 @@ async function storeRSSEntriesWithTransaction(feedId: number, entries: RSSItem[]
   }
 }
 
-// Add a new function to acquire a lock
-async function acquireFeedRefreshLock(feedUrl: string): Promise<boolean> {
-  try {
-    // Use an atomic INSERT operation to acquire a lock
-    // If another process already has the lock, this will fail with a duplicate key error
-    const lockKey = `refresh_lock:${feedUrl}`;
-    const expiryTime = Date.now() + 60000; // Lock expires after 60 seconds
-    
-    // Format date in MySQL format (YYYY-MM-DD HH:MM:SS)
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    logger.debug(`Acquiring lock with key: ${lockKey}, expiry: ${expiryTime}, created_at: ${now}`);
-    
-    const result = await executeQuery(
-      'INSERT INTO rss_locks (lock_key, expires_at, created_at) VALUES (?, ?, ?) ' +
-      'ON DUPLICATE KEY UPDATE lock_key = IF(expires_at < ?, VALUES(lock_key), lock_key), ' +
-      'expires_at = IF(expires_at < ?, VALUES(expires_at), expires_at)',
-      [lockKey, expiryTime, now, Date.now(), expiryTime]
-    );
-    
-    // If rows affected is 1, we acquired the lock
-    // If rows affected is 0, someone else has the lock
-    return result.rowsAffected > 0;
-  } catch (error) {
-    logger.error(`Error acquiring lock for ${feedUrl}: ${error}`);
-    // In case of error, assume we don't have the lock
-    return false;
-  }
-}
-
-// Function to release a lock
-async function releaseFeedRefreshLock(feedUrl: string): Promise<void> {
-  try {
-    const lockKey = `refresh_lock:${feedUrl}`;
-    await executeQuery('DELETE FROM rss_locks WHERE lock_key = ?', [lockKey]);
-  } catch {
-    logger.error(`Error releasing lock for ${feedUrl}`);
-  }
-}
+// RSS lock functions removed - Workers handle locking with database locks
+// See lib/feed-locks.ts for the new database-level locking implementation
 
 // Get RSS entries with caching
 export async function getRSSEntries(
@@ -1414,58 +1378,24 @@ export async function getRSSEntries(
       feedId = await getOrCreateFeed(feedUrl, postTitle, mediaType);
     }
     
-    // If we need fresh data, fetch it
+    // RSS refreshing now handled by Workers with database locking
+    // This function should only be used for legacy/direct access if needed
+    // Note: Consider removing this refresh logic entirely if Workers handle all RSS processing
     if (shouldFetchFresh) {
-      // Try to acquire a lock before fetching fresh data
-      const lockAcquired = await acquireFeedRefreshLock(feedUrl);
+      logger.info(`Direct RSS refresh requested for ${postTitle} - consider using Workers instead`);
       
-      if (lockAcquired) {
-        try {
-          logger.debug(`Acquired refresh lock for ${postTitle}`);
-          
-          // Double-check if someone else refreshed while we were acquiring the lock
-          const refreshCheckResult = await executeQuery<RSSFeedRow>(
-            'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
-            [feedUrl]
-          );
-          
-          if (refreshCheckResult.rows.length > 0) {
-            // Use type assertion to ensure TypeScript knows rows is an array of RSSFeedRow
-            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
-            const lastFetchedMs = Number(refreshCheck[0].last_fetched);
-            const timeSinceLastFetch = currentTime - lastFetchedMs;
-            const fourHoursInMs = 4 * 60 * 60 * 1000;
-            
-            if (timeSinceLastFetch < fourHoursInMs) {
-              // Someone else refreshed the data while we were acquiring the lock
-              logger.debug(`Another process refreshed the data for ${postTitle} while we were acquiring the lock`);
-              shouldFetchFresh = false;
-            }
-          }
-          
-          if (shouldFetchFresh) {
-            try {
-              const freshFeed = await fetchAndParseFeed(feedUrl, storedMediaType);
-              
-              if (freshFeed.items.length > 0) {
-                logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle} with mediaType: ${storedMediaType || 'undefined'}`);
-                await storeRSSEntriesWithTransaction(feedId, freshFeed.items, storedMediaType);
-              } else {
-                logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
-              }
-            } catch (fetchError) {
-              logger.error(`Error fetching feed ${postTitle}: ${fetchError}`);
-              // Continue execution to return whatever data we have in the database
-            }
-          }
-        } finally {
-          // Always release the lock when done
-          await releaseFeedRefreshLock(feedUrl);
-          logger.debug(`Released refresh lock for ${postTitle}`);
+      try {
+        const freshFeed = await fetchAndParseFeed(feedUrl, storedMediaType);
+        
+        if (freshFeed.items.length > 0) {
+          logger.info(`Storing ${freshFeed.items.length} fresh entries for ${postTitle} with mediaType: ${storedMediaType || 'undefined'}`);
+          await storeRSSEntriesWithTransaction(feedId, freshFeed.items, storedMediaType);
+        } else {
+          logger.warn(`Feed ${postTitle} returned 0 items, not updating database`);
         }
-      } else {
-        logger.info(`Another process is currently refreshing data for ${postTitle}, using existing data`);
-        // Another process is refreshing, we'll use whatever data is available
+      } catch (fetchError) {
+        logger.error(`Error fetching feed ${postTitle}: ${fetchError}`);
+        // Continue execution to return whatever data we have in the database
       }
     }
     
@@ -1726,54 +1656,22 @@ export async function checkAndRefreshFeeds(postTitles: string[], feedUrls: strin
       }
     }
     
-    // Process feeds that need refreshing
+    // Process feeds in sequence (Workers handle parallel processing with locking)
     for (const feed of feedsToRefresh) {
-      // Try to acquire a lock before fetching fresh data
-      const lockAcquired = await acquireFeedRefreshLock(feed.feedUrl);
+      logger.debug(`Processing refresh for ${feed.postTitle} (legacy mode - Workers recommended)`);
       
-      if (lockAcquired) {
-        try {
-          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
-          
-          // Double-check if someone else refreshed while we were acquiring the lock
-          const refreshCheckResult = await executeQuery<RSSFeedRow>(
-            'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
-            [feed.feedUrl]
-          );
-          
-          if (refreshCheckResult.rows.length > 0) {
-            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
-            const lastFetchedMs = Number(refreshCheck[0].last_fetched);
-            const timeSinceLastFetch = currentTime - lastFetchedMs;
-            
-            if (timeSinceLastFetch < fourHoursInMs) {
-              // Someone else refreshed the data while we were acquiring the lock
-              logger.debug(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
-              continue; // Skip to the next feed
-            }
-          }
-          
-          try {
-            const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
-            
-            if (freshFeed.items.length > 0) {
-              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
-              // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
-              await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
-            } else {
-              logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
-            }
-          } catch (fetchError) {
-            logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
-            // Continue to the next feed
-          }
-        } finally {
-          // Always release the lock when done
-          await releaseFeedRefreshLock(feed.feedUrl);
-          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+      try {
+        const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
+        
+        if (freshFeed.items.length > 0) {
+          logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
+          await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
+        } else {
+          logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
         }
-      } else {
-        logger.info(`Another process is currently refreshing data for ${feed.postTitle}, using existing data`);
+      } catch (fetchError) {
+        logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
+        // Continue to the next feed
       }
     }
   } catch (error) {
@@ -1826,54 +1724,22 @@ export async function refreshExistingFeeds(postTitles: string[]): Promise<void> 
       }
     }
     
-    // Process feeds that need refreshing
+    // Process feeds in sequence (Workers handle parallel processing with locking)
     for (const feed of feedsToRefresh) {
-      // Try to acquire a lock before fetching fresh data
-      const lockAcquired = await acquireFeedRefreshLock(feed.feedUrl);
+      logger.debug(`Processing refresh for ${feed.postTitle} (legacy mode - Workers recommended)`);
       
-      if (lockAcquired) {
-        try {
-          logger.debug(`Acquired refresh lock for ${feed.postTitle}`);
-          
-          // Double-check if someone else refreshed while we were acquiring the lock
-          const refreshCheckResult = await executeQuery<RSSFeedRow>(
-            'SELECT last_fetched FROM rss_feeds WHERE feed_url = ?',
-            [feed.feedUrl]
-          );
-          
-          if (refreshCheckResult.rows.length > 0) {
-            const refreshCheck = refreshCheckResult.rows as RSSFeedRow[];
-            const lastFetchedMs = Number(refreshCheck[0].last_fetched);
-            const timeSinceLastFetch = currentTime - lastFetchedMs;
-            
-            if (timeSinceLastFetch < fourHoursInMs) {
-              // Someone else refreshed the data while we were acquiring the lock
-              logger.debug(`Another process refreshed the data for ${feed.postTitle} while we were acquiring the lock`);
-              continue; // Skip to the next feed
-            }
-          }
-          
-          try {
-            const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
-            
-            if (freshFeed.items.length > 0) {
-              logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
-              // UPDATED: Pass the feed's mediaType to storeRSSEntriesWithTransaction
-              await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
-            } else {
-              logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
-            }
-          } catch (fetchError) {
-            logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
-            // Continue to the next feed
-          }
-        } finally {
-          // Release the lock
-          await releaseFeedRefreshLock(feed.feedUrl);
-          logger.debug(`Released refresh lock for ${feed.postTitle}`);
+      try {
+        const freshFeed = await fetchAndParseFeed(feed.feedUrl, feed.mediaType);
+        
+        if (freshFeed.items.length > 0) {
+          logger.info(`Storing ${freshFeed.items.length} fresh entries for ${feed.postTitle} with mediaType: ${feed.mediaType || 'undefined'}`);
+          await storeRSSEntriesWithTransaction(feed.feedId, freshFeed.items, feed.mediaType);
+        } else {
+          logger.warn(`Feed ${feed.postTitle} returned 0 items, not updating database`);
         }
-      } else {
-        logger.warn(`Could not acquire refresh lock for ${feed.postTitle}, skipping refresh`);
+      } catch (fetchError) {
+        logger.error(`Error fetching feed ${feed.postTitle}: ${fetchError}`);
+        // Continue to the next feed
       }
     }
   } catch (error) {

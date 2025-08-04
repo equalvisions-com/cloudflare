@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRead } from '@/lib/database';
-import { checkAndRefreshFeeds } from '@/lib/rss.server';
+// Removed import of checkAndRefreshFeeds - workers handle RSS processing directly
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import type { 
@@ -152,73 +152,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const feedUrls = feeds.map(feed => feed.feedUrl);
         const mediaTypes = feeds.map(feed => feed.mediaType).filter(Boolean) as string[];
 
-        // Check which feeds need refreshing (older than 4 hours)
-        const staleFeedTitles = await checkFeedsNeedingRefresh(postTitles);
+        // ✅ WORKER HANDLES RSS PROCESSING: No server-side refresh needed
+        // The Cloudflare Worker has already processed all RSS feeds with database locking
+        // This Pages API only receives the results and handles client communication
         
-        let refreshedAny = false;
+        console.log('✅ QUEUE CONSUMER: Worker has processed RSS feeds, handling results only', { batchId });
         
-        if (staleFeedTitles.length === 0) {
-          console.log('✅ QUEUE CONSUMER: All feeds are up to date, no refresh needed', { batchId });
-          
-          // Early exit optimization - skip heavy processing if no feeds need refresh
-          const processingTime = Date.now() - startTime;
-          const quickResult: QueueFeedRefreshResult = {
-            batchId,
-            success: true,
-            refreshedAny: false,
-            entries: [],
-            newEntriesCount: 0,
-            totalEntries: 0,
-            postTitles,
-            refreshTimestamp: new Date().toISOString(),
-            processingTimeMs: processingTime
-          };
-          
-          // Note: Batch status now handled by enhanced worker via Durable Objects
-          await setBatchStatus(batchId, {
-            batchId,
-            status: 'completed',
-            queuedAt: Date.now() - processingTime,
-            processedAt: Date.now() - processingTime,
-            completedAt: Date.now(),
-            result: quickResult
-          });
-          
-                  console.log('📊 QUEUE CONSUMER: Fast-track completion (no refresh needed)', {
-          batchId,
-          processingTimeMs: processingTime,
-          feedCount: feeds.length
-        });
-          
-          totalSuccessful++;
-          continue; // Skip to next message
-        } else {
-          devLog(`🔄 QUEUE CONSUMER: Found ${staleFeedTitles.length} stale feeds that need refreshing`, { 
-            batchId, 
-            staleFeedTitles 
-          });
-          
-          // Check if any feeds are new (don't exist yet)
-          const allExistingFeeds = await getAllExistingFeeds(postTitles);
-          const newFeeds = postTitles.filter((title: string) => !allExistingFeeds.includes(title));
-          
-          if (newFeeds.length > 0) {
-            devLog(`🆕 QUEUE CONSUMER: Found ${newFeeds.length} new feeds to create`, { 
-              batchId, 
-              newFeeds 
-            });
-            refreshedAny = true;
-          }
-          
-          // Process refresh if needed
-          if (staleFeedTitles.length > 0 || newFeeds.length > 0) {
-            devLog(`🔄 QUEUE CONSUMER: Checking and refreshing feeds`, { batchId });
-            
-            const stringMediaTypes = mediaTypes.map((mt: any) => mt === null ? undefined : mt) as string[] | undefined;
-            await checkAndRefreshFeeds(postTitles, feedUrls, stringMediaTypes);
-            refreshedAny = true;
-          }
-        }
+        // Assume worker processed feeds (worker logs will show actual processing)
+        let refreshedAny = true;
         
         // Get new entries that were inserted during this refresh cycle
         let newEntries: { entries: RSSEntriesDisplayEntry[], totalEntries: number } = { 
@@ -325,49 +266,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 }
 
-// Helper function to check which feeds need refreshing
-async function checkFeedsNeedingRefresh(postTitles: string[]): Promise<string[]> {
-  try {
-    if (!postTitles || postTitles.length === 0) {
-      return [];
-    }
-    
-    const placeholders = postTitles.map(() => '?').join(',');
-    const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
-    
-    const query = `
-      SELECT title
-      FROM rss_feeds
-      WHERE title IN (${placeholders}) AND last_fetched < ?
-    `;
-    
-    const result = await executeRead(query, [...postTitles, fourHoursAgo]);
-    const staleFeedTitles = (result.rows as { title: string }[]).map(row => row.title);
-    
-    return staleFeedTitles;
-  } catch (error) {
-    errorLog('Error checking feeds needing refresh:', error);
-    return [];
-  }
-}
-
-// Helper function to get all existing feeds
-async function getAllExistingFeeds(postTitles: string[]): Promise<string[]> {
-  try {
-    if (!postTitles || postTitles.length === 0) {
-      return [];
-    }
-
-    const placeholders = postTitles.map(() => '?').join(',');
-    const query = `SELECT title FROM rss_feeds WHERE title IN (${placeholders})`;
-    
-    const result = await executeRead(query, postTitles);
-    return (result.rows as { title: string }[]).map(row => row.title);
-  } catch (error) {
-    errorLog('Error getting existing feeds:', error);
-    return [];
-  }
-}
+// Helper functions removed - Workers handle RSS processing with database locking
+// Pages API only handles result communication and client updates
 
 // Helper function to get new entries from refresh
 async function getNewEntriesFromRefresh(

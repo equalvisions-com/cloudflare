@@ -16,11 +16,7 @@ dead_letter_queue = "refresh-feed-dlq"
 [env.development]
 name = "rss-refresh-consumer-dev"
 
-# KV namespace for feed refresh locks - Default/Development
-[[kv_namespaces]]
-binding = "KV_BINDING"
-id = "e6d3936cfa754a478a57269e0ee7f90e"
-preview_id = "77db1cfa35814f73b10cec6dce9db940"
+# KV binding removed - using database locks instead of KV locks
 
 
 
@@ -46,11 +42,7 @@ PAGES_FUNCTION_TOKEN = ""
 name = "rss-refresh-consumer"
 vars = { ENVIRONMENT = "production", PAGES_FUNCTION_URL = "https://socialnetworksandbox.com", PAGES_FUNCTION_TOKEN = "" }
 
-# KV namespace for feed refresh locks - PRODUCTION
-[[env.production.kv_namespaces]]
-binding = "KV_BINDING"
-id = "e6d3936cfa754a478a57269e0ee7f90e"
-preview_id = "77db1cfa35814f73b10cec6dce9db940"
+# KV binding removed - using database locks instead of KV locks
 
 
 
