@@ -4,11 +4,11 @@ main = "cloudflare-workers/enhanced-queue-consumer-worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Queue consumer configuration
+# Queue consumer configuration - Optimized for high throughput
 [[queues.consumers]]
 queue = "refresh-feed"
-max_batch_size = 10
-max_batch_timeout = 5
+max_batch_size = 50
+max_batch_timeout = 30
 max_retries = 3
 dead_letter_queue = "refresh-feed-dlq"
 
@@ -46,11 +46,11 @@ vars = { ENVIRONMENT = "production", PAGES_FUNCTION_URL = "https://socialnetwork
 
 
 
-# Queue consumer for RSS refresh - PRODUCTION
+# Queue consumer for RSS refresh - PRODUCTION (High throughput)
 [[env.production.queues.consumers]]
 queue = "refresh-feed"
-max_batch_size = 10
-max_batch_timeout = 5
+max_batch_size = 50
+max_batch_timeout = 30
 max_retries = 3
 dead_letter_queue = "refresh-feed-dlq"
 

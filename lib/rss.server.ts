@@ -114,13 +114,40 @@ export async function getRSSEntries(
     // Calculate pagination values
     const offset = (page - 1) * pageSize;
     
-    // Get total count of entries
-    const countResult = await executeRead(
-      'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
-      [feedId]
-    );
+    // Smart COUNT optimization: Try cached count first, fallback to real COUNT for new feeds
+    let totalCount = 0;
     
-    const totalCount = Number((countResult.rows[0] as { total: number }).total);
+    // First, try to get cached entry_count (if column exists)
+    try {
+      const cachedResult = await executeRead(
+        'SELECT entry_count FROM rss_feeds WHERE id = ?',
+        [feedId]
+      );
+      
+      const cachedCount = Number((cachedResult.rows[0] as any)?.entry_count);
+      
+      if (cachedCount > 0) {
+        // Use cached count for established feeds (major P-score optimization)
+        totalCount = cachedCount;
+        logger.debug(`Using cached count ${cachedCount} for feedId ${feedId}`);
+      } else {
+        // Fallback to real COUNT for new/empty feeds
+        const realCountResult = await executeRead(
+          'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
+          [feedId]
+        );
+        totalCount = Number((realCountResult.rows[0] as { total: number }).total);
+        logger.debug(`Using real COUNT ${totalCount} for feedId ${feedId} (new/empty feed)`);
+      }
+    } catch (error) {
+      // If entry_count column doesn't exist, fallback to real COUNT
+      logger.debug(`entry_count column not found, using real COUNT for feedId ${feedId}`);
+      const realCountResult = await executeRead(
+        'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
+        [feedId]
+      );
+      totalCount = Number((realCountResult.rows[0] as { total: number }).total);
+    }
     
     // Get paginated entries
     logger.debug(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
@@ -147,7 +174,7 @@ export async function getRSSEntries(
     
     logger.debug(`Retrieved ${entries.length} entries (${totalCount} total, hasMore: ${hasMore})`);
     
-    return {
+          return {
       entries,
       totalCount,
       hasMore

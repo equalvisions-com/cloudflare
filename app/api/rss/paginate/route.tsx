@@ -167,16 +167,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     
     // Only fetch count if we don't have the cached value and it's the first page or cached value is null
     if (cachedTotalEntries === null) {
-      // Build the count query using feed IDs for better performance
-      const countQuery = `
-        SELECT COUNT(e.id) as total
-        FROM rss_entries e
-        WHERE e.feed_id IN (${feedIdPlaceholders})
-      `;
+      // Smart COUNT optimization: Try cached counts first, fallback to real COUNT
       
-      // Execute count query with feed IDs
-      const countResult = await executeRead(countQuery, feedIds);
-      totalEntries = Number((countResult.rows[0] as { total: number }).total);
+      try {
+        // First, try to get cached entry_count totals (if column exists)
+        const cachedCountQuery = `
+          SELECT SUM(entry_count) as total
+          FROM rss_feeds
+          WHERE id IN (${feedIdPlaceholders})
+        `;
+        
+        const cachedResult = await executeRead(cachedCountQuery, feedIds);
+        const cachedTotal = Number((cachedResult.rows[0] as { total: number }).total) || 0;
+        
+        if (cachedTotal > 0) {
+          // Use cached counts for established feeds (major P-score optimization)
+          totalEntries = cachedTotal;
+          console.log(`🚀 PAGINATION: Using cached total ${cachedTotal} for ${feedIds.length} feeds`);
+        } else {
+          // Fallback to real COUNT for new/empty feeds
+          const realCountQuery = `
+            SELECT COUNT(e.id) as total
+            FROM rss_entries e
+            WHERE e.feed_id IN (${feedIdPlaceholders})
+          `;
+          
+          const realResult = await executeRead(realCountQuery, feedIds);
+          totalEntries = Number((realResult.rows[0] as { total: number }).total);
+          console.log(`🔍 PAGINATION: Using real COUNT ${totalEntries} for ${feedIds.length} feeds (new/empty feeds)`);
+        }
+      } catch (error) {
+        // If entry_count column doesn't exist, fallback to real COUNT
+        console.log(`⚠️ PAGINATION: entry_count column not found, using real COUNT for ${feedIds.length} feeds`);
+        const realCountQuery = `
+          SELECT COUNT(e.id) as total
+          FROM rss_entries e
+          WHERE e.feed_id IN (${feedIdPlaceholders})
+        `;
+        
+        const realResult = await executeRead(realCountQuery, feedIds);
+        totalEntries = Number((realResult.rows[0] as { total: number }).total);
+      }
     } else {
       // Use the cached total entries value
       totalEntries = cachedTotalEntries;
