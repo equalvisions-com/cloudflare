@@ -122,7 +122,7 @@ function invalidateAllCountCaches(): void {
 }
 
 // Export the function for use in API routes
-export { invalidateAllCountCaches };
+// Count cache functions removed - no longer needed with limit+1 pagination
 
 export const getInitialEntries = cache(async (skipRefresh = false) => {
   try {
@@ -203,64 +203,30 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
     // Create placeholders for the SQL query
     const placeholders = postTitles.map(() => '?').join(',');
     
-    // Build the SQL query to fetch entries from multiple feeds in one query
+    // Build the SQL query using limit+1 for hasMore detection (no COUNT needed!)
     const entriesQuery = `
       SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE f.title IN (${placeholders})
-      ORDER BY e.pub_date DESC
+      ORDER BY e.pub_date DESC, e.id DESC
       LIMIT ? OFFSET ?
     `;
     
-    // Check if we have newly followed posts that require a fresh count
-    // For safety, always refresh counts when the feed count has changed
-    const cacheKey = [...postTitles].sort().join(',');
-    const cachedData = countCache.get(cacheKey);
-    
-    // If the number of feeds has changed, we need to invalidate the cache
-    if (cachedData && cachedData.feedCount !== postTitles.length) {
-      devLog(`🔄 SERVER: Feed count changed from ${cachedData.feedCount} to ${postTitles.length}, invalidating cache`);
-      invalidateCountCache(postTitles);
-    }
-    
-    // Use cached count if available
-    let totalEntries = getCachedCount(postTitles);
-    let countResult;
-    let entriesResult;
-    
-    devLog(`🔍 SERVER: Executing PlanetScale queries for page ${page}`);
+    devLog(`🔍 SERVER: Executing optimized PlanetScale query (limit+1) for page ${page}`);
     
     try {
-      // If we don't have a cached count, execute the count query
-      if (totalEntries === null) {
-        // Optimized COUNT query using COUNT(e.id) instead of COUNT(*)
-        const countQuery = `
-          SELECT COUNT(e.id) as total
-          FROM rss_entries e
-          JOIN rss_feeds f ON e.feed_id = f.id
-          WHERE f.title IN (${placeholders})
-        `;
-        
-        // Execute both queries in parallel for efficiency using read replicas
-        // Use noCache option to ensure fresh data that includes newly refreshed entries
-        [countResult, entriesResult] = await Promise.all([
-          executeRead(countQuery, [...postTitles], { noCache: true }),
-          executeRead(entriesQuery, [...postTitles, pageSize, offset], { noCache: true })
-        ]);
-        
-        totalEntries = Number((countResult.rows[0] as { total: number }).total);
-        
-        // Cache the count result
-        setCachedCount(postTitles, totalEntries);
-      } else {
-        // Just execute the entries query if we have a cached count
-        // Use noCache to ensure fresh entries that include newly refreshed content
-        devLog(`📊 SERVER: Using cached count: ${totalEntries}`);
-        entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize, offset], { noCache: true });
-      }
-
-      const entries = entriesResult.rows as RSSEntryRow[];
+      // Execute single query with limit+1 for hasMore detection
+      // Use noCache option to ensure fresh data that includes newly refreshed entries
+      const entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize + 1, offset], { noCache: true });
+      
+      const allEntries = entriesResult.rows as RSSEntryRow[];
+      
+      // Limit+1 pagination: Check if we got more than pageSize (means there are more pages)
+      const hasMore = allEntries.length > pageSize;
+      
+      // Keep only the requested pageSize (drop the extra row if it exists)
+      const entries = hasMore ? allEntries.slice(0, pageSize) : allEntries;
       
       devLog(`✅ SERVER: Retrieved ${entries.length} entries for page ${page}`);
       
@@ -278,10 +244,7 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
         feedUrl: entry.feed_url
       }));
       
-      // Determine if there are more entries
-      const hasMore = totalEntries > offset + entries.length;
-      
-      devLog(`🚀 SERVER: Processed ${mappedEntries.length} entries (total: ${totalEntries}, hasMore: ${hasMore})`);
+      devLog(`🚀 SERVER: Processed ${mappedEntries.length} entries (hasMore: ${hasMore})`);
       
       // 6. Get unique entry guids for batch query
       const guids = mappedEntries.map((entry: RSSItem) => entry.guid);
@@ -337,7 +300,6 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
       // Make sure to include the postTitles and staleness data in the returned data
       return {
         entries: entriesWithPublicData,
-        totalEntries,
         hasMore,
         postTitles,
         feedUrls,
@@ -394,7 +356,6 @@ export default async function RSSEntriesDisplayServer({
         verified: typeof entry.postMetadata.verified === 'boolean' ? entry.postMetadata.verified : undefined,
       }
     })),
-    totalEntries: initialData.totalEntries,
     hasMore: initialData.hasMore,
     postTitles: initialData.postTitles,
     feedUrls: initialData.feedUrls,

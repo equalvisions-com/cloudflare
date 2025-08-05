@@ -7,7 +7,6 @@ interface RSSFeedState {
   pagination: {
     currentPage: number;
     hasMore: boolean;
-    totalEntries: number;
   };
   loading: {
     isLoading: boolean;
@@ -69,18 +68,12 @@ export const useRSSFeedPaginationHook = (
       pageSize: number;
       currentEntriesCount: number;
       mediaType?: string;
-      totalEntries?: number;
     } = {
       feedUrl: feedUrl,
       page: nextPage,
       pageSize: pageSize,
       currentEntriesCount: entries.length, // CRITICAL: Pass current entries count for offset calculation
     };
-    
-    // Pass the cached total entries to avoid unnecessary COUNT queries
-    if (pagination.totalEntries) {
-      requestBody.totalEntries = pagination.totalEntries;
-    }
     
     if (mediaType) {
       requestBody.mediaType = mediaType;
@@ -94,7 +87,7 @@ export const useRSSFeedPaginationHook = (
         feedUrls: [feedUrl]      // Convert single feed to array format for paginate API
       }
     };
-  }, [feedMetadata, pagination.totalEntries, entries.length]); // Added entries.length to dependencies
+  }, [feedMetadata, entries.length]); // Added entries.length to dependencies
 
   // Memoize entry transformation to prevent recreating on every render
   const transformApiEntries = useCallback((apiEntries: Array<{ entry: any; initialData?: any }>) => {
@@ -180,7 +173,6 @@ export const useRSSFeedPaginationHook = (
     createRequestParams,
     transformApiEntries,
     dispatch,
-    pagination.totalEntries,
     entries.length
   ]); // STABLE dependencies - no state values that change frequently
 

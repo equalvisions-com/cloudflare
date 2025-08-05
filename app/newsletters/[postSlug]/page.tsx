@@ -311,7 +311,6 @@ function PostContent({ post, followState, rssData }: NewsletterPostContentProps)
               <FollowerCount 
                 followerCount={post.followerCount} 
                 postId={post._id} 
-                totalEntries={rssData?.totalEntries ?? null}
                 mediaType={post.mediaType}
               />
             </div>

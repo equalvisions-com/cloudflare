@@ -83,15 +83,21 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     const timeSinceLastFetch = now - lastFetched;
     const needsRefresh = timeSinceLastFetch > FOUR_HOURS_MS;
 
-    // Get entries from PlanetScale with proper typing
+    // Get entries using limit+1 for hasMore detection (no COUNT needed!)
     const entriesResult = await executeRead(
-      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ?',
-      [feedId, PAGE_SIZE]
+      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC, id DESC LIMIT ?',
+      [feedId, PAGE_SIZE + 1] // +1 for hasMore detection
     );
 
-    const entryRows = entriesResult.rows as RSSEntryRow[];
+    const allEntryRows = entriesResult.rows as RSSEntryRow[];
     
-    // If no entries found after refresh, something is wrong with the feed
+    // Limit+1 pagination: Check if we got more than PAGE_SIZE (means there are more pages)
+    const hasMore = allEntryRows.length > PAGE_SIZE;
+    
+    // Keep only the requested PAGE_SIZE (drop the extra row if it exists)
+    const entryRows = hasMore ? allEntryRows.slice(0, PAGE_SIZE) : allEntryRows;
+    
+    // If no entries found, something is wrong with the feed
     if (!entryRows.length) {
       return null;
     }
@@ -107,36 +113,6 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       mediaType: row.media_type || mediaType,
       feedUrl
     }));
-
-    // Get total count with proper handling
-    let totalCount: number;
-    
-    // Check for cached count first
-    const cachedCount = getCachedCount(feedUrl);
-    
-    if (cachedCount === null) {
-      // Get total count with error handling - use optimized COUNT(e.id) query
-      const countResult = await executeRead(
-        'SELECT COUNT(e.id) as total FROM rss_entries e WHERE e.feed_id = ?',
-        [feedId]
-      );
-
-      const countRows = countResult.rows as Array<{ total: string | number }>;
-      // Convert string to number if needed and provide fallback
-      const rawTotal = countRows[0]?.total;
-      totalCount = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal ?? 0);
-
-      // Only check if it's NaN, since we've already handled the conversion
-      if (isNaN(totalCount)) {
-        // Handle invalid count gracefully
-        totalCount = 0;
-      }
-      
-      // Cache the count
-      setCachedCount(feedUrl, totalCount);
-    } else {
-      totalCount = cachedCount;
-    }
 
     // Get metrics data with proper error handling using the more efficient batchGetEntriesMetrics
     const token = await convexAuthNextjsToken().catch(() => {
@@ -178,8 +154,7 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
 
     return {
       entries: entriesWithPublicData,
-      totalEntries: totalCount,
-      hasMore: entriesWithPublicData.length < totalCount,
+      hasMore: hasMore,
       postTitles: [postTitle],
       feedUrls: [feedUrl],
       // Client-side staleness optimization data

@@ -1137,7 +1137,6 @@ export interface NewsletterPostPageClientScopeProps {
   feedUrl: string;
   rssData: {
     entries: NewsletterRSSEntryWithData[];
-    totalEntries: number;
     hasMore: boolean;
   } | null;
   featuredImg?: string;
@@ -1149,7 +1148,6 @@ export interface NewsletterPostTabsWrapperWithSearchProps {
   feedUrl: string;
   rssData: {
     entries: NewsletterRSSEntryWithData[];
-    totalEntries: number;
     hasMore: boolean;
   } | null;
   featuredImg?: string;
@@ -1284,7 +1282,6 @@ export interface RSSFeedClientProps {
   feedUrl: string;
   initialData: {
     entries: RSSFeedEntry[];
-    totalEntries: number;
     hasMore: boolean;
     feedStaleness?: {
       needsRefresh: boolean;

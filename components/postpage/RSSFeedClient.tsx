@@ -28,7 +28,6 @@ interface RSSFeedLoadingState {
 interface RSSFeedPaginationState {
   currentPage: number;
   hasMore: boolean;
-  totalEntries: number;
 }
 
 interface RSSFeedCommentDrawerState {
@@ -76,7 +75,7 @@ type RSSFeedAction =
   | { type: 'UPDATE_ENTRY_METRICS'; payload: { entryGuid: string; metrics: RSSFeedEntry['initialData'] } }
   | { type: 'SET_CURRENT_PAGE'; payload: number }
   | { type: 'SET_HAS_MORE'; payload: boolean }
-  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
+
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_INITIAL_RENDER'; payload: boolean }
   | { type: 'SET_FETCH_ERROR'; payload: Error | null }
@@ -89,7 +88,6 @@ type RSSFeedAction =
   | { type: 'RESET' }
   | { type: 'INITIALIZE'; payload: {
       entries: RSSFeedEntry[];
-      totalEntries: number;
       hasMore: boolean;
       postTitle: string;
       feedUrl: string;
@@ -105,7 +103,6 @@ const createInitialRSSFeedState = (): RSSFeedState => ({
   pagination: {
     currentPage: 1,
     hasMore: false,
-    totalEntries: 0,
   },
   loading: {
     isLoading: false,
@@ -148,11 +145,7 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
       console.log('🚀 SINGLE FEED PREPEND_ENTRIES:', { newEntriesCount: action.payload.length });
       return { 
         ...state, 
-        entries: [...action.payload, ...state.entries],
-        pagination: { 
-          ...state.pagination, 
-          totalEntries: state.pagination.totalEntries + action.payload.length 
-        }
+        entries: [...action.payload, ...state.entries]
       };
     
     case 'UPDATE_ENTRY_METRICS':
@@ -177,11 +170,7 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
         pagination: { ...state.pagination, hasMore: action.payload },
       };
     
-    case 'SET_TOTAL_ENTRIES':
-      return {
-        ...state,
-        pagination: { ...state.pagination, totalEntries: action.payload },
-      };
+
     
     case 'SET_LOADING':
       return {
@@ -243,7 +232,6 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
     case 'INITIALIZE':
       const {
         entries,
-        totalEntries,
         hasMore,
         postTitle,
         feedUrl,
@@ -258,7 +246,6 @@ function rssFeedReducer(state: RSSFeedState, action: RSSFeedAction): RSSFeedStat
         pagination: {
           currentPage: 1,
           hasMore,
-          totalEntries,
         },
         loading: {
           isLoading: false,
@@ -988,7 +975,6 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         type: 'INITIALIZE',
         payload: {
           entries: initialData.entries || [],
-          totalEntries: initialData.totalEntries || 0,
           hasMore: initialData.hasMore || false,
           postTitle,
           feedUrl,
@@ -1143,10 +1129,6 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
         payload: initialData.entries || []
       });
       dispatch({
-        type: 'SET_TOTAL_ENTRIES',
-        payload: initialData.totalEntries || 0
-      });
-      dispatch({
         type: 'SET_HAS_MORE',
         payload: initialData.hasMore || false
       });
@@ -1211,7 +1193,6 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
               type: 'INITIALIZE',
               payload: {
                 entries: initialData.entries || [],
-                totalEntries: initialData.totalEntries || 0,
                 hasMore: initialData.hasMore || false,
                 postTitle,
                 feedUrl,

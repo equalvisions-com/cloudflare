@@ -1,7 +1,7 @@
 // app/api/rss/route.tsx
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getInitialEntries, getInitialEntriesWithoutRefresh, invalidateAllCountCaches } from "@/components/rss-feed/RSSEntriesDisplay.server";
+import { getInitialEntries, getInitialEntriesWithoutRefresh } from "@/components/rss-feed/RSSEntriesDisplay.server";
 import { validateHeaders } from '@/lib/headers';
 
 // Mark as dynamic to ensure fresh data on follow/unfollow actions
@@ -22,10 +22,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     let data;
     if (refreshFlag) {
-      // When refreshing (e.g., after follow/unfollow), invalidate all count caches
-      // to ensure fresh counts are calculated
-      invalidateAllCountCaches();
-      
       // Use getInitialEntries with refresh enabled
       data = await getInitialEntries(false); // false = do not skip refresh
     } else {

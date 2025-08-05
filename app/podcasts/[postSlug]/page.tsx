@@ -330,7 +330,6 @@ function PostContent({ post, followState, rssData }: PostContentProps) {
               <FollowerCount 
                 followerCount={post.followerCount} 
                 postId={post._id} 
-                totalEntries={rssData?.totalEntries ?? null}
                 mediaType={post.mediaType}
               />
             </div>
