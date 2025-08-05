@@ -1429,7 +1429,6 @@ const RSSEntriesClientComponent = ({
       <section id="main-content" aria-labelledby="feed-heading">
         <h1 id="feed-heading" className="sr-only">
           RSS Feed Entries
-          {state.totalEntries > 0 && ` (${state.totalEntries} total entries)`}
           {state.isLoading && ' - Loading...'}
         </h1>
       <EntriesContent

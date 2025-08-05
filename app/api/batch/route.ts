@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       entries: entriesWithData,
-      totalCount: result.totalCount,
       hasMore: result.hasMore
     });
 

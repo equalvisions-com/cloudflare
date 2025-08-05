@@ -859,15 +859,6 @@ async function storeRSSEntriesWithTimestamp(feedId, entries, mediaType, env) {
       
       console.log(`✅ WORKER V2: Inserted ${insertedCount} new entries for feedId ${feedId}`);
       
-      // Update cached entry count (P-score optimization)
-      if (insertedCount > 0) {
-        await connection.query(
-          'UPDATE rss_feeds SET entry_count = entry_count + ? WHERE id = ?',
-          [insertedCount, feedId]
-        );
-        console.log(`📊 WORKER V2: Updated entry_count by +${insertedCount} for feedId ${feedId}`);
-      }
-      
     } finally {
       await connection.end();
     }

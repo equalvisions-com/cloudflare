@@ -138,7 +138,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({
         entries: [],
         hasMore: false,
-        totalEntries: 0,
         postTitles,
         feedUrls
       });
@@ -148,98 +147,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Create placeholders for the feed IDs
     const feedIdPlaceholders = feedIds.map(() => '?').join(',');
     
-    // Build the entries query using feed IDs instead of titles/URLs
+    // Build the entries query using feed IDs with limit+1 for hasMore detection
+    // Ask for one extra row to determine if there are more pages (no COUNT needed!)
     const entriesQuery = `
       SELECT e.*, f.title as feed_title, f.feed_url
       FROM rss_entries e
       JOIN rss_feeds f ON e.feed_id = f.id
       WHERE e.feed_id IN (${feedIdPlaceholders})
-      ORDER BY e.pub_date DESC
+      ORDER BY e.pub_date DESC, e.id DESC
       LIMIT ? OFFSET ?
     `;
     
-    const entriesParams = [...feedIds, pageSize, offset];
+    const entriesParams = [...feedIds, pageSize + 1, offset]; // +1 for hasMore detection
     
     // Measure query execution time
     const queryStartTime = performance.now();
     
-    let totalEntries: number;
-    
-    // Only fetch count if we don't have the cached value and it's the first page or cached value is null
-    if (cachedTotalEntries === null) {
-      // Smart COUNT optimization: Try cached counts first, fallback to real COUNT
-      
-      try {
-        // First, try to get cached entry_count totals (if column exists)
-        const cachedCountQuery = `
-          SELECT SUM(entry_count) as total
-          FROM rss_feeds
-          WHERE id IN (${feedIdPlaceholders})
-        `;
-        
-        const cachedResult = await executeRead(cachedCountQuery, feedIds);
-        const cachedTotal = Number((cachedResult.rows[0] as { total: number }).total) || 0;
-        
-        if (cachedTotal > 0) {
-          // Use cached counts for established feeds (major P-score optimization)
-          totalEntries = cachedTotal;
-          console.log(`🚀 PAGINATION: Using cached total ${cachedTotal} for ${feedIds.length} feeds`);
-        } else {
-          // Fallback to real COUNT for new/empty feeds
-          const realCountQuery = `
-            SELECT COUNT(e.id) as total
-            FROM rss_entries e
-            WHERE e.feed_id IN (${feedIdPlaceholders})
-          `;
-          
-          const realResult = await executeRead(realCountQuery, feedIds);
-          totalEntries = Number((realResult.rows[0] as { total: number }).total);
-          console.log(`🔍 PAGINATION: Using real COUNT ${totalEntries} for ${feedIds.length} feeds (new/empty feeds)`);
-        }
-      } catch (error) {
-        // If entry_count column doesn't exist, fallback to real COUNT
-        console.log(`⚠️ PAGINATION: entry_count column not found, using real COUNT for ${feedIds.length} feeds`);
-        const realCountQuery = `
-          SELECT COUNT(e.id) as total
-          FROM rss_entries e
-          WHERE e.feed_id IN (${feedIdPlaceholders})
-        `;
-        
-        const realResult = await executeRead(realCountQuery, feedIds);
-        totalEntries = Number((realResult.rows[0] as { total: number }).total);
-      }
-    } else {
-      // Use the cached total entries value
-      totalEntries = cachedTotalEntries;
-    }
-    
-    // Execute entries query with feed IDs
+    // Execute entries query with feed IDs (no COUNT query needed!)
     const entriesResult = await executeRead(entriesQuery, entriesParams);
     
     // Log query execution time
     const queryEndTime = performance.now();
     const queryDuration = queryEndTime - queryStartTime;
     
-    const entries = entriesResult.rows as JoinedRSSEntry[];
+    const allEntries = entriesResult.rows as JoinedRSSEntry[];
     
-    // CRITICAL FIX: If we retrieve entries but our cached count says we shouldn't have any,
-    // or if we have more entries than expected, the cached count is wrong and needs recalculation
-    if (cachedTotalEntries !== null && 
-        ((offset >= totalEntries && entries.length > 0) || 
-         (totalEntries <= offset + entries.length && entries.length === pageSize))) {
-      
-      // Force recalculation of the total count using feed IDs
-      const recountQuery = `
-        SELECT COUNT(e.id) as total
-        FROM rss_entries e
-        WHERE e.feed_id IN (${feedIdPlaceholders})
-      `;
-      
-      const countResult = await executeRead(recountQuery, feedIds);
-      const recalculatedTotal = Number((countResult.rows[0] as { total: number }).total);
-      
-      totalEntries = recalculatedTotal;
-    }
+    // Limit+1 pagination: Check if we got more than pageSize (means there are more pages)
+    const hasMore = allEntries.length > pageSize;
+    
+    // Keep only the requested pageSize (drop the extra row if it exists)
+    const entries = hasMore ? allEntries.slice(0, pageSize) : allEntries;
     
     // Map the entries to the expected format
     const mappedEntries: RSSItem[] = entries.map(entry => ({
@@ -254,17 +191,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       feedUrl: entry.feed_url
     }));
     
-    // Determine if there are more entries - IMPROVED CALCULATION
-    // If we have a full page of results (pageSize), and our total suggests there are more,
-    // then we definitely have more entries
-    const hasMore = entries.length === pageSize && 
-                    totalEntries > (offset + entries.length);
-    
     // Prepare the response data
     const responseData = {
       entries: mappedEntries,
       hasMore,
-      totalEntries,
       postTitles,
       feedUrls: feedUrls.length > 0 ? feedUrls : 
                 entries.length > 0 ? [...new Set(entries.map(e => e.feed_url))] : []
@@ -314,7 +244,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const finalResponseData = {
       entries: entriesWithData,
       hasMore,
-      totalEntries,
       postTitles,
       feedUrls: feedUrls.length > 0 ? feedUrls : 
                 entries.length > 0 ? [...new Set(entries.map(e => e.feed_url))] : []

@@ -88,7 +88,7 @@ export async function getRSSEntries(
   mediaType?: string,
   page: number = 1,
   pageSize: number = 30
-): Promise<{ entries: RSSItem[], totalCount: number, hasMore: boolean }> {
+): Promise<{ entries: RSSItem[], hasMore: boolean }> {
   try {
     logger.info(`Getting RSS entries for: ${postTitle} (${feedUrl})`);
     
@@ -114,49 +114,20 @@ export async function getRSSEntries(
     // Calculate pagination values
     const offset = (page - 1) * pageSize;
     
-    // Smart COUNT optimization: Try cached count first, fallback to real COUNT for new feeds
-    let totalCount = 0;
-    
-    // First, try to get cached entry_count (if column exists)
-    try {
-      const cachedResult = await executeRead(
-        'SELECT entry_count FROM rss_feeds WHERE id = ?',
-        [feedId]
-      );
-      
-      const cachedCount = Number((cachedResult.rows[0] as any)?.entry_count);
-      
-      if (cachedCount > 0) {
-        // Use cached count for established feeds (major P-score optimization)
-        totalCount = cachedCount;
-        logger.debug(`Using cached count ${cachedCount} for feedId ${feedId}`);
-      } else {
-        // Fallback to real COUNT for new/empty feeds
-        const realCountResult = await executeRead(
-          'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
-          [feedId]
-        );
-        totalCount = Number((realCountResult.rows[0] as { total: number }).total);
-        logger.debug(`Using real COUNT ${totalCount} for feedId ${feedId} (new/empty feed)`);
-      }
-    } catch (error) {
-      // If entry_count column doesn't exist, fallback to real COUNT
-      logger.debug(`entry_count column not found, using real COUNT for feedId ${feedId}`);
-      const realCountResult = await executeRead(
-        'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
-        [feedId]
-      );
-      totalCount = Number((realCountResult.rows[0] as { total: number }).total);
-    }
-    
-    // Get paginated entries
+    // Get paginated entries using limit+1 for hasMore detection (no COUNT needed!)
     logger.debug(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
     const entriesResult = await executeRead(
-      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ? OFFSET ?',
-      [feedId, pageSize, offset]
+      'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC, id DESC LIMIT ? OFFSET ?',
+      [feedId, pageSize + 1, offset] // +1 for hasMore detection
     );
     
-    const entryRows = entriesResult.rows as any[];
+    const allEntryRows = entriesResult.rows as any[];
+    
+    // Limit+1 pagination: Check if we got more than pageSize (means there are more pages)
+    const hasMore = allEntryRows.length > pageSize;
+    
+    // Keep only the requested pageSize (drop the extra row if it exists)
+    const entryRows = hasMore ? allEntryRows.slice(0, pageSize) : allEntryRows;
     
     // Map to RSSItem format
     const entries: RSSItem[] = entryRows.map(row => ({
@@ -169,14 +140,11 @@ export async function getRSSEntries(
       mediaType: row.media_type || mediaType,
       feedUrl
     }));
-
-    const hasMore = offset + entries.length < totalCount;
     
-    logger.debug(`Retrieved ${entries.length} entries (${totalCount} total, hasMore: ${hasMore})`);
+    logger.debug(`Retrieved ${entries.length} entries (hasMore: ${hasMore})`);
     
-          return {
+    return {
       entries,
-      totalCount,
       hasMore
     };
 

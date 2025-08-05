@@ -268,9 +268,8 @@ export const useRSSEntriesDataLoading = ({
       setCurrentPage(nextPage);
       setHasMore(response.hasMore);
       
-      if (response.totalEntries && response.totalEntries !== totalEntriesRef.current) {
-        setTotalEntries(response.totalEntries);
-      }
+      // Note: totalEntries no longer provided with limit+1 pagination optimization
+      // Client-side state tracking handles count management
       
       if (response.postTitles?.length) {
         setPostTitles(response.postTitles);
