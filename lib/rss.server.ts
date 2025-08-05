@@ -23,6 +23,7 @@ import { executeRead, executeWrite, getWriteConnection, shouldUseHyperdrive } fr
  * these issues without compromising type safety where it matters.
  */
 
+
 // Import LogParams from centralized types
 
 // Add a production-ready logging utility
