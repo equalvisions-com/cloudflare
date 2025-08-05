@@ -44,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validate arrays
+    // Validate arrayss
     if (!Array.isArray(postTitles) || !Array.isArray(feedUrls)) {
       console.error('❌ API: postTitles and feedUrls must be arrays');
       return NextResponse.json(
