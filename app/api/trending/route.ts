@@ -46,22 +46,25 @@ export async function POST(request: NextRequest) {
     // Create placeholders for prepared statement
     const placeholders = feedUrls.map((_, i) => `?`).join(',');
     
-    // Query to get the latest RSS entry for each feed URL
+    // OPTIMIZED: Query to get the latest RSS entry for each feed URL
+    // Scope the GROUP BY operation to only the requested feeds for better performance
     const query = `
       SELECT e.*, f.feed_url 
       FROM rss_entries e
-      INNER JOIN (
-        SELECT feed_id, MAX(pub_date) as latest_pub_date
-        FROM rss_entries
-        GROUP BY feed_id
-      ) latest ON e.feed_id = latest.feed_id AND e.pub_date = latest.latest_pub_date
       INNER JOIN rss_feeds f ON e.feed_id = f.id
+      INNER JOIN (
+        SELECT re.feed_id, MAX(re.pub_date) as latest_pub_date
+        FROM rss_entries re
+        INNER JOIN rss_feeds rf ON re.feed_id = rf.id
+        WHERE rf.feed_url IN (${placeholders})
+        GROUP BY re.feed_id
+      ) latest ON e.feed_id = latest.feed_id AND e.pub_date = latest.latest_pub_date
       WHERE f.feed_url IN (${placeholders})
       ORDER BY e.pub_date DESC
     `;
     
-    // Execute the query with the feed URLs as parameters
-    const latestEntries = await executeRead(query, feedUrls);
+    // Execute the query with the feed URLs as parameters (duplicate for subquery and main query)
+    const latestEntries = await executeRead(query, [...feedUrls, ...feedUrls]);
     
     // Create a map of feedUrl to entry
     const entriesByFeedUrl: EntriesByFeedUrl = {};
