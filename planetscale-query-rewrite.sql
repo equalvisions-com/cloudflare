@@ -1,0 +1,43 @@
+-- Alternative Query Optimization for Multi-Feed Pagination
+-- 
+-- PROBLEM: Current query scans 61,629 rows to return 52 rows
+-- This happens because ORDER BY across multiple feeds in IN() clause
+-- forces MySQL to examine many rows across different feed partitions
+--
+-- CURRENT PROBLEMATIC QUERY:
+-- SELECT e.*, f.title as feed_title, f.feed_url 
+-- FROM rss_entries e 
+-- JOIN rss_feeds f ON e.feed_id = f.id 
+-- WHERE e.feed_id IN (1,2,3,4,5) 
+-- ORDER BY e.pub_date DESC, e.id DESC 
+-- LIMIT 31 OFFSET 0;
+
+-- SOLUTION: Use UNION ALL with per-feed limits for better index utilization
+-- This approach leverages existing (feed_id, pub_date DESC) indexes optimally
+
+-- Example optimized query structure:
+-- (SELECT e.*, f.title as feed_title, f.feed_url 
+--  FROM rss_entries e 
+--  JOIN rss_feeds f ON e.feed_id = f.id 
+--  WHERE e.feed_id = 1 
+--  ORDER BY e.pub_date DESC, e.id DESC 
+--  LIMIT 50)
+-- UNION ALL
+-- (SELECT e.*, f.title as feed_title, f.feed_url 
+--  FROM rss_entries e 
+--  JOIN rss_feeds f ON e.feed_id = f.id 
+--  WHERE e.feed_id = 2 
+--  ORDER BY e.pub_date DESC, e.id DESC 
+--  LIMIT 50)
+-- -- ... repeat for each feed
+-- ORDER BY pub_date DESC, id DESC
+-- LIMIT 31;
+
+-- This approach:
+-- 1. Uses existing (feed_id, pub_date DESC) indexes efficiently
+-- 2. Each subquery scans minimal rows (only from one feed)
+-- 3. Final ORDER BY sorts the combined smaller result set
+-- 4. Should reduce rows read from 61,629 to ~200-500
+
+-- The trade-off: More complex query generation but much better performance
+-- Especially beneficial when you have many active feeds (5+ feeds)

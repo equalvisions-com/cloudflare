@@ -147,14 +147,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Create placeholders for the feed IDs
     const feedIdPlaceholders = feedIds.map(() => '?').join(',');
     
-    // Build the entries query using feed IDs with limit+1 for hasMore detection
-    // Ask for one extra row to determine if there are more pages (no COUNT needed!)
+    // OPTIMIZED MULTI-FEED QUERY: Use UNION ALL for better index utilization
+    // This reduces rows read from 61k+ to ~200-500 by leveraging per-feed indexes
+    const perFeedLimit = Math.max(pageSize + offset + 10, 50); // Buffer for sorting
+    
+    const unionQueries = feedIds.map(() => `
+      (SELECT e.*, f.title as feed_title, f.feed_url
+       FROM rss_entries e
+       JOIN rss_feeds f ON e.feed_id = f.id
+       WHERE e.feed_id = ?
+       ORDER BY e.pub_date DESC, e.id DESC
+       LIMIT ${perFeedLimit})
+    `).join(' UNION ALL ');
+    
     const entriesQuery = `
-      SELECT e.*, f.title as feed_title, f.feed_url
-      FROM rss_entries e
-      JOIN rss_feeds f ON e.feed_id = f.id
-      WHERE e.feed_id IN (${feedIdPlaceholders})
-      ORDER BY e.pub_date DESC, e.id DESC
+      SELECT * FROM (${unionQueries})
+      AS combined_entries
+      ORDER BY pub_date DESC, id DESC
       LIMIT ? OFFSET ?
     `;
     
