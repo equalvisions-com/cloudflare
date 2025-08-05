@@ -64,7 +64,7 @@ interface UseRSSEntriesQueueRefreshProps {
   setEntries: (entries: RSSEntriesDisplayEntry[]) => void;
   setCurrentPage: (page: number) => void;
   setHasMore: (hasMore: boolean) => void;
-  setTotalEntries: (total: number) => void;
+
   setPostTitles: (titles: string[]) => void;
   setFeedUrls: (urls: string[]) => void;
   setMediaTypes: (types: string[]) => void;
@@ -195,7 +195,7 @@ export const useRSSEntriesQueueRefresh = ({
   setEntries,
   setCurrentPage,
   setHasMore,
-  setTotalEntries,
+  
   setPostTitles,
   setFeedUrls,
   setMediaTypes,
@@ -220,7 +220,7 @@ export const useRSSEntriesQueueRefresh = ({
     
     // Update post metadata
     if (result.postTitles?.length) setPostTitles(result.postTitles);
-    if (result.totalEntries !== undefined) setTotalEntries(result.totalEntries);
+    
     
     // Handle new entries
     if (result.refreshedAny && result.entries?.length) {
@@ -240,7 +240,7 @@ export const useRSSEntriesQueueRefresh = ({
         }
       }
     }
-  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setTotalEntries, setNotification, prependEntries]);
+  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setNotification, prependEntries]);
 
   // Process new entries (filter duplicates, sort by date)
   const processNewEntries = useCallback((validEntries: RSSEntriesDisplayEntry[]) => {

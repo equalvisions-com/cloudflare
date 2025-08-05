@@ -148,7 +148,6 @@ interface RSSEntriesState {
   // Pagination
   currentPage: number;
   hasMore: boolean;
-  totalEntries: number;
   
   // Loading states
   isLoading: boolean;
@@ -182,7 +181,6 @@ interface RSSEntriesState {
 type RSSEntriesAction = 
   | { type: 'INITIALIZE'; payload: {
       entries: RSSEntriesDisplayEntry[];
-      totalEntries: number;
       hasMore: boolean;
       postTitles: string[];
       feedUrls: string[];
@@ -198,7 +196,7 @@ type RSSEntriesAction =
   | { type: 'PREPEND_ENTRIES'; payload: RSSEntriesDisplayEntry[] }
   | { type: 'SET_CURRENT_PAGE'; payload: number }
   | { type: 'SET_HAS_MORE'; payload: boolean }
-  | { type: 'SET_TOTAL_ENTRIES'; payload: number }
+
   | { type: 'SET_POST_TITLES'; payload: string[] }
   | { type: 'SET_FEED_URLS'; payload: string[] }
   | { type: 'SET_MEDIA_TYPES'; payload: string[] }
@@ -225,7 +223,7 @@ const createInitialState = (): RSSEntriesState => ({
   entries: [],
   currentPage: 1,
   hasMore: false,
-  totalEntries: 0,
+
   isLoading: false,
   isRefreshing: false,
   hasRefreshed: false,
@@ -294,8 +292,7 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
     case 'SET_HAS_MORE':
       return { ...state, hasMore: action.payload };
     
-    case 'SET_TOTAL_ENTRIES':
-      return { ...state, totalEntries: action.payload };
+
     
     case 'SET_POST_TITLES':
       return { ...state, postTitles: action.payload };
@@ -794,7 +791,7 @@ interface EntriesContentProps {
   postMetadata?: Map<string, RSSEntriesDisplayEntry['postMetadata']>;
   initialData: {
     entries: RSSEntriesDisplayEntry[];
-    totalEntries?: number;
+
     hasMore?: boolean;
     postTitles?: string[];
     feedUrls?: string[];
@@ -1119,7 +1116,7 @@ const RSSEntriesClientComponent = ({
   const entriesStateRef = useRef<RSSEntriesDisplayEntry[]>([]);
   const currentPageRef = useRef(1);
   const hasMoreRef = useRef(true);
-  const totalEntriesRef = useRef(0);
+
   const postTitlesRef = useRef<string[]>([]);
   const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
   const feedMetadataCache = useRef<Record<string, RSSEntriesDisplayEntry['postMetadata']>>({});
@@ -1134,7 +1131,7 @@ const RSSEntriesClientComponent = ({
     entriesStateRef,
     currentPageRef, 
     hasMoreRef, 
-    totalEntriesRef,
+
     postTitlesRef,
     feedMetadataCache,
     initialData,
@@ -1147,7 +1144,7 @@ const RSSEntriesClientComponent = ({
     isMountedRef,
     hasMoreRef, 
     currentPageRef,
-    totalEntriesRef,
+
     entriesStateRef,
     postTitlesRef,
     feedMetadataCache,
@@ -1158,7 +1155,7 @@ const RSSEntriesClientComponent = ({
     addEntries: useCallback((entries) => dispatch({ type: 'ADD_ENTRIES', payload: entries }), []),
     setCurrentPage: useCallback((page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }), []),
     setHasMore: useCallback((hasMore) => dispatch({ type: 'SET_HAS_MORE', payload: hasMore }), []),
-    setTotalEntries: useCallback((total) => dispatch({ type: 'SET_TOTAL_ENTRIES', payload: total }), []),
+
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
@@ -1181,7 +1178,7 @@ const RSSEntriesClientComponent = ({
     setEntries: useCallback((entries) => dispatch({ type: 'SET_ENTRIES', payload: entries }), []),
     setCurrentPage: useCallback((page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }), []),
     setHasMore: useCallback((hasMore) => dispatch({ type: 'SET_HAS_MORE', payload: hasMore }), []),
-    setTotalEntries: useCallback((total) => dispatch({ type: 'SET_TOTAL_ENTRIES', payload: total }), []),
+
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
     setFeedUrls: useCallback((urls) => dispatch({ type: 'SET_FEED_URLS', payload: urls }), []),
     setMediaTypes: useCallback((types) => dispatch({ type: 'SET_MEDIA_TYPES', payload: types }), []),
@@ -1227,7 +1224,7 @@ const RSSEntriesClientComponent = ({
   entriesStateRef.current = optimizedEntries;
   currentPageRef.current = state.currentPage;
   hasMoreRef.current = state.hasMore;
-  totalEntriesRef.current = state.totalEntries;
+
   postTitlesRef.current = state.postTitles;
   
   // Get entry GUIDs for batch metrics query
@@ -1295,7 +1292,7 @@ const RSSEntriesClientComponent = ({
 
   const memoizedInitialData = useMemo(() => ({
     entries: initialData.entries,
-    totalEntries: initialData.totalEntries,
+
     hasMore: initialData.hasMore,
     postTitles: initialData.postTitles,
     feedUrls: initialData.feedUrls,
@@ -1303,7 +1300,7 @@ const RSSEntriesClientComponent = ({
     feedMetadataCache: feedMetadataCache.current,
   }), [
     initialData.entries,
-    initialData.totalEntries,
+
     initialData.hasMore,
     initialData.postTitles,
     initialData.feedUrls,
@@ -1472,7 +1469,7 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
   
   if (prevProps.initialData && nextProps.initialData) {
     if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
-    if (prevProps.initialData.totalEntries !== nextProps.initialData.totalEntries) return false;
+
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
     const prevTitles = prevProps.initialData.postTitles;

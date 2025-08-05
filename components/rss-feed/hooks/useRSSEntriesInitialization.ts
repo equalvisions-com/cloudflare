@@ -45,12 +45,10 @@ interface UseRSSEntriesInitializationProps {
   entriesStateRef: React.MutableRefObject<RSSEntriesDisplayEntry[]>;
   currentPageRef: React.MutableRefObject<number>;
   hasMoreRef: React.MutableRefObject<boolean>;
-  totalEntriesRef: React.MutableRefObject<number>;
   postTitlesRef: React.MutableRefObject<string[]>;
   feedMetadataCache: React.MutableRefObject<Record<string, RSSEntriesDisplayEntry['postMetadata']>>;
   initialData?: {
     entries: RSSEntriesDisplayEntry[];
-    totalEntries?: number;
     hasMore?: boolean;
     postTitles?: string[];
     feedUrls?: string[];
@@ -58,7 +56,6 @@ interface UseRSSEntriesInitializationProps {
   };
   initialize: (data: {
     entries: RSSEntriesDisplayEntry[];
-    totalEntries: number;
     hasMore: boolean;
     postTitles: string[];
     feedUrls: string[];
@@ -77,7 +74,7 @@ export const useRSSEntriesInitialization = ({
   entriesStateRef,
   currentPageRef,
   hasMoreRef,
-  totalEntriesRef,
+
   postTitlesRef,
   feedMetadataCache,
   initialData,
@@ -139,7 +136,7 @@ export const useRSSEntriesInitialization = ({
 
     return {
       entries: processedEntries,
-      totalEntries: initialData.totalEntries || processedEntries.length,
+
       hasMore: initialData.hasMore ?? true,
       postTitles: initialData.postTitles || extractedPostTitles,
       feedUrls: initialData.feedUrls || extractedFeedUrls,
@@ -159,7 +156,7 @@ export const useRSSEntriesInitialization = ({
       entriesStateRef.current = initializationData.entries;
       currentPageRef.current = 1;
       hasMoreRef.current = initializationData.hasMore;
-      totalEntriesRef.current = initializationData.totalEntries;
+  
       postTitlesRef.current = initializationData.postTitles;
       
       if (initializationData.newestEntryDate) {
@@ -178,7 +175,7 @@ export const useRSSEntriesInitialization = ({
     entriesStateRef,
     currentPageRef,
     hasMoreRef,
-    totalEntriesRef,
+  
     postTitlesRef,
     preRefreshNewestEntryDateRef,
     initialize

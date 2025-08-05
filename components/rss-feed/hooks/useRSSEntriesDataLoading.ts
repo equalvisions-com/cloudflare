@@ -7,13 +7,11 @@ interface UseRSSEntriesDataLoadingProps {
   isMountedRef: React.MutableRefObject<boolean>;
   hasMoreRef: React.MutableRefObject<boolean>;
   currentPageRef: React.MutableRefObject<number>;
-  totalEntriesRef: React.MutableRefObject<number>;
   entriesStateRef: React.MutableRefObject<RSSEntriesDisplayEntry[]>;
   postTitlesRef: React.MutableRefObject<string[]>;
   feedMetadataCache: React.MutableRefObject<Record<string, RSSEntriesDisplayEntry['postMetadata']>>;
   initialData?: {
     entries: RSSEntriesDisplayEntry[];
-    totalEntries?: number;
     hasMore?: boolean;
     postTitles?: string[];
     feedUrls?: string[];
@@ -25,7 +23,6 @@ interface UseRSSEntriesDataLoadingProps {
   addEntries: (entries: RSSEntriesDisplayEntry[]) => void;
   setCurrentPage: (page: number) => void;
   setHasMore: (hasMore: boolean) => void;
-  setTotalEntries: (total: number) => void;
   setPostTitles: (titles: string[]) => void;
 }
 
@@ -69,7 +66,7 @@ export const useRSSEntriesDataLoading = ({
   isMountedRef,
   hasMoreRef,
   currentPageRef,
-  totalEntriesRef,
+
   entriesStateRef,
   postTitlesRef,
   feedMetadataCache,
@@ -80,7 +77,7 @@ export const useRSSEntriesDataLoading = ({
   addEntries,
   setCurrentPage,
   setHasMore,
-  setTotalEntries,
+
   setPostTitles,
 }: UseRSSEntriesDataLoadingProps) => {
   
@@ -94,9 +91,9 @@ export const useRSSEntriesDataLoading = ({
       postTitlesParam,
       feedUrlsParam,
       currentEntriesCount,
-      totalEntries: totalEntriesRef.current,
+  
     };
-  }, [postTitlesRef, initialData?.feedUrls, entriesStateRef, totalEntriesRef]);
+  }, [postTitlesRef, initialData?.feedUrls, entriesStateRef]);
 
   // Transform entries helper - pure function
   const transformEntries = useCallback((entries: RSSItem[]) => {
@@ -188,9 +185,7 @@ export const useRSSEntriesDataLoading = ({
         requestBody.feedUrls = JSON.parse(apiParams.feedUrlsParam);
       }
       
-      if (apiParams.totalEntries > 0) {
-        requestBody.totalEntries = apiParams.totalEntries;
-      }
+
       
       const response = await retryWithBackoff(async () => {
         const response = await fetch('/api/rss/paginate', {
@@ -296,11 +291,11 @@ export const useRSSEntriesDataLoading = ({
     addEntries,
     setCurrentPage,
     setHasMore,
-    setTotalEntries,
+  
     setPostTitles,
     hasMoreRef,
     currentPageRef,
-    totalEntriesRef,
+  
     entriesStateRef,
     isMountedRef
   ]);

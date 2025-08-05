@@ -11,47 +11,10 @@ import 'server-only';
 // Add caching configuration with 5-minute revalidation
 export const revalidate = 300; // 5 minutes in seconds
 
-// Server-side in-memory cache for COUNT queries
-// This is a module-level variable that persists between requests
-interface CountCacheEntry {
-  count: number;
-  timestamp: number;
-}
-
-const COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-const countCache = new Map<string, CountCacheEntry>();
+// Count cache removed - using limit+1 pagination instead
 const PAGE_SIZE = 30; // Initial page size for loading
 
-// Function to get cached count
-function getCachedCount(feedUrl: string): number | null {
-  const cached = countCache.get(feedUrl);
-  
-  if (!cached) {
-    return null;
-  }
-  
-  const now = Date.now();
-  if (now - cached.timestamp > COUNT_CACHE_TTL) {
-    // Cache expired
-    countCache.delete(feedUrl);
-    return null;
-  }
-  
-  return cached.count;
-}
-
-// Function to set cached count
-function setCachedCount(feedUrl: string, count: number): void {
-  countCache.set(feedUrl, {
-    count,
-    timestamp: Date.now()
-  });
-}
-
-// Function to invalidate cached count (useful after feed refresh)
-function invalidateCountCache(feedUrl: string): void {
-  countCache.delete(feedUrl);
-}
+// Count cache functions removed - using limit+1 pagination instead
 
 export const getInitialEntries = cache(async (postTitle: string, feedUrl: string, mediaType?: string) => {
   try {

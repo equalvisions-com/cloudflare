@@ -64,65 +64,7 @@ const errorLog = (message: string, error?: unknown) => {
 // Server-side in-memory cache for COUNT queries
 // This is a module-level variable that persists between requests
 // but is isolated to each server instance
-interface CountCacheEntry {
-  count: number;
-  timestamp: number;
-  feedCount: number;
-}
-
-const COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-const countCache = new Map<string, CountCacheEntry>();
-
-// Function to get cached count
-function getCachedCount(postTitles: string[]): number | null {
-  // Sort the titles to ensure consistent cache keys regardless of order
-  const cacheKey = [...postTitles].sort().join(',');
-  const cached = countCache.get(cacheKey);
-  
-  if (!cached) {
-    devLog(`🔍 Count cache MISS for key: ${cacheKey}`);
-    return null;
-  }
-  
-  const now = Date.now();
-  if (now - cached.timestamp > COUNT_CACHE_TTL) {
-    // Cache expired
-    devLog(`⏰ Count cache EXPIRED for key: ${cacheKey}`);
-    countCache.delete(cacheKey);
-    return null;
-  }
-  
-  devLog(`✅ Count cache HIT for key: ${cacheKey}, count: ${cached.count}`);
-  return cached.count;
-}
-
-// Function to set cached count
-function setCachedCount(postTitles: string[], count: number): void {
-  const cacheKey = [...postTitles].sort().join(',');
-  // Store the number of feeds along with the count to detect changes in feed count
-  countCache.set(cacheKey, {
-    count,
-    timestamp: Date.now(),
-    feedCount: postTitles.length // Save the number of feeds used for this count
-  });
-  devLog(`💾 Set count cache for key: ${cacheKey}, count: ${count}, feedCount: ${postTitles.length}`);
-}
-
-// Function to invalidate cached count (useful after feed refresh)
-function invalidateCountCache(postTitles: string[]): void {
-  const cacheKey = [...postTitles].sort().join(',');
-  countCache.delete(cacheKey);
-  devLog(`🗑️ Invalidated count cache for key: ${cacheKey}`);
-}
-
-// Function to invalidate all count caches - use when user follows/unfollows feeds
-function invalidateAllCountCaches(): void {
-  countCache.clear();
-  devLog(`🗑️ Invalidated all count caches`);
-}
-
-// Export the function for use in API routes
-// Count cache functions removed - no longer needed with limit+1 pagination
+// Count cache removed - using limit+1 pagination instead
 
 export const getInitialEntries = cache(async (skipRefresh = false) => {
   try {
