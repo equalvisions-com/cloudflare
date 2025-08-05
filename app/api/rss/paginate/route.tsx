@@ -60,14 +60,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Skip refresh checks for all pages - the dedicated refresh-feeds endpoint now handles
     // creating and refreshing feeds. This makes pagination much faster and smoother.
     
-    // CRITICAL FIX: Calculate offset based on current entries count if available
-    // This prevents duplication when new entries are added to the top of the feed
+    // HYBRID OFFSET CALCULATION: Handle both normal pagination and real-time prepends
+    // When entries are prepended by refresh, currentEntriesCount accounts for them
+    // When no refresh happened, use page-based offset for reliability
     let offset: number;
+    
     if (currentEntriesCount !== null && currentEntriesCount > 0) {
-      // Use the current entries count as the offset to get the next batch
-      offset = currentEntriesCount;
+      // Check if currentEntriesCount matches expected page-based count
+      const expectedCount = (page - 1) * pageSize;
+      
+      if (currentEntriesCount === expectedCount) {
+        // Normal pagination - no prepended entries
+        offset = expectedCount;
+      } else if (currentEntriesCount > expectedCount) {
+        // Entries were prepended - use currentEntriesCount to avoid duplicates
+        offset = currentEntriesCount;
+      } else {
+        // Something's wrong - fall back to page-based
+        offset = expectedCount;
+      }
     } else {
-      // Fallback to traditional page-based offset calculation
+      // No currentEntriesCount provided - use page-based offset
       offset = (page - 1) * pageSize;
     }
     
