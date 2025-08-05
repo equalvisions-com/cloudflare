@@ -46,6 +46,13 @@ interface UseRSSEntriesQueueRefreshProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
+    feedStaleness?: {
+      needsRefresh: boolean;
+      oldestLastFetched: number;
+      staleCount: number;
+      totalCount: number;
+      staleFeedTitles: string[];
+    };
   };
   currentPostTitles: string[];
   currentFeedUrls: string[];
@@ -425,6 +432,25 @@ export const useRSSEntriesQueueRefresh = ({
   const triggerOneTimeRefresh = useCallback(async () => {
     if (isRefreshing || hasRefreshed || !isMountedRef.current) return;
     if (!currentPostTitles?.length || !currentFeedUrls?.length) return;
+
+    // CLIENT-SIDE STALENESS CHECK: Skip queue if feeds are fresh
+    if (initialData.feedStaleness && !initialData.feedStaleness.needsRefresh) {
+      console.log('🚀 CLIENT: Feeds are fresh - skipping queue refresh', {
+        staleCount: initialData.feedStaleness.staleCount,
+        totalCount: initialData.feedStaleness.totalCount,
+        oldestLastFetched: new Date(initialData.feedStaleness.oldestLastFetched).toISOString()
+      });
+      
+      // Mark as refreshed to prevent future attempts
+      setHasRefreshed(true);
+      return;
+    }
+
+    console.log('🔄 CLIENT: Feeds are stale - proceeding with queue refresh', {
+      staleCount: initialData.feedStaleness?.staleCount || 'unknown',
+      totalCount: initialData.feedStaleness?.totalCount || currentPostTitles.length,
+      staleFeedTitles: initialData.feedStaleness?.staleFeedTitles || []
+    });
 
     setRefreshing(true);
     setRefreshError(null);

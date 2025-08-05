@@ -60,21 +60,29 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
     // Server-side blocking refresh removed for instant page loads
     // Real-time updates delivered via SSE from workers
 
-    // Get feed ID from PlanetScale with type safety
+    // Get feed ID and staleness data from PlanetScale with type safety
     const feedResult = await executeRead(
-      'SELECT id FROM rss_feeds WHERE feed_url = ?',
+      'SELECT id, last_fetched FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
 
-    const feedRows = feedResult.rows as Array<{ id: number }>;
+    const feedRows = feedResult.rows as Array<{ id: number; last_fetched: number }>;
     if (!feedRows.length) {
       return null;
     }
 
     const feedId = feedRows[0].id;
+    const lastFetched = Number(feedRows[0].last_fetched);
+    
     if (typeof feedId !== 'number' || isNaN(feedId)) {
       throw new Error('Invalid feed ID returned from database');
     }
+
+    // Calculate staleness for client-side optimization
+    const now = Date.now();
+    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+    const timeSinceLastFetch = now - lastFetched;
+    const needsRefresh = timeSinceLastFetch > FOUR_HOURS_MS;
 
     // Get entries from PlanetScale with proper typing
     const entriesResult = await executeRead(
@@ -174,7 +182,14 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       totalEntries: totalCount,
       hasMore: entriesWithPublicData.length < totalCount,
       postTitles: [postTitle],
-      feedUrls: [feedUrl]
+      feedUrls: [feedUrl],
+      // Client-side staleness optimization data
+      feedStaleness: {
+        needsRefresh,
+        lastFetched,
+        staleness: timeSinceLastFetch,
+        feedUrl
+      }
     };
 
   } catch (error) {

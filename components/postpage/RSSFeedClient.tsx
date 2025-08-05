@@ -1008,6 +1008,24 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   // Queue single feed for async refresh with SSE
   useEffect(() => {
     if (postTitle && feedUrl && !hasQueuedRef.current) {
+      // CLIENT-SIDE STALENESS CHECK: Skip queue if feed is fresh
+      if (initialData.feedStaleness && !initialData.feedStaleness.needsRefresh) {
+        console.log('🚀 SINGLE FEED: Feed is fresh - skipping queue refresh', {
+          feedUrl,
+          lastFetched: new Date(initialData.feedStaleness.lastFetched).toISOString(),
+          staleness: Math.round(initialData.feedStaleness.staleness / (1000 * 60)) + ' minutes ago'
+        });
+        
+        hasQueuedRef.current = true; // Prevent future attempts
+        return;
+      }
+
+      console.log('🔄 SINGLE FEED: Feed is stale - proceeding with queue refresh', {
+        feedUrl,
+        needsRefresh: initialData.feedStaleness?.needsRefresh || 'unknown',
+        lastFetched: initialData.feedStaleness ? new Date(initialData.feedStaleness.lastFetched).toISOString() : 'unknown'
+      });
+
       // Start queue processing and get the server-generated batchId
       fetch('/api/queue-refresh', {
         method: 'POST',

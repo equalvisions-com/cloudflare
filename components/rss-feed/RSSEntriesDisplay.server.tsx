@@ -173,7 +173,32 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
       }])
     );
     
-    // 5. Directly query PlanetScale for the first page of entries
+    // 5. Query feed staleness data for client-side optimization
+    const feedStalenessQuery = `
+      SELECT f.title, f.feed_url, f.last_fetched
+      FROM rss_feeds f
+      WHERE f.title IN (${postTitles.map(() => '?').join(',')})
+    `;
+    
+    const feedStalenessResult = await executeRead(feedStalenessQuery, postTitles, { noCache: true });
+    const feedStalenessData = feedStalenessResult.rows as { title: string; feed_url: string; last_fetched: number }[];
+    
+    // Create staleness map for quick lookup
+    const stalenessMap = new Map();
+    const now = Date.now();
+    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+    
+    feedStalenessData.forEach(feed => {
+      const lastFetchedMs = Number(feed.last_fetched);
+      const timeSinceLastFetch = now - lastFetchedMs;
+      stalenessMap.set(feed.title, {
+        lastFetched: lastFetchedMs,
+        isStale: timeSinceLastFetch > FOUR_HOURS_MS,
+        staleness: timeSinceLastFetch
+      });
+    });
+
+    // 6. Directly query PlanetScale for the first page of entries
     const offset = (page - 1) * pageSize;
     
     // Create placeholders for the SQL query
@@ -299,14 +324,33 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
 
       devLog(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries for the merged feed`);
       
-      // Make sure to include the postTitles in the returned data
+      // Calculate overall staleness summary
+      const staleFeeds = postTitles.filter(title => {
+        const staleness = stalenessMap.get(title);
+        return staleness?.isStale !== false;
+      });
+      
+      const needsRefresh = staleFeeds.length > 0;
+      const oldestLastFetched = Math.min(...Array.from(stalenessMap.values()).map(s => s.lastFetched));
+      
+      devLog(`🕐 SERVER: Staleness check - ${staleFeeds.length}/${postTitles.length} feeds need refresh`);
+      
+      // Make sure to include the postTitles and staleness data in the returned data
       return {
         entries: entriesWithPublicData,
         totalEntries,
         hasMore,
         postTitles,
         feedUrls,
-        mediaTypes
+        mediaTypes,
+        // Client-side staleness optimization data
+        feedStaleness: {
+          needsRefresh,
+          oldestLastFetched,
+          staleCount: staleFeeds.length,
+          totalCount: postTitles.length,
+          staleFeedTitles: staleFeeds
+        }
       };
     } catch (dbError: unknown) {
       errorLog('❌ SERVER: Error querying PlanetScale:', dbError);
@@ -356,6 +400,7 @@ export default async function RSSEntriesDisplayServer({
     postTitles: initialData.postTitles,
     feedUrls: initialData.feedUrls,
     mediaTypes: initialData.mediaTypes,
+    feedStaleness: initialData.feedStaleness,
   };
 
   return <RSSEntriesClientWithErrorBoundary initialData={transformedData} />;

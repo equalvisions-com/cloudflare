@@ -1301,6 +1301,12 @@ export interface RSSFeedClientProps {
     entries: RSSFeedEntry[];
     totalEntries: number;
     hasMore: boolean;
+    feedStaleness?: {
+      needsRefresh: boolean;
+      lastFetched: number;
+      staleness: number;
+      feedUrl: string;
+    };
   };
   pageSize?: number;
   featuredImg?: string;
@@ -1476,6 +1482,15 @@ export interface RSSEntriesDisplayEntry {
 
 // RSS Entries Display interfaces (simplified for useReducer implementation)
 
+// Feed staleness data for client-side optimization
+export interface FeedStalenessData {
+  needsRefresh: boolean;
+  oldestLastFetched: number;
+  staleCount: number;
+  totalCount: number;
+  staleFeedTitles: string[];
+}
+
 // RSS Entries Display Component Props
 export interface RSSEntriesDisplayClientProps {
   initialData: {
@@ -1485,6 +1500,7 @@ export interface RSSEntriesDisplayClientProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
+    feedStaleness?: FeedStalenessData;
   };
   pageSize?: number;
   isActive?: boolean;
