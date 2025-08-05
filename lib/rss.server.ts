@@ -4,12 +4,10 @@ import type { RSSItem } from './rss';
 import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
 import { executeRead, executeWrite } from './database';
 
-// Production-ready logging utility
+// Simple Edge Runtime compatible logging (following existing codebase patterns)
 const logger = {
   debug: (message: string, ...args: any[]) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`🔍 DEBUG: ${message}`, ...args);
-    }
+    console.log(`🔍 DEBUG: ${message}`, ...args);
   },
   info: (message: string, ...args: any[]) => {
     console.log(`ℹ️ INFO: ${message}`, ...args);
@@ -19,27 +17,10 @@ const logger = {
   },
   error: (message: string, ...args: any[]) => {
     console.error(`❌ ERROR: ${message}`, ...args);
-  },
-  cache: (message: string, ...args: any[]) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`💾 CACHE: ${message}`, ...args);
-    }
   }
 };
 
-// Helper function to execute queries with proper error handling
-async function executeQuery<T = Record<string, unknown>>(
-  query: string,
-  params: unknown[] = []
-): Promise<PlanetScaleQueryResult> {
-  try {
-    const result = await executeRead(query, params);
-    return result as PlanetScaleQueryResult;
-  } catch (error) {
-    logger.error(`Database query error: ${error}`);
-    throw error;
-  }
-}
+// Use executeRead and executeWrite directly from database.ts (Edge Runtime compatible)
 
 /**
  * Creates or gets an existing feed record in the database
@@ -48,7 +29,7 @@ async function executeQuery<T = Record<string, unknown>>(
 async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: string): Promise<number> {
   try {
     // Check if feed exists
-    const existingFeedResult = await executeQuery<RSSFeedRow>(
+    const existingFeedResult = await executeRead(
       'SELECT id FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
@@ -93,7 +74,7 @@ export async function getRSSEntries(
     logger.info(`Getting RSS entries for: ${postTitle} (${feedUrl})`);
     
     // Get feed ID from database
-    const feedsResult = await executeQuery<RSSFeedRow>(
+    const feedsResult = await executeRead(
       'SELECT id FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
@@ -115,7 +96,7 @@ export async function getRSSEntries(
     const offset = (page - 1) * pageSize;
     
     // Get total count of entries
-    const countResult = await executeQuery<{ total: number }>(
+    const countResult = await executeRead(
       'SELECT COUNT(*) as total FROM rss_entries WHERE feed_id = ?',
       [feedId]
     );
@@ -124,7 +105,7 @@ export async function getRSSEntries(
     
     // Get paginated entries
     logger.debug(`Retrieving paginated entries for ${postTitle} from database (page ${page}, pageSize ${pageSize})`);
-    const entriesResult = await executeQuery<RSSEntryRow>(
+    const entriesResult = await executeRead(
       'SELECT guid, title, link, description, pub_date, image, media_type FROM rss_entries WHERE feed_id = ? ORDER BY pub_date DESC LIMIT ? OFFSET ?',
       [feedId, pageSize, offset]
     );

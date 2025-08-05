@@ -73,7 +73,7 @@ Timeout: 10 minutes
 **Rule Configuration:**
 ```yaml
 Rule Name: Expensive API Endpoints - SNS
-Expression: (http.host eq "socialnetworksandbox.com") and (http.request.uri.path in {"/api/chat" "/api/batch" "/api/entries/batch"})
+Expression: (http.host eq "socialnetworksandbox.com") and (http.request.uri.path in {"/api/chat" "/api/entries/batch"})
 Action: Rate Limit  
 Rate: 10 requests per minute per IP
 Timeout: 1 hour
@@ -87,7 +87,6 @@ Timeout: 1 hour
    - Field: `URI Path` | Operator: `is in` | Value (one per line):
      ```
      /api/chat
-     /api/batch
      /api/entries/batch
      ```
 3. **Then take action**: `Rate limit`
@@ -292,7 +291,7 @@ if (!validateHeaders(request)) {
 - `app/api/rss/route.ts` (GET)
 - `app/api/rss/paginate/route.tsx` (POST) - *Read-only*
 - `app/api/rss-feed/route.ts` (GET)
-- `app/api/batch/route.ts` (POST) - *Use strict validation*
+
 - `app/api/entries/batch/route.ts` (POST) - *Use strict validation*
 
 #### User Activity APIs (6 endpoints):

@@ -87,8 +87,12 @@ export const useRSSFeedPaginationHook = (
     }
     
     return {
-      url: `/api/rss/${encodeURIComponent(postTitle)}`,
-      body: requestBody
+      url: `/api/rss/paginate`,
+      body: {
+        ...requestBody,
+        postTitles: [postTitle], // Convert single feed to array format for paginate API
+        feedUrls: [feedUrl]      // Convert single feed to array format for paginate API
+      }
     };
   }, [feedMetadata, pagination.totalEntries, entries.length]); // Added entries.length to dependencies
 
