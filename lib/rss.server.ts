@@ -4,10 +4,12 @@ import type { RSSItem } from './rss';
 import { PlanetScaleQueryResult, RSSFeedRow, RSSEntryRow } from './types';
 import { executeRead, executeWrite } from './database';
 
-// Simple Edge Runtime compatible logging (following existing codebase patterns)
+// Production-ready logging utility
 const logger = {
   debug: (message: string, ...args: any[]) => {
-    console.log(`🔍 DEBUG: ${message}`, ...args);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔍 DEBUG: ${message}`, ...args);
+    }
   },
   info: (message: string, ...args: any[]) => {
     console.log(`ℹ️ INFO: ${message}`, ...args);
@@ -17,10 +19,27 @@ const logger = {
   },
   error: (message: string, ...args: any[]) => {
     console.error(`❌ ERROR: ${message}`, ...args);
+  },
+  cache: (message: string, ...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`💾 CACHE: ${message}`, ...args);
+      }
   }
 };
 
-// Use executeRead and executeWrite directly from database.ts (Edge Runtime compatible)
+// Helper function to execute queries with proper error handling
+async function executeQuery<T = Record<string, unknown>>(
+  query: string, 
+  params: unknown[] = []
+): Promise<PlanetScaleQueryResult> {
+  try {
+    const result = await executeRead(query, params);
+    return result as PlanetScaleQueryResult;
+  } catch (error) {
+    logger.error(`Database query error: ${error}`);
+    throw error;
+  }
+}
 
 /**
  * Creates or gets an existing feed record in the database
@@ -33,16 +52,16 @@ async function getOrCreateFeed(feedUrl: string, postTitle: string, mediaType?: s
       'SELECT id FROM rss_feeds WHERE feed_url = ?',
       [feedUrl]
     );
-
+    
     if (existingFeedResult.rows.length > 0) {
       const feedId = Number((existingFeedResult.rows[0] as any).id);
       logger.debug(`Using existing feed ID ${feedId} for ${postTitle}`);
       return feedId;
     }
-
+    
     // Create new feed record (Workers will populate entries)
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const currentTimeMs = Date.now();
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const currentTimeMs = Date.now();
     
     const insertResult = await executeWrite(
       'INSERT INTO rss_feeds (feed_url, title, media_type, last_fetched, processing_until, created_at, updated_at) VALUES (?, ?, ?, 0, 0, ?, ?)',
@@ -86,7 +105,7 @@ export async function getRSSEntries(
       const feeds = feedsResult.rows as any[];
       feedId = Number(feeds[0].id);
       logger.debug(`Using existing feed ID ${feedId} for ${postTitle}`);
-    } else {
+      } else {
       // Create new feed record (Workers will populate it with entries)
       logger.debug(`Creating new feed entry for ${postTitle} - Workers will populate entries`);
       feedId = await getOrCreateFeed(feedUrl, postTitle, mediaType);
