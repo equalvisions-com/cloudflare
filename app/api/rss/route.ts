@@ -32,32 +32,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Use getInitialEntriesWithoutRefresh to skip refresh
       data = await getInitialEntriesWithoutRefresh();
       
-      // If we got no entries with skip-refresh, try again with refresh enabled
-      // This handles the case where a user has no entries yet (first-time or new feeds)
-      if (data && data.entries && data.entries.length === 0 && data.feedUrls && data.feedUrls.length > 0) {
-        // Call the refresh endpoint directly to create the feeds
-        try {
-          const refreshResponse = await fetch(`${url.origin}/api/refresh-feeds`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              postTitles: data.postTitles || [],
-              feedUrls: data.feedUrls || [],
-              mediaTypes: data.mediaTypes || [],
-              existingGuids: []
-            }),
-          });
-          
-          if (refreshResponse.ok) {
-            // Now try again to get entries
-            data = await getInitialEntriesWithoutRefresh();
-          }
-        } catch (refreshError) {
-          console.error('❌ Error calling refresh endpoint:', refreshError);
-        }
-      }
+      // Feed creation and refresh now handled by queue/worker system
+      // If no entries found, the client-side components will trigger queue refresh
+      // This eliminates server-side blocking and improves page load performance
     }
     
     if (!data) {

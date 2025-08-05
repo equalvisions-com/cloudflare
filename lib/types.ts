@@ -66,22 +66,7 @@ export interface APIResponse<T> {
   status: number;
 }
 
-// XML parsing types
-export interface XMLParseResult {
-  rss?: {
-    channel?: {
-      title?: string;
-      link?: string;
-      description?: string;
-      item?: Record<string, unknown>[] | Record<string, unknown>;
-    };
-  };
-  feed?: {
-    title?: string;
-    link?: string | { "@_href": string }[];
-    entry?: Record<string, unknown>[] | Record<string, unknown>;
-  };
-}
+// XML parsing types removed - Workers handle all RSS parsing
 
 // Widget types
 export interface NotificationsWidgetProps {

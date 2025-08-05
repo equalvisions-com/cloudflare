@@ -237,15 +237,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET endpoint - Deprecated: Use SSE via /api/batch-stream/[batchId] for real-time updates
-export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const batchId = url.searchParams.get('batchId');
-
-  return NextResponse.json({ 
-    message: 'Batch status polling deprecated. Use real-time SSE instead.',
-    batchId,
-    sseEndpoint: batchId ? `/api/batch-stream/${batchId}` : '/api/batch-stream/[batchId]',
-    note: 'Connect to SSE endpoint for real-time updates via Durable Objects'
-  }, { status: 200 });
-}
+// GET endpoint removed - Use SSE via /api/batch-stream/[batchId] for real-time updates

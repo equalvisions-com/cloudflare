@@ -73,7 +73,7 @@ Timeout: 10 minutes
 **Rule Configuration:**
 ```yaml
 Rule Name: Expensive API Endpoints - SNS
-Expression: (http.host eq "socialnetworksandbox.com") and (http.request.uri.path in {"/api/chat" "/api/refresh-feeds" "/api/batch" "/api/entries/batch"})
+Expression: (http.host eq "socialnetworksandbox.com") and (http.request.uri.path in {"/api/chat" "/api/batch" "/api/entries/batch"})
 Action: Rate Limit  
 Rate: 10 requests per minute per IP
 Timeout: 1 hour
@@ -87,7 +87,6 @@ Timeout: 1 hour
    - Field: `URI Path` | Operator: `is in` | Value (one per line):
      ```
      /api/chat
-     /api/refresh-feeds
      /api/batch
      /api/entries/batch
      ```
@@ -291,10 +290,8 @@ if (!validateHeaders(request)) {
 ```
 
 - `app/api/rss/route.ts` (GET)
-- `app/api/rss/[postTitle]/route.tsx` (POST)
-- `app/api/rss/paginate/route.tsx` (POST)
+- `app/api/rss/paginate/route.tsx` (POST) - *Read-only*
 - `app/api/rss-feed/route.ts` (GET)
-- `app/api/refresh-feeds/route.ts` (POST) - *Use strict validation*
 - `app/api/batch/route.ts` (POST) - *Use strict validation*
 - `app/api/entries/batch/route.ts` (POST) - *Use strict validation*
 

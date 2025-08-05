@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { RSSItem } from "@/lib/rss";
 import { executeRead } from '@/lib/database';
-import { refreshExistingFeeds } from '@/lib/rss.server';
+// Removed refreshExistingFeeds import - Workers handle RSS processing directly
 import type { RSSEntryRow } from '@/lib/types';
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server';
 import { fetchQuery } from 'convex/nextjs';
