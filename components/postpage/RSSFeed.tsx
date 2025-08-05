@@ -4,7 +4,6 @@ import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSFeedClient } from "./RSSFeedClient";
-import { checkAndRefreshFeeds } from '@/lib/rss.server';
 import { executeRead } from '@/lib/database';
 import type { RSSEntryRow } from "@/lib/types";
 import 'server-only';

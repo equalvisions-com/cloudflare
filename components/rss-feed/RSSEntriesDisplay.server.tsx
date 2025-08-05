@@ -5,7 +5,6 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { cache } from "react";
 import { RSSEntriesClientWithErrorBoundary } from "./RSSEntriesDisplay.client";
 import { executeRead } from "@/lib/database";
-import { checkAndRefreshFeeds } from "@/lib/rss.server";
 import type { 
   RSSEntriesDisplayEntry, 
   RSSEntriesDisplayServerProps

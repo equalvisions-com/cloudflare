@@ -19,7 +19,7 @@ const parser = new XMLParser({
 });
 
 // Parallel processing configuration
-const PARALLEL_BATCH_SIZE = 15;
+const PARALLEL_BATCH_SIZE = 20;
 const FETCH_TIMEOUT = 10000;
 const MAX_RETRIES = 3;
 
