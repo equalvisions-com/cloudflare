@@ -462,7 +462,7 @@ export const useRSSEntriesQueueRefresh = ({
           }
           
         } else if (queueResponse.batchId) {
-          // Queue processing - start SSE connection for real-time updates
+          // Queue processing - connect to SSE for real-time updates
           console.log('📡 Starting SSE stream for batch:', queueResponse.batchId);
           setActiveBatchId(queueResponse.batchId);
           connectToSSE(queueResponse.batchId);

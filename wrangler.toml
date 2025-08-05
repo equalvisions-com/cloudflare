@@ -7,8 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 # Queue consumer configuration
 [[queues.consumers]]
 queue = "refresh-feed"
-max_batch_size = 20
-max_batch_timeout = 3
+max_batch_size = 10
+max_batch_timeout = 5
 max_retries = 3
 dead_letter_queue = "refresh-feed-dlq"
 
@@ -49,8 +49,8 @@ vars = { ENVIRONMENT = "production", PAGES_FUNCTION_URL = "https://socialnetwork
 # Queue consumer for RSS refresh - PRODUCTION
 [[env.production.queues.consumers]]
 queue = "refresh-feed"
-max_batch_size = 20
-max_batch_timeout = 3
+max_batch_size = 10
+max_batch_timeout = 5
 max_retries = 3
 dead_letter_queue = "refresh-feed-dlq"
 
