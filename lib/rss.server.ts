@@ -138,7 +138,7 @@ export async function getRSSEntries(
       pubDate: row.pub_date,
       image: row.image || undefined,
       mediaType: row.media_type || mediaType,
-      feedUrl
+        feedUrl
     }));
     
     logger.debug(`Retrieved ${entries.length} entries (hasMore: ${hasMore})`);
