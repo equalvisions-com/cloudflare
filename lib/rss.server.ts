@@ -58,7 +58,7 @@ const logger = {
   }
 };
 
-// Initialize parser once, not on every request
+// Initialize parser once, not on very request
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
