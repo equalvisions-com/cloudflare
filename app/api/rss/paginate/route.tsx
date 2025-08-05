@@ -210,11 +210,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       feedUrl: entry.feed_url
     }));
     
-    // Determine if there are more entries - IMPROVED CALCULATION
-    // If we have a full page of results (pageSize), and our total suggests there are more,
-    // then we definitely have more entries
-    const hasMore = entries.length === pageSize && 
-                    totalEntries > (offset + entries.length);
+    // Determine if there are more entries - FIXED CALCULATION
+    // When using currentEntriesCount as offset, the logic is simpler:
+    // - If we got a full page (pageSize entries), there might be more
+    // - If we got less than a full page, we're at the end
+    const hasMore = entries.length === pageSize;
     
     // Prepare the response data
     const responseData = {
