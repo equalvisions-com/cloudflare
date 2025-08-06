@@ -128,7 +128,7 @@ const ProfilePageHeaderComponent = () => {
 
   // Try to get search context, but handle gracefully if not available
   let searchQuery = "";
-  let handleSearch = async () => {};
+  let handleSearch = async (query: string) => {};
   let handleClearSearch = () => {};
   let isSearching = false;
   let activeTab = "activity" as const;
