@@ -66,17 +66,18 @@ export const useSearchResults = ({
       
       const data = await result.json();
       
-      // Transform the API response to match our expected format
-      const transformedData: PostSearchRSSData = {
-        entries: (data.entries || []).map((entry: any) => ({
-          entry: {
-            title: entry.title,
-            link: entry.link,
-            description: entry.description,
-            pubDate: entry.pub_date,
-            guid: entry.guid,
-            image: entry.image
-          },
+              // Transform the API response to match our expected format
+        const transformedData: PostSearchRSSData = {
+          entries: (data.entries || []).map((entry: any) => ({
+            entry: {
+              title: entry.title,
+              link: entry.link,
+              description: entry.description,
+              pubDate: entry.pub_date,
+              guid: entry.guid,
+              image: entry.image,
+              feedUrl: entry.feed_url || feedUrl // Add feedUrl directly to entry for like button compatibility
+            },
           initialData: {
             likes: { isLiked: false, count: 0 },
             comments: { count: 0 },
@@ -143,7 +144,8 @@ export const useSearchResults = ({
               description: entry.description,
               pubDate: entry.pub_date,
               guid: entry.guid,
-              image: entry.image
+              image: entry.image,
+              feedUrl: entry.feed_url || feedUrl // Add feedUrl directly to entry for like button compatibility
             },
             initialData: {
               likes: { isLiked: false, count: 0 },
