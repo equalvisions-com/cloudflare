@@ -228,8 +228,8 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
     router.push("/signin");
   }, [router]);
 
-  // Show edit profile button on own profile - use smart detection instead of status
-  if (isOwnProfile) {
+  // Show edit profile button on own profile - prioritize server status, fallback to client detection
+  if (currentStatus?.status === "self" || isOwnProfile) {
     return (
       <>
         <Button 
