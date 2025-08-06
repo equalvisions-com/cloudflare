@@ -714,6 +714,7 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData }, featuredIm
               <ShareButtonClient
                 url={entry.link}
                 title={entry.title}
+                mediaType={mediaType}
                 internalUrl={mediaType === 'podcast' ? window.location.pathname : undefined}
               />
             </NoFocusWrapper>

@@ -626,6 +626,7 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer, useBatchMetr
               <ShareButtonClient
                 url={entry.link}
                 title={decodedContent.title}
+                mediaType={entry.post_media_type || entry.mediaType}
                 internalUrl={isPodcast && postUrl ? postUrl : undefined}
               />
             </NoFocusWrapper>

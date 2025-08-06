@@ -1215,6 +1215,7 @@ const ActivityCard = React.memo(({
               <ShareButtonClient
                 url={entryDetail.link}
                 title={entryDetail.title}
+                mediaType={entryDetail.post_media_type || entryDetail.mediaType}
                 internalUrl={(() => {
                   const mediaType = entryDetail.post_media_type || entryDetail.mediaType;
                   if (mediaType === 'podcast' && entryDetail.post_slug) {
@@ -1761,6 +1762,7 @@ const ActivityGroupRenderer = React.memo(({
               <ShareButtonClient
                 url={entryDetail.link}
                 title={entryDetail.title}
+                mediaType={entryDetail.post_media_type || entryDetail.mediaType}
                 internalUrl={(() => {
                   const mediaType = entryDetail.post_media_type || entryDetail.mediaType;
                   if (mediaType === 'podcast' && entryDetail.post_slug) {

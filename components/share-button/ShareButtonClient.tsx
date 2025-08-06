@@ -10,6 +10,7 @@ interface ShareButtonProps {
   url: string;
   title: string;
   internalUrl?: string; // Optional internal URL that takes precedence for sharing
+  mediaType?: string; // Optional media type to determine if title should be included
 }
 
 export const ShareButtonClientWithErrorBoundary = memo(function ShareButtonClientWithErrorBoundary(props: ShareButtonProps) {
@@ -21,7 +22,7 @@ export const ShareButtonClientWithErrorBoundary = memo(function ShareButtonClien
 });
 
 // Create the component implementation that will be memoized
-const ShareButtonClientComponent = ({ url, title, internalUrl }: ShareButtonProps) => {
+const ShareButtonClientComponent = ({ url, title, internalUrl, mediaType }: ShareButtonProps) => {
   const { toast } = useToast();
   const [isSharing, setIsSharing] = useState(false);
   
@@ -49,10 +50,14 @@ const ShareButtonClientComponent = ({ url, title, internalUrl }: ShareButtonProp
     try {
       // Try native share API first (works on mobile and some desktop like macOS)
       if (navigator.share) {
-        await navigator.share({
-          title,
-          url: shareUrl,
-        });
+        const shareData: { url: string; title?: string } = { url: shareUrl };
+        
+        // Only include title for podcasts
+        if (mediaType === 'podcast') {
+          shareData.title = title;
+        }
+        
+        await navigator.share(shareData);
         if (isMountedRef.current) {
           toast({
             description: "Shared successfully",
@@ -80,7 +85,7 @@ const ShareButtonClientComponent = ({ url, title, internalUrl }: ShareButtonProp
         setIsSharing(false);
       }
     }
-  }, [shareUrl, title, toast, isSharing]);
+  }, [shareUrl, title, toast, isSharing, mediaType]);
 
   return (
     <Button

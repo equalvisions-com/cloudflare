@@ -36,12 +36,10 @@ export const ShareButton = React.memo(function ShareButton({
 
     try {
       const url = shareUrl || window.location.href;
-      const shareTitle = displayName ? `${displayName} on FocusFix` : "Check out this post on FocusFix";
 
       // Try native share API first (works on mobile and some desktop like macOS)
       if (navigator.share) {
         await navigator.share({
-          title: shareTitle,
           url: url,
         });
       } else {
