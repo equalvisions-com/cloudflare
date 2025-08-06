@@ -790,6 +790,15 @@ export interface UserLikesFeedProps {
   } | null;
   pageSize?: number;
   isActive?: boolean;
+  // Search support
+  searchData?: {
+    activities: UserLikesActivityItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, UserLikesRSSEntry>;
+    entryMetrics?: Record<string, InteractionStates>;
+  } | null;
+  searchQuery?: string;
 }
 
 export interface ActivityTabContentProps {
@@ -799,6 +808,10 @@ export interface ActivityTabContentProps {
   profileImage?: string | null;
   activityData: ProfileFeedData | null;
   pageSize: number;
+  isActive?: boolean;
+  searchData?: ProfileFeedData | null;
+  searchQuery?: string;
+  isSearching?: boolean;
 }
 
 export interface LikesTabContentProps {
@@ -808,6 +821,10 @@ export interface LikesTabContentProps {
   pageSize: number;
   isLoading: boolean;
   error: Error | null;
+  isActive?: boolean;
+  searchData?: ProfileFeedData | null;
+  searchQuery?: string;
+  isSearching?: boolean;
 }
 
 // Custom hook types - removed UseProfileTabsProps as it's no longer needed
@@ -879,6 +896,15 @@ export interface UserActivityFeedComponentProps {
   pageSize?: number;
   apiEndpoint?: string;
   isActive?: boolean;
+  // Search support
+  searchData?: {
+    activities: ActivityFeedItem[];
+    totalCount: number;
+    hasMore: boolean;
+    entryDetails: Record<string, ActivityFeedRSSEntry>;
+    entryMetrics?: Record<string, InteractionStates>;
+  } | null;
+  searchQuery?: string;
 }
 
 export interface ActivityFeedGroupedActivity {

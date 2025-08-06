@@ -11,6 +11,7 @@ import { FeaturedPostsWidgetSkeleton } from "@/components/widgets/FeaturedPostsW
 import { NotificationsWidgetServer } from "@/components/widgets/NotificationsWidgetServer";
 import { Suspense } from "react";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
+import { ProfilePageHeader } from "./ProfilePageHeader";
 
 interface ProfileLayoutManagerProps {
   children: ReactNode;

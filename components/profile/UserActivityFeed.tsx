@@ -1832,18 +1832,23 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
   initialData,
   pageSize = 30,
   apiEndpoint = `/api/activity`,
-  isActive = true
+  isActive = true,
+  searchData = null,
+  searchQuery = ""
 }: UserActivityFeedComponentProps) {
   // Get current user ID from sidebar context to optimize API calls
   const { userId: currentUserId } = useSidebar();
   
-  // Cache extracted values from initialData for hooks
-  const initialActivities = initialData?.activities || [];
-  const initialEntryDetails = initialData?.entryDetails || {};
-  const initialHasMore = initialData?.hasMore || false;
+  // Use search data if available and we have a search query, otherwise use initial data
+  const effectiveData = (searchQuery && searchData) ? searchData : initialData;
+  
+  // Cache extracted values from effective data for hooks
+  const initialActivities = effectiveData?.activities || [];
+  const initialEntryDetails = effectiveData?.entryDetails || {};
+  const initialHasMore = effectiveData?.hasMore || false;
   const initialCommentLikes: Record<string, { commentId: string; isLiked: boolean; count: number; }> = {};
-  if (initialData?.entryMetrics) {
-    Object.entries(initialData.entryMetrics).forEach(([guid, metrics]) => {
+  if (effectiveData?.entryMetrics) {
+    Object.entries(effectiveData.entryMetrics).forEach(([guid, metrics]) => {
       if (metrics.commentLikes) {
         Object.assign(initialCommentLikes, metrics.commentLikes);
       }
@@ -1890,6 +1895,9 @@ export const UserActivityFeed = React.memo(function UserActivityFeedComponent({
     initialEntryDetails,
     initialHasMore,
     initialCommentLikes,
+    // Search-related props
+    searchQuery,
+    searchData,
     // Pass current state
     activities: state.activities,
     entryDetails: state.entryDetails,

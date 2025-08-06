@@ -6,6 +6,7 @@ import { cache } from "react";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileContentClient } from "@/components/profile/ProfileContentClient";
+import { ProfilePageClientScope } from "./ProfilePageClientScope";
 import { Id } from "@/convex/_generated/dataModel";
 import { 
   ProfilePageProps, 
@@ -279,24 +280,29 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       />
       
       <ProfileLayoutManager>
-        <div>
-          <ProfileContentClient
-            profile={profileData.profile}
-            normalizedUsername={transformedData.normalizedUsername}
-            displayName={transformedData.displayName}
-            friendshipStatus={transformedData.friendshipStatus}
-            socialCounts={transformedData.socialCounts}
-            initialFriends={transformedData.initialFriends}
-            initialFollowing={transformedData.initialFollowing}
-          />
-          
-          <ProfileActivityData 
-            userId={profileData.profile.userId} 
-            username={transformedData.normalizedUsername}
-            name={profileData.profile.name || transformedData.normalizedUsername}
-            profileImage={profileData.profile.profileImage}
-          />
-        </div>
+        <ProfilePageClientScope
+          profileUserId={profileData.profile.userId}
+          username={transformedData.normalizedUsername}
+        >
+          <div>
+            <ProfileContentClient
+              profile={profileData.profile}
+              normalizedUsername={transformedData.normalizedUsername}
+              displayName={transformedData.displayName}
+              friendshipStatus={transformedData.friendshipStatus}
+              socialCounts={transformedData.socialCounts}
+              initialFriends={transformedData.initialFriends}
+              initialFollowing={transformedData.initialFollowing}
+            />
+            
+            <ProfileActivityData 
+              userId={profileData.profile.userId} 
+              username={transformedData.normalizedUsername}
+              name={profileData.profile.name || transformedData.normalizedUsername}
+              profileImage={profileData.profile.profileImage}
+            />
+          </div>
+        </ProfilePageClientScope>
       </ProfileLayoutManager>
     </>
   );

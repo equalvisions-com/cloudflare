@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useCallback, useReducer, useRef } from 'react';
 import { SwipeableTabs } from "@/components/profile/ProfileSwipeableTabs";
 import dynamic from 'next/dynamic';
-import { useSidebar } from '@/components/ui/sidebar-context';
+
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
 import { Heart, Activity } from "lucide-react";
@@ -15,6 +15,7 @@ import {
   ActivityTabContentProps,
   LikesTabContentProps
 } from "@/lib/types";
+import { useProfileSearchContext } from "@/lib/contexts/ProfileSearchContext";
 
 // Dynamically import components with proper loading states
 const DynamicUserActivityFeed = dynamic<UserActivityFeedProps>(
@@ -81,7 +82,7 @@ function likesReducer(state: LikesState, action: LikesAction): LikesState {
   }
 }
 
-// Memoized component for the "Activity" tab content
+// Memoized component for the "Activity" tab content with search support
 const ActivityTabContent = React.memo(({ 
   userId, 
   username,
@@ -89,8 +90,16 @@ const ActivityTabContent = React.memo(({
   profileImage,
   activityData, 
   pageSize,
-  isActive = false
-}: ActivityTabContentProps & { isActive?: boolean }) => {
+  isActive = false,
+  searchData = null,
+  searchQuery = "",
+  isSearching = false
+}: ActivityTabContentProps) => {
+  // Show skeleton during search
+  if (isSearching && searchQuery) {
+    return <SkeletonFeed count={5} />;
+  }
+  
   if (!activityData || !activityData.activities || activityData.activities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-6 px-4">
@@ -122,12 +131,14 @@ const ActivityTabContent = React.memo(({
       pageSize={pageSize}
       apiEndpoint={`/api/activity`}
       isActive={isActive}
+      searchData={searchData}
+      searchQuery={searchQuery}
     />
   );
 });
 ActivityTabContent.displayName = 'ActivityTabContent';
 
-// Memoized component for the "Likes" tab content
+// Memoized component for the "Likes" tab content with search support
 const LikesTabContent = React.memo(({ 
   userId,
   username, 
@@ -135,9 +146,13 @@ const LikesTabContent = React.memo(({
   pageSize,
   isLoading,
   error,
-  isActive = false
-}: LikesTabContentProps & { isActive?: boolean }) => {
-  if (isLoading) {
+  isActive = false,
+  searchData = null,
+  searchQuery = "",
+  isSearching = false
+}: LikesTabContentProps) => {
+  // Show skeleton during initial loading OR during search
+  if (isLoading || (isSearching && searchQuery)) {
     return <SkeletonFeed count={5} />;
   }
 
@@ -179,12 +194,15 @@ const LikesTabContent = React.memo(({
       initialData={likesData}
       pageSize={pageSize}
       isActive={isActive}
+      searchData={searchData}
+      searchQuery={searchQuery}
     />
   );
 });
 LikesTabContent.displayName = 'LikesTabContent';
 
-export function UserProfileTabs({ 
+// Search-aware internal component
+function UserProfileTabsInternal({ 
   userId, 
   username,
   name,
@@ -193,8 +211,8 @@ export function UserProfileTabs({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
-  // Get current user ID from sidebar context to optimize API calls
-  const { userId: currentUserId } = useSidebar();
+  // Get search context
+  const { searchResults, searchQuery, setActiveTab, isSearching } = useProfileSearchContext();
   
   // Local state management with useState and useReducer
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
@@ -261,8 +279,12 @@ export function UserProfileTabs({
     }
   }, [userId, pageSize, likesState.status]);
 
-  // Optimized tab change handler
+  // Optimized tab change handler with search integration
   const handleTabChange = useCallback((index: number) => {
+    // Update search context with new active tab
+    const newActiveTab = index === 0 ? 'activity' : 'likes';
+    setActiveTab(newActiveTab);
+    
     // Start fetch BEFORE transition if needed
     if (index === 1 && likesState.status === 'idle') {
       fetchLikesData();
@@ -271,7 +293,7 @@ export function UserProfileTabs({
     // CRITICAL FIX: Remove startTransition to make tab changes synchronous
     // This prevents components from staying mounted during tab switch
     setSelectedTabIndex(index);
-  }, [likesState.status, fetchLikesData]);
+  }, [likesState.status, fetchLikesData, setActiveTab]);
 
   // Memoize the tabs configuration to prevent unnecessary re-creation
   const tabs = useMemo(() => [
@@ -288,6 +310,9 @@ export function UserProfileTabs({
           activityData={activityData} 
           pageSize={pageSize}
           isActive={selectedTabIndex === 0} // Pass isActive based on current tab
+          searchData={searchResults.activity}
+          searchQuery={searchQuery}
+          isSearching={isSearching}
         />
       )
     },
@@ -304,6 +329,9 @@ export function UserProfileTabs({
           isLoading={likesState.status === 'loading'}
           error={likesState.error}
           isActive={selectedTabIndex === 1} // Pass isActive based on current tab
+          searchData={searchResults.likes}
+          searchQuery={searchQuery}
+          isSearching={isSearching}
         />
       )
     }
@@ -317,7 +345,11 @@ export function UserProfileTabs({
     likesState.status,
     likesState.error,
     pageSize,
-    selectedTabIndex // Add selectedTabIndex to dependencies
+    selectedTabIndex, // Add selectedTabIndex to dependencies
+    searchResults.activity,
+    searchResults.likes,
+    searchQuery,
+    isSearching
   ]);
 
   return (
@@ -330,6 +362,9 @@ export function UserProfileTabs({
     </div>
   );
 }
+
+// Export the internal component directly since ProfileSearchProvider is now at page level
+export const UserProfileTabs = UserProfileTabsInternal;
 
 // Use React.memo for the entire component with proper comparison
 export const UserProfileTabsWithErrorBoundary = React.memo(UserProfileTabs, (prevProps, nextProps) => {

@@ -655,9 +655,12 @@ const LoadingSpinner = memo(() => (
 LoadingSpinner.displayName = 'LoadingSpinner';
 
 // Create a memoized version of the component with error boundary
-const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) => {
+const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize = 30, isActive = true, searchData = null, searchQuery = "" }: UserLikesFeedProps) => {
   // Get current user ID from sidebar context to optimize API calls
   const { userId: currentUserId } = useSidebar();
+  
+  // Use search data if available and we have a search query, otherwise use initial data
+  const effectiveData = (searchQuery && searchData) ? searchData : initialData;
   
   // Main state with useReducer
   const [state, dispatch] = useReducer(userLikesFeedReducer, createInitialState());
@@ -694,15 +697,15 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
 
   // Process initial data when received - use useMemo for efficiency
   useMemo(() => {
-    if (!initialData?.activities) return;
+    if (!effectiveData?.activities) return;
     
     setInitialData({
-      activities: initialData.activities,
-      entryDetails: initialData.entryDetails || {},
-      hasMore: initialData.hasMore
+      activities: effectiveData.activities,
+      entryDetails: effectiveData.entryDetails || {},
+      hasMore: effectiveData.hasMore
     });
-    currentSkipRef.current = initialData.activities.length;
-  }, [initialData, setInitialData]);
+    currentSkipRef.current = effectiveData.activities.length;
+  }, [effectiveData, setInitialData]);
 
   // Function to load more activities
   const loadMoreActivities = useCallback(async () => {
@@ -716,18 +719,31 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
       // Get current skip value from ref to ensure it's up-to-date
       const skipValue = currentSkipRef.current;
       
-      // Use the public API route to fetch the next page for this specific user  
-      const result = await fetch('/api/likes', {
+      // Determine endpoint and body based on whether we're in search mode
+      const isSearchMode = searchQuery && searchData;
+      const endpoint = isSearchMode ? '/api/profile/likes/search' : '/api/likes';
+      const requestBody = isSearchMode 
+        ? {
+            userId,
+            currentUserId,
+            query: searchQuery,
+            skip: skipValue,
+            limit: pageSize
+          }
+        : {
+            userId,
+            currentUserId,
+            skip: skipValue,
+            limit: pageSize
+          };
+      
+      // Use the appropriate API route to fetch the next page
+      const result = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId,
-          currentUserId,
-          skip: skipValue,
-          limit: pageSize
-        })
+        body: JSON.stringify(requestBody)
       });
       
       if (!result.ok) {
@@ -756,7 +772,7 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     } catch (error) {
       loadMoreFailure();
     }
-  }, [userId, currentUserId, pageSize, state.isLoading, state.hasMore, startLoadingMore, loadMoreSuccess, loadMoreFailure]);
+  }, [userId, currentUserId, pageSize, state.isLoading, state.hasMore, startLoadingMore, loadMoreSuccess, loadMoreFailure, searchQuery, searchData]);
   
   // Callback to open the comment drawer for a given entry
   const handleOpenCommentDrawer = useCallback((entryGuid: string, feedUrl: string, initialData?: { count: number }) => {
@@ -801,24 +817,24 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     return () => clearTimeout(timer);
   }, [state.activities.length, state.hasMore, state.isLoading, loadMoreActivities]);
 
-  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
+  // Get entry GUIDs for batch metrics query - FIXED: Extract from stable effective data only
   const entryGuids = useMemo(() => {
-    if (!initialData?.entryMetrics) return [];
+    if (!effectiveData?.entryMetrics) return [];
     
-    // Extract GUIDs from initial server data keys
-    return Object.keys(initialData.entryMetrics);
-  }, [initialData?.entryMetrics]); // Only depend on stable server data
+    // Extract GUIDs from effective server data keys
+    return Object.keys(effectiveData.entryMetrics);
+  }, [effectiveData?.entryMetrics]); // Only depend on stable server data
   
-  // Extract initial metrics from initial data for server-side rendering optimization
+  // Extract initial metrics from effective data for server-side rendering optimization
   const initialMetrics = useMemo(() => {
     const metrics: Record<string, any> = {};
-    if (initialData?.entryMetrics) {
-      Object.entries(initialData.entryMetrics).forEach(([guid, entryMetrics]) => {
+    if (effectiveData?.entryMetrics) {
+      Object.entries(effectiveData.entryMetrics).forEach(([guid, entryMetrics]) => {
         metrics[guid] = entryMetrics;
       });
     }
     return metrics;
-  }, [initialData?.entryMetrics]);
+  }, [effectiveData?.entryMetrics]);
 
   // Use batch metrics hook with initial server metrics to prevent button flashing
   // Server provides initial metrics for fast rendering, client hook provides reactive updates
@@ -943,10 +959,10 @@ UserLikesFeedComponent.displayName = 'UserLikesFeedComponent';
  * Client component that displays a user's likes feed with virtualization and pagination
  * Initial data is fetched on the server, and additional data is loaded as needed
  */
-export function UserLikesFeed({ userId, username, initialData, pageSize = 30, isActive = true }: UserLikesFeedProps) {
+export function UserLikesFeed({ userId, username, initialData, pageSize = 30, isActive = true, searchData = null, searchQuery = "" }: UserLikesFeedProps) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <UserLikesFeedComponent {...{ userId, username, initialData, pageSize, isActive }} />
+      <UserLikesFeedComponent {...{ userId, username, initialData, pageSize, isActive, searchData, searchQuery }} />
     </ErrorBoundary>
   );
 } 

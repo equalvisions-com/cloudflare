@@ -12,6 +12,9 @@ interface UseActivityLoadingProps {
   initialEntryDetails: Record<string, ActivityFeedEntryDetails>;
   initialHasMore: boolean;
   initialCommentLikes?: Record<string, { commentId: string; isLiked: boolean; count: number; }>;
+  // Search-related props
+  searchQuery?: string;
+  searchData?: any;
   // State values passed from parent component
   activities: any[]; // Complex transformation - keeping as any for now  
   entryDetails: Record<string, ActivityFeedEntryDetails>;
@@ -48,6 +51,9 @@ export function useActivityLoading({
   initialEntryDetails,
   initialHasMore,
   initialCommentLikes,
+  // Search-related props
+  searchQuery,
+  searchData,
   // State values from parent
     activities,
     entryDetails,
@@ -125,18 +131,31 @@ export function useActivityLoading({
     startLoadingMore();
 
     try {
-      // Use the API route to fetch the next page
-      const result = await fetch(apiEndpoint, {
+      // Determine endpoint and body based on whether we're in search mode
+      const isSearchMode = searchQuery && searchData;
+      const endpoint = isSearchMode ? '/api/profile/activity/search' : apiEndpoint;
+      const requestBody = isSearchMode 
+        ? {
+            userId,
+            currentUserId,
+            query: searchQuery,
+            skip: currentSkipValue,
+            limit: pageSize
+          }
+        : {
+            userId,
+            currentUserId,
+            skip: currentSkipValue,
+            limit: pageSize
+          };
+
+      // Use the appropriate API route to fetch the next page
+      const result = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId,
-          currentUserId,
-          skip: currentSkipValue,
-          limit: pageSize
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!result.ok) {
@@ -164,7 +183,7 @@ export function useActivityLoading({
     } catch (error) {
       loadMoreError('Failed to load more activities');
     }
-  }, [isActive, apiEndpoint, pageSize, userId, currentUserId, startLoadingMore, loadMoreSuccess, loadMoreError]);
+  }, [isActive, apiEndpoint, pageSize, userId, currentUserId, startLoadingMore, loadMoreSuccess, loadMoreError, searchQuery, searchData]);
 
   // Use the shared delayed intersection observer hook
   useDelayedIntersectionObserver(loadMoreRef, loadMoreActivities, {
