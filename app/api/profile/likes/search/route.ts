@@ -195,7 +195,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (matchingGuids.length > 0) {
         const metrics = await fetchQuery(api.entries.batchGetEntriesMetrics, { 
           entryGuids: matchingGuids,
-          userId: effectiveCurrentUserId
+          includeCommentLikes: true
         });
         
         // Create interaction states map
