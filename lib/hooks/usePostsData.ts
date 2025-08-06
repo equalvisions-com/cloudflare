@@ -121,7 +121,6 @@ export const usePostsData = ({
       
       if (newPosts !== undefined) {
         const processedPosts = processNewPosts(newPosts);
-        console.log('[usePostsData] Setting search posts:', processedPosts.length, 'results for query:', searchQuery);
         setPosts(processedPosts);
         setNextCursor(newNextCursor || undefined);
         setHasMore(newHasMore ?? false);
@@ -155,7 +154,6 @@ export const usePostsData = ({
       if (isDifferentSearch) {
         previousSearchQueryRef.current = searchQuery;
         // Only reset isInitialLoad for truly different searches
-        console.log('[usePostsData] Resetting isInitialLoad for new search:', searchQuery);
         setIsInitialLoad(true);
         setHasMore(true);
         setNextCursor(undefined);

@@ -209,10 +209,7 @@ const CategorySwipeableWrapperComponent = ({
         {/* Search input with user menu */}
         <form 
           role="search"
-          onSubmit={(e) => {
-            console.log('[CategorySwipeableWrapper] Form submitted');
-            handleSearchSubmit(e);
-          }}
+          onSubmit={handleSearchSubmit}
           className="pt-2 px-4 sm:pt-2 md:pt-4 pb-2 mb-1 flex items-start gap-3.5"
         >
           {/* User Menu on mobile */}
@@ -306,17 +303,7 @@ const CategorySwipeableWrapperComponent = ({
                 const hasResults = searchResults?.posts && searchResults.posts.length > 0;
                 const hasEmptyResults = searchResults?.posts && searchResults.posts.length === 0;
                 
-                console.log('[CategorySwipeableWrapper] Rendering decision:', {
-                  isLoading,
-                  hasResults,
-                  hasEmptyResults,
-                  searchQuery: state.searchQuery,
-                  searchResultsExists: !!searchResults,
-                  postsCount: searchResults?.posts?.length
-                });
-                
                 if (isLoading) {
-                  console.log('[CategorySwipeableWrapper] Showing skeleton');
                   return <PostsDisplaySkeleton count={5} />;
                 }
                 
