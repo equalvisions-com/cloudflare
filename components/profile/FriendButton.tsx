@@ -37,12 +37,18 @@ interface FriendButtonProps {
 }
 
 const FriendButtonComponent = ({ username, userId, profileData, initialFriendshipStatus, className }: FriendButtonProps) => {
-  // Use sidebar context to eliminate duplicate users:viewer query
-  const { isAuthenticated, isLoading: isAuthLoading } = useSidebar();
+  // Use sidebar context to get current viewer info and auth state
+  const { 
+    isAuthenticated, 
+    isLoading: isAuthLoading,
+    username: viewerUsername,
+    userId: viewerId,
+    displayName: viewerName
+  } = useSidebar();
+  
   const [currentStatus, setCurrentStatus] = useState<FriendshipStatus | null>(initialFriendshipStatus || null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const { pendingFriendRequestCount } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -60,23 +66,26 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
     };
   }, []);
 
-  // Only fetch viewer if authenticated and we need it
-  // Use sidebar context instead of individual users.viewer query to eliminate duplicate
-  const { userId: viewerId, displayName: viewerName, username: viewerUsername } = useSidebar();
+  // Smart profile detection: Compare usernames to detect own profile
+  const isOwnProfile = isAuthenticated && viewerUsername === username;
   const user = viewerId ? { _id: viewerId, name: viewerName, username: viewerUsername } : null;
 
-  // Only fetch friendship status if not provided from server and user is authenticated
-  const shouldFetchStatus = isAuthenticated && !initialFriendshipStatus;
+  // Only fetch friendship status if:
+  // 1. Not viewing own profile
+  // 2. User is authenticated
+  // 3. Server didn't provide initial status
+  const shouldFetchStatus = isAuthenticated && !isOwnProfile && !initialFriendshipStatus;
   const friendshipStatus = useQuery(
     api.friends.getFriendshipStatusByUsername, 
     shouldFetchStatus ? { username } : "skip"
   );
   
-  // Track if query is loading
+  // Track if query is loading - only when we're actually fetching
   const isFriendshipLoading = friendshipStatus === undefined && shouldFetchStatus;
 
-  // Determine if component is in any loading state
-  const isLoading = isActionLoading || isFriendshipLoading || isAuthLoading;
+  // Smart loading logic: Only show loading when actually fetching data
+  // Don't depend on auth loading when we have server data or can detect own profile
+  const isLoading = isActionLoading || isFriendshipLoading;
 
   // Mutations for friend actions
   const sendRequest = useMutation(api.friends.sendFriendRequest);
@@ -219,8 +228,8 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
     router.push("/signin");
   }, [router]);
 
-  // Show edit profile button on own profile
-  if (currentStatus?.status === "self" && isAuthenticated) {
+  // Show edit profile button on own profile - use smart detection instead of status
+  if (isOwnProfile) {
     return (
       <>
         <Button 
@@ -247,7 +256,7 @@ const FriendButtonComponent = ({ username, userId, profileData, initialFriendshi
     );
   }
 
-  // Loading state
+  // Loading state - only show when we're actually fetching data and don't have initial state
   if (isLoading) {
     return (
       <Button variant="ghost" size="sm" disabled className={cn("h-9 font-semibold text-sm px-4 py-2 rounded-lg shadow-none border !opacity-100 text-muted-foreground", className)}>

@@ -344,12 +344,13 @@ export const getProfilePageData = query({
   handler: async (ctx, args) => {
     const { username, limit = 10 } = args;
 
-    // Get current authenticated user (optional)
+    // Get current authenticated user (works with token from Next.js)
     let currentUserId = null;
     try {
       currentUserId = await getAuthUserId(ctx);
     } catch (e) {
       // Not authenticated, continue as guest
+      // This is expected when no auth token is provided from server
     }
 
     // Get the user's profile by username

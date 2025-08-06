@@ -3,6 +3,7 @@ import { fetchQuery } from "convex/nextjs";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { convexAuthNextjsToken, isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import { ProfileLayoutManager } from "@/components/profile/ProfileLayoutManager";
 import { ProfileActivityData } from "@/components/profile/ProfileActivityData";
 import { ProfileContentClient } from "@/components/profile/ProfileContentClient";
@@ -32,7 +33,7 @@ const normalizeUsername = (username: string): string => {
   return decodeURIComponent(username).replace(/^@/, '').toLowerCase();
 };
 
-// Use the optimized batch query for profile data
+// Use the optimized batch query for profile data with auth context
 const getProfilePageData = cache(async (username?: string): Promise<ProfilePageData | null> => {
   try {
     if (!username) {
@@ -41,11 +42,19 @@ const getProfilePageData = cache(async (username?: string): Promise<ProfilePageD
     
     const normalizedUsername = normalizeUsername(username);
     
-    // Use the new optimized batch query
-    const profileData = await fetchQuery(api.users.getProfilePageData, { 
-      username: normalizedUsername,
-      limit: 30
-    }) as unknown as ProfilePageData; // Proper type assertion through unknown
+    // Get auth state first like follow buttons do
+    const isAuthenticated = await isAuthenticatedNextjs();
+    const token = isAuthenticated ? await convexAuthNextjsToken().catch(() => undefined) : undefined;
+    
+    // Use the new optimized batch query with auth context
+    const profileData = await fetchQuery(
+      api.users.getProfilePageData, 
+      { 
+        username: normalizedUsername,
+        limit: 30
+      },
+      token ? { token } : undefined // Pass auth token for proper server-side auth context
+    ) as unknown as ProfilePageData; // Proper type assertion through unknown
     
     // Ensure the profile has the required _id field
     if (profileData && profileData.profile) {
