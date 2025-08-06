@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('query');
     const mediaType = searchParams.get('mediaType');
+    const feedUrl = searchParams.get('feedUrl'); // Optional: filter by specific feed
     const page = parseInt(searchParams.get('page') || '1');
     // Get pageSize from query params and parse as integer, default to DEFAULT_ENTRIES_PER_PAGE
     const pageSize = parseInt(searchParams.get('pageSize') || String(DEFAULT_ENTRIES_PER_PAGE));
@@ -49,22 +50,29 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * pageSize;
 
     // Get the entries with feed data from PlanetScale using read replica
-    const entries = await executeRead(
-      `SELECT e.*, f.title as feed_title, f.feed_url
+    // Build query and parameters based on whether feedUrl is provided
+    let sqlQuery = `SELECT e.*, f.title as feed_title, f.feed_url
        FROM rss_entries e
        JOIN rss_feeds f ON e.feed_id = f.id
        WHERE f.media_type = ?
-       AND (e.title LIKE ? OR e.description LIKE ?)
-       ORDER BY e.pub_date DESC
-       LIMIT ? OFFSET ?`,
-      [
-        mediaType,
-        `%${query}%`,
-        `%${query}%`,
-        pageSize + 1, // Get one extra to check if there are more
-        offset,
-      ]
-    );
+       AND (e.title LIKE ? OR e.description LIKE ?)`;
+    
+    let queryParams = [
+      mediaType,
+      `%${query}%`,
+      `%${query}%`
+    ];
+
+    // Add feedUrl filter if provided (for profile-specific search)
+    if (feedUrl) {
+      sqlQuery += ` AND f.feed_url = ?`;
+      queryParams.push(feedUrl);
+    }
+
+    sqlQuery += ` ORDER BY e.pub_date DESC LIMIT ? OFFSET ?`;
+    queryParams.push(pageSize + 1 as any, offset as any); // Get one extra to check if there are more
+
+    const entries = await executeRead(sqlQuery, queryParams);
 
     // Cast the rows to the proper type
     const entryRows = entries.rows as RSSEntryRow[];

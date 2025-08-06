@@ -50,7 +50,7 @@ export const useSearchResults = ({
     setCurrentPage(1);
     
     try {
-      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&page=1&pageSize=30`;
+      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&feedUrl=${encodeURIComponent(feedUrl)}&page=1&pageSize=30`;
       
       const result = await fetch(apiUrl, {
         method: 'GET',
@@ -119,7 +119,7 @@ export const useSearchResults = ({
     const nextPage = currentPageValue + 1;
     
     try {
-      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&page=${nextPage}&pageSize=30`;
+      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&feedUrl=${encodeURIComponent(feedUrl)}&page=${nextPage}&pageSize=30`;
       
       const result = await fetch(apiUrl, {
         method: 'GET',
