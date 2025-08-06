@@ -50,22 +50,13 @@ export const useSearchResults = ({
     setCurrentPage(1);
     
     try {
-      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}`;
-      
-      const requestBody = {
-        feedUrl,
-        q: searchQuery,
-        page: 1,
-        pageSize: 30,
-        ...(mediaType && { mediaType })
-      };
+      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&page=1&pageSize=30`;
       
       const result = await fetch(apiUrl, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
+        }
       });
       
       if (!result.ok) {
@@ -107,23 +98,13 @@ export const useSearchResults = ({
     const nextPage = currentPageValue + 1;
     
     try {
-      const apiUrl = `/api/rss/${encodeURIComponent(postTitle)}`;
-      
-      const requestBody = {
-        feedUrl,
-        q: searchQuery,
-        page: nextPage,
-        pageSize: 30,
-        totalEntries: currentSearchData.totalEntries,
-        ...(mediaType && { mediaType })
-      };
+      const apiUrl = `/api/search/entries?query=${encodeURIComponent(searchQuery)}&mediaType=${encodeURIComponent(mediaType || 'newsletter')}&page=${nextPage}&pageSize=30`;
       
       const result = await fetch(apiUrl, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
+        }
       });
       
       if (!result.ok) {
