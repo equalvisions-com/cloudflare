@@ -16,6 +16,7 @@ import {
   LikesTabContentProps
 } from "@/lib/types";
 import { useProfileSearchContext } from "@/lib/contexts/ProfileSearchContext";
+import { useSidebar } from '@/components/ui/sidebar-context';
 
 // Dynamically import components with proper loading states
 const DynamicUserActivityFeed = dynamic<UserActivityFeedProps>(
@@ -211,6 +212,9 @@ function UserProfileTabsInternal({
   likesData: initialLikesData, 
   pageSize = 30 
 }: UserProfileTabsProps) {
+  // Get current user ID from sidebar context
+  const { userId: currentUserId } = useSidebar();
+  
   // Get search context
   const { searchResults, searchQuery, setActiveTab, isSearching } = useProfileSearchContext();
   

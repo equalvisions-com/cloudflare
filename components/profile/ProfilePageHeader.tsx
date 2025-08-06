@@ -131,7 +131,7 @@ const ProfilePageHeaderComponent = () => {
   let handleSearch = async (query: string) => {};
   let handleClearSearch = () => {};
   let isSearching = false;
-  let activeTab = "activity" as const;
+  let activeTab: "activity" | "likes" = "activity";
   let hasSearchContext = false;
 
   try {

@@ -776,6 +776,9 @@ export interface UserActivityFeedProps {
   pageSize: number;
   apiEndpoint: string;
   isActive?: boolean;
+  // Search support
+  searchData?: ProfileFeedData | null;
+  searchQuery?: string;
 }
 
 export interface UserLikesFeedProps {
