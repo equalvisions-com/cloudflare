@@ -403,6 +403,13 @@ export const getProfilePageData = query({
             direction: isSender ? "sent" : "received",
             id: friendship._id
           };
+        } else {
+          // No friendship exists - explicitly set this so client knows not to fetch
+          friendshipStatus = {
+            status: null,
+            direction: null,
+            id: null
+          };
         }
       } else {
         // Viewing own profile

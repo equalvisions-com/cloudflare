@@ -93,14 +93,16 @@ const getTransformedProfileData = (profileData: ProfilePageData, username: strin
   const displayName = profileData.profile.name || normalizedUsername;
   
   // Transform friendship status
+  // Server always provides status when authenticated (even null status for no friendship)
+  // Only null when no auth context (guest users)
   const friendshipStatus: FriendshipStatus | null = profileData.friendshipStatus 
     ? {
-        exists: true,
+        exists: profileData.friendshipStatus.status !== "self" && profileData.friendshipStatus.status !== null,
         status: profileData.friendshipStatus.status,
         direction: profileData.friendshipStatus.direction || null,
         friendshipId: profileData.friendshipStatus.id || null
       }
-    : null;
+    : null; // Only null when server has no auth context (guest users)
 
   // Transform initial friends data with proper types
   const initialFriends: ProfileSocialData = {
