@@ -70,23 +70,15 @@ const getProfilePageData = cache(async (username?: string): Promise<ProfilePageD
   }
 });
 
-// Legacy function for backward compatibility with metadata generation
-const getProfileByUsername = cache(async (username?: string) => {
+// Helper function for metadata generation - extracts profile from full page data
+const getProfileForMetadata = cache(async (username?: string) => {
   try {
     if (!username) {
       return null;
     }
     
-    // Use the new optimized function first 
     const profileData = await getProfilePageData(username);
-    if (profileData) {
-      return profileData.profile;
-    }
-    
-    // Fall back to the old method if needed
-    const normalizedUsername = normalizeUsername(username);
-    const profile = await fetchQuery(api.users.getProfileByUsername, { username: normalizedUsername });
-    return profile;
+    return profileData?.profile || null;
   } catch (error) {
     return null;
   }
@@ -210,7 +202,7 @@ const generateProfileMetadata = cache(async (username: string): Promise<Metadata
   }
   
   const normalizedUsername = normalizeUsername(username);
-  const profile = await getProfileByUsername(username);
+  const profile = await getProfileForMetadata(username);
   
   if (!profile) {
     return {
