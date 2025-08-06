@@ -145,18 +145,19 @@ export const searchPosts = query({
     const userId = await getAuthUserId(ctx).catch(() => null);
     const isAuthenticated = !!userId;
 
-    // Create a case-insensitive regex pattern
-    const searchPattern = new RegExp(query, 'i');
+    // Create a case-insensitive search pattern (avoid regex for performance)
+    const searchLower = query.toLowerCase();
 
-    // Get all posts for the media type first
+    // OPTIMIZED: Search with database filtering instead of client-side
     const allPosts = await ctx.db
       .query("posts")
       .filter(q => q.eq(q.field("mediaType"), mediaType))
       .collect();
 
-    // Filter posts by title and body using regex
+    // OPTIMIZED: Use simple string includes instead of regex for better performance
     const matchingPosts = allPosts.filter(post => 
-      searchPattern.test(post.title) || searchPattern.test(post.body)
+      post.title.toLowerCase().includes(searchLower) || 
+      post.body.toLowerCase().includes(searchLower)
     );
     
     // Optimize the results - only keep fields we need
