@@ -47,7 +47,7 @@ const SearchInput = memo(({
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
-        placeholder="Search Bookmarks..."
+        placeholder="."
         className={cn(
           "pl-9 pr-10 h-9 w-full focus-visible:ring-0 rounded-full border shadow-none",
           isSearching && "opacity-75"

@@ -102,12 +102,17 @@ const HeaderNavigation = memo(({
       {hasSearchContext && (
         <Button 
           onClick={onSearchToggle}
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0 hover:bg-muted/60 rounded-full"
+          variant="secondary"
+          size="icon"
+          className={cn(
+            "p-0 shadow-none text-muted-foreground rounded-full",
+            "md:hover:bg-transparent md:bg-transparent md:text-muted-foreground md:hover:text-muted-foreground md:rounded-none md:mr-[-0.5rem]"
+          )}
           aria-label="Search profile"
+          style={{ width: '36px', height: '36px', minHeight: '36px', minWidth: '36px' }}
         >
-          <Search className="h-4 w-4" strokeWidth={2.5} />
+          <Search style={{ width: '18px', height: '18px' }} strokeWidth={2.25} />
+          <span className="sr-only">Search</span>
         </Button>
       )}
     </div>
@@ -238,8 +243,8 @@ const ProfilePageHeaderComponent = () => {
 
   // Dynamic placeholder based on active tab
   const searchPlaceholder = activeTab === 'activity' 
-    ? "Search Activity..." 
-    : "Search Likes...";
+    ? "Search User Activity" 
+    : "Search User Likes";
 
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-border">
