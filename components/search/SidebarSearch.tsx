@@ -241,7 +241,7 @@ const SidebarSearchComponent = ({
             <Input
               ref={inputRef}
               type="text"
-              placeholder="Search..."
+              placeholder="Search"
               className="pl-9 pr-9 rounded-full shadow-none focus:ring-0 focus:ring-offset-0 active:ring-0 active:ring-offset-0 outline-none focus-visible:outline-none focus-visible:ring-0"
               value={query}
               onChange={handleInputChange}

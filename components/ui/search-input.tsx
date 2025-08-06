@@ -16,7 +16,7 @@ export function SearchInput({
   onChange,
   onKeyDown,
   onClear,
-  placeholder = "Search...",
+  placeholder = "Search",
   className,
   ...props
 }: SearchInputProps) {
