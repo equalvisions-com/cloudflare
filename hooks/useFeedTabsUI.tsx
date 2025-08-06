@@ -163,18 +163,16 @@ export const useFeedTabsUI = ({
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
-              key="rss-following-feed" // Stable key to prevent remounting on tab switches
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
-              isActive={activeTabIndex === 1} // Only active when Following tab is selected
             />
           </div>
         );
       }
     }
   ], [
-    // Added activeTabIndex back because we use it in isActive prop
-    activeTabIndex,
+    // REMOVED activeTabIndex to prevent unnecessary re-renders
+    // activeTabIndex is accessed via closure, doesn't need to be in deps
     rssData,
     featuredData,
     rssError,
