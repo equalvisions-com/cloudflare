@@ -245,14 +245,31 @@ const createInitialState = (): RSSEntriesState => ({
 const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RSSEntriesState => {
   switch (action.type) {
     case 'INITIALIZE':
+      // Preserve existing entries if this is a reinitialization (hasInitialized was already true)
+      // This prevents losing dynamically appended entries from refreshes
+      const existingEntries = state.hasInitialized ? state.entries : [];
+      const newEntries = action.payload.entries || [];
+      
+      // If we have existing entries and new entries, merge them intelligently
+      let finalEntries;
+      if (existingEntries.length > 0 && newEntries.length > 0) {
+        // Keep existing entries to preserve appended ones from refreshes
+        // Only use new entries if we have significantly fewer existing entries (data loss scenario)
+        finalEntries = existingEntries.length < newEntries.length * 0.8 ? newEntries : existingEntries;
+      } else {
+        // Use whichever set has entries
+        finalEntries = existingEntries.length > 0 ? existingEntries : newEntries;
+      }
+      
       return {
         ...state,
         ...action.payload,
+        entries: finalEntries, // Use merged/preserved entries
         hasInitialized: true,
-        currentPage: 1,
+        currentPage: state.hasInitialized ? state.currentPage : 1, // Preserve page if reinitializing
         isLoading: false,
         isRefreshing: false,
-        hasRefreshed: false,
+        hasRefreshed: state.hasInitialized ? state.hasRefreshed : false, // Preserve refresh state
         fetchError: null,
         refreshError: null,
       };

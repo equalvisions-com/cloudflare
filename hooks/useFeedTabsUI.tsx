@@ -163,6 +163,7 @@ export const useFeedTabsUI = ({
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
+              key="rss-following-feed" // Stable key to prevent remounting on tab switches
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
             />
