@@ -68,8 +68,29 @@ export const useSearchResults = ({
       
       // Transform the API response to match our expected format
       const transformedData: PostSearchRSSData = {
-        entries: data.entries || [],
-        totalEntries: data.totalEntries || 0,
+        entries: (data.entries || []).map((entry: any) => ({
+          entry: {
+            title: entry.title,
+            link: entry.link,
+            description: entry.description,
+            pubDate: entry.pub_date,
+            guid: entry.guid,
+            image: entry.image
+          },
+          initialData: {
+            likes: { isLiked: false, count: 0 },
+            comments: { count: 0 },
+            retweets: { isRetweeted: false, count: 0 }
+          },
+          postMetadata: {
+            postTitle: entry.post_title || postTitle,
+            feedUrl: entry.feed_url || feedUrl,
+            featuredImg: entry.post_featured_img,
+            mediaType: entry.post_media_type || mediaType,
+            verified: entry.verified || false
+          }
+        })),
+        totalEntries: data.entries?.length || 0,
         hasMore: data.hasMore ?? false
       };
       
@@ -115,8 +136,29 @@ export const useSearchResults = ({
       
       if (data.entries?.length) {
         const newData: PostSearchRSSData = {
-          entries: data.entries,
-          totalEntries: data.totalEntries || currentSearchData.totalEntries,
+          entries: (data.entries || []).map((entry: any) => ({
+            entry: {
+              title: entry.title,
+              link: entry.link,
+              description: entry.description,
+              pubDate: entry.pub_date,
+              guid: entry.guid,
+              image: entry.image
+            },
+            initialData: {
+              likes: { isLiked: false, count: 0 },
+              comments: { count: 0 },
+              retweets: { isRetweeted: false, count: 0 }
+            },
+            postMetadata: {
+              postTitle: entry.post_title || postTitle,
+              feedUrl: entry.feed_url || feedUrl,
+              featuredImg: entry.post_featured_img,
+              mediaType: entry.post_media_type || mediaType,
+              verified: entry.verified || false
+            }
+          })),
+          totalEntries: currentSearchData.totalEntries + data.entries.length,
           hasMore: data.hasMore ?? false
         };
         
