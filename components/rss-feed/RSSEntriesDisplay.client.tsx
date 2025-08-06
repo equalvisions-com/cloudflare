@@ -250,15 +250,24 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       const existingEntries = state.hasInitialized ? state.entries : [];
       const newEntries = action.payload.entries || [];
       
+      console.log('🔄 INITIALIZE action triggered:', {
+        isReinitialization: state.hasInitialized,
+        existingEntriesCount: existingEntries.length,
+        newEntriesCount: newEntries.length,
+        hasRefreshed: state.hasRefreshed
+      });
+      
       // If we have existing entries and new entries, merge them intelligently
       let finalEntries;
       if (existingEntries.length > 0 && newEntries.length > 0) {
         // Keep existing entries to preserve appended ones from refreshes
         // Only use new entries if we have significantly fewer existing entries (data loss scenario)
         finalEntries = existingEntries.length < newEntries.length * 0.8 ? newEntries : existingEntries;
+        console.log('🔄 Using existing entries to preserve refreshed content:', finalEntries.length);
       } else {
         // Use whichever set has entries
         finalEntries = existingEntries.length > 0 ? existingEntries : newEntries;
+        console.log('🔄 Using entries from:', existingEntries.length > 0 ? 'existing state' : 'server data');
       }
       
       return {
