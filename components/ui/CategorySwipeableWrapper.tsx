@@ -229,7 +229,7 @@ const CategorySwipeableWrapperComponent = ({
               onChange={handleSearchChange}
               onKeyDown={handleKeyDown}
               onClear={handleSearchClear}
-              placeholder={`Search ${displayMediaType}...`}
+              placeholder={`Search ${displayMediaType}`}
               aria-label={`Search ${displayMediaType}`}
             />
           </div>

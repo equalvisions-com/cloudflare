@@ -55,7 +55,7 @@ export const usePostSearchHeader = ({
   }, []);
 
   // Memoized search placeholder
-  const searchPlaceholder = useMemo(() => `Search ${title}...`, [title]);
+  const searchPlaceholder = useMemo(() => `Search ${title}`, [title]);
 
   return {
     isSearching,

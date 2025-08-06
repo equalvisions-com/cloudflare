@@ -71,7 +71,7 @@ const SearchForm = memo<{
           onChange={onChange}
           onKeyDown={onKeyDown}
           onClear={onClear}
-              placeholder="Search Users..."
+              placeholder="Search Users"
               className="w-full"
             />
           </div>
