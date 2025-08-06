@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonFeed } from "@/components/ui/skeleton-feed";
-import { Heart, Activity } from "lucide-react";
+import { Heart, Activity, Search } from "lucide-react";
 import { 
   ProfileFeedData, 
   UserProfileTabsProps,
@@ -101,22 +101,41 @@ const ActivityTabContent = React.memo(({
     return <SkeletonFeed count={5} />;
   }
   
-  if (!activityData || !activityData.activities || activityData.activities.length === 0) {
+  // Determine if we're showing search results
+  const isShowingSearchResults = searchQuery && searchData;
+  const dataToCheck = isShowingSearchResults ? searchData : activityData;
+  
+  if (!dataToCheck || !dataToCheck.activities || dataToCheck.activities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-6 px-4">
         {/* Icon cluster */}
         <div className="relative mb-4">
           <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
-            <Activity className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            {isShowingSearchResults ? (
+              <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            ) : (
+              <Activity className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            )}
           </div>
         </div>
 
         {/* Text content */}
         <div className="text-center space-y-1">
-          <h3 className="text-foreground font-medium text-sm">No activity yet</h3>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            User activity will appear here
-          </p>
+          {isShowingSearchResults ? (
+            <>
+              <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Try different keywords for user activity
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-foreground font-medium text-sm">No activity yet</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                User activity will appear here
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -128,7 +147,7 @@ const ActivityTabContent = React.memo(({
       username={username}
       name={name}
       profileImage={profileImage}
-      initialData={activityData}
+      initialData={dataToCheck}
       pageSize={pageSize}
       apiEndpoint={`/api/activity`}
       isActive={isActive}
@@ -165,22 +184,41 @@ const LikesTabContent = React.memo(({
     );
   }
 
-  if (!likesData || likesData.activities.length === 0) {
+  // Determine if we're showing search results
+  const isShowingSearchResults = searchQuery && searchData;
+  const dataToCheck = isShowingSearchResults ? searchData : likesData;
+  
+  if (!dataToCheck || dataToCheck.activities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-6 px-4">
         {/* Icon cluster */}
         <div className="relative mb-4">
           <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
-            <Heart className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            {isShowingSearchResults ? (
+              <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            ) : (
+              <Heart className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+            )}
           </div>
         </div>
 
         {/* Text content */}
         <div className="text-center space-y-1">
-          <h3 className="text-foreground font-medium text-sm">No likes yet</h3>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Liked posts will appear here
-          </p>
+          {isShowingSearchResults ? (
+            <>
+              <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Try different keywords for user likes
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-foreground font-medium text-sm">No likes yet</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Liked posts will appear here
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -192,7 +230,7 @@ const LikesTabContent = React.memo(({
     <DynamicUserLikesFeed
       userId={userId}
       username={username}
-      initialData={likesData}
+      initialData={dataToCheck}
       pageSize={pageSize}
       isActive={isActive}
       searchData={searchData}

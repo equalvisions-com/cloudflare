@@ -7,14 +7,23 @@ import { useBookmarksContext } from "./BookmarksContext";
 import { BookmarksData } from "@/lib/types";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BookmarksFeed } from "@/components/bookmarks/BookmarksFeed";
+import { Search } from "lucide-react";
 
 // Memoized empty state component for better performance
 const EmptySearchState = memo(({ searchQuery }: { searchQuery: string }) => (
-  <div className="flex-1 p-6 text-center">
-    <div className="p-8 border border-gray-200 rounded-lg">
-      <h2 className="text-xl font-semibold mb-2">No results found</h2>
-      <p className="text-gray-500">
-        No bookmarks match your search for &quot;{searchQuery}&quot;
+  <div className="flex flex-col items-center justify-center py-6 px-4">
+    {/* Icon cluster */}
+    <div className="relative mb-4">
+      <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+        <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+      </div>
+    </div>
+
+    {/* Text content */}
+    <div className="text-center space-y-1">
+      <h3 className="text-foreground font-medium text-sm">No results found</h3>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        No bookmarks match your search
       </p>
     </div>
   </div>

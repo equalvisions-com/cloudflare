@@ -263,7 +263,7 @@ export const VirtualizedFollowerItem = memo<VirtualizedFollowerItemProps>((props
     >
       {/* Left side - Profile info */}
       <Link
-        href={`/profile/${computedValues.username}`}
+        href={`/@${computedValues.username}`}
         className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none p-1 -m-1"
         aria-label={`View ${computedValues.displayName}'s profile`}
         prefetch={false}

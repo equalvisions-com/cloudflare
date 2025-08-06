@@ -5,7 +5,7 @@ import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { SimpleFriendButton } from '@/components/ui/SimpleFriendButton';
@@ -25,12 +25,23 @@ const NoUsersState = memo<{
   searchQuery?: string;
   className?: string;
 }>(({ searchQuery, className }) => (
-  <div className={cn("py-8 text-center", className)}>
-    <p className="text-muted-foreground text-sm">
-      {searchQuery 
-        ? `No people found matching "${searchQuery}"`
-        : `No people found`}
-    </p>
+  <div className={cn("flex flex-col items-center justify-center py-6 px-4", className)}>
+    {/* Icon cluster */}
+    <div className="relative mb-4">
+      <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+        <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+      </div>
+    </div>
+
+    {/* Text content */}
+    <div className="text-center space-y-1">
+      <h3 className="text-foreground font-medium text-sm">No people found</h3>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        {searchQuery 
+          ? "No people found"
+          : "Try searching for people to connect with"}
+      </p>
+    </div>
   </div>
 ));
 
