@@ -32,22 +32,8 @@ const DynamicPostsDisplay = dynamic<PostsDisplayProps>(
 
 // Create a wrapper component for PostsDisplay
 const PostsDisplay = (props: PostsDisplayProps) => {
-  const hasSearched = props.searchQuery && props.searchQuery.length > 0;
-  
-  if (!props.initialPosts?.length) {
-    if (hasSearched) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <p className="text-muted-foreground mb-2">No matches found</p>
-          <p className="text-sm text-muted-foreground">
-            Try different keywords or browse categories
-          </p>
-        </div>
-      );
-    }
-    return <PostsDisplaySkeleton count={10} />;
-  }
-  
+  // Don't use this wrapper logic for search results - let the main conditional rendering handle it
+  // This wrapper was causing the premature "No matches found" display during search loading
   return <DynamicPostsDisplay {...props} />;
 };
 
@@ -223,7 +209,10 @@ const CategorySwipeableWrapperComponent = ({
         {/* Search input with user menu */}
         <form 
           role="search"
-          onSubmit={handleSearchSubmit} 
+          onSubmit={(e) => {
+            console.log('[CategorySwipeableWrapper] Form submitted');
+            handleSearchSubmit(e);
+          }}
           className="pt-2 px-4 sm:pt-2 md:pt-4 pb-2 mb-1 flex items-start gap-3.5"
         >
           {/* User Menu on mobile */}
@@ -278,15 +267,14 @@ const CategorySwipeableWrapperComponent = ({
             willChange: 'transform',
             WebkitPerspective: '1000',
             WebkitBackfaceVisibility: 'hidden',
-            touchAction: 'pan-y pinch-zoom',
-            minHeight: !state.searchContentLoaded ? '400px' : undefined
+            touchAction: 'pan-y pinch-zoom'
           }}
         >
           <div className="flex items-start"
             style={{
               minHeight: tabHeightsRef.current[`search-${state.searchTab}`] 
                 ? `${tabHeightsRef.current[`search-${state.searchTab}`]}px` 
-                : !state.searchContentLoaded ? '400px' : undefined,
+                : undefined,
               willChange: 'transform',
               transition: state.isMobile ? `transform 20ms linear` : 'none'
             }}
@@ -309,41 +297,64 @@ const CategorySwipeableWrapperComponent = ({
                 transition: 'opacity 0s',
                 pointerEvents: state.searchTab === 'posts' ? 'auto' : 'none',
                 touchAction: 'pan-y',
-                minHeight: !state.searchContentLoaded ? '400px' : undefined
+                minHeight: undefined
               }}
             >
-              {state.isSearchLoading || (state.searchTab === 'posts' && searchResults === undefined) ? (
-                <PostsDisplaySkeleton count={5} />
-              ) : searchResults && searchResults.posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-6 px-4">
-                  {/* Icon cluster */}
-                  <div className="relative mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
-                      <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
-                    </div>
-                  </div>
+              {(() => {
+                // Simplified conditional rendering logic
+                const isLoading = state.isSearchLoading || searchResults === undefined;
+                const hasResults = searchResults?.posts && searchResults.posts.length > 0;
+                const hasEmptyResults = searchResults?.posts && searchResults.posts.length === 0;
+                
+                console.log('[CategorySwipeableWrapper] Rendering decision:', {
+                  isLoading,
+                  hasResults,
+                  hasEmptyResults,
+                  searchQuery: state.searchQuery,
+                  searchResultsExists: !!searchResults,
+                  postsCount: searchResults?.posts?.length
+                });
+                
+                if (isLoading) {
+                  console.log('[CategorySwipeableWrapper] Showing skeleton');
+                  return <PostsDisplaySkeleton count={5} />;
+                }
+                
+                if (hasEmptyResults) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-6 px-4">
+                      {/* Icon cluster */}
+                      <div className="relative mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-muted to-muted/60 rounded-2xl flex items-center justify-center border border-border shadow-lg">
+                          <Search className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+                        </div>
+                      </div>
 
-                  {/* Text content */}
-                  <div className="text-center space-y-1">
-                    <h3 className="text-foreground font-medium text-sm">No matches found</h3>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      Try different keywords or browse categories
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <Suspense fallback={<PostsDisplaySkeleton count={5} />}>
-                <PostsDisplay
-                  categoryId=""
-                  mediaType={mediaType}
-                  initialPosts={searchResults?.posts || []}
-                  className=""
-                    searchQuery={state.searchQuery}
-                    isVisible={state.searchTab === 'posts'}
-                  key={`posts-search-${mediaType}`}
-                />
-                </Suspense>
-              )}
+                      {/* Text content */}
+                      <div className="text-center space-y-1">
+                        <h3 className="text-foreground font-medium text-sm">No matches found</h3>
+                        <p className="text-muted-foreground text-xs leading-relaxed">
+                          Try different keywords or browse categories
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <Suspense fallback={<PostsDisplaySkeleton count={5} />}>
+                    <PostsDisplay
+                      categoryId=""
+                      mediaType={mediaType}
+                      initialPosts={searchResults?.posts || []}
+                      className=""
+                      searchQuery={state.searchQuery}
+                      isVisible={state.searchTab === 'posts'}
+                      key={`posts-search-${mediaType}`}
+                    />
+                  </Suspense>
+                );
+              })()}
             </div>
             
             {/* Entries Search Tab */}
@@ -364,7 +375,7 @@ const CategorySwipeableWrapperComponent = ({
                 transition: 'opacity 0s',
                 pointerEvents: state.searchTab === 'entries' ? 'auto' : 'none',
                 touchAction: 'pan-y',
-                minHeight: !state.searchContentLoaded ? '400px' : undefined
+                minHeight: undefined
               }}
             >
               <Suspense fallback={<SkeletonFeed count={5} />}>

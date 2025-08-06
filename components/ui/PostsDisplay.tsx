@@ -80,6 +80,12 @@ const PostsDisplayComponent = ({
   isVisible = true,
   globalFollowStates,
 }: PostsDisplayProps) => {
+  console.log('[PostsDisplay] Props received:', {
+    searchQuery,
+    initialPostsCount: initialPosts.length,
+    isVisible,
+    categoryId
+  });
   // Use custom hook for all data management
   const {
     posts,

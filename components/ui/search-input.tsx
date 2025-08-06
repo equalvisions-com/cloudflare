@@ -21,6 +21,8 @@ export function SearchInput({
   ...props
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  console.log('[SearchInput] Rendered with value:', value);
 
   return (
     <div className="relative">

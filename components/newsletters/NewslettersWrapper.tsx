@@ -11,6 +11,7 @@ interface NewslettersWrapperProps {
 }
 
 export const NewslettersWrapper = memo<NewslettersWrapperProps>(({ initialItems }) => {
+  console.log('🔴 NewslettersWrapper rendered');
   const { items, isLoading, error, announceMessage } = useNewslettersStore();
   const { initializeNewsletters, resetNewsletters } = useNewslettersActions();
 

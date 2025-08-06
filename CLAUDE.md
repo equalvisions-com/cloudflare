@@ -85,3 +85,32 @@ The application uses Cloudflare Queues for processing RSS feeds:
 - `batch-status-durable-object.ts` - Durable objects for batch status tracking
 
 Always run `npm run lint` after making changes to ensure code quality.
+
+## Architecture Principles (from Cursor Rules)
+
+### Edge Runtime & Deployment
+- React + Next.js 15 deployed on Cloudflare Pages via @cloudflare/next-on-pages
+- Edge runtime for all API routes and server components
+- Cloudflare ecosystem: Queues, Workers, Images, Hyperdrive, Axiom logs
+- Always verify edge runtime compatibility before implementation
+
+### Code Quality Standards
+- TypeScript strict mode enabled
+- Use centralized types from types files
+- Avoid 'any' type - use proper typing
+- Prefer async/await over promises
+- Use proper error handling patterns
+
+### Development Philosophy
+- Never over-engineer solutions - prefer simple, direct implementations
+- Scale-first mindset for 100k concurrent users
+- Always apply logical decision-making to code choices
+- Implement proper error boundaries for resilient UX
+- Optimize with React.memo, useMemo, useCallback only when needed
+- Only use useEffect where deemed appropriate by React best practices
+
+### Database Strategy
+- Convex for real-time, collaborative features and auth
+- PlanetScale via Hyperdrive for high-volume RSS data
+- Use proper indexing and query optimization
+- Use Hyperdrive for database connection pooling

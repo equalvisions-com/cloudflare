@@ -162,6 +162,7 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
 
   // Handle search input change
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[useCategorySwipeable] Search input changed:', e.target.value);
     updateState({ pendingSearchQuery: e.target.value });
   }, [updateState]);
 
@@ -174,22 +175,14 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
     }
     
     if (state.pendingSearchQuery !== state.searchQuery) {
+      console.log('[useCategorySwipeable] Search submitted:', state.pendingSearchQuery);
       updateState({ 
-        isTransitioning: true, 
-        isSearchLoading: true 
+        isSearchLoading: true,
+        searchQuery: state.pendingSearchQuery,
+        selectedCategoryId: state.pendingSearchQuery ? '' : 'featured',
+        searchTab: state.pendingSearchQuery ? state.searchTab : 'posts',
+        searchContentLoaded: false
       });
-      
-      setTimeout(() => {
-        updateState({
-          searchQuery: state.pendingSearchQuery,
-          selectedCategoryId: state.pendingSearchQuery ? '' : 'featured',
-          searchTab: state.pendingSearchQuery ? state.searchTab : 'posts'
-        });
-        
-        setTimeout(() => {
-          updateState({ isTransitioning: false });
-        }, 100);
-      }, 50);
     }
   }, [state.pendingSearchQuery, state.searchQuery, state.searchTab, updateState]);
 
@@ -198,20 +191,11 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
     if (state.pendingSearchQuery || state.searchQuery) {
       updateState({ 
         pendingSearchQuery: '',
-        isTransitioning: true 
+        searchQuery: '',
+        selectedCategoryId: 'featured',
+        searchTab: 'posts',
+        searchContentLoaded: false
       });
-      
-      setTimeout(() => {
-        updateState({
-          searchQuery: '',
-          selectedCategoryId: 'featured',
-          searchTab: 'posts'
-        });
-        
-        setTimeout(() => {
-          updateState({ isTransitioning: false });
-        }, 100);
-      }, 50);
     }
   }, [state.pendingSearchQuery, state.searchQuery, updateState]);
 
@@ -300,6 +284,7 @@ export const useCategorySwipeable = ({ mediaType }: UseCategorySwipeableProps) =
   // Turn off loading state when search results arrive
   useEffect(() => {
     if (state.searchQuery && searchResults !== undefined) {
+      console.log('[useCategorySwipeable] Search results arrived:', searchResults.posts?.length, 'results for query:', state.searchQuery);
       updateState({ isSearchLoading: false, searchContentLoaded: true });
     }
     if (!state.searchQuery) {

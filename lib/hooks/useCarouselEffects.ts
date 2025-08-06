@@ -393,22 +393,19 @@ export const useCarouselEffects = ({
     };
   }, [emblaApi, searchEmblaApi, state.searchQuery, allCategories, state.searchTab, slideRefs, searchSlideRefs, tabHeightsRef]);
 
-  // Handle search state changes
+  // Handle search carousel reinitialization only
   useEffect(() => {
-    updateState({ searchContentLoaded: false });
-    
-    const timer = setTimeout(() => {
-      updateState({ searchContentLoaded: true });
-      
-      if (searchEmblaApi) {
+    if (searchEmblaApi && state.searchQuery) {
+      // Only reinitialize the search carousel, don't manage searchContentLoaded
+      const timer = setTimeout(() => {
         searchEmblaApi.reInit();
-      }
-    }, 300);
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [state.searchQuery, searchEmblaApi, updateState]);
+      }, 100); // Reduced delay
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+  }, [state.searchQuery, searchEmblaApi]);
 
   // DOM mutation observer for search content
   useEffect(() => {

@@ -119,11 +119,14 @@ export const usePostsData = ({
     if (shouldMakeIndividualQuery && postsResult && !shouldLoadMore) {
       const { posts: newPosts, nextCursor: newNextCursor, hasMore: newHasMore } = postsResult;
       
-      if (newPosts) {
+      if (newPosts !== undefined) {
         const processedPosts = processNewPosts(newPosts);
+        console.log('[usePostsData] Setting search posts:', processedPosts.length, 'results for query:', searchQuery);
         setPosts(processedPosts);
         setNextCursor(newNextCursor || undefined);
         setHasMore(newHasMore ?? false);
+        // Always set isInitialLoad to false once we have query results,
+        // whether they're empty or not (for genuine empty search results)
         setIsInitialLoad(false);
       }
     } 
@@ -137,18 +140,27 @@ export const usePostsData = ({
       setNextCursor(undefined); // Will be set when we need to load more
       setIsInitialLoad(false);
     }
-  }, [isVisible, shouldMakeIndividualQuery, postsResult, initialPosts, shouldLoadMore, processNewPosts]);
+  }, [isVisible, shouldMakeIndividualQuery, postsResult, initialPosts, shouldLoadMore, processNewPosts, searchQuery]);
 
   // Reset state when query params change (for searches)
+  const previousSearchQueryRef = useRef<string>('');
+  
   useEffect(() => {
     if (!isVisible) return;
     
     if (searchQuery) {
-      setPosts([]);
-      setHasMore(true);
-      setNextCursor(undefined);
-      setIsInitialLoad(true);
-      followStatesProcessedRef.current = false;
+      // Only reset state if this is a completely different search term
+      const isDifferentSearch = previousSearchQueryRef.current !== searchQuery;
+      
+      if (isDifferentSearch) {
+        previousSearchQueryRef.current = searchQuery;
+        // Only reset isInitialLoad for truly different searches
+        console.log('[usePostsData] Resetting isInitialLoad for new search:', searchQuery);
+        setIsInitialLoad(true);
+        setHasMore(true);
+        setNextCursor(undefined);
+        followStatesProcessedRef.current = false;
+      }
     }
   }, [isVisible, searchQuery]);
 
