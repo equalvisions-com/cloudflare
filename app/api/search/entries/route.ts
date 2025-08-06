@@ -55,12 +55,11 @@ export async function GET(request: NextRequest) {
        FROM rss_entries e
        JOIN rss_feeds f ON e.feed_id = f.id
        WHERE f.media_type = ?
-       AND (e.title LIKE ? OR e.description LIKE ?)`;
+       AND MATCH(e.title, e.description) AGAINST (? IN BOOLEAN MODE)`;
     
     let queryParams = [
       mediaType,
-      `%${query}%`,
-      `%${query}%`
+      query // No wildcards needed for full-text search
     ];
 
     // Add feedUrl filter if provided (for profile-specific search)
