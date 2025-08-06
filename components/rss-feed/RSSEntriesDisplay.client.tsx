@@ -634,11 +634,11 @@ const RSSEntry = React.memo(({ entryWithData: { entry, initialData, postMetadata
             }}
             onTouchStart={handleLinkInteraction}
           >
-            <a
-              href={entry.link}
-              target="_blank"
-              // rel="noopener noreferrer" // Removed to make opener potentially bfcache-ineligible
-            >
+                          <a
+                href={entry.link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
               <Card className="rounded-xl border overflow-hidden shadow-none">
                 {imageSrc && (
                   <CardHeader className="p-0">

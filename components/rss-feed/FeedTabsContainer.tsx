@@ -57,22 +57,11 @@ export function FeedTabsContainer({
   const retryAttemptsRef = useRef({ rss: 0, featured: 0 });
   const MAX_RETRY_ATTEMPTS = 3;
   
-  // Update refs when state changes
-  useEffect(() => {
-    rssDataRef.current = rssData;
-  }, [rssData]);
-  
-  useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
-  
-  useEffect(() => {
-    featuredDataRef.current = featuredData;
-  }, [featuredData]);
-  
-  useEffect(() => {
-    errorsRef.current = errors;
-  }, [errors]);
+  // Update refs during render (React 18+ pattern) - no useEffect needed for simple ref updates
+  rssDataRef.current = rssData;
+  loadingRef.current = loading;
+  featuredDataRef.current = featuredData;
+  errorsRef.current = errors;
   
   // Removed useTransition to fix tab switching timing issues
   
@@ -128,10 +117,9 @@ export function FeedTabsContainer({
       return;
     }
     
-    // Reset RSS data when switching away from Following tab to force refetch on return
-    if (activeTabIndex === 1 && index !== 1) {
-      setRssData(null);
-    }
+    // REMOVED: Reset RSS data when switching away from Following tab
+    // This was causing refreshed/appended entries to disappear when returning to the tab
+    // Now RSS data persists across tab switches, preserving dynamic updates
     
     // CRITICAL FIX: Remove startTransition to make tab changes synchronous
     // This prevents the Featured Feed from staying mounted during RSS tab switch
@@ -166,6 +154,7 @@ export function FeedTabsContainer({
     
     // Fetch data based on active tab - using refs to prevent stale closures
     // CRITICAL: Don't fetch if there's already an error to prevent infinite loops
+    // UPDATED: Only fetch RSS data if we don't have any data (preserves existing data with refreshed entries)
     if (activeTabIndex === 1 && isAuthenticated && !rssDataRef.current && !loadingRef.current.rss && !errorsRef.current.rss) {
       fetchRSSData();
     } else if (activeTabIndex === 0 && !featuredDataRef.current && !loadingRef.current.featured && !errorsRef.current.featured) {

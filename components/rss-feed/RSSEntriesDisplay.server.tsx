@@ -10,8 +10,8 @@ import type {
   RSSEntriesDisplayServerProps
 } from "@/lib/types";
 
-// Remove caching to ensure users always see fresh data including newly refreshed entries
-// This prevents the issue where refreshed entries disappear on page reload due to stale cache
+// Strategic caching: Server-side rendering bypasses cache to ensure fresh data after refreshes,
+// while client-side fetches can use cache since state persists across tab switches
 
 // Component-specific interface for RSS items with additional properties
 interface RSSItem {
@@ -159,7 +159,8 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
     
     try {
       // Execute single query with limit+1 for hasMore detection
-      // Use noCache option to ensure fresh data that includes newly refreshed entries
+      // Use noCache for server-side rendering to ensure fresh data that includes newly refreshed entries
+      // This prevents cached data from hiding entries that were added via refresh before browser reload
       const entriesResult = await executeRead(entriesQuery, [...postTitles, pageSize + 1, offset], { noCache: true });
       
       const allEntries = entriesResult.rows as RSSEntryRow[];
