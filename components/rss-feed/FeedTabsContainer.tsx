@@ -96,13 +96,6 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Callback to handle RSS data updates from child component (when entries are appended)
-  const handleRSSDataUpdate = useCallback((updatedData: typeof rssData) => {
-    console.log('📥 FeedTabsContainer: Received RSS data update with', updatedData?.entries?.length, 'entries');
-    // Update the RSS data state with the new entries
-    setRssData(updatedData);
-  }, []);
-
   // Custom hook for UI rendering - now accepts props instead of using store
   const { tabs } = useFeedTabsUI({
     rssData,
@@ -113,8 +106,7 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured,
-    onRSSDataUpdate: handleRSSDataUpdate
+    onRetryFeatured: handleRetryFeatured
   });
   
   // Tab change handler with authentication checks
