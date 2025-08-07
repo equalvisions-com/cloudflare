@@ -1192,14 +1192,16 @@ const RSSEntriesClientComponent = ({
     prependEntries: useCallback((entries) => {
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       
-      // Notify parent component of updated data to persist across tab switches
+      // Delay parent notification to avoid interfering with notification badge
+      // The badge needs to show immediately, parent sync can wait a bit
       if (onDataUpdate) {
-        // Create updated data structure with new entries prepended
-        const updatedData = {
-          ...initialData,
-          entries: [...entries, ...state.entries]
-        };
-        onDataUpdate(updatedData);
+        setTimeout(() => {
+          const updatedData = {
+            ...initialData,
+            entries: [...entries, ...state.entries]
+          };
+          onDataUpdate(updatedData);
+        }, 50); // Small delay to let notification render first
       }
     }, [onDataUpdate, initialData, state.entries]),
     createManagedTimeout,
