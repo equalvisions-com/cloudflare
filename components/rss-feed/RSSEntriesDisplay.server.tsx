@@ -114,7 +114,8 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
       }])
     );
     
-    // 5. Query feed staleness data for client-side optimization
+    // 5. Get last_fetched timestamps for client-side staleness calculation
+    // Move staleness calculation to client to avoid render-blocking
     const feedStalenessQuery = `
       SELECT f.title, f.feed_url, f.last_fetched
       FROM rss_feeds f
@@ -124,18 +125,12 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
     const feedStalenessResult = await executeRead(feedStalenessQuery, postTitles, { noCache: true });
     const feedStalenessData = feedStalenessResult.rows as { title: string; feed_url: string; last_fetched: number }[];
     
-    // Create staleness map for quick lookup
-    const stalenessMap = new Map();
-    const now = Date.now();
-    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-    
+    // Just pass the raw timestamp data to client - no server-side staleness calculation
+    const feedTimestamps = new Map();
     feedStalenessData.forEach(feed => {
-      const lastFetchedMs = Number(feed.last_fetched);
-      const timeSinceLastFetch = now - lastFetchedMs;
-      stalenessMap.set(feed.title, {
-        lastFetched: lastFetchedMs,
-        isStale: timeSinceLastFetch > FOUR_HOURS_MS,
-        staleness: timeSinceLastFetch
+      feedTimestamps.set(feed.title, {
+        lastFetched: Number(feed.last_fetched),
+        feedUrl: feed.feed_url
       });
     });
 
@@ -229,32 +224,17 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
 
       devLog(`🚀 SERVER: Returning ${entriesWithPublicData.length} initial entries for the merged feed`);
       
-      // Calculate overall staleness summary
-      const staleFeeds = postTitles.filter(title => {
-        const staleness = stalenessMap.get(title);
-        return staleness?.isStale !== false;
-      });
+      devLog(`⚡ SERVER: Skipping staleness calculation - client will handle this`);
       
-      const needsRefresh = staleFeeds.length > 0;
-      const oldestLastFetched = Math.min(...Array.from(stalenessMap.values()).map(s => s.lastFetched));
-      
-      devLog(`🕐 SERVER: Staleness check - ${staleFeeds.length}/${postTitles.length} feeds need refresh`);
-      
-      // Make sure to include the postTitles and staleness data in the returned data
+      // Make sure to include the postTitles and feed timestamps for client-side staleness calculation
       return {
         entries: entriesWithPublicData,
         hasMore,
         postTitles,
         feedUrls,
         mediaTypes,
-        // Client-side staleness optimization data
-        feedStaleness: {
-          needsRefresh,
-          oldestLastFetched,
-          staleCount: staleFeeds.length,
-          totalCount: postTitles.length,
-          staleFeedTitles: staleFeeds
-        }
+        // Raw timestamp data for client-side staleness calculation
+        feedTimestamps: Object.fromEntries(feedTimestamps)
       };
     } catch (dbError: unknown) {
       errorLog('❌ SERVER: Error querying PlanetScale:', dbError);
@@ -303,7 +283,7 @@ export default async function RSSEntriesDisplayServer({
     postTitles: initialData.postTitles,
     feedUrls: initialData.feedUrls,
     mediaTypes: initialData.mediaTypes,
-    feedStaleness: initialData.feedStaleness,
+    feedTimestamps: initialData.feedTimestamps,
   };
 
   return <RSSEntriesClientWithErrorBoundary initialData={transformedData} />;

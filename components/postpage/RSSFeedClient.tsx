@@ -995,23 +995,31 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   // Queue single feed for async refresh with SSE
   useEffect(() => {
     if (postTitle && feedUrl && !hasQueuedRef.current) {
-      // CLIENT-SIDE STALENESS CHECK: Skip queue if feed is fresh
-      if (initialData.feedStaleness && !initialData.feedStaleness.needsRefresh) {
-        console.log('🚀 SINGLE FEED: Feed is fresh - skipping queue refresh', {
-          feedUrl,
-          lastFetched: new Date(initialData.feedStaleness.lastFetched).toISOString(),
-          staleness: Math.round(initialData.feedStaleness.staleness / (1000 * 60)) + ' minutes ago'
-        });
+      // CLIENT-SIDE STALENESS CHECK: Calculate staleness in real-time
+      if (initialData.feedTimestamp) {
+        const now = Date.now();
+        const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+        const timeSinceLastFetch = now - initialData.feedTimestamp.lastFetched;
+        const needsRefresh = timeSinceLastFetch > FOUR_HOURS_MS;
         
-        hasQueuedRef.current = true; // Prevent future attempts
-        return;
-      }
+        if (!needsRefresh) {
+          console.log('🚀 SINGLE FEED: Feed is fresh - skipping queue refresh', {
+            feedUrl,
+            lastFetched: new Date(initialData.feedTimestamp.lastFetched).toISOString(),
+            staleness: Math.round(timeSinceLastFetch / (1000 * 60)) + ' minutes ago'
+          });
+          
+          hasQueuedRef.current = true; // Prevent future attempts
+          return;
+        }
 
-      console.log('🔄 SINGLE FEED: Feed is stale - proceeding with queue refresh', {
-        feedUrl,
-        needsRefresh: initialData.feedStaleness?.needsRefresh || 'unknown',
-        lastFetched: initialData.feedStaleness ? new Date(initialData.feedStaleness.lastFetched).toISOString() : 'unknown'
-      });
+        console.log('🔄 SINGLE FEED: Feed is stale - proceeding with queue refresh', {
+          feedUrl,
+          needsRefresh: true,
+          lastFetched: new Date(initialData.feedTimestamp.lastFetched).toISOString(),
+          staleness: Math.round(timeSinceLastFetch / (1000 * 60)) + ' minutes ago'
+        });
+      }
 
       // Start queue processing and get the server-generated batchId
       fetch('/api/queue-refresh', {

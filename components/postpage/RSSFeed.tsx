@@ -40,11 +40,8 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       throw new Error('Invalid feed ID returned from database');
     }
 
-    // Calculate staleness for client-side optimization
-    const now = Date.now();
-    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-    const timeSinceLastFetch = now - lastFetched;
-    const needsRefresh = timeSinceLastFetch > FOUR_HOURS_MS;
+    // Pass raw timestamp to client for non-blocking staleness calculation
+    // Remove server-side staleness calculation to avoid render blocking
 
     // Get entries using limit+1 for hasMore detection (no COUNT needed!)
     const entriesResult = await executeRead(
@@ -120,11 +117,9 @@ export const getInitialEntries = cache(async (postTitle: string, feedUrl: string
       hasMore: hasMore,
       postTitles: [postTitle],
       feedUrls: [feedUrl],
-      // Client-side staleness optimization data
-      feedStaleness: {
-        needsRefresh,
+      // Raw timestamp data for client-side staleness calculation
+      feedTimestamp: {
         lastFetched,
-        staleness: timeSinceLastFetch,
         feedUrl
       }
     };

@@ -433,24 +433,39 @@ export const useRSSEntriesQueueRefresh = ({
     if (isRefreshing || hasRefreshed || !isMountedRef.current) return;
     if (!currentPostTitles?.length || !currentFeedUrls?.length) return;
 
-    // CLIENT-SIDE STALENESS CHECK: Skip queue if feeds are fresh
-    if (initialData.feedStaleness && !initialData.feedStaleness.needsRefresh) {
-      console.log('🚀 CLIENT: Feeds are fresh - skipping queue refresh', {
-        staleCount: initialData.feedStaleness.staleCount,
-        totalCount: initialData.feedStaleness.totalCount,
-        oldestLastFetched: new Date(initialData.feedStaleness.oldestLastFetched).toISOString()
+    // CLIENT-SIDE STALENESS CHECK: Calculate staleness in real-time
+    if (initialData.feedTimestamps && currentPostTitles?.length) {
+      const now = Date.now();
+      const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+      
+      const staleFeeds = currentPostTitles.filter(title => {
+        const feedData = initialData.feedTimestamps[title];
+        if (!feedData) return true; // Treat missing data as stale
+        
+        const timeSinceLastFetch = now - feedData.lastFetched;
+        return timeSinceLastFetch > FOUR_HOURS_MS;
       });
       
-      // Mark as refreshed to prevent future attempts
-      setHasRefreshed(true);
-      return;
+      const needsRefresh = staleFeeds.length > 0;
+      
+      if (!needsRefresh) {
+        console.log('🚀 CLIENT: Feeds are fresh - skipping queue refresh', {
+          staleCount: 0,
+          totalCount: currentPostTitles.length,
+          allFeedsAreFresh: true
+        });
+        
+        // Mark as refreshed to prevent future attempts
+        setHasRefreshed(true);
+        return;
+      }
+      
+      console.log('🔄 CLIENT: Feeds are stale - proceeding with queue refresh', {
+        staleCount: staleFeeds.length,
+        totalCount: currentPostTitles.length,
+        staleFeedTitles: staleFeeds
+      });
     }
-
-    console.log('🔄 CLIENT: Feeds are stale - proceeding with queue refresh', {
-      staleCount: initialData.feedStaleness?.staleCount || 'unknown',
-      totalCount: initialData.feedStaleness?.totalCount || currentPostTitles.length,
-      staleFeedTitles: initialData.feedStaleness?.staleFeedTitles || []
-    });
 
     setRefreshing(true);
     setRefreshError(null);
