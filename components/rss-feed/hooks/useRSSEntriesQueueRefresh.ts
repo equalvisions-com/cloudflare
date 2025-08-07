@@ -232,12 +232,15 @@ export const useRSSEntriesQueueRefresh = ({
         if (trulyNewEntries.length > 0) {
           prependEntries(trulyNewEntries);
           
+          // Set the new entries for the notification hook
+          setNewEntries(trulyNewEntries);
+          
           // Show notification badge as indicator only (entries already added)
           setNotification(true, trulyNewEntries.length, featuredImages);
         }
       }
     }
-  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setNotification, prependEntries]);
+  }, [setHasRefreshed, setRefreshing, setRefreshError, setPostTitles, setNotification, prependEntries, setNewEntries]);
 
   // Process new entries (filter duplicates, sort by date)
   const processNewEntries = useCallback((validEntries: RSSEntriesDisplayEntry[]) => {
