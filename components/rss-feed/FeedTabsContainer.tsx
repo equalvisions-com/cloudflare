@@ -65,6 +65,11 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
+  // Handler to update RSS data when child component gets refreshed entries
+  const handleRSSDataUpdate = useCallback((updatedData: typeof rssData) => {
+    setRssData(updatedData);
+  }, []);
+
   // Custom hook for data fetching - simplified to accept callbacks
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
@@ -106,7 +111,8 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured
+    onRetryFeatured: handleRetryFeatured,
+    onRSSDataUpdate: handleRSSDataUpdate
   });
   
   // Tab change handler with authentication checks

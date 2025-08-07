@@ -1107,7 +1107,8 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true
+  isActive = true,
+  onDataUpdate
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
@@ -1188,7 +1189,19 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
+    prependEntries: useCallback((entries) => {
+      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+      
+      // Notify parent component of updated data to persist across tab switches
+      if (onDataUpdate) {
+        // Create updated data structure with new entries prepended
+        const updatedData = {
+          ...initialData,
+          entries: [...entries, ...state.entries]
+        };
+        onDataUpdate(updatedData);
+      }
+    }, [onDataUpdate, initialData, state.entries]),
     createManagedTimeout,
   });
 
