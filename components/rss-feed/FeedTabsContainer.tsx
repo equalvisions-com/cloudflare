@@ -65,23 +65,9 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
-  // Handler to update RSS data when child component gets refreshed entries
-  // Note: We store the updated data directly since both parent and child work with the same transformed data
-  const handleRSSDataUpdate = useCallback((updatedData: RSSEntriesDisplayClientProps['initialData']) => {
-    if (rssData) {
-      // Update the RSS data with the new entries (maintaining the existing data structure)
-      const updatedRSSData = {
-        ...rssData,
-        entries: updatedData.entries as any, // Type assertion since the data is compatible after server transformation
-        totalEntries: updatedData.totalEntries || rssData.totalEntries,
-        hasMore: updatedData.hasMore ?? rssData.hasMore,
-        postTitles: updatedData.postTitles || rssData.postTitles,
-        feedUrls: updatedData.feedUrls || rssData.feedUrls,
-        mediaTypes: updatedData.mediaTypes || rssData.mediaTypes
-      };
-      setRssData(updatedRSSData);
-    }
-  }, [rssData]);
+  // REMOVED: handleRSSDataUpdate callback - no longer needed
+  // Child component maintains its own state and persistence across tab switches
+  // Parent-child synchronization was causing re-renders that reset notification badges
 
   // Custom hook for data fetching - simplified to accept callbacks
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
@@ -124,8 +110,7 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured,
-    onRSSDataUpdate: handleRSSDataUpdate
+    onRetryFeatured: handleRetryFeatured
   });
   
   // Tab change handler with authentication checks

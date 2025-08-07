@@ -1107,8 +1107,7 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true,
-  onDataUpdate
+  isActive = true
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
@@ -1192,18 +1191,10 @@ const RSSEntriesClientComponent = ({
     prependEntries: useCallback((entries) => {
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       
-      // Delay parent notification to avoid interfering with notification badge
-      // The badge needs to show immediately, parent sync can wait a bit
-      if (onDataUpdate) {
-        setTimeout(() => {
-          const updatedData = {
-            ...initialData,
-            entries: [...entries, ...state.entries]
-          };
-          onDataUpdate(updatedData);
-        }, 50); // Small delay to let notification render first
-      }
-    }, [onDataUpdate, initialData, state.entries]),
+      // REMOVED: Parent update callback that was causing re-renders and badge disappearance
+      // The child component maintains its own state and doesn't need to sync with parent
+      // Tab persistence is handled by the client-side state, not server-side data
+    }, []),
     createManagedTimeout,
   });
 
