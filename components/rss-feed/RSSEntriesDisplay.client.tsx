@@ -1288,6 +1288,8 @@ const RSSEntriesClientComponent = ({
     }
   }, [shouldTriggerRefresh]);
 
+
+
   // Cleanup on unmount
   React.useEffect(() => {
     return () => {
