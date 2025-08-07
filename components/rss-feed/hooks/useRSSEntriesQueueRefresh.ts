@@ -434,9 +434,10 @@ export const useRSSEntriesQueueRefresh = ({
     if (initialData.feedTimestamps && currentPostTitles?.length) {
       const now = Date.now();
       const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+      const feedTimestamps = initialData.feedTimestamps; // Type guard
       
       const staleFeeds = currentPostTitles.filter(title => {
-        const feedData = initialData.feedTimestamps[title];
+        const feedData = feedTimestamps[title];
         if (!feedData) return true; // Treat missing data as stale
         
         const timeSinceLastFetch = now - feedData.lastFetched;
