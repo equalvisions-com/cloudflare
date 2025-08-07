@@ -46,13 +46,10 @@ interface UseRSSEntriesQueueRefreshProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
-    feedStaleness?: {
-      needsRefresh: boolean;
-      oldestLastFetched: number;
-      staleCount: number;
-      totalCount: number;
-      staleFeedTitles: string[];
-    };
+    feedTimestamps?: Record<string, {
+      lastFetched: number;
+      feedUrl: string;
+    }>;
   };
   currentPostTitles: string[];
   currentFeedUrls: string[];

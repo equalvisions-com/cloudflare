@@ -1312,10 +1312,8 @@ export interface RSSFeedClientProps {
   initialData: {
     entries: RSSFeedEntry[];
     hasMore: boolean;
-    feedStaleness?: {
-      needsRefresh: boolean;
+    feedTimestamp?: {
       lastFetched: number;
-      staleness: number;
       feedUrl: string;
     };
   };
@@ -1511,7 +1509,10 @@ export interface RSSEntriesDisplayClientProps {
     postTitles?: string[];
     feedUrls?: string[];
     mediaTypes?: string[];
-    feedStaleness?: FeedStalenessData;
+    feedTimestamps?: Record<string, {
+      lastFetched: number;
+      feedUrl: string;
+    }>;
   };
   pageSize?: number;
   isActive?: boolean;
