@@ -1798,7 +1798,7 @@ export interface UseFeedTabsUIProps {
   activeTabIndex: number;
   onRetryRSS: () => void;
   onRetryFeatured: () => void;
-  onRSSDataUpdate?: (updatedData: FeedTabsRSSData) => void;
+  onRSSDataUpdate?: (updatedData: RSSEntriesDisplayClientProps['initialData']) => void;
 }
 
 // Custom hooks return interfaces
