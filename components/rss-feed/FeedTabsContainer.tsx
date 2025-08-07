@@ -9,7 +9,7 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
-import type { FeedTabsContainerProps, RSSEntriesDisplayClientProps } from '@/lib/types';
+import type { FeedTabsContainerProps } from '@/lib/types';
 
 /**
  * FeedTabsContainer Component
@@ -65,10 +65,6 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
-  // REMOVED: handleRSSDataUpdate callback - no longer needed
-  // Child component maintains its own state and persistence across tab switches
-  // Parent-child synchronization was causing re-renders that reset notification badges
-
   // Custom hook for data fetching - simplified to accept callbacks
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
@@ -100,6 +96,13 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
+  // Callback to handle RSS data updates from child component (when entries are appended)
+  const handleRSSDataUpdate = useCallback((updatedData: typeof rssData) => {
+    console.log('📥 FeedTabsContainer: Received RSS data update with', updatedData?.entries?.length, 'entries');
+    // Update the RSS data state with the new entries
+    setRssData(updatedData);
+  }, []);
+
   // Custom hook for UI rendering - now accepts props instead of using store
   const { tabs } = useFeedTabsUI({
     rssData,
@@ -110,7 +113,8 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured
+    onRetryFeatured: handleRetryFeatured,
+    onRSSDataUpdate: handleRSSDataUpdate
   });
   
   // Tab change handler with authentication checks

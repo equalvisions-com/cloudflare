@@ -1107,8 +1107,11 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true
-}: RSSEntriesDisplayClientProps) => {
+  isActive = true,
+  onDataUpdate
+}: RSSEntriesDisplayClientProps & { 
+  onDataUpdate?: (updatedData: RSSEntriesDisplayClientProps['initialData']) => void 
+}) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
 
@@ -1188,13 +1191,7 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => {
-      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
-      
-      // REMOVED: Parent update callback that was causing re-renders and badge disappearance
-      // The child component maintains its own state and doesn't need to sync with parent
-      // Tab persistence is handled by the client-side state, not server-side data
-    }, []),
+    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
     createManagedTimeout,
   });
 
@@ -1233,6 +1230,28 @@ const RSSEntriesClientComponent = ({
   hasMoreRef.current = state.hasMore;
 
   postTitlesRef.current = state.postTitles;
+  
+  // Notify parent when entries are updated (for data persistence across tab switches)
+  useEffect(() => {
+    // Only update parent if we have new entries (not initial load) and callback exists
+    if (onDataUpdate && state.entries.length > 0 && state.hasInitialized) {
+      // Check if entries have actually changed from initial data
+      const hasNewEntries = state.entries.length !== initialData.entries.length ||
+        (state.entries[0]?.entry.guid !== initialData.entries[0]?.entry.guid);
+      
+      if (hasNewEntries) {
+        console.log('📤 RSS: Notifying parent of data update with', state.entries.length, 'entries');
+        onDataUpdate({
+          ...initialData,
+          entries: state.entries,
+          totalEntries: state.entries.length,
+          postTitles: state.postTitles,
+          feedUrls: state.feedUrls,
+          mediaTypes: state.mediaTypes
+        });
+      }
+    }
+  }, [state.entries, state.hasInitialized, state.postTitles, state.feedUrls, state.mediaTypes, onDataUpdate, initialData]);
   
   // Get entry GUIDs for batch metrics query
   const entryGuids = useMemo(() => {
@@ -1278,8 +1297,6 @@ const RSSEntriesClientComponent = ({
       triggerRefreshRef.current();
     }
   }, [shouldTriggerRefresh]);
-
-
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -1477,12 +1494,7 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
   if (prevProps.initialData && !nextProps.initialData) return false;
   
   if (prevProps.initialData && nextProps.initialData) {
-    // Allow entry count increases (from prepends), but detect decreases
-    const prevCount = prevProps.initialData.entries?.length || 0;
-    const nextCount = nextProps.initialData.entries?.length || 0;
-    
-    // Only re-render if entries decreased (potential data loss)
-    if (nextCount < prevCount) return false;
+    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
 
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
@@ -1532,7 +1544,11 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
 RSSEntriesClient.displayName = 'RSSEntriesClient';
 
 // Export with error boundary (no store provider needed)
-export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(props: RSSEntriesDisplayClientProps) {
+export const RSSEntriesClientWithErrorBoundary = memo(function RSSEntriesClientWithErrorBoundary(
+  props: RSSEntriesDisplayClientProps & { 
+    onDataUpdate?: (updatedData: RSSEntriesDisplayClientProps['initialData']) => void 
+  }
+) {
   return (
     <ErrorBoundary>
       <RSSEntriesClient {...props} />

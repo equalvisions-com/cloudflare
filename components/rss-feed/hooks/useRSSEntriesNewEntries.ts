@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { RSSEntriesDisplayEntry } from '@/lib/types';
 
 interface UseRSSEntriesNewEntriesProps {
@@ -93,14 +93,6 @@ export const useRSSEntriesNewEntries = ({
 
     setNotification(false);
   }, [isMountedRef, setNotification]);
-
-  // Auto-trigger notification when new entries are set
-  React.useEffect(() => {
-    if (newEntries.length > 0 && !showNotification) {
-      console.log('🔔 AUTO-TRIGGER: Showing notification for', newEntries.length, 'new entries');
-      showNewEntriesNotification();
-    }
-  }, [newEntries.length, showNotification, showNewEntriesNotification]);
 
   return {
     // Notification state

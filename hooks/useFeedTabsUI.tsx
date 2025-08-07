@@ -46,8 +46,9 @@ export const useFeedTabsUI = ({
   featuredError,
   activeTabIndex,
   onRetryRSS,
-  onRetryFeatured
-}: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
+  onRetryFeatured,
+  onRSSDataUpdate
+}: UseFeedTabsUIProps & { onRSSDataUpdate?: (data: any) => void }): UseFeedTabsUIReturn => {
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
 
@@ -165,15 +166,15 @@ export const useFeedTabsUI = ({
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
-              isActive={activeTabIndex === 1}
+              onDataUpdate={onRSSDataUpdate}
             />
           </div>
         );
       }
     }
   ], [
-    // activeTabIndex is needed since we're using it to determine isActive
-    activeTabIndex,
+    // REMOVED activeTabIndex to prevent unnecessary re-renders
+    // activeTabIndex is accessed via closure, doesn't need to be in deps
     rssData,
     featuredData,
     rssError,
