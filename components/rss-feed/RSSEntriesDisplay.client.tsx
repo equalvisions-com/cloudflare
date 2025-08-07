@@ -1482,7 +1482,12 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
   if (prevProps.initialData && !nextProps.initialData) return false;
   
   if (prevProps.initialData && nextProps.initialData) {
-    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
+    // Allow entry count increases (from prepends), but detect decreases
+    const prevCount = prevProps.initialData.entries?.length || 0;
+    const nextCount = nextProps.initialData.entries?.length || 0;
+    
+    // Only re-render if entries decreased (potential data loss)
+    if (nextCount < prevCount) return false;
 
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
