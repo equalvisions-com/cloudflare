@@ -2,7 +2,6 @@
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
-import { cache } from "react";
 import { RSSEntriesClientWithErrorBoundary } from "./RSSEntriesDisplay.client";
 import { executeRead } from "@/lib/database";
 import type { 
@@ -66,7 +65,7 @@ const errorLog = (message: string, error?: unknown) => {
 // but is isolated to each server instance
 // Count cache removed - using limit+1 pagination instead
 
-export const getInitialEntries = cache(async (skipRefresh = false) => {
+export async function getInitialEntries(skipRefresh = false) {
   try {
     const token = await convexAuthNextjsToken();
     if (!token) {
@@ -244,12 +243,12 @@ export const getInitialEntries = cache(async (skipRefresh = false) => {
     errorLog('❌ SERVER: Error fetching initial entries:', error);
     return null;
   }
-});
+}
 
 // Add a new export to get entries without refreshing
-export const getInitialEntriesWithoutRefresh = cache(async () => {
+export async function getInitialEntriesWithoutRefresh() {
   return getInitialEntries(true); // Skip refresh
-});
+}
 
 // Main server component with production-ready types
 export default async function RSSEntriesDisplayServer({ 
