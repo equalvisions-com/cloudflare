@@ -255,6 +255,10 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         hasRefreshed: false,
         fetchError: null,
         refreshError: null,
+        // CRITICAL FIX: Preserve notification state during parent-triggered re-initialization
+        showNotification: state.showNotification,
+        notificationCount: state.notificationCount,
+        notificationImages: state.notificationImages,
       };
     
     case 'SET_LOADING':
@@ -1229,7 +1233,6 @@ const RSSEntriesClientComponent = ({
     if (currentLength > previousLength && onNewEntriesReceived) {
       const newEntriesCount = currentLength - previousLength;
       const newEntries = state.entries.slice(0, newEntriesCount);
-      console.log('📡 CHILD: Detected new entries, syncing with parent:', newEntriesCount);
       onNewEntriesReceived(newEntries);
     }
     
