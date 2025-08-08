@@ -183,52 +183,21 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
 }));
 
 /**
- * Hook for notification state (reactive) - pure selector, no side effects
+ * Hook for notification state - simple and stable
  */
 export const useFeedNotification = () => {
-  const state = useFeedEntriesStore();
-  
-  // Check expiry without modifying state
-  const isExpired = state.notification.timestamp ? 
-    Date.now() - state.notification.timestamp > 60000 : false;
-  
-  // Return expired or empty state without side effects
-  if (!state.notification.timestamp || isExpired) {
-    return {
-      show: false,
-      count: 0,
-      images: [],
-    };
-  }
-  
-  return {
+  return useFeedEntriesStore(state => ({
     show: state.notification.show,
     count: state.notification.count,
     images: state.notification.images,
-  };
+  }));
 };
 
 /**
- * Hook for appended entries (reactive with auto-expiry) - pure selector, no side effects
+ * Hook for appended entries - simple and stable
  */
 export const useAppendedEntries = () => {
-  const state = useFeedEntriesStore();
-  
-  // Skip entirely if no appended entries (most common case)
-  if (state.appendedEntries.length === 0) {
-    return [];
-  }
-  
-  // Check expiry without modifying state
-  const isExpired = state.notification.timestamp ? 
-    Date.now() - state.notification.timestamp > 60000 : false;
-  
-  // Return empty if expired, without side effects
-  if (isExpired) {
-    return [];
-  }
-  
-  return state.appendedEntries;
+  return useFeedEntriesStore(state => state.appendedEntries);
 };
 
 /**
