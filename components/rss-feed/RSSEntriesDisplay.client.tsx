@@ -1516,8 +1516,16 @@ const RSSEntriesClientComponent = ({
 
 // Export the memoized version
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
-  if (prevProps.isActive !== nextProps.isActive) return false;
-  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  console.log('🔄 MEMO COMPARISON: Checking if component should re-render');
+  
+  if (prevProps.isActive !== nextProps.isActive) {
+    console.log('❌ MEMO: isActive changed, re-rendering');
+    return false;
+  }
+  if (prevProps.pageSize !== nextProps.pageSize) {
+    console.log('❌ MEMO: pageSize changed, re-rendering');
+    return false;
+  }
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
@@ -1527,6 +1535,8 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
     // This prevents notification state reset when parent adds new entries for persistence
     const prevLength = prevProps.initialData.entries?.length || 0;
     const nextLength = nextProps.initialData.entries?.length || 0;
+    
+    console.log('🔍 MEMO: Comparing entry lengths', { prevLength, nextLength });
     
     // Only re-render if entries decreased or completely changed (not just appended)
     if (nextLength < prevLength) return false; // Entries removed
