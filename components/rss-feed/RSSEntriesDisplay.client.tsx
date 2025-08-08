@@ -1134,10 +1134,44 @@ const RSSEntriesClientComponent = ({
   initialData, 
   pageSize = 30, 
   isActive = true,
-  onNewEntriesReceived
+  onNewEntriesReceived,
+  onNotificationStateChange,
+  preservedNotificationState
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
+
+  // CRITICAL FIX: Restore preserved notification state on mount/remount
+  useEffect(() => {
+    if (preservedNotificationState && preservedNotificationState.show) {
+      const now = Date.now();
+      const elapsed = now - preservedNotificationState.timestamp;
+      const remaining = 5000 - elapsed; // 5 second total duration
+      
+      if (remaining > 0) {
+        console.log('🔄 RESTORING preserved notification state:', preservedNotificationState, 'remaining:', remaining);
+        dispatch({
+          type: 'SET_NOTIFICATION',
+          payload: {
+            show: true,
+            count: preservedNotificationState.count,
+            images: preservedNotificationState.images
+          }
+        });
+      }
+    }
+  }, [preservedNotificationState]);
+
+  // Sync notification state changes with parent for persistence
+  useEffect(() => {
+    if (onNotificationStateChange) {
+      onNotificationStateChange(
+        state.showNotification,
+        state.notificationCount,
+        state.notificationImages
+      );
+    }
+  }, [state.showNotification, state.notificationCount, state.notificationImages, onNotificationStateChange]);
 
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
@@ -1603,8 +1637,12 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
     }
   }
   
-  // Check new callback prop
+  // Check callback props
   if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) return false;
+  if (prevProps.onNotificationStateChange !== nextProps.onNotificationStateChange) return false;
+  
+  // Check preserved notification state
+  if (prevProps.preservedNotificationState !== nextProps.preservedNotificationState) return false;
   
   return true;
 });

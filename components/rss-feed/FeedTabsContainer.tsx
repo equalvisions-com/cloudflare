@@ -50,6 +50,14 @@ export function FeedTabsContainer({
   // SIMPLE SOLUTION: Just track new entries to merge with RSS data
   const [newEntriesFromRefresh, setNewEntriesFromRefresh] = useState<RSSEntriesDisplayEntry[]>([]);
   
+  // CRITICAL FIX: Track notification state in parent to survive child remounts
+  const [preservedNotificationState, setPreservedNotificationState] = useState<{
+    show: boolean;
+    count: number;
+    images: string[];
+    timestamp: number;
+  } | null>(null);
+  
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
   const loadingRef = useRef(loading);
@@ -90,6 +98,25 @@ export function FeedTabsContainer({
         return current;
       });
     }, 150); // 150ms delay to allow badge state to stabilize
+  }, []);
+  
+  // Callback to receive and preserve notification state from child
+  const handleNotificationStateChange = useCallback((show: boolean, count: number, images: string[]) => {
+    console.log('📊 PARENT: Preserving notification state:', { show, count, images: images.length });
+    setPreservedNotificationState({
+      show,
+      count,
+      images,
+      timestamp: Date.now()
+    });
+    
+    // Auto-clear after 5 seconds to match child timeout
+    if (show) {
+      setTimeout(() => {
+        setPreservedNotificationState(null);
+        console.log('⏰ PARENT: Clearing preserved notification state after 5s');
+      }, 5000);
+    }
   }, []);
   
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
@@ -149,8 +176,10 @@ export function FeedTabsContainer({
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
     onRetryFeatured: handleRetryFeatured,
-    // Pass callback to receive new entries from child
-    onNewEntriesReceived: handleNewEntriesReceived
+    // Pass callbacks to receive new entries and notification state from child
+    onNewEntriesReceived: handleNewEntriesReceived,
+    onNotificationStateChange: handleNotificationStateChange,
+    preservedNotificationState
   });
   
   // Tab change handler with authentication checks
