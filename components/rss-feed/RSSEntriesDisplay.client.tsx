@@ -248,8 +248,7 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       console.log('🔄 REDUCER INITIALIZE: Before init', {
         showNotification: state.showNotification,
         count: state.notificationCount,
-        images: state.notificationImages?.length,
-        stateKeys: Object.keys(state)
+        images: state.notificationImages?.length
       });
       
       // CRITICAL FIX: Preserve notification state during parent-triggered re-initialization
@@ -259,7 +258,11 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         notificationImages: state.notificationImages,
       };
       
-      console.log('🔄 REDUCER INITIALIZE: Preserving notification state', preservedNotification);
+      console.log('🔄 REDUCER INITIALIZE: Preserving notification state', {
+        showNotification: preservedNotification.showNotification,
+        count: preservedNotification.notificationCount,
+        images: preservedNotification.notificationImages?.length
+      });
       console.log('🔄 REDUCER INITIALIZE: Action payload does NOT contain notification fields:', Object.keys(action.payload));
       
       const newState = {
@@ -285,7 +288,9 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         showNotification: newState.showNotification,
         count: newState.notificationCount,
         images: newState.notificationImages?.length,
-        preservationWorked: newState.showNotification === state.showNotification
+        preservationWorked: newState.showNotification === state.showNotification,
+        originalShow: state.showNotification,
+        finalShow: newState.showNotification
       });
       return newState;
     
@@ -1153,6 +1158,9 @@ const RSSEntriesClientComponent = ({
   isActive = true,
   onNewEntriesReceived
 }: RSSEntriesDisplayClientProps) => {
+  // Component mount tracking
+  console.log('🏗️ COMPONENT: RSSEntriesClient mounting/re-mounting');
+  
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
 
@@ -1423,11 +1431,16 @@ const RSSEntriesClientComponent = ({
       
       {/* Notification for new entries */}
       {(() => {
-        console.log('🎯 BADGE RENDER: Checking display', {
+        const badgeInfo = {
           showNotification: state.showNotification,
           count: state.notificationCount,
-          images: state.notificationImages?.length
-        });
+          images: state.notificationImages?.length,
+          willDisplay: state.showNotification === true
+        };
+        console.log('🎯 BADGE RENDER: Checking display', badgeInfo);
+        if (state.showNotification !== true && state.notificationCount > 0) {
+          console.log('🚨 BADGE ANOMALY: Has count but showNotification is false!', badgeInfo);
+        }
         return null;
       })()}
       {state.showNotification && (
@@ -1535,8 +1548,16 @@ const RSSEntriesClientComponent = ({
 
 // Export the memoized version
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
-  if (prevProps.isActive !== nextProps.isActive) return false;
-  if (prevProps.pageSize !== nextProps.pageSize) return false;
+  console.log('🔄 MEMO: Comparing props for re-render decision');
+  
+  if (prevProps.isActive !== nextProps.isActive) {
+    console.log('❌ MEMO: isActive changed, re-rendering');
+    return false;
+  }
+  if (prevProps.pageSize !== nextProps.pageSize) {
+    console.log('❌ MEMO: pageSize changed, re-rendering');
+    return false;
+  }
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
@@ -1550,7 +1571,10 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
 
     
     // Only re-render if entries decreased or completely changed (not just appended)
-    if (nextLength < prevLength) return false; // Entries removed
+    if (nextLength < prevLength) {
+      console.log('❌ MEMO: Entries decreased, re-rendering', { prevLength, nextLength });
+      return false; // Entries removed
+    }
     
     // If entries increased, check if the original entries are still there (appended scenario)
     if (nextLength > prevLength) {
@@ -1615,8 +1639,12 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
   }
   
   // Check new callback prop
-  if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) return false;
+  if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) {
+    console.log('❌ MEMO: onNewEntriesReceived callback changed, re-rendering');
+    return false;
+  }
   
+  console.log('✅ MEMO: Props unchanged, skipping re-render');
   return true;
 });
 RSSEntriesClient.displayName = 'RSSEntriesClient';
