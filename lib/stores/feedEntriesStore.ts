@@ -15,8 +15,7 @@ import type { RSSEntriesDisplayEntry } from '@/lib/types';
 // Cache expiry duration (aligned with RSS cache strategy)
 const CACHE_EXPIRY_MS = 60 * 1000; // 60 seconds
 
-// Maximum entries to prevent memory bloat
-const MAX_APPENDED_ENTRIES = 1000;
+// No limits - store all appended entries
 
 interface FeedNotification {
   show: boolean;
@@ -71,7 +70,7 @@ const createInitialState = (): FeedEntriesState => ({
  * Automatically expires stale data to prevent memory bloat.
  */
 export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
-  ...createInitialState(),
+    ...createInitialState(),
   
   /**
    * Set notification badge with auto-expiry - only when actually showing
@@ -82,9 +81,9 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
       return;
     }
     
-    // Validate inputs
-    const validCount = Math.max(0, Math.min(999, count)); // Cap at 999
-    const validImages = images.slice(0, 3); // Max 3 images for performance
+    // Validate inputs - limit badge images for UI performance
+    const validCount = Math.max(0, count);
+    const validImages = images.slice(0, 3); // Max 3 images for badge UI
     
     set(state => ({
       notification: {
@@ -137,9 +136,8 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
         }
       });
       
-      // Combine and limit entries to prevent memory bloat
-      const combinedEntries = [...uniqueEntries, ...state.appendedEntries]
-        .slice(0, MAX_APPENDED_ENTRIES);
+      // Combine entries - no limits
+      const combinedEntries = [...uniqueEntries, ...state.appendedEntries];
       
       return {
         appendedEntries: combinedEntries,
@@ -198,9 +196,8 @@ export const useFeedNotification = () => {
       };
     }
     
-    // Auto-cleanup expired notifications
+    // Check expiry but don't cleanup in selector (prevents infinite loops)
     if (state.isExpired()) {
-      state.cleanup();
       return {
         show: false,
         count: 0,
@@ -226,7 +223,12 @@ export const useAppendedEntries = () => {
       return [];
     }
     
-    return state.getValidAppendedEntries();
+    // Check expiry but don't cleanup in selector (prevents infinite loops)
+    if (state.isExpired()) {
+      return [];
+    }
+    
+    return state.appendedEntries;
   });
 };
 
@@ -237,6 +239,16 @@ export const useFeedNotificationActions = () => {
   return useFeedEntriesStore(state => ({
     setNotification: state.setNotification,
     clearNotification: state.clearNotification,
+  }));
+};
+
+/**
+ * Hook to manually trigger cleanup when needed (prevents infinite loops)
+ */
+export const useFeedEntriesCleanup = () => {
+  return useFeedEntriesStore(state => ({
+    cleanup: state.cleanup,
+    isExpired: state.isExpired,
   }));
 };
 
