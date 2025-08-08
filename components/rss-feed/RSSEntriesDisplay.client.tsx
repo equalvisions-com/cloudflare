@@ -1251,15 +1251,12 @@ const RSSEntriesClientComponent = ({
     const currentLength = state.entries.length;
     const previousLength = previousEntriesLengthRef.current;
     
-    // CRITICAL FIX: Don't trigger parent callback if notification is showing
-    // This prevents the notification from being reset by parent re-initialization
-    if (currentLength > previousLength && onNewEntriesReceived && !state.showNotification) {
+    // Always sync with parent for entry persistence
+    if (currentLength > previousLength && onNewEntriesReceived) {
       const newEntriesCount = currentLength - previousLength;
       const newEntries = state.entries.slice(0, newEntriesCount);
-      console.log('📤 CHILD: Syncing entries to parent (no active notification):', newEntriesCount);
+      console.log('📤 CHILD: Syncing entries to parent for persistence:', newEntriesCount);
       onNewEntriesReceived(newEntries);
-    } else if (state.showNotification) {
-      console.log('🛑 CHILD: Skipping parent sync - notification is active');
     }
     
     previousEntriesLengthRef.current = currentLength;
@@ -1367,17 +1364,7 @@ const RSSEntriesClientComponent = ({
     if ('key' in e && e.key !== 'Enter' && e.key !== ' ') return;
     if ('key' in e) e.preventDefault();
     handleNotificationClick(); // Use the proper handler that adds entries to feed
-    
-    // CRITICAL FIX: After notification dismissal, trigger parent sync with delay
-    setTimeout(() => {
-      if (onNewEntriesReceived && isMountedRef.current) {
-        const currentLength = state.entries.length;
-        const syncableEntries = state.entries.slice(0, Math.min(10, currentLength)); // Sync up to 10 newest entries
-        console.log('🔄 CHILD: Post-notification sync with parent:', syncableEntries.length);
-        onNewEntriesReceived(syncableEntries);
-      }
-    }, 100); // Short delay to ensure notification state is updated first
-  }, [handleNotificationClick, onNewEntriesReceived, isMountedRef, state.entries]);
+  }, [handleNotificationClick]);
 
   // Error display
   if (state.fetchError) {

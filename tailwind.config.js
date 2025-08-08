@@ -21,7 +21,7 @@ module.exports = {
         mono: ["var(--font-geist-mono)"],
       },
       animation: {
-        "fade-out": "fadeOut 3s ease-in-out forwards",
+        "fade-out": "fadeOut 5s ease-in-out forwards",
       },
       keyframes: {
         fadeOut: {
