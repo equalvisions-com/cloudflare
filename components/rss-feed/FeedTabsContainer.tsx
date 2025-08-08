@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
 import type { FeedTabsContainerProps } from '@/lib/types';
-import { useAppendedEntries } from '@/lib/stores/feedEntriesStore';
 
 /**
  * FeedTabsContainer Component
@@ -48,8 +47,12 @@ export function FeedTabsContainer({
   });
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Enterprise-grade entry management with Zustand store
-  const appendedEntries = useAppendedEntries();
+  // Simple notification state for badge
+  const [notification, setNotification] = useState({
+    show: false,
+    count: 0,
+    images: [] as string[]
+  });
   
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
@@ -97,19 +100,15 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Enterprise-grade RSS data merging with Zustand store  
-  const completeRssData = useMemo(() => {
-    if (!rssData) return null;
-    
-    // Merge appended entries from store with server data
-    const mergedEntries = [...appendedEntries, ...(rssData.entries || [])] as any;
-    
-    return {
-      ...rssData,
-      entries: mergedEntries,
-      totalEntries: (rssData.totalEntries || 0) + appendedEntries.length,
-    };
-  }, [rssData, appendedEntries]);
+  // Simple RSS data - no complex merging needed
+  const completeRssData = rssData;
+  
+  // Simple callback for badge notifications
+  const handleNewEntries = useCallback((entries: any[], notificationData?: { show: boolean; count: number; images: string[] }) => {
+    if (notificationData) {
+      setNotification(notificationData);
+    }
+  }, []);
   
   // Custom hook for UI rendering - clean enterprise implementation
   const { tabs } = useFeedTabsUI({
@@ -121,7 +120,8 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured
+    onRetryFeatured: handleRetryFeatured,
+    onNewEntriesReceived: handleNewEntries
   });
   
   // Tab change handler with authentication checks

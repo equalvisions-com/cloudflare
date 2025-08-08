@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, useReducer } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, useReducer, useState } from 'react';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -27,12 +27,7 @@ import type {
   RSSEntriesDisplayEntry,
 } from "@/lib/types";
 
-// Import Zustand store for notifications and entries
-import { 
-  useFeedNotification, 
-  useFeedNotificationActions, 
-  useFeedEntriesActions 
-} from '@/lib/stores/feedEntriesStore';
+// No Zustand imports needed - using simple parent-child callbacks
 
 // Import custom hooks for business logic
 import { useRSSEntriesMemoryManagement } from './hooks/useRSSEntriesMemoryManagement';
@@ -1078,15 +1073,36 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true
+  isActive = true,
+  onNewEntriesReceived
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer (clean core data management)
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
   
-  // Zustand stores for notifications and entry persistence
-  const notification = useFeedNotification();
-  const { setNotification, clearNotification } = useFeedNotificationActions();
-  const { addAppendedEntries } = useFeedEntriesActions();
+  // Simple notification state - no Zustand needed
+  const [notification, setNotificationState] = useState({
+    show: false,
+    count: 0,
+    images: [] as string[]
+  });
+  
+  const setNotification = useCallback((show: boolean, count?: number, images?: string[]) => {
+    const notificationData = {
+      show,
+      count: count || 0,
+      images: images || []
+    };
+    setNotificationState(notificationData);
+    
+    // Pass to parent via callback if available
+    if (onNewEntriesReceived) {
+      onNewEntriesReceived([], notificationData);
+    }
+  }, [onNewEntriesReceived]);
+  
+  const clearNotification = useCallback(() => {
+    setNotificationState({ show: false, count: 0, images: [] });
+  }, []);
 
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
@@ -1165,14 +1181,9 @@ const RSSEntriesClientComponent = ({
     // Enterprise-grade Zustand integration - only when needed
     setNotification: setNotification,
     prependEntries: useCallback((entries) => {
-      // Add to local state for immediate UI update
+      // Only add to local state - no dual state management
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
-      
-      // Only use Zustand store if we actually have entries to persist
-      if (entries.length > 0) {
-        addAppendedEntries(entries);
-      }
-    }, [addAppendedEntries]),
+    }, []),
     createManagedTimeout,
   });
 

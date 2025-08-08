@@ -1516,6 +1516,7 @@ export interface RSSEntriesDisplayClientProps {
   };
   pageSize?: number;
   isActive?: boolean;
+  onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[], notificationData?: { show: boolean; count: number; images: string[] }) => void;
 }
 
 export interface RSSEntriesDisplayServerProps {
@@ -1797,6 +1798,7 @@ export interface UseFeedTabsUIProps {
   activeTabIndex: number;
   onRetryRSS: () => void;
   onRetryFeatured: () => void;
+  onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[], notificationData?: { show: boolean; count: number; images: string[] }) => void;
 }
 
 // Custom hooks return interfaces

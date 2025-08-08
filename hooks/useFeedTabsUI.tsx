@@ -46,7 +46,8 @@ export const useFeedTabsUI = ({
   featuredError,
   activeTabIndex,
   onRetryRSS,
-  onRetryFeatured
+  onRetryFeatured,
+  onNewEntriesReceived
 }: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
@@ -165,6 +166,7 @@ export const useFeedTabsUI = ({
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
+              onNewEntriesReceived={onNewEntriesReceived}
             />
           </div>
         );
@@ -180,7 +182,8 @@ export const useFeedTabsUI = ({
     featuredError,
     isFeaturedLoading,
     onRetryRSS,
-    onRetryFeatured
+    onRetryFeatured,
+    onNewEntriesReceived
   ]);
 
   /**
