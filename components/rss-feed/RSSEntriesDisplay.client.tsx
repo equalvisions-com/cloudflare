@@ -245,7 +245,12 @@ const createInitialState = (): RSSEntriesState => ({
 const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RSSEntriesState => {
   switch (action.type) {
     case 'INITIALIZE':
-      return {
+      console.log('🔄 REDUCER INITIALIZE: Before init', {
+        showNotification: state.showNotification,
+        count: state.notificationCount,
+        images: state.notificationImages?.length
+      });
+      const newState = {
         ...state,
         ...action.payload,
         hasInitialized: true,
@@ -260,6 +265,12 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         notificationCount: state.notificationCount,
         notificationImages: state.notificationImages,
       };
+      console.log('🔄 REDUCER INITIALIZE: After init', {
+        showNotification: newState.showNotification,
+        count: newState.notificationCount,
+        images: newState.notificationImages?.length
+      });
+      return newState;
     
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
@@ -322,12 +333,23 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       };
     
     case 'SET_NOTIFICATION':
-      return {
+      console.log('🔔 REDUCER SET_NOTIFICATION:', {
+        show: action.payload.show,
+        count: action.payload.count,
+        images: action.payload.images?.length
+      });
+      const notificationState = {
         ...state,
         showNotification: action.payload.show,
         notificationCount: action.payload.count || 0,
         notificationImages: action.payload.images || [],
       };
+      console.log('🔔 REDUCER SET_NOTIFICATION: New state', {
+        showNotification: notificationState.showNotification,
+        count: notificationState.notificationCount,
+        images: notificationState.notificationImages?.length
+      });
+      return notificationState;
     
     case 'SET_NEW_ENTRIES':
       console.log('📥 REDUCER SET_NEW_ENTRIES: Setting', action.payload.length, 'new entries');
@@ -1380,6 +1402,11 @@ const RSSEntriesClientComponent = ({
       </a>
       
       {/* Notification for new entries */}
+      {console.log('🎯 BADGE RENDER: Checking display', {
+        showNotification: state.showNotification,
+        count: state.notificationCount,
+        images: state.notificationImages?.length
+      }) || null}
       {state.showNotification && (
         <div 
           className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
