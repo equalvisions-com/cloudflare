@@ -1108,9 +1108,7 @@ const RSSEntriesClientComponent = ({
   initialData, 
   pageSize = 30, 
   isActive = true,
-  onPrependEntries,
-  onAppendEntries,
-  onHasMoreChange,
+  onEntriesUpdate
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
@@ -1156,23 +1154,9 @@ const RSSEntriesClientComponent = ({
     pageSize,
     setLoading: useCallback((loading) => dispatch({ type: 'SET_LOADING', payload: loading }), []),
     setFetchError: useCallback((error) => dispatch({ type: 'SET_FETCH_ERROR', payload: error }), []),
-    addEntries: useCallback((entries) => {
-      // Update local state
-      dispatch({ type: 'ADD_ENTRIES', payload: entries });
-      // Notify parent to persist appended entries
-      if (entries && entries.length && typeof onAppendEntries === 'function') {
-        try {
-          onAppendEntries(entries);
-        } catch {}
-      }
-    }, [onAppendEntries]),
+    addEntries: useCallback((entries) => dispatch({ type: 'ADD_ENTRIES', payload: entries }), []),
     setCurrentPage: useCallback((page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }), []),
-    setHasMore: useCallback((hasMore) => {
-      dispatch({ type: 'SET_HAS_MORE', payload: hasMore });
-      if (typeof onHasMoreChange === 'function') {
-        try { onHasMoreChange(hasMore); } catch {}
-      }
-    }, [onHasMoreChange]),
+    setHasMore: useCallback((hasMore) => dispatch({ type: 'SET_HAS_MORE', payload: hasMore }), []),
 
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
@@ -1205,16 +1189,7 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => {
-      // Update local state immediately
-      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
-      // Also notify parent to persist new entries across tab switches
-      if (entries && entries.length && typeof onPrependEntries === 'function') {
-        try {
-          onPrependEntries(entries);
-        } catch {}
-      }
-    }, [onPrependEntries]),
+    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
     createManagedTimeout,
   });
 
@@ -1253,6 +1228,41 @@ const RSSEntriesClientComponent = ({
   hasMoreRef.current = state.hasMore;
 
   postTitlesRef.current = state.postTitles;
+  
+  // Notify parent when entries are updated (but not on initial mount)
+  const hasNotifiedInitialRef = useRef(false);
+  const previousEntriesLengthRef = useRef(0);
+  const previousNewEntriesRef = useRef(0);
+  
+  React.useEffect(() => {
+    // Skip initial notification (parent already has initial data)
+    if (!hasNotifiedInitialRef.current) {
+      hasNotifiedInitialRef.current = true;
+      previousEntriesLengthRef.current = state.entries.length;
+      previousNewEntriesRef.current = 0;
+      return;
+    }
+    
+    // Only notify if we have a callback and entries have actually changed
+    if (onEntriesUpdate && state.entries.length !== previousEntriesLengthRef.current) {
+      // Check if this is from new entries being prepended (not pagination)
+      // New entries are prepended, so if the length increased by more than pageSize,
+      // or if we have newEntries in state, it's from refresh
+      const isFromNewEntries = state.newEntries.length > 0 && 
+                               state.newEntries.length !== previousNewEntriesRef.current;
+      
+      onEntriesUpdate({
+        entries: state.entries,
+        hasMore: state.hasMore,
+        // Only pass notification data if these are truly new entries from refresh
+        newEntriesCount: isFromNewEntries ? state.newEntries.length : undefined,
+        newEntriesImages: isFromNewEntries ? state.notificationImages : undefined
+      });
+      
+      previousEntriesLengthRef.current = state.entries.length;
+      previousNewEntriesRef.current = state.newEntries.length;
+    }
+  }, [state.entries, state.hasMore, state.newEntries.length, state.notificationImages, onEntriesUpdate]);
   
   // Get entry GUIDs for batch metrics query
   const entryGuids = useMemo(() => {
@@ -1490,6 +1500,7 @@ const RSSEntriesClientComponent = ({
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
   if (prevProps.isActive !== nextProps.isActive) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
+  if (prevProps.onEntriesUpdate !== nextProps.onEntriesUpdate) return false;
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;

@@ -47,24 +47,9 @@ export const useFeedTabsUI = ({
   activeTabIndex,
   onRetryRSS,
   onRetryFeatured,
-  onRSSEntriesPrepend,
-  onRSSEntriesAppend,
-  onRSSEntriesHasMoreChange,
+  onRSSEntriesUpdate,
+  newEntriesNotification
 }: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
-  // Keep latest values in refs to allow stable component identities without stale closures
-  const rssDataRef = useRef(rssData);
-  const rssErrorRef = useRef(rssError);
-  const isRSSLoadingRef = useRef(isRSSLoading);
-  const featuredDataRef = useRef(featuredData);
-  const featuredErrorRef = useRef(featuredError);
-  const isFeaturedLoadingRef = useRef(isFeaturedLoading);
-
-  rssDataRef.current = rssData;
-  rssErrorRef.current = rssError;
-  isRSSLoadingRef.current = isRSSLoading;
-  featuredDataRef.current = featuredData;
-  featuredErrorRef.current = featuredError;
-  isFeaturedLoadingRef.current = isFeaturedLoading;
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
 
@@ -139,33 +124,6 @@ export const useFeedTabsUI = ({
   /**
    * Memoized tabs configuration - optimized for re-render prevention
    */
-  // Stable component for Following tab that reads latest data from refs
-  const FollowingComponent = React.useCallback(() => {
-    const currentError = rssErrorRef.current;
-    const currentLoading = isRSSLoadingRef.current;
-    const currentData = rssDataRef.current;
-
-    if (currentError) {
-      return renderErrorState(currentError, onRetryRSS);
-    }
-
-    if (currentLoading || currentData === null) {
-      return renderLoadingState();
-    }
-
-    return (
-      <div className="min-h-screen">
-        <RSSEntriesClientWithErrorBoundary 
-          initialData={currentData as any /* Type adjustment for compatibility */} 
-          pageSize={currentData?.entries?.length || 30}
-          onPrependEntries={onRSSEntriesPrepend}
-          onAppendEntries={onRSSEntriesAppend}
-          onHasMoreChange={onRSSEntriesHasMoreChange}
-        />
-      </div>
-    );
-  }, [onRetryRSS, onRSSEntriesPrepend, onRSSEntriesAppend, onRSSEntriesHasMoreChange]);
-
   const tabs: FeedTabsTabConfig[] = useMemo(() => [
     // Discover tab - first in order
     {
@@ -204,17 +162,31 @@ export const useFeedTabsUI = ({
           return renderLoadingState();
         }
         
-        return <FollowingComponent />;
+        return (
+          <div className="min-h-screen">
+            <RSSEntriesClientWithErrorBoundary 
+              initialData={rssData as any /* Type adjustment for compatibility */} 
+              pageSize={rssData.entries?.length || 30}
+              isActive={activeTabIndex === 1}
+              onEntriesUpdate={onRSSEntriesUpdate}
+            />
+          </div>
+        );
       }
     }
   ], [
-    // Keep dependencies minimal to preserve stable component identities and avoid remounts
+    // REMOVED activeTabIndex to prevent unnecessary re-renders
+    // activeTabIndex is accessed via closure, doesn't need to be in deps
+    rssData,
     featuredData,
+    rssError,
+    isRSSLoading,
     featuredError,
     isFeaturedLoading,
     onRetryRSS,
     onRetryFeatured,
-    FollowingComponent
+    onRSSEntriesUpdate,
+    activeTabIndex
   ]);
 
   /**
