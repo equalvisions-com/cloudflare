@@ -1158,8 +1158,8 @@ const RSSEntriesClientComponent = ({
   isActive = true,
   onNewEntriesReceived
 }: RSSEntriesDisplayClientProps) => {
-  // Component mount tracking
-  console.log('🏗️ COMPONENT: RSSEntriesClient mounting/re-mounting');
+  // Component mount tracking - should only see this on initial mount now
+  console.log('🏗️ COMPONENT: RSSEntriesClient mounting');
   
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());

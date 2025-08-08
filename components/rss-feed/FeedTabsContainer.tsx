@@ -123,19 +123,37 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Merge RSS data with new entries from refresh for complete dataset  
+  // Merge RSS data with new entries from refresh for complete dataset
+  // CRITICAL FIX: Use ref to maintain stable object reference and prevent component remounting
+  const completeRssDataRef = useRef<any>(null);
+  
   const completeRssData = useMemo(() => {
-    if (!rssData) return null;
+    if (!rssData) {
+      completeRssDataRef.current = null;
+      return null;
+    }
     
     // Create merged data with new entries first, then original entries
-    // Note: Type casting is acceptable here as the child component already handles mixed types
     const mergedEntries = [...newEntriesFromRefresh, ...(rssData.entries || [])] as any;
     
-    return {
+    // CRITICAL: Reuse existing object reference when possible to prevent remounting
+    if (completeRssDataRef.current && 
+        completeRssDataRef.current.hasMore === rssData.hasMore &&
+        completeRssDataRef.current.feedUrls?.length === rssData.feedUrls?.length) {
+      // Only update entries and totalEntries, preserve object reference
+      completeRssDataRef.current.entries = mergedEntries;
+      completeRssDataRef.current.totalEntries = rssData.totalEntries + newEntriesFromRefresh.length;
+      return completeRssDataRef.current;
+    }
+    
+    // Create new object only when necessary (initial load or major data change)
+    const newData = {
       ...rssData,
       entries: mergedEntries,
       totalEntries: rssData.totalEntries + newEntriesFromRefresh.length,
     };
+    completeRssDataRef.current = newData;
+    return newData;
   }, [rssData, newEntriesFromRefresh]);
   
   // Custom hook for UI rendering - enhanced with merged data and badge state
