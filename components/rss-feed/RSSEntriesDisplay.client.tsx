@@ -297,9 +297,9 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       console.log('🚀 REDUCER PREPEND_ENTRIES: Adding', action.payload.length, 'entries to the front');
       console.log('🚀 REDUCER PREPEND_ENTRIES: Current entries count:', state.entries.length);
       console.log('🚀 REDUCER PREPEND_ENTRIES: New entries:', action.payload);
-      const newState = { ...state, entries: [...action.payload, ...state.entries] };
-      console.log('🚀 REDUCER PREPEND_ENTRIES: New total entries count:', newState.entries.length);
-      return newState;
+      const prependState = { ...state, entries: [...action.payload, ...state.entries] };
+      console.log('🚀 REDUCER PREPEND_ENTRIES: New total entries count:', prependState.entries.length);
+      return prependState;
     
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload };
@@ -1402,11 +1402,14 @@ const RSSEntriesClientComponent = ({
       </a>
       
       {/* Notification for new entries */}
-      {console.log('🎯 BADGE RENDER: Checking display', {
-        showNotification: state.showNotification,
-        count: state.notificationCount,
-        images: state.notificationImages?.length
-      }) || null}
+      {(() => {
+        console.log('🎯 BADGE RENDER: Checking display', {
+          showNotification: state.showNotification,
+          count: state.notificationCount,
+          images: state.notificationImages?.length
+        });
+        return null;
+      })()}
       {state.showNotification && (
         <div 
           className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
