@@ -9,7 +9,8 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
-import type { FeedTabsContainerProps, RSSEntriesDisplayEntry } from '@/lib/types';
+import type { FeedTabsContainerProps } from '@/lib/types';
+import { useAppendedEntries } from '@/lib/stores/feedEntriesStore';
 
 /**
  * FeedTabsContainer Component
@@ -47,8 +48,8 @@ export function FeedTabsContainer({
   });
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // SIMPLE SOLUTION: Just track new entries to merge with RSS data
-  const [newEntriesFromRefresh, setNewEntriesFromRefresh] = useState<RSSEntriesDisplayEntry[]>([]);
+  // Enterprise-grade entry management with Zustand store
+  const appendedEntries = useAppendedEntries();
   
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
@@ -66,32 +67,6 @@ export function FeedTabsContainer({
   featuredDataRef.current = featuredData;
   errorsRef.current = errors;
   
-  // Removed useTransition to fix tab switching timing issues
-  
-  // Simple callback to receive new entries from child refresh - with delay to prevent state reset
-  const handleNewEntriesReceived = useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
-    console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
-    console.log('⏰ PARENT: Delaying state update by 150ms to preserve badge...');
-    
-    // CRITICAL FIX: Delay the parent state update to allow child's notification state to stabilize
-    // This prevents the immediate re-render that resets the badge before INITIALIZE can preserve it
-    setTimeout(() => {
-      console.log('⚡ PARENT: Executing delayed state update now...');
-      // Merge with existing new entries, avoiding duplicates
-      setNewEntriesFromRefresh(current => {
-        const existingGuids = new Set(current.map(entry => entry.entry.guid));
-        const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
-        
-        if (trulyNew.length > 0) {
-          console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state (delayed)');
-          return [...trulyNew, ...current]; // Newest first
-        }
-        
-        return current;
-      });
-    }, 150); // 150ms delay to allow badge state to stabilize
-  }, []);
-  
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
     router,
@@ -100,8 +75,7 @@ export function FeedTabsContainer({
     onRSSLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, rss: loading })),
     onFeaturedLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, featured: loading })),
     onRSSError: (error: string | null) => setErrors(prev => ({ ...prev, rss: error })),
-    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error })),
-    onNewEntriesReceived: handleNewEntriesReceived
+    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error }))
   });
   
   // Stable cleanup reference to prevent dependency issues
@@ -123,47 +97,21 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Merge RSS data with new entries from refresh for complete dataset
-  // CRITICAL FIX: Use ref to maintain stable object reference and prevent component remounting
-  const completeRssDataRef = useRef<any>(null);
-  
+  // Enterprise-grade RSS data merging with Zustand store  
   const completeRssData = useMemo(() => {
-    if (!rssData) {
-      completeRssDataRef.current = null;
-      return null;
-    }
+    if (!rssData) return null;
     
-    // Create merged data with new entries first, then original entries
-    const mergedEntries = [...newEntriesFromRefresh, ...(rssData.entries || [])] as any;
+    // Merge appended entries from store with server data
+    const mergedEntries = [...appendedEntries, ...(rssData.entries || [])] as any;
     
-    // CRITICAL: Reuse existing object reference when possible to prevent remounting
-    if (completeRssDataRef.current && 
-        completeRssDataRef.current.hasMore === rssData.hasMore &&
-        completeRssDataRef.current.feedUrls?.length === rssData.feedUrls?.length) {
-      // Only update entries and totalEntries, preserve object reference
-      console.log('🔄 PARENT: Reusing existing object reference to prevent remount');
-      completeRssDataRef.current.entries = mergedEntries;
-      completeRssDataRef.current.totalEntries = rssData.totalEntries + newEntriesFromRefresh.length;
-      return completeRssDataRef.current;
-    }
-    
-    console.log('🆕 PARENT: Creating new object reference', {
-      hasExisting: !!completeRssDataRef.current,
-      hasMoreMatch: completeRssDataRef.current?.hasMore === rssData.hasMore,
-      feedUrlsMatch: completeRssDataRef.current?.feedUrls?.length === rssData.feedUrls?.length
-    });
-    
-    // Create new object only when necessary (initial load or major data change)
-    const newData = {
+    return {
       ...rssData,
       entries: mergedEntries,
-      totalEntries: rssData.totalEntries + newEntriesFromRefresh.length,
+      totalEntries: (rssData.totalEntries || 0) + appendedEntries.length,
     };
-    completeRssDataRef.current = newData;
-    return newData;
-  }, [rssData, newEntriesFromRefresh]);
+  }, [rssData, appendedEntries]);
   
-  // Custom hook for UI rendering - enhanced with merged data and badge state
+  // Custom hook for UI rendering - clean enterprise implementation
   const { tabs } = useFeedTabsUI({
     rssData: completeRssData,
     featuredData: featuredData ?? null,
@@ -173,9 +121,7 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured,
-    // Pass callback to receive new entries from child
-    onNewEntriesReceived: handleNewEntriesReceived
+    onRetryFeatured: handleRetryFeatured
   });
   
   // Tab change handler with authentication checks

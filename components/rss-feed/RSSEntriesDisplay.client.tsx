@@ -27,6 +27,13 @@ import type {
   RSSEntriesDisplayEntry,
 } from "@/lib/types";
 
+// Import Zustand store for notifications and entries
+import { 
+  useFeedNotification, 
+  useFeedNotificationActions, 
+  useFeedEntriesActions 
+} from '@/lib/stores/feedEntriesStore';
+
 // Import custom hooks for business logic
 import { useRSSEntriesMemoryManagement } from './hooks/useRSSEntriesMemoryManagement';
 import { useRSSEntriesDataLoading } from './hooks/useRSSEntriesDataLoading';
@@ -163,15 +170,11 @@ interface RSSEntriesState {
     feedUrl: string;
     initialData?: { count: number };
   } | null;
-  showNotification: boolean;
-  notificationCount: number;
-  notificationImages: string[];
   
   // Metadata
   postTitles: string[];
   feedUrls: string[];
   mediaTypes: string[];
-  newEntries: RSSEntriesDisplayEntry[];
   
   // Initialization
   hasInitialized: boolean;
@@ -206,13 +209,6 @@ type RSSEntriesAction =
       initialData?: { count: number };
     }}
   | { type: 'CLOSE_COMMENT_DRAWER' }
-  | { type: 'SET_NOTIFICATION'; payload: {
-      show: boolean;
-      count?: number;
-      images?: string[];
-    }}
-  | { type: 'SET_NEW_ENTRIES'; payload: RSSEntriesDisplayEntry[] }
-  | { type: 'CLEAR_NEW_ENTRIES' }
   | { type: 'UPDATE_ENTRY_METRICS'; payload: {
       entryGuid: string;
       metrics: RSSEntriesDisplayEntry['initialData'];
@@ -231,13 +227,9 @@ const createInitialState = (): RSSEntriesState => ({
   refreshError: null,
   commentDrawerOpen: false,
   selectedCommentEntry: null,
-  showNotification: false,
-  notificationCount: 0,
-  notificationImages: [],
   postTitles: [],
   feedUrls: [],
   mediaTypes: [],
-  newEntries: [],
   hasInitialized: false,
 });
 
@@ -245,28 +237,9 @@ const createInitialState = (): RSSEntriesState => ({
 const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RSSEntriesState => {
   switch (action.type) {
     case 'INITIALIZE':
-      console.log('🔄 REDUCER INITIALIZE: Before init', {
-        showNotification: state.showNotification,
-        count: state.notificationCount,
-        images: state.notificationImages?.length
-      });
-      
-      // CRITICAL FIX: Preserve notification state during parent-triggered re-initialization
-      const preservedNotification = {
-        showNotification: state.showNotification,
-        notificationCount: state.notificationCount,
-        notificationImages: state.notificationImages,
-      };
-      
-      console.log('🔄 REDUCER INITIALIZE: Preserving notification state', {
-        showNotification: preservedNotification.showNotification,
-        count: preservedNotification.notificationCount,
-        images: preservedNotification.notificationImages?.length
-      });
-      console.log('🔄 REDUCER INITIALIZE: Action payload does NOT contain notification fields:', Object.keys(action.payload));
-      
-      const newState = {
+      return {
         ...state,
+        ...action.payload,
         hasInitialized: true,
         currentPage: 1,
         isLoading: false,
@@ -274,25 +247,7 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         hasRefreshed: false,
         fetchError: null,
         refreshError: null,
-        // Apply action payload (entries, hasMore, etc.) but DON'T override notification state
-        entries: action.payload.entries,
-        hasMore: action.payload.hasMore,
-        postTitles: action.payload.postTitles,
-        feedUrls: action.payload.feedUrls,
-        mediaTypes: action.payload.mediaTypes,
-        // CRITICAL: Explicitly preserve notification state
-        ...preservedNotification,
       };
-      
-      console.log('🔄 REDUCER INITIALIZE: After init', {
-        showNotification: newState.showNotification,
-        count: newState.notificationCount,
-        images: newState.notificationImages?.length,
-        preservationWorked: newState.showNotification === state.showNotification,
-        originalShow: state.showNotification,
-        finalShow: newState.showNotification
-      });
-      return newState;
     
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
@@ -316,12 +271,7 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       return { ...state, entries: [...state.entries, ...action.payload] };
     
     case 'PREPEND_ENTRIES':
-      console.log('🚀 REDUCER PREPEND_ENTRIES: Adding', action.payload.length, 'entries to the front');
-      console.log('🚀 REDUCER PREPEND_ENTRIES: Current entries count:', state.entries.length);
-      console.log('🚀 REDUCER PREPEND_ENTRIES: New entries:', action.payload);
-      const prependState = { ...state, entries: [...action.payload, ...state.entries] };
-      console.log('🚀 REDUCER PREPEND_ENTRIES: New total entries count:', prependState.entries.length);
-      return prependState;
+      return { ...state, entries: [...action.payload, ...state.entries] };
     
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload };
@@ -354,33 +304,6 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         selectedCommentEntry: null,
       };
     
-    case 'SET_NOTIFICATION':
-      console.log('🔔 REDUCER SET_NOTIFICATION:', {
-        show: action.payload.show,
-        count: action.payload.count,
-        images: action.payload.images?.length
-      });
-      const notificationState = {
-        ...state,
-        showNotification: action.payload.show,
-        notificationCount: action.payload.count || 0,
-        notificationImages: action.payload.images || [],
-      };
-      console.log('🔔 REDUCER SET_NOTIFICATION: New state', {
-        showNotification: notificationState.showNotification,
-        count: notificationState.notificationCount,
-        images: notificationState.notificationImages?.length
-      });
-      return notificationState;
-    
-    case 'SET_NEW_ENTRIES':
-      console.log('📥 REDUCER SET_NEW_ENTRIES: Setting', action.payload.length, 'new entries');
-      console.log('📥 REDUCER SET_NEW_ENTRIES: New entries:', action.payload);
-      return { ...state, newEntries: action.payload };
-    
-    case 'CLEAR_NEW_ENTRIES':
-      console.log('🗑️ REDUCER CLEAR_NEW_ENTRIES: Clearing new entries');
-      return { ...state, newEntries: [] };
     
     case 'UPDATE_ENTRY_METRICS':
       return {
@@ -1155,16 +1078,15 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true,
-  onNewEntriesReceived
+  isActive = true
 }: RSSEntriesDisplayClientProps) => {
-  // Component mount tracking - should only see this on initial mount now
-  console.log('🏗️ COMPONENT: RSSEntriesClient mounting');
-  
-  // Main state with useReducer
+  // Main state with useReducer (clean core data management)
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
-
-
+  
+  // Zustand stores for notifications and entry persistence
+  const notification = useFeedNotification();
+  const { setNotification, clearNotification } = useFeedNotificationActions();
+  const { addAppendedEntries } = useFeedEntriesActions();
 
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
@@ -1238,13 +1160,19 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
     setFeedUrls: useCallback((urls) => dispatch({ type: 'SET_FEED_URLS', payload: urls }), []),
     setMediaTypes: useCallback((types) => dispatch({ type: 'SET_MEDIA_TYPES', payload: types }), []),
-    setNewEntries: useCallback((entries) => dispatch({ type: 'SET_NEW_ENTRIES', payload: entries }), []),
-    // BACK TO ORIGINAL - no modifications at all
-    setNotification: useCallback((show, count, images) => dispatch({ 
-      type: 'SET_NOTIFICATION', 
-      payload: { show, count, images } 
-    }), []),
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
+    // Legacy compatibility (no-op since we use Zustand now)
+    setNewEntries: useCallback(() => {}, []),
+    // Enterprise-grade Zustand integration - only when needed
+    setNotification: setNotification,
+    prependEntries: useCallback((entries) => {
+      // Add to local state for immediate UI update
+      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+      
+      // Only use Zustand store if we actually have entries to persist
+      if (entries.length > 0) {
+        addAppendedEntries(entries);
+      }
+    }, [addAppendedEntries]),
     createManagedTimeout,
   });
 
@@ -1258,36 +1186,13 @@ const RSSEntriesClientComponent = ({
     closeCommentDrawer: useCallback(() => dispatch({ type: 'CLOSE_COMMENT_DRAWER' }), []),
   });
 
-  const { show: showNewEntriesNotification, handleClick: handleNotificationClick } = useRSSEntriesNewEntries({
-    newEntries: state.newEntries,
-    showNotification: state.showNotification,
-    notificationCount: state.notificationCount,
-    notificationImages: state.notificationImages,
-    isMountedRef,
-    createManagedTimeout,
-    clearManagedTimeout,
-    setNotification: useCallback((show, count, images) => dispatch({ 
-      type: 'SET_NOTIFICATION', 
-      payload: { show, count, images } 
-    }), []),
-  });
+  // Enterprise notification handling with Zustand
+  const handleNotificationClick = useCallback(() => {
+    clearNotification();
+    // Scroll to top to show new entries
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [clearNotification]);
 
-  // NON-INVASIVE parent sync: Listen to entries changes and sync with parent
-  const previousEntriesLengthRef = useRef(state.entries.length);
-  useEffect(() => {
-    const currentLength = state.entries.length;
-    const previousLength = previousEntriesLengthRef.current;
-    
-    // Always sync with parent for entry persistence
-    if (currentLength > previousLength && onNewEntriesReceived) {
-      const newEntriesCount = currentLength - previousLength;
-      const newEntries = state.entries.slice(0, newEntriesCount);
-      console.log('📤 CHILD: Syncing entries to parent for persistence:', newEntriesCount);
-      onNewEntriesReceived(newEntries);
-    }
-    
-    previousEntriesLengthRef.current = currentLength;
-  }, [state.entries.length, onNewEntriesReceived, state.entries, state.showNotification]);
 
   // Sync refs with state
   const optimizedEntries = useMemo(() => 
@@ -1429,21 +1334,8 @@ const RSSEntriesClientComponent = ({
         Skip to main content
       </a>
       
-      {/* Notification for new entries */}
-      {(() => {
-        const badgeInfo = {
-          showNotification: state.showNotification,
-          count: state.notificationCount,
-          images: state.notificationImages?.length,
-          willDisplay: state.showNotification === true
-        };
-        console.log('🎯 BADGE RENDER: Checking display', badgeInfo);
-        if (state.showNotification !== true && state.notificationCount > 0) {
-          console.log('🚨 BADGE ANOMALY: Has count but showNotification is false!', badgeInfo);
-        }
-        return null;
-      })()}
-      {state.showNotification && (
+      {/* Enterprise notification badge */}
+      {notification.show && (
         <div 
           className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
           role="status"
@@ -1454,14 +1346,14 @@ const RSSEntriesClientComponent = ({
             className="py-2 px-4 bg-primary text-primary-foreground rounded-full shadow-md flex items-center gap-2 cursor-pointer hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             onClick={memoizedNotificationClick}
             onKeyDown={memoizedNotificationClick}
-            aria-label={`${state.notificationCount} new ${state.notificationCount === 1 ? 'post' : 'posts'} available. Click to view.`}
+            aria-label={`${notification.count} new ${notification.count === 1 ? 'post' : 'posts'} available. Click to view.`}
             tabIndex={0}
           >
-            {state.notificationImages.length > 0 ? (
+            {notification.images.length > 0 ? (
               <div className="flex items-center gap-1">
                 <MoveUp className="h-3 w-3" aria-hidden="true" />
                 <div className="flex items-center -space-x-1">
-                                     {state.notificationImages.map((imageUrl: string, index: number) => (
+                  {notification.images.map((imageUrl: string, index: number) => (
                     <div key={index} className="relative w-4 h-4 rounded-full overflow-hidden">
                       <Image
                         src={imageUrl}
@@ -1477,9 +1369,9 @@ const RSSEntriesClientComponent = ({
             ) : (
               <>
                 <MoveUp className="h-3 w-3" aria-hidden="true" />
-              <span className="text-sm font-medium">
-                  {state.notificationCount} new {state.notificationCount === 1 ? 'post' : 'posts'}
-              </span>
+                <span className="text-sm font-medium">
+                  {notification.count} new {notification.count === 1 ? 'post' : 'posts'}
+                </span>
               </>
             )}
           </button>
@@ -1548,52 +1440,14 @@ const RSSEntriesClientComponent = ({
 
 // Export the memoized version
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
-  console.log('🔄 MEMO: Comparing props for re-render decision');
-  
-  if (prevProps.isActive !== nextProps.isActive) {
-    console.log('❌ MEMO: isActive changed, re-rendering');
-    return false;
-  }
-  if (prevProps.pageSize !== nextProps.pageSize) {
-    console.log('❌ MEMO: pageSize changed, re-rendering');
-    return false;
-  }
+  if (prevProps.isActive !== nextProps.isActive) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
   
   if (prevProps.initialData && nextProps.initialData) {
-    // CRITICAL FIX: Don't re-render component when entries are just appended (length increases)
-    // This prevents notification state reset when parent adds new entries for persistence
-    const prevLength = prevProps.initialData.entries?.length || 0;
-    const nextLength = nextProps.initialData.entries?.length || 0;
-    
-
-    
-    // Only re-render if entries decreased or completely changed (not just appended)
-    if (nextLength < prevLength) {
-      console.log('❌ MEMO: Entries decreased, re-rendering', { prevLength, nextLength });
-      return false; // Entries removed
-    }
-    
-    // If entries increased, check if the original entries are still there (appended scenario)
-    if (nextLength > prevLength) {
-      const prevEntries = prevProps.initialData.entries || [];
-      const nextEntries = nextProps.initialData.entries || [];
-      
-      // Check if original entries are preserved at the end (newest entries added to front)
-      const originalEntriesPreserved = prevEntries.every((entry, index) => {
-        const offsetIndex = index + (nextLength - prevLength); // Offset by new entries count
-        return offsetIndex < nextLength && nextEntries[offsetIndex]?.entry.guid === entry.entry.guid;
-      });
-      
-      if (originalEntriesPreserved) {
-        console.log('🎯 MEMO: Entries appended, preserving component state to maintain notification');
-        return true; // DON'T re-render - entries were just appended
-      } else {
-        return false; // Different entries - re-render needed
-      }
-    }
+    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
 
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
@@ -1638,13 +1492,6 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
     }
   }
   
-  // Check new callback prop
-  if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) {
-    console.log('❌ MEMO: onNewEntriesReceived callback changed, re-rendering');
-    return false;
-  }
-  
-  console.log('✅ MEMO: Props unchanged, skipping re-render');
   return true;
 });
 RSSEntriesClient.displayName = 'RSSEntriesClient';

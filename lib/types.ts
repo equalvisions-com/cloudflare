@@ -1516,8 +1516,6 @@ export interface RSSEntriesDisplayClientProps {
   };
   pageSize?: number;
   isActive?: boolean;
-  // Callback for parent-child communication
-  onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[]) => void;
 }
 
 export interface RSSEntriesDisplayServerProps {
@@ -1785,8 +1783,6 @@ export interface UseFeedTabsDataFetchingProps {
   onFeaturedLoadingChange: (loading: boolean) => void;
   onRSSError: (error: string | null) => void;
   onFeaturedError: (error: string | null) => void;
-  // New callback for handling appended entries from refresh
-  onNewEntriesReceived?: (entries: FeedTabsRSSData['entries']) => void;
 }
 
 // Note: Removed unused Zustand hook interfaces (UseFeedTabsManagementProps, UseFeedTabsAuthProps, etc.)
@@ -1801,8 +1797,6 @@ export interface UseFeedTabsUIProps {
   activeTabIndex: number;
   onRetryRSS: () => void;
   onRetryFeatured: () => void;
-  // Callback to receive new entries from child
-  onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[]) => void;
 }
 
 // Custom hooks return interfaces
