@@ -68,22 +68,28 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
-  // Simple callback to receive new entries from child refresh
+  // Simple callback to receive new entries from child refresh - with delay to prevent state reset
   const handleNewEntriesReceived = useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
     console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
+    console.log('⏰ PARENT: Delaying state update by 150ms to preserve badge...');
     
-    // Merge with existing new entries, avoiding duplicates
-    setNewEntriesFromRefresh(current => {
-      const existingGuids = new Set(current.map(entry => entry.entry.guid));
-      const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
-      
-      if (trulyNew.length > 0) {
-        console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state');
-        return [...trulyNew, ...current]; // Newest first
-      }
-      
-      return current;
-    });
+    // CRITICAL FIX: Delay the parent state update to allow child's notification state to stabilize
+    // This prevents the immediate re-render that resets the badge before INITIALIZE can preserve it
+    setTimeout(() => {
+      console.log('⚡ PARENT: Executing delayed state update now...');
+      // Merge with existing new entries, avoiding duplicates
+      setNewEntriesFromRefresh(current => {
+        const existingGuids = new Set(current.map(entry => entry.entry.guid));
+        const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
+        
+        if (trulyNew.length > 0) {
+          console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state (delayed)');
+          return [...trulyNew, ...current]; // Newest first
+        }
+        
+        return current;
+      });
+    }, 150); // 150ms delay to allow badge state to stabilize
   }, []);
   
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({

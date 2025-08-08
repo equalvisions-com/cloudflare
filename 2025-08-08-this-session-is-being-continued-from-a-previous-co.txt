@@ -1,0 +1,122 @@
+╭───────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                         │
+│                                                   │
+│   /help for help, /status for your current setup  │
+│                                                   │
+│   cwd: /Users/nic/Desktop/PRODUCTION/CLAUDEFIXER  │
+╰───────────────────────────────────────────────────╯
+⏺ Compact summary (ctrl+r to expand)
+  ⎿  Read components/rss-feed/hooks/useRSSEntriesInitialization.ts (190 lines)
+  ⎿  Read components/rss-feed/hooks/useRSSEntriesQueueRefresh.ts (561 lines)
+  ⎿  Read hooks/useFeedTabsUI.tsx (228 lines)
+  ⎿  Todo list read (8 items)
+
+⏺ Looking at the console logs you provided, the issue is clear: the parent callback (onNewEntriesReceived) is causing an immediate re-render that resets
+  the child's notification state before the INITIALIZE action can preserve it.
+
+  The sequence is:
+  1. Badge gets set: 🔔 SET_NOTIFICATION: {show: true, count: 2, images: 2}
+  2. Parent callback triggers: 📥 PARENT: Received new entries from child refresh: 2
+  3. Badge immediately disappears: 🎯 BADGE RENDER: {showNotification: false, count: 0, images: 0}
+  4. INITIALIZE runs but state is already reset: 🔄 INITIALIZE: Before init {showNotification: false, count: 0, images: 0}
+
+  The problem is that when the parent receives new entries, it updates completeRssData which causes the child to re-render with new props, immediately
+  resetting the internal state before the INITIALIZE preservation logic can run.
+
+  Let me fix this by preventing the parent callback from immediately triggering a re-render:
+
+⏺ Update(components/rss-feed/FeedTabsContainer.tsx)
+  ⎿  Error editing file
+
+⏺ Read(components/rss-feed/FeedTabsContainer.tsx)
+  ⎿  Read 314 lines (ctrl+r to expand)
+
+⏺ Now I can see the issue more clearly. The parent callback is immediately updating state with setNewEntriesFromRefresh, which triggers a re-render and
+  passes new props to the child. Let me fix this by adding a delay:
+
+⏺ Update(components/rss-feed/FeedTabsContainer.tsx)
+  ⎿  Updated components/rss-feed/FeedTabsContainer.tsx with 17 additions and 13 removals                              
+       68      
+       69      // Removed useTransition to fix tab switching timing issues
+       70      
+       71 -    // Simple callback to receive new entries from child refresh
+       71 +    // Simple callback to receive new entries from child refresh - with delay to prevent state reset
+       72      const handleNewEntriesReceived = useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
+       73        console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
+       74        
+       75 -      // Merge with existing new entries, avoiding duplicates
+       76 -      setNewEntriesFromRefresh(current => {
+       77 -        const existingGuids = new Set(current.map(entry => entry.entry.guid));
+       78 -        const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
+       79 -        
+       80 -        if (trulyNew.length > 0) {
+       81 -          console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state');
+       82 -          return [...trulyNew, ...current]; // Newest first
+       83 -        }
+       84 -        
+       85 -        return current;
+       86 -      });
+       75 +      // CRITICAL FIX: Delay the parent state update to allow child's notification state to stabilize
+       76 +      // This prevents the immediate re-render that resets the badge before INITIALIZE can preserve it
+       77 +      setTimeout(() => {
+       78 +        // Merge with existing new entries, avoiding duplicates
+       79 +        setNewEntriesFromRefresh(current => {
+       80 +          const existingGuids = new Set(current.map(entry => entry.entry.guid));
+       81 +          const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
+       82 +          
+       83 +          if (trulyNew.length > 0) {
+       84 +            console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state (delayed)');
+       85 +            return [...trulyNew, ...current]; // Newest first
+       86 +          }
+       87 +          
+       88 +          return current;
+       89 +        });
+       90 +      }, 150); // 150ms delay to allow badge state to stabilize
+       91      }, []);
+       92      
+       93      const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
+
+⏺ Now let me also update the child component to add some additional debugging to confirm the fix is working:
+
+⏺ Read(components/rss-feed/RSSEntriesDisplay.client.tsx)
+  ⎿  Read 50 lines (ctrl+r to expand)
+
+⏺ Let me look for where the INITIALIZE action is handled in the reducer to add some additional debugging:
+
+⏺ Search(pattern: "INITIALIZE.*action", path: "components/rss-feed/RSSEntriesDisplay.client.tsx", output_mode: "content")
+  ⎿  Found 0 lines 
+
+⏺ Search(pattern: "INITIALIZE", path: "components/rss-feed/RSSEntriesDisplay.client.tsx", output_mode: "content")
+  ⎿  Found 63 lines (ctrl+r to expand)
+
+⏺ Perfect! I can see the INITIALIZE action already has preservation logic and debugging. Let me add one more debug line to the parent callback to track
+  the timing:
+
+⏺ Update(components/rss-feed/FeedTabsContainer.tsx)
+  ⎿  Updated components/rss-feed/FeedTabsContainer.tsx with 2 additions                                          
+       71      // Simple callback to receive new entries from child refresh - with delay to prevent state reset
+       72      const handleNewEntriesReceived = useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
+       73        console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
+       74 +      console.log('⏰ PARENT: Delaying state update by 150ms to preserve badge...');
+       75        
+       76        // CRITICAL FIX: Delay the parent state update to allow child's notification state to stabilize
+       77        // This prevents the immediate re-render that resets the badge before INITIALIZE can preserve it
+       78        setTimeout(() => {
+       79 +        console.log('⚡ PARENT: Executing delayed state update now...');
+       80          // Merge with existing new entries, avoiding duplicates
+       81          setNewEntriesFromRefresh(current => {
+       82            const existingGuids = new Set(current.map(entry => entry.entry.guid));
+
+⏺ Update Todos
+  ⎿  ☒ Read and analyze FeedTabsContainer.tsx to understand parent state management      
+     ☒ Read and analyze RSSEntriesDisplay.client.tsx to understand child state management
+     ☒ Read and analyze RSSEntriesDisplay.server.tsx to understand server-side data flow
+     ☒ Read useFeedTabsUI hook to understand tab state management
+     ☒ Identify the root cause of entry persistence vs badge display conflict
+     ☒ Design and implement a solution that preserves both features
+     ☒ Debug why badge with arrow and profile images isn't showing
+     ☒ Fix notification state being reset by parent callback before INITIALIZE
+  ⎿  Claude usage limit reached. Your limit will reset at 4pm (America/New_York).
+
+      • /upgrade to increase your usage limit.
+
