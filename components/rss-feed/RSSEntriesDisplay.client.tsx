@@ -1161,17 +1161,35 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
-  // Enhanced prepend callback that also notifies parent
-  const enhancedPrependEntries = useCallback((entries: RSSEntriesDisplayEntry[]) => {
+  // Store the last prepended entries for parent notification
+  const lastPrependedEntriesRef = useRef<RSSEntriesDisplayEntry[]>([]);
+  
+  // Simple prepend callback (back to original)
+  const simplePrependEntries = useCallback((entries: RSSEntriesDisplayEntry[]) => {
     console.log('🔄 CHILD: Prepending entries locally:', entries.length);
+    
+    // Store for parent notification after badge shows
+    lastPrependedEntriesRef.current = entries;
     
     // Add to child state for immediate display
     dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+  }, []);
+  
+  // Enhanced notification callback that also notifies parent
+  const enhancedSetNotification = useCallback((show: boolean, count?: number, images?: string[]) => {
+    console.log('🔔 CHILD: setNotification called with:', { show, count, images });
     
-    // Notify parent to add to persistent state for tab switching
-    if (onNewEntriesReceived) {
-      console.log('📡 CHILD: Notifying parent of new entries for persistence');
-      onNewEntriesReceived(entries);
+    // Show the notification normally
+    dispatch({ 
+      type: 'SET_NOTIFICATION', 
+      payload: { show, count, images } 
+    });
+    
+    // If showing notification and we have entries to sync, notify parent
+    if (show && lastPrependedEntriesRef.current.length > 0 && onNewEntriesReceived) {
+      console.log('📡 CHILD: Badge shown - now notifying parent for persistence');
+      onNewEntriesReceived(lastPrependedEntriesRef.current);
+      lastPrependedEntriesRef.current = []; // Clear after notification
     }
   }, [onNewEntriesReceived]);
   
@@ -1199,12 +1217,9 @@ const RSSEntriesClientComponent = ({
     setFeedUrls: useCallback((urls) => dispatch({ type: 'SET_FEED_URLS', payload: urls }), []),
     setMediaTypes: useCallback((types) => dispatch({ type: 'SET_MEDIA_TYPES', payload: types }), []),
     setNewEntries: useCallback((entries) => dispatch({ type: 'SET_NEW_ENTRIES', payload: entries }), []),
-    // Use enhanced prepend callback, normal notification
-    setNotification: useCallback((show, count, images) => dispatch({ 
-      type: 'SET_NOTIFICATION', 
-      payload: { show, count, images } 
-    }), []),
-    prependEntries: enhancedPrependEntries,
+    // Use enhanced notification callback, simple prepend
+    setNotification: enhancedSetNotification,
+    prependEntries: simplePrependEntries,
     createManagedTimeout,
   });
 
@@ -1373,6 +1388,14 @@ const RSSEntriesClientComponent = ({
       </a>
       
       {/* Notification for new entries */}
+      {(() => {
+        console.log('🔔 CHILD: Notification state:', { 
+          showNotification: state.showNotification, 
+          count: state.notificationCount, 
+          images: state.notificationImages 
+        });
+        return null;
+      })()}
       {state.showNotification && (
         <div 
           className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
