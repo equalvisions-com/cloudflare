@@ -1516,6 +1516,10 @@ export interface RSSEntriesDisplayClientProps {
   };
   pageSize?: number;
   isActive?: boolean;
+  // Optional upward data sync callbacks so parent can persist child updates across tab switches
+  onPrependEntries?: (entries: RSSEntriesDisplayEntry[]) => void;
+  onAppendEntries?: (entries: RSSEntriesDisplayEntry[]) => void;
+  onHasMoreChange?: (hasMore: boolean) => void;
 }
 
 export interface RSSEntriesDisplayServerProps {
@@ -1797,6 +1801,10 @@ export interface UseFeedTabsUIProps {
   activeTabIndex: number;
   onRetryRSS: () => void;
   onRetryFeatured: () => void;
+  // Optional upward sync callbacks passed through to RSSEntries client
+  onRSSEntriesPrepend?: (entries: RSSEntriesDisplayEntry[]) => void;
+  onRSSEntriesAppend?: (entries: RSSEntriesDisplayEntry[]) => void;
+  onRSSEntriesHasMoreChange?: (hasMore: boolean) => void;
 }
 
 // Custom hooks return interfaces

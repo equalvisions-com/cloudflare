@@ -1107,7 +1107,10 @@ EntriesContent.displayName = 'EntriesContent';
 const RSSEntriesClientComponent = ({ 
   initialData, 
   pageSize = 30, 
-  isActive = true
+  isActive = true,
+  onPrependEntries,
+  onAppendEntries,
+  onHasMoreChange,
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
@@ -1153,9 +1156,23 @@ const RSSEntriesClientComponent = ({
     pageSize,
     setLoading: useCallback((loading) => dispatch({ type: 'SET_LOADING', payload: loading }), []),
     setFetchError: useCallback((error) => dispatch({ type: 'SET_FETCH_ERROR', payload: error }), []),
-    addEntries: useCallback((entries) => dispatch({ type: 'ADD_ENTRIES', payload: entries }), []),
+    addEntries: useCallback((entries) => {
+      // Update local state
+      dispatch({ type: 'ADD_ENTRIES', payload: entries });
+      // Notify parent to persist appended entries
+      if (entries && entries.length && typeof onAppendEntries === 'function') {
+        try {
+          onAppendEntries(entries);
+        } catch {}
+      }
+    }, [onAppendEntries]),
     setCurrentPage: useCallback((page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }), []),
-    setHasMore: useCallback((hasMore) => dispatch({ type: 'SET_HAS_MORE', payload: hasMore }), []),
+    setHasMore: useCallback((hasMore) => {
+      dispatch({ type: 'SET_HAS_MORE', payload: hasMore });
+      if (typeof onHasMoreChange === 'function') {
+        try { onHasMoreChange(hasMore); } catch {}
+      }
+    }, [onHasMoreChange]),
 
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
@@ -1188,7 +1205,16 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
+    prependEntries: useCallback((entries) => {
+      // Update local state immediately
+      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+      // Also notify parent to persist new entries across tab switches
+      if (entries && entries.length && typeof onPrependEntries === 'function') {
+        try {
+          onPrependEntries(entries);
+        } catch {}
+      }
+    }, [onPrependEntries]),
     createManagedTimeout,
   });
 

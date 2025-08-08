@@ -54,15 +54,8 @@ export async function GET(request: NextRequest) {
       cacheBypass: noCache
     });
     
-    // Return the full data from the server component with no-store headers to avoid caching
-    return new NextResponse(JSON.stringify(initialRSSData), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+    // Return the full data from the server component
+    return NextResponse.json(initialRSSData);
   } catch (error) {
     console.error('Error in RSS feed API route:', error);
     return NextResponse.json(

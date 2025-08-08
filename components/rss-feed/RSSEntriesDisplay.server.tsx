@@ -2,6 +2,7 @@
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { cache } from "react";
 import { RSSEntriesClientWithErrorBoundary } from "./RSSEntriesDisplay.client";
 import { executeRead } from "@/lib/database";
 import type { 
@@ -11,11 +12,6 @@ import type {
 
 // Strategic caching: Server-side rendering bypasses cache to ensure fresh data after refreshes,
 // while client-side fetches can use cache since state persists across tab switches
-
-// Force dynamic rendering and edge runtime to avoid stale caches for staleness checks
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 // Component-specific interface for RSS items with additional properties
 interface RSSItem {
@@ -70,7 +66,7 @@ const errorLog = (message: string, error?: unknown) => {
 // but is isolated to each server instance
 // Count cache removed - using limit+1 pagination instead
 
-export async function getInitialEntries(skipRefresh = false) {
+export const getInitialEntries = cache(async (skipRefresh = false) => {
   try {
     const token = await convexAuthNextjsToken();
     if (!token) {
@@ -248,12 +244,12 @@ export async function getInitialEntries(skipRefresh = false) {
     errorLog('❌ SERVER: Error fetching initial entries:', error);
     return null;
   }
-}
+});
 
 // Add a new export to get entries without refreshing
-export async function getInitialEntriesWithoutRefresh() {
+export const getInitialEntriesWithoutRefresh = cache(async () => {
   return getInitialEntries(true); // Skip refresh
-}
+});
 
 // Main server component with production-ready types
 export default async function RSSEntriesDisplayServer({ 

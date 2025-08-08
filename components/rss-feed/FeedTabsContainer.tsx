@@ -9,7 +9,12 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
-import type { FeedTabsContainerProps } from '@/lib/types';
+import type { 
+  FeedTabsContainerProps, 
+  RSSEntriesDisplayEntry,
+  FeedTabsRSSEntryWithData,
+  FeedTabsRSSItem
+} from '@/lib/types';
 
 /**
  * FeedTabsContainer Component
@@ -106,7 +111,79 @@ export function FeedTabsContainer({
     featuredError: errors.featured,
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
-    onRetryFeatured: handleRetryFeatured
+    onRetryFeatured: handleRetryFeatured,
+    onRSSEntriesPrepend: useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
+      // Convert child entries to FeedTabs entries
+      const converted: FeedTabsRSSEntryWithData[] = newEntries.map((it) => {
+        const item = it.entry as unknown as Partial<FeedTabsRSSItem>;
+        const feedTabsItem: FeedTabsRSSItem = {
+          guid: item.guid || it.entry.guid,
+          title: item.title || it.entry.title,
+          link: item.link || it.entry.link,
+          pubDate: item.pubDate || (it.entry as any).pubDate,
+          content: (item as any).content || it.entry.description || '',
+          contentSnippet: item.contentSnippet,
+          description: item.description ?? (it.entry as any).description,
+          image: item.image ?? (it.entry as any).image,
+          mediaType: item.mediaType ?? (it.entry as any).mediaType,
+          feedUrl: item.feedUrl || (it.entry as any).feedUrl,
+          feedTitle: item.feedTitle,
+        };
+        return {
+          entry: feedTabsItem,
+          initialData: it.initialData,
+          postMetadata: it.postMetadata,
+        } as FeedTabsRSSEntryWithData;
+      });
+      setRssData(prev => {
+        if (!prev) return prev;
+        // De-duplicate by GUID and retain order: new entries first
+        const seen = new Set<string>();
+        const mergedEntries = [
+          ...converted,
+          ...prev.entries
+        ].filter((entry: FeedTabsRSSEntryWithData) => {
+          const guid = entry.entry.guid;
+          if (seen.has(guid)) return false;
+          seen.add(guid);
+          return true;
+        });
+        return { ...prev, entries: mergedEntries };
+      });
+    }, []),
+    onRSSEntriesAppend: useCallback((moreEntries: RSSEntriesDisplayEntry[]) => {
+      const converted: FeedTabsRSSEntryWithData[] = moreEntries.map((it) => {
+        const item = it.entry as unknown as Partial<FeedTabsRSSItem>;
+        const feedTabsItem: FeedTabsRSSItem = {
+          guid: item.guid || it.entry.guid,
+          title: item.title || it.entry.title,
+          link: item.link || it.entry.link,
+          pubDate: item.pubDate || (it.entry as any).pubDate,
+          content: (item as any).content || it.entry.description || '',
+          contentSnippet: item.contentSnippet,
+          description: item.description ?? (it.entry as any).description,
+          image: item.image ?? (it.entry as any).image,
+          mediaType: item.mediaType ?? (it.entry as any).mediaType,
+          feedUrl: item.feedUrl || (it.entry as any).feedUrl,
+          feedTitle: item.feedTitle,
+        };
+        return {
+          entry: feedTabsItem,
+          initialData: it.initialData,
+          postMetadata: it.postMetadata,
+        } as FeedTabsRSSEntryWithData;
+      });
+      setRssData(prev => {
+        if (!prev) return prev;
+        const seen = new Set(prev.entries.map(e => e.entry.guid));
+        const deduped = converted.filter((e: FeedTabsRSSEntryWithData) => !seen.has(e.entry.guid));
+        if (deduped.length === 0) return prev;
+        return { ...prev, entries: [...prev.entries, ...deduped] };
+      });
+    }, []),
+    onRSSEntriesHasMoreChange: useCallback((hasMore: boolean) => {
+      setRssData(prev => prev ? { ...prev, hasMore } : prev);
+    }, [])
   });
   
   // Tab change handler with authentication checks
