@@ -73,7 +73,7 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
     ...createInitialState(),
   
   /**
-   * Set notification badge with auto-expiry - only when actually showing
+   * Set notification badge - simple state update
    */
   setNotification: (show: boolean, count = 0, images: string[] = []) => {
     // Skip entirely if not showing notification (common case for refreshes with no entries)
@@ -90,7 +90,7 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
         show,
         count: validCount,
         images: validImages,
-        timestamp: Date.now(),
+        timestamp: null,
       }
     }));
   },
@@ -147,31 +147,18 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
   },
   
   /**
-   * Get valid appended entries with auto-expiry
-   * Returns empty array if data has expired
+   * Get appended entries - no expiry logic to prevent infinite loops
    */
   getValidAppendedEntries: () => {
-    const { appendedEntries, isExpired, cleanup } = get();
-    
-    if (isExpired()) {
-      cleanup(); // Auto-cleanup expired data
-      return [];
-    }
-    
+    const { appendedEntries } = get();
     return appendedEntries;
   },
   
   /**
-   * Check if notification/entries have expired
+   * Simple expiry check - no auto-mutations
    */
   isExpired: () => {
-    const { notification } = get();
-    
-    if (!notification.timestamp) {
-      return false;
-    }
-    
-    return Date.now() - notification.timestamp > CACHE_EXPIRY_MS;
+    return false; // Disabled to prevent infinite loops
   },
   
   /**
