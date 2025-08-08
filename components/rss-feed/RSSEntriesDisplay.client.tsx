@@ -1230,39 +1230,39 @@ const RSSEntriesClientComponent = ({
   postTitlesRef.current = state.postTitles;
   
   // Notify parent when entries are updated (but not on initial mount)
-  const hasNotifiedInitialRef = useRef(false);
-  const previousEntriesLengthRef = useRef(0);
-  const previousNewEntriesRef = useRef(0);
+  // Use a ref to track the last entries we notified about to prevent loops
+  const lastNotifiedEntriesRef = useRef<string>('');
   
   React.useEffect(() => {
-    // Skip initial notification (parent already has initial data)
-    if (!hasNotifiedInitialRef.current) {
-      hasNotifiedInitialRef.current = true;
-      previousEntriesLengthRef.current = state.entries.length;
-      previousNewEntriesRef.current = 0;
+    // Only proceed if we have the callback
+    if (!onEntriesUpdate) return;
+    
+    // Create a unique signature for the current entries state
+    // Using first and last entry GUIDs plus length to detect real changes
+    const currentSignature = state.entries.length > 0 
+      ? `${state.entries[0]?.entry?.guid || ''}-${state.entries[state.entries.length - 1]?.entry?.guid || ''}-${state.entries.length}`
+      : 'empty';
+    
+    // Skip if this is the same state we already notified about
+    if (currentSignature === lastNotifiedEntriesRef.current) {
       return;
     }
     
-    // Only notify if we have a callback and entries have actually changed
-    if (onEntriesUpdate && state.entries.length !== previousEntriesLengthRef.current) {
-      // Check if this is from new entries being prepended (not pagination)
-      // New entries are prepended, so if the length increased by more than pageSize,
-      // or if we have newEntries in state, it's from refresh
-      const isFromNewEntries = state.newEntries.length > 0 && 
-                               state.newEntries.length !== previousNewEntriesRef.current;
-      
-      onEntriesUpdate({
-        entries: state.entries,
-        hasMore: state.hasMore,
-        // Only pass notification data if these are truly new entries from refresh
-        newEntriesCount: isFromNewEntries ? state.newEntries.length : undefined,
-        newEntriesImages: isFromNewEntries ? state.notificationImages : undefined
-      });
-      
-      previousEntriesLengthRef.current = state.entries.length;
-      previousNewEntriesRef.current = state.newEntries.length;
-    }
-  }, [state.entries, state.hasMore, state.newEntries.length, state.notificationImages, onEntriesUpdate]);
+    // Check if we have new entries from refresh (not from parent update or pagination)
+    const hasNewEntriesFromRefresh = state.newEntries.length > 0 && state.showNotification;
+    
+    // Update parent with current state
+    onEntriesUpdate({
+      entries: state.entries,
+      hasMore: state.hasMore,
+      // Only pass notification data if these are truly new entries from refresh
+      newEntriesCount: hasNewEntriesFromRefresh ? state.newEntries.length : undefined,
+      newEntriesImages: hasNewEntriesFromRefresh ? state.notificationImages : undefined
+    });
+    
+    // Remember what we notified about
+    lastNotifiedEntriesRef.current = currentSignature;
+  }, [state.entries, state.hasMore, state.newEntries.length, state.notificationImages, state.showNotification, onEntriesUpdate]);
   
   // Get entry GUIDs for batch metrics query
   const entryGuids = useMemo(() => {

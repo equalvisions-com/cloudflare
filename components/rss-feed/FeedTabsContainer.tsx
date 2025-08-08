@@ -113,6 +113,16 @@ export function FeedTabsContainer({
     setRssData(prevData => {
       if (!prevData) return prevData;
       
+      // Check if this is actually a different set of entries
+      // Avoid updating if entries are the same (prevents infinite loops)
+      const entriesChanged = prevData.entries?.length !== updatedData.entries.length ||
+                            (prevData.entries?.length > 0 && updatedData.entries.length > 0 &&
+                             prevData.entries[0]?.entry?.guid !== updatedData.entries[0]?.entry?.guid);
+      
+      if (!entriesChanged && prevData.hasMore === updatedData.hasMore) {
+        return prevData; // No actual change, return same reference
+      }
+      
       return {
         ...prevData,
         entries: updatedData.entries,

@@ -166,7 +166,7 @@ export const useFeedTabsUI = ({
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
-              pageSize={rssData.entries?.length || 30}
+              pageSize={30}
               isActive={activeTabIndex === 1}
               onEntriesUpdate={onRSSEntriesUpdate}
             />
