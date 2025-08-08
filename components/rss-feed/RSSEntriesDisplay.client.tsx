@@ -1108,7 +1108,7 @@ const RSSEntriesClientComponent = ({
   initialData, 
   pageSize = 30, 
   isActive = true,
-  onEntriesUpdate
+  onNewEntriesReceived
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
@@ -1161,6 +1161,20 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
+  // Enhanced prepend callback that also notifies parent
+  const enhancedPrependEntries = useCallback((entries: RSSEntriesDisplayEntry[]) => {
+    console.log('🔄 CHILD: Prepending entries locally:', entries.length);
+    
+    // Add to child state for immediate display
+    dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+    
+    // Notify parent to add to persistent state for tab switching
+    if (onNewEntriesReceived) {
+      console.log('📡 CHILD: Notifying parent of new entries for persistence');
+      onNewEntriesReceived(entries);
+    }
+  }, [onNewEntriesReceived]);
+  
   const { triggerOneTimeRefresh, handleRefreshAttempt, cleanup: cleanupQueue } = useRSSEntriesQueueRefresh({
     isActive,
     isRefreshing: state.isRefreshing,
@@ -1185,11 +1199,12 @@ const RSSEntriesClientComponent = ({
     setFeedUrls: useCallback((urls) => dispatch({ type: 'SET_FEED_URLS', payload: urls }), []),
     setMediaTypes: useCallback((types) => dispatch({ type: 'SET_MEDIA_TYPES', payload: types }), []),
     setNewEntries: useCallback((entries) => dispatch({ type: 'SET_NEW_ENTRIES', payload: entries }), []),
+    // Use enhanced prepend callback, normal notification
     setNotification: useCallback((show, count, images) => dispatch({ 
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
+    prependEntries: enhancedPrependEntries,
     createManagedTimeout,
   });
 
@@ -1228,41 +1243,6 @@ const RSSEntriesClientComponent = ({
   hasMoreRef.current = state.hasMore;
 
   postTitlesRef.current = state.postTitles;
-  
-  // Notify parent when entries are updated (but not on initial mount)
-  // Use a ref to track the last entries we notified about to prevent loops
-  const lastNotifiedEntriesRef = useRef<string>('');
-  
-  React.useEffect(() => {
-    // Only proceed if we have the callback
-    if (!onEntriesUpdate) return;
-    
-    // Create a unique signature for the current entries state
-    // Using first and last entry GUIDs plus length to detect real changes
-    const currentSignature = state.entries.length > 0 
-      ? `${state.entries[0]?.entry?.guid || ''}-${state.entries[state.entries.length - 1]?.entry?.guid || ''}-${state.entries.length}`
-      : 'empty';
-    
-    // Skip if this is the same state we already notified about
-    if (currentSignature === lastNotifiedEntriesRef.current) {
-      return;
-    }
-    
-    // Check if we have new entries from refresh (not from parent update or pagination)
-    const hasNewEntriesFromRefresh = state.newEntries.length > 0 && state.showNotification;
-    
-    // Update parent with current state
-    onEntriesUpdate({
-      entries: state.entries,
-      hasMore: state.hasMore,
-      // Only pass notification data if these are truly new entries from refresh
-      newEntriesCount: hasNewEntriesFromRefresh ? state.newEntries.length : undefined,
-      newEntriesImages: hasNewEntriesFromRefresh ? state.notificationImages : undefined
-    });
-    
-    // Remember what we notified about
-    lastNotifiedEntriesRef.current = currentSignature;
-  }, [state.entries, state.hasMore, state.newEntries.length, state.notificationImages, state.showNotification, onEntriesUpdate]);
   
   // Get entry GUIDs for batch metrics query
   const entryGuids = useMemo(() => {
@@ -1500,7 +1480,6 @@ const RSSEntriesClientComponent = ({
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
   if (prevProps.isActive !== nextProps.isActive) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
-  if (prevProps.onEntriesUpdate !== nextProps.onEntriesUpdate) return false;
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
@@ -1550,6 +1529,9 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
       }
     }
   }
+  
+  // Check new callback prop
+  if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) return false;
   
   return true;
 });

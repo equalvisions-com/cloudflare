@@ -47,11 +47,8 @@ export function FeedTabsContainer({
   });
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Track new entries notification state at parent level
-  const [newEntriesNotification, setNewEntriesNotification] = useState<{
-    count: number;
-    images: string[];
-  } | null>(null);
+  // SIMPLE SOLUTION: Just track new entries to merge with RSS data
+  const [newEntriesFromRefresh, setNewEntriesFromRefresh] = useState<typeof initialData['entries']>([]);
   
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
@@ -71,7 +68,24 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
-  // Custom hook for data fetching - simplified to accept callbacks
+  // Simple callback to receive new entries from child refresh
+  const handleNewEntriesReceived = useCallback((newEntries: typeof initialData['entries']) => {
+    console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
+    
+    // Merge with existing new entries, avoiding duplicates
+    setNewEntriesFromRefresh(current => {
+      const existingGuids = new Set(current.map(entry => entry.entry.guid));
+      const trulyNew = newEntries.filter(entry => !existingGuids.has(entry.entry.guid));
+      
+      if (trulyNew.length > 0) {
+        console.log('✅ PARENT: Adding', trulyNew.length, 'new entries to persistent state');
+        return [...trulyNew, ...current]; // Newest first
+      }
+      
+      return current;
+    });
+  }, []);
+  
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
     router,
@@ -80,7 +94,8 @@ export function FeedTabsContainer({
     onRSSLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, rss: loading })),
     onFeaturedLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, featured: loading })),
     onRSSError: (error: string | null) => setErrors(prev => ({ ...prev, rss: error })),
-    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error }))
+    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error })),
+    onNewEntriesReceived: handleNewEntriesReceived
   });
   
   // Stable cleanup reference to prevent dependency issues
@@ -102,47 +117,20 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Handler for when RSS entries are updated in the child component
-  const handleRSSEntriesUpdate = useCallback((updatedData: {
-    entries: any[];
-    hasMore: boolean;
-    newEntriesCount?: number;
-    newEntriesImages?: string[];
-  }) => {
-    // Update the parent's RSS data with the new entries
-    setRssData(prevData => {
-      if (!prevData) return prevData;
-      
-      // Check if this is actually a different set of entries
-      // Avoid updating if entries are the same (prevents infinite loops)
-      const entriesChanged = prevData.entries?.length !== updatedData.entries.length ||
-                            (prevData.entries?.length > 0 && updatedData.entries.length > 0 &&
-                             prevData.entries[0]?.entry?.guid !== updatedData.entries[0]?.entry?.guid);
-      
-      if (!entriesChanged && prevData.hasMore === updatedData.hasMore) {
-        return prevData; // No actual change, return same reference
-      }
-      
-      return {
-        ...prevData,
-        entries: updatedData.entries,
-        hasMore: updatedData.hasMore
-      };
-    });
+  // Merge RSS data with new entries from refresh for complete dataset
+  const completeRssData = useMemo(() => {
+    if (!rssData) return null;
     
-    // Store notification data if there are new entries
-    if (updatedData.newEntriesCount && updatedData.newEntriesCount > 0) {
-      setNewEntriesNotification({
-        count: updatedData.newEntriesCount,
-        images: updatedData.newEntriesImages || []
-      });
-    }
-  }, []);
-
-  // Custom hook for UI rendering - now accepts props instead of using store
+    return {
+      ...rssData,
+      entries: [...newEntriesFromRefresh, ...rssData.entries] // New entries first
+    };
+  }, [rssData, newEntriesFromRefresh]);
+  
+  // Custom hook for UI rendering - enhanced with merged data and badge state
   const { tabs } = useFeedTabsUI({
-    rssData,
-    featuredData: featuredData ?? null, // Convert undefined to null to match type
+    rssData: completeRssData,
+    featuredData: featuredData ?? null,
     isRSSLoading: loading.rss,
     isFeaturedLoading: loading.featured,
     rssError: errors.rss,
@@ -150,8 +138,8 @@ export function FeedTabsContainer({
     activeTabIndex,
     onRetryRSS: handleRetryRSS,
     onRetryFeatured: handleRetryFeatured,
-    onRSSEntriesUpdate: handleRSSEntriesUpdate,
-    newEntriesNotification
+    // Pass callback to receive new entries from child
+    onNewEntriesReceived: handleNewEntriesReceived
   });
   
   // Tab change handler with authentication checks
@@ -240,6 +228,7 @@ export function FeedTabsContainer({
         </div>
       </div>
      
+      
       <SwipeableTabs 
         tabs={tabs} 
         onTabChange={handleTabChange}

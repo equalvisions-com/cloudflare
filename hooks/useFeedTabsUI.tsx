@@ -47,8 +47,7 @@ export const useFeedTabsUI = ({
   activeTabIndex,
   onRetryRSS,
   onRetryFeatured,
-  onRSSEntriesUpdate,
-  newEntriesNotification
+  onNewEntriesReceived
 }: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
@@ -166,9 +165,9 @@ export const useFeedTabsUI = ({
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
-              pageSize={30}
-              isActive={activeTabIndex === 1}
-              onEntriesUpdate={onRSSEntriesUpdate}
+              pageSize={rssData.entries?.length || 30}
+              // Pass callback to receive new entries from child refreshes
+              onNewEntriesReceived={onNewEntriesReceived}
             />
           </div>
         );
@@ -184,9 +183,7 @@ export const useFeedTabsUI = ({
     featuredError,
     isFeaturedLoading,
     onRetryRSS,
-    onRetryFeatured,
-    onRSSEntriesUpdate,
-    activeTabIndex
+    onRetryFeatured
   ]);
 
   /**
