@@ -164,6 +164,7 @@ export const useFeedTabsUI = ({
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
+              key="rss-entries-stable" // CRITICAL: Stable key to prevent remounting
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
               // Pass callback to receive new entries from child refreshes

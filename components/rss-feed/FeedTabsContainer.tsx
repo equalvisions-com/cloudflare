@@ -141,10 +141,17 @@ export function FeedTabsContainer({
         completeRssDataRef.current.hasMore === rssData.hasMore &&
         completeRssDataRef.current.feedUrls?.length === rssData.feedUrls?.length) {
       // Only update entries and totalEntries, preserve object reference
+      console.log('🔄 PARENT: Reusing existing object reference to prevent remount');
       completeRssDataRef.current.entries = mergedEntries;
       completeRssDataRef.current.totalEntries = rssData.totalEntries + newEntriesFromRefresh.length;
       return completeRssDataRef.current;
     }
+    
+    console.log('🆕 PARENT: Creating new object reference', {
+      hasExisting: !!completeRssDataRef.current,
+      hasMoreMatch: completeRssDataRef.current?.hasMore === rssData.hasMore,
+      feedUrlsMatch: completeRssDataRef.current?.feedUrls?.length === rssData.feedUrls?.length
+    });
     
     // Create new object only when necessary (initial load or major data change)
     const newData = {
