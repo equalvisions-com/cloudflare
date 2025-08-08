@@ -1161,9 +1161,6 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
-  // MINIMAL APPROACH: Keep everything exactly as it was, just add parent sync
-  // Use a ref to track when parent sync is needed
-  const pendingParentSyncRef = useRef<RSSEntriesDisplayEntry[]>([]);
   
   const { triggerOneTimeRefresh, handleRefreshAttempt, cleanup: cleanupQueue } = useRSSEntriesQueueRefresh({
     isActive,
@@ -1189,22 +1186,12 @@ const RSSEntriesClientComponent = ({
     setFeedUrls: useCallback((urls) => dispatch({ type: 'SET_FEED_URLS', payload: urls }), []),
     setMediaTypes: useCallback((types) => dispatch({ type: 'SET_MEDIA_TYPES', payload: types }), []),
     setNewEntries: useCallback((entries) => dispatch({ type: 'SET_NEW_ENTRIES', payload: entries }), []),
-    // Completely normal callbacks - no badge interference
+    // BACK TO ORIGINAL - no modifications at all
     setNotification: useCallback((show, count, images) => dispatch({ 
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => {
-      // Normal prepend operation
-      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
-      
-      // Async parent sync to not interfere with badge display
-      if (onNewEntriesReceived) {
-        setTimeout(() => {
-          onNewEntriesReceived(entries);
-        }, 50); // Minimal delay
-      }
-    }, [onNewEntriesReceived]),
+    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
     createManagedTimeout,
   });
 
@@ -1231,6 +1218,23 @@ const RSSEntriesClientComponent = ({
       payload: { show, count, images } 
     }), []),
   });
+
+  // NON-INVASIVE parent sync: Listen to entries changes and sync with parent
+  const previousEntriesLengthRef = useRef(state.entries.length);
+  useEffect(() => {
+    const currentLength = state.entries.length;
+    const previousLength = previousEntriesLengthRef.current;
+    
+    // If entries increased and we have a parent callback, sync the new entries
+    if (currentLength > previousLength && onNewEntriesReceived) {
+      const newEntriesCount = currentLength - previousLength;
+      const newEntries = state.entries.slice(0, newEntriesCount);
+      console.log('📡 CHILD: Detected new entries, syncing with parent:', newEntriesCount);
+      onNewEntriesReceived(newEntries);
+    }
+    
+    previousEntriesLengthRef.current = currentLength;
+  }, [state.entries.length, onNewEntriesReceived, state.entries]);
 
   // Sync refs with state
   const optimizedEntries = useMemo(() => 
