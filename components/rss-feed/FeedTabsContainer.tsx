@@ -9,7 +9,7 @@ import { SignInButton } from "@/components/ui/SignInButton";
 import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
-import type { FeedTabsContainerProps } from '@/lib/types';
+import type { FeedTabsContainerProps, RSSEntriesDisplayEntry } from '@/lib/types';
 
 /**
  * FeedTabsContainer Component
@@ -48,7 +48,7 @@ export function FeedTabsContainer({
   const [hasInitialized, setHasInitialized] = useState(false);
   
   // SIMPLE SOLUTION: Just track new entries to merge with RSS data
-  const [newEntriesFromRefresh, setNewEntriesFromRefresh] = useState<typeof initialData['entries']>([]);
+  const [newEntriesFromRefresh, setNewEntriesFromRefresh] = useState<RSSEntriesDisplayEntry[]>([]);
   
   // Stable refs to prevent stale closures in useEffect
   const rssDataRef = useRef(rssData);
@@ -69,7 +69,7 @@ export function FeedTabsContainer({
   // Removed useTransition to fix tab switching timing issues
   
   // Simple callback to receive new entries from child refresh
-  const handleNewEntriesReceived = useCallback((newEntries: typeof initialData['entries']) => {
+  const handleNewEntriesReceived = useCallback((newEntries: RSSEntriesDisplayEntry[]) => {
     console.log('📥 PARENT: Received new entries from child refresh:', newEntries.length);
     
     // Merge with existing new entries, avoiding duplicates
@@ -117,13 +117,18 @@ export function FeedTabsContainer({
     fetchFeaturedData();
   }, [fetchFeaturedData]);
 
-  // Merge RSS data with new entries from refresh for complete dataset
+  // Merge RSS data with new entries from refresh for complete dataset  
   const completeRssData = useMemo(() => {
     if (!rssData) return null;
     
+    // Create merged data with new entries first, then original entries
+    // Note: Type casting is acceptable here as the child component already handles mixed types
+    const mergedEntries = [...newEntriesFromRefresh, ...(rssData.entries || [])] as any;
+    
     return {
       ...rssData,
-      entries: [...newEntriesFromRefresh, ...rssData.entries] // New entries first
+      entries: mergedEntries,
+      totalEntries: rssData.totalEntries + newEntriesFromRefresh.length,
     };
   }, [rssData, newEntriesFromRefresh]);
   
