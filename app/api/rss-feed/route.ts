@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_noStore as noStore } from 'next/cache';
 import { getInitialEntries } from "@/components/rss-feed/RSSEntriesDisplay.server";
 import { validateHeaders } from '@/lib/headers';
 
@@ -6,6 +7,8 @@ import { validateHeaders } from '@/lib/headers';
 export const runtime = 'edge';
 // Force dynamic to ensure fresh data
 export const dynamic = 'force-dynamic';
+// Ensure no ISR
+export const revalidate = 0;
 
 // Helper function to log only in development
 const devLog = (message: string, data?: unknown) => {
@@ -19,6 +22,8 @@ const devLog = (message: string, data?: unknown) => {
 };
 
 export async function GET(request: NextRequest) {
+  // Explicitly disable all caching for this handler
+  noStore();
   if (!validateHeaders(request)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -55,12 +60,16 @@ export async function GET(request: NextRequest) {
     });
     
     // Return the full data from the server component
-    return NextResponse.json(initialRSSData);
+    return NextResponse.json(initialRSSData, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+      }
+    });
   } catch (error) {
     console.error('Error in RSS feed API route:', error);
     return NextResponse.json(
       { error: 'Failed to fetch RSS feed data' }, 
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 } 
