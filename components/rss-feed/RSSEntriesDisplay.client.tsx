@@ -248,11 +248,22 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       console.log('🔄 REDUCER INITIALIZE: Before init', {
         showNotification: state.showNotification,
         count: state.notificationCount,
-        images: state.notificationImages?.length
+        images: state.notificationImages?.length,
+        stateKeys: Object.keys(state)
       });
+      
+      // CRITICAL FIX: Preserve notification state during parent-triggered re-initialization
+      const preservedNotification = {
+        showNotification: state.showNotification,
+        notificationCount: state.notificationCount,
+        notificationImages: state.notificationImages,
+      };
+      
+      console.log('🔄 REDUCER INITIALIZE: Preserving notification state', preservedNotification);
+      console.log('🔄 REDUCER INITIALIZE: Action payload does NOT contain notification fields:', Object.keys(action.payload));
+      
       const newState = {
         ...state,
-        ...action.payload,
         hasInitialized: true,
         currentPage: 1,
         isLoading: false,
@@ -260,15 +271,21 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
         hasRefreshed: false,
         fetchError: null,
         refreshError: null,
-        // CRITICAL FIX: Preserve notification state during parent-triggered re-initialization
-        showNotification: state.showNotification,
-        notificationCount: state.notificationCount,
-        notificationImages: state.notificationImages,
+        // Apply action payload (entries, hasMore, etc.) but DON'T override notification state
+        entries: action.payload.entries,
+        hasMore: action.payload.hasMore,
+        postTitles: action.payload.postTitles,
+        feedUrls: action.payload.feedUrls,
+        mediaTypes: action.payload.mediaTypes,
+        // CRITICAL: Explicitly preserve notification state
+        ...preservedNotification,
       };
+      
       console.log('🔄 REDUCER INITIALIZE: After init', {
         showNotification: newState.showNotification,
         count: newState.notificationCount,
-        images: newState.notificationImages?.length
+        images: newState.notificationImages?.length,
+        preservationWorked: newState.showNotification === state.showNotification
       });
       return newState;
     
