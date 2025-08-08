@@ -1523,7 +1523,32 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
   if (prevProps.initialData && !nextProps.initialData) return false;
   
   if (prevProps.initialData && nextProps.initialData) {
-    if (prevProps.initialData.entries?.length !== nextProps.initialData.entries?.length) return false;
+    // CRITICAL FIX: Don't re-render component when entries are just appended (length increases)
+    // This prevents notification state reset when parent adds new entries for persistence
+    const prevLength = prevProps.initialData.entries?.length || 0;
+    const nextLength = nextProps.initialData.entries?.length || 0;
+    
+    // Only re-render if entries decreased or completely changed (not just appended)
+    if (nextLength < prevLength) return false; // Entries removed
+    
+    // If entries increased, check if the original entries are still there (appended scenario)
+    if (nextLength > prevLength) {
+      const prevEntries = prevProps.initialData.entries || [];
+      const nextEntries = nextProps.initialData.entries || [];
+      
+      // Check if original entries are preserved at the end (newest entries added to front)
+      const originalEntriesPreserved = prevEntries.every((entry, index) => {
+        const offsetIndex = index + (nextLength - prevLength); // Offset by new entries count
+        return offsetIndex < nextLength && nextEntries[offsetIndex]?.entry.guid === entry.entry.guid;
+      });
+      
+      if (originalEntriesPreserved) {
+        console.log('🎯 MEMO: Entries appended, preserving component state to maintain notification');
+        return true; // DON'T re-render - entries were just appended
+      } else {
+        return false; // Different entries - re-render needed
+      }
+    }
 
     if (prevProps.initialData.hasMore !== nextProps.initialData.hasMore) return false;
     
