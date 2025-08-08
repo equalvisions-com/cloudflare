@@ -1516,15 +1516,8 @@ export interface RSSEntriesDisplayClientProps {
   };
   pageSize?: number;
   isActive?: boolean;
-  // Callbacks for parent-child communication
+  // Callback for parent-child communication
   onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[]) => void;
-  onNotificationStateChange?: (show: boolean, count: number, images: string[]) => void;
-  preservedNotificationState?: {
-    show: boolean;
-    count: number;
-    images: string[];
-    timestamp: number;
-  } | null;
 }
 
 export interface RSSEntriesDisplayServerProps {
@@ -1808,15 +1801,8 @@ export interface UseFeedTabsUIProps {
   activeTabIndex: number;
   onRetryRSS: () => void;
   onRetryFeatured: () => void;
-  // Callbacks to receive new entries and notification state from child
+  // Callback to receive new entries from child
   onNewEntriesReceived?: (entries: RSSEntriesDisplayEntry[]) => void;
-  onNotificationStateChange?: (show: boolean, count: number, images: string[]) => void;
-  preservedNotificationState?: {
-    show: boolean;
-    count: number;
-    images: string[];
-    timestamp: number;
-  } | null;
 }
 
 // Custom hooks return interfaces

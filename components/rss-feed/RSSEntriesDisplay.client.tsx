@@ -1134,44 +1134,12 @@ const RSSEntriesClientComponent = ({
   initialData, 
   pageSize = 30, 
   isActive = true,
-  onNewEntriesReceived,
-  onNotificationStateChange,
-  preservedNotificationState
+  onNewEntriesReceived
 }: RSSEntriesDisplayClientProps) => {
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
 
-  // CRITICAL FIX: Restore preserved notification state on mount/remount
-  useEffect(() => {
-    if (preservedNotificationState && preservedNotificationState.show) {
-      const now = Date.now();
-      const elapsed = now - preservedNotificationState.timestamp;
-      const remaining = 5000 - elapsed; // 5 second total duration
-      
-      if (remaining > 0) {
-        console.log('🔄 RESTORING preserved notification state:', preservedNotificationState, 'remaining:', remaining);
-        dispatch({
-          type: 'SET_NOTIFICATION',
-          payload: {
-            show: true,
-            count: preservedNotificationState.count,
-            images: preservedNotificationState.images
-          }
-        });
-      }
-    }
-  }, [preservedNotificationState]);
 
-  // Sync notification state changes with parent for persistence
-  useEffect(() => {
-    if (onNotificationStateChange) {
-      onNotificationStateChange(
-        state.showNotification,
-        state.notificationCount,
-        state.notificationImages
-      );
-    }
-  }, [state.showNotification, state.notificationCount, state.notificationImages, onNotificationStateChange]);
 
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
@@ -1550,16 +1518,8 @@ const RSSEntriesClientComponent = ({
 
 // Export the memoized version
 export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, nextProps) => {
-  console.log('🔄 MEMO COMPARISON: Checking if component should re-render');
-  
-  if (prevProps.isActive !== nextProps.isActive) {
-    console.log('❌ MEMO: isActive changed, re-rendering');
-    return false;
-  }
-  if (prevProps.pageSize !== nextProps.pageSize) {
-    console.log('❌ MEMO: pageSize changed, re-rendering');
-    return false;
-  }
+  if (prevProps.isActive !== nextProps.isActive) return false;
+  if (prevProps.pageSize !== nextProps.pageSize) return false;
   
   if (!prevProps.initialData && nextProps.initialData) return false;
   if (prevProps.initialData && !nextProps.initialData) return false;
@@ -1570,7 +1530,7 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
     const prevLength = prevProps.initialData.entries?.length || 0;
     const nextLength = nextProps.initialData.entries?.length || 0;
     
-    console.log('🔍 MEMO: Comparing entry lengths', { prevLength, nextLength });
+
     
     // Only re-render if entries decreased or completely changed (not just appended)
     if (nextLength < prevLength) return false; // Entries removed
@@ -1637,12 +1597,8 @@ export const RSSEntriesClient = memo(RSSEntriesClientComponent, (prevProps, next
     }
   }
   
-  // Check callback props
+  // Check new callback prop
   if (prevProps.onNewEntriesReceived !== nextProps.onNewEntriesReceived) return false;
-  if (prevProps.onNotificationStateChange !== nextProps.onNotificationStateChange) return false;
-  
-  // Check preserved notification state
-  if (prevProps.preservedNotificationState !== nextProps.preservedNotificationState) return false;
   
   return true;
 });

@@ -181,19 +181,10 @@ export const useRSSEntriesInitialization = ({
     initialize
   ]);
 
-  // Debug canInitialize calculation
-  const canInitializeValue = !hasInitialized && !!initializationData && isMountedRef.current;
-  console.log('🔧 CAN_INITIALIZE:', {
-    hasInitialized,
-    hasInitializationData: !!initializationData,
-    isMounted: isMountedRef.current,
-    canInitialize: canInitializeValue
-  });
-
   return {
     performInitialization,
     // Return computed state
-    canInitialize: canInitializeValue,
+    canInitialize: !hasInitialized && !!initializationData && isMountedRef.current,
     initializationData,
   };
 }; 
