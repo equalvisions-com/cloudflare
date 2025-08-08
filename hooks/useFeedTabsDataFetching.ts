@@ -86,7 +86,6 @@ export const useFeedTabsDataFetching = ({
       onFeaturedError(null);
 
       try {
-        // Allow caching for featured feed requests
         const response = await fetch('/api/featured-feed-data', { signal });
         
         if (!response.ok) {
@@ -166,7 +165,7 @@ export const useFeedTabsDataFetching = ({
       try {
         // Removed noCache parameter since we now maintain client state across tab switches
         // This enables Hyperdrive caching for better performance while preserving dynamic updates
-        const response = await fetch(`/api/rss-feed?ts=${Date.now()}`, { signal, cache: 'no-store' });
+        const response = await fetch('/api/rss-feed', { signal });
         
         if (!response.ok) {
           throw new Error('Failed to fetch RSS feed data');

@@ -12,6 +12,11 @@ import type {
 // Strategic caching: Server-side rendering bypasses cache to ensure fresh data after refreshes,
 // while client-side fetches can use cache since state persists across tab switches
 
+// Force dynamic rendering and edge runtime to avoid stale caches for staleness checks
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Component-specific interface for RSS items with additional properties
 interface RSSItem {
   guid: string;
