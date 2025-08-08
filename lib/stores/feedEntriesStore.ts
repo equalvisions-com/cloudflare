@@ -183,53 +183,52 @@ export const useFeedEntriesStore = create<FeedEntriesStore>((set, get) => ({
 }));
 
 /**
- * Hook for notification state (reactive) - only creates store when needed
+ * Hook for notification state (reactive) - pure selector, no side effects
  */
 export const useFeedNotification = () => {
-  return useFeedEntriesStore(state => {
-    // Skip entirely if no notification timestamp (never had appended entries)
-    if (!state.notification.timestamp) {
-      return {
-        show: false,
-        count: 0,
-        images: [],
-      };
-    }
-    
-    // Check expiry but don't cleanup in selector (prevents infinite loops)
-    if (state.isExpired()) {
-      return {
-        show: false,
-        count: 0,
-        images: [],
-      };
-    }
-    
+  const state = useFeedEntriesStore();
+  
+  // Check expiry without modifying state
+  const isExpired = state.notification.timestamp ? 
+    Date.now() - state.notification.timestamp > 60000 : false;
+  
+  // Return expired or empty state without side effects
+  if (!state.notification.timestamp || isExpired) {
     return {
-      show: state.notification.show,
-      count: state.notification.count,
-      images: state.notification.images,
+      show: false,
+      count: 0,
+      images: [],
     };
-  });
+  }
+  
+  return {
+    show: state.notification.show,
+    count: state.notification.count,
+    images: state.notification.images,
+  };
 };
 
 /**
- * Hook for appended entries (reactive with auto-expiry) - only when entries exist
+ * Hook for appended entries (reactive with auto-expiry) - pure selector, no side effects
  */
 export const useAppendedEntries = () => {
-  return useFeedEntriesStore(state => {
-    // Skip entirely if no appended entries (most common case)
-    if (state.appendedEntries.length === 0) {
-      return [];
-    }
-    
-    // Check expiry but don't cleanup in selector (prevents infinite loops)
-    if (state.isExpired()) {
-      return [];
-    }
-    
-    return state.appendedEntries;
-  });
+  const state = useFeedEntriesStore();
+  
+  // Skip entirely if no appended entries (most common case)
+  if (state.appendedEntries.length === 0) {
+    return [];
+  }
+  
+  // Check expiry without modifying state
+  const isExpired = state.notification.timestamp ? 
+    Date.now() - state.notification.timestamp > 60000 : false;
+  
+  // Return empty if expired, without side effects
+  if (isExpired) {
+    return [];
+  }
+  
+  return state.appendedEntries;
 };
 
 /**
