@@ -165,14 +165,14 @@ export const useFeedTabsUI = ({
             <RSSEntriesClientWithErrorBoundary 
               initialData={rssData as any /* Type adjustment for compatibility */} 
               pageSize={rssData.entries?.length || 30}
+              isActive={activeTabIndex === 1}
             />
           </div>
         );
       }
     }
   ], [
-    // REMOVED activeTabIndex to prevent unnecessary re-renders
-    // activeTabIndex is accessed via closure, doesn't need to be in deps
+    activeTabIndex, // Now needed since we pass it as isActive prop
     rssData,
     featuredData,
     rssError,

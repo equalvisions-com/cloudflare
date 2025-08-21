@@ -30,6 +30,7 @@ export function AppendedEntriesProvider({ children }: AppendedEntriesProviderPro
   
   const appendFollowingEntries = useCallback((entries: RSSEntriesDisplayEntry[]) => {
     console.log('🗂️ CONTEXT: Storing', entries.length, 'appended entries for tab persistence');
+    console.log('🗂️ CONTEXT: New entries being stored:', entries.map(e => e.entry.title));
     setFollowingEntries(entries);
     setLastAppendTime(Date.now());
   }, []);
@@ -42,7 +43,14 @@ export function AppendedEntriesProvider({ children }: AppendedEntriesProviderPro
   
   const isRecentlyAppended = useCallback(() => {
     const maxAge = 5 * 60 * 1000; // 5 minutes
-    return followingEntries.length > 0 && (Date.now() - lastAppendTime < maxAge);
+    const isRecent = followingEntries.length > 0 && (Date.now() - lastAppendTime < maxAge);
+    console.log('⏰ CONTEXT: Checking if entries are recent:', {
+      entriesCount: followingEntries.length,
+      ageMs: Date.now() - lastAppendTime,
+      maxAgeMs: maxAge,
+      isRecent
+    });
+    return isRecent;
   }, [followingEntries.length, lastAppendTime]);
   
   // Auto-clear entries after 5 minutes to prevent memory bloat

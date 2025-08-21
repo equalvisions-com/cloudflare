@@ -1121,6 +1121,16 @@ const RSSEntriesClientComponent = ({
     isRecentlyAppended 
   } = useAppendedEntries();
 
+  // Debug component mount/unmount
+  React.useEffect(() => {
+    console.log('🚀 RSS_CLIENT: Component mounted, isActive:', isActive);
+    console.log('🚀 RSS_CLIENT: Persisted entries available:', persistedAppendedEntries.length);
+    
+    return () => {
+      console.log('💀 RSS_CLIENT: Component unmounting, isActive:', isActive);
+    };
+  }, [isActive, persistedAppendedEntries.length]);
+
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
   const entriesStateRef = useRef<RSSEntriesDisplayEntry[]>([]);
@@ -1277,11 +1287,14 @@ const RSSEntriesClientComponent = ({
     if (canInitialize) {
       performInitialization();
       
-      // After initialization, restore appended entries if they exist and are recent
-      if (isRecentlyAppended() && persistedAppendedEntries.length > 0) {
-        console.log('🔄 RESTORE: Adding', persistedAppendedEntries.length, 'persisted appended entries after initialization');
-        dispatch({ type: 'PREPEND_ENTRIES', payload: persistedAppendedEntries });
-      }
+              // After initialization, restore appended entries if they exist and are recent
+        if (isRecentlyAppended() && persistedAppendedEntries.length > 0) {
+          console.log('🔄 RESTORE: Adding', persistedAppendedEntries.length, 'persisted appended entries after initialization');
+          console.log('🔄 RESTORE: Entries being restored:', persistedAppendedEntries.map(e => e.entry.title));
+          dispatch({ type: 'PREPEND_ENTRIES', payload: persistedAppendedEntries });
+        } else {
+          console.log('❌ RESTORE: No entries to restore. Recent?', isRecentlyAppended(), 'Count:', persistedAppendedEntries.length);
+        }
     }
   }, [canInitialize, performInitialization, isRecentlyAppended, persistedAppendedEntries]);
 
