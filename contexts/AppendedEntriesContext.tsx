@@ -51,7 +51,7 @@ export function AppendedEntriesProvider({ children }: AppendedEntriesProviderPro
   
   const isRecentlyAppended = useCallback(() => {
     return followingEntries.length > 0 && (Date.now() - lastAppendTime < ENTRY_MAX_AGE);
-  }, [followingEntries.length, lastAppendTime, ENTRY_MAX_AGE]);
+  }, [followingEntries.length, lastAppendTime]);
   
   // Auto-clear entries after 5 minutes to prevent memory bloat
   useEffect(() => {
@@ -62,7 +62,7 @@ export function AppendedEntriesProvider({ children }: AppendedEntriesProviderPro
       
       return () => clearTimeout(timeout);
     }
-  }, [followingEntries.length, lastAppendTime, clearFollowingEntries, ENTRY_MAX_AGE]);
+  }, [followingEntries.length, lastAppendTime, clearFollowingEntries]);
   
   // Cleanup on unmount (navigation away from page)
   useEffect(() => {

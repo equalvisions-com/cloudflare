@@ -1121,13 +1121,13 @@ const RSSEntriesClientComponent = ({
     isRecentlyAppended 
   } = useAppendedEntries();
 
-  // Component lifecycle management
+  // Component lifecycle management - mount only
   React.useEffect(() => {
-    // Component mounted - no logging needed
+    // Component mounted
     return () => {
-      // Component unmounting - no logging needed
+      // Component unmounting
     };
-  }, [isActive, persistedAppendedEntries.length]);
+  }, []); // Empty dependencies - only run on mount/unmount
 
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
