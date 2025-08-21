@@ -35,6 +35,7 @@ import { useRSSEntriesCommentDrawer } from './hooks/useRSSEntriesCommentDrawer';
 import { useRSSEntriesInitialization } from './hooks/useRSSEntriesInitialization';
 import { useRSSEntriesNewEntries } from './hooks/useRSSEntriesNewEntries';
 import { useBatchEntryMetrics } from '@/hooks/useBatchEntryMetrics';
+import { useAppendedEntries } from '@/contexts/AppendedEntriesContext';
 
 // Constants for performance optimization
 const ITEMS_PER_REQUEST = 30;
@@ -1112,6 +1113,14 @@ const RSSEntriesClientComponent = ({
   // Main state with useReducer
   const [state, dispatch] = useReducer(rssEntriesReducer, createInitialState());
 
+  // Context for persisting appended entries across tab switches
+  const { 
+    followingEntries: persistedAppendedEntries, 
+    appendFollowingEntries,
+    clearFollowingEntries,
+    isRecentlyAppended 
+  } = useAppendedEntries();
+
   // Refs for state persistence and memory management
   const isMountedRef = useRef(true);
   const entriesStateRef = useRef<RSSEntriesDisplayEntry[]>([]);
@@ -1160,7 +1169,7 @@ const RSSEntriesClientComponent = ({
     setPostTitles: useCallback((titles) => dispatch({ type: 'SET_POST_TITLES', payload: titles }), []),
   });
 
-  const { triggerOneTimeRefresh, handleRefreshAttempt, cleanup: cleanupQueue } = useRSSEntriesQueueRefresh({
+  const { triggerOneTimeRefresh, handleRefreshAttempt: originalHandleRefreshAttempt, cleanup: cleanupQueue } = useRSSEntriesQueueRefresh({
     isActive,
     isRefreshing: state.isRefreshing,
     hasRefreshed: state.hasRefreshed,
@@ -1188,7 +1197,12 @@ const RSSEntriesClientComponent = ({
       type: 'SET_NOTIFICATION', 
       payload: { show, count, images } 
     }), []),
-    prependEntries: useCallback((entries) => dispatch({ type: 'PREPEND_ENTRIES', payload: entries }), []),
+    prependEntries: useCallback((entries) => {
+      console.log('📝 PREPEND: Adding', entries.length, 'entries to feed and persisting for tab switches');
+      dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
+      // Also store in context for persistence across tab switches
+      appendFollowingEntries(entries);
+    }, [appendFollowingEntries]),
     createManagedTimeout,
   });
 
@@ -1201,6 +1215,13 @@ const RSSEntriesClientComponent = ({
     }), []),
     closeCommentDrawer: useCallback(() => dispatch({ type: 'CLOSE_COMMENT_DRAWER' }), []),
   });
+
+  // Wrapper for refresh attempt that clears persisted entries
+  const handleRefreshAttempt = useCallback(() => {
+    console.log('🔄 REFRESH: Manual refresh triggered, clearing persisted entries');
+    clearFollowingEntries(); // Clear persisted entries before refresh
+    originalHandleRefreshAttempt();
+  }, [clearFollowingEntries, originalHandleRefreshAttempt]);
 
   const { show: showNewEntriesNotification, handleClick: handleNotificationClick } = useRSSEntriesNewEntries({
     newEntries: state.newEntries,
@@ -1255,8 +1276,14 @@ const RSSEntriesClientComponent = ({
   React.useEffect(() => {
     if (canInitialize) {
       performInitialization();
+      
+      // After initialization, restore appended entries if they exist and are recent
+      if (isRecentlyAppended() && persistedAppendedEntries.length > 0) {
+        console.log('🔄 RESTORE: Adding', persistedAppendedEntries.length, 'persisted appended entries after initialization');
+        dispatch({ type: 'PREPEND_ENTRIES', payload: persistedAppendedEntries });
+      }
     }
-  }, [canInitialize, performInitialization]);
+  }, [canInitialize, performInitialization, isRecentlyAppended, persistedAppendedEntries]);
 
   // Trigger refresh when appropriate
   const triggerRefreshRef = useRef(triggerOneTimeRefresh);
@@ -1273,13 +1300,25 @@ const RSSEntriesClientComponent = ({
     }
   }, [shouldTriggerRefresh]);
 
+  // Clear persisted entries when switching away from Following tab
+  React.useEffect(() => {
+    if (!isActive) {
+      // Don't clear immediately - let the context handle expiration
+      // This allows quick tab switches to preserve entries
+      console.log('📵 INACTIVE: Component becoming inactive, letting context manage entry expiration');
+    }
+  }, [isActive]);
+
   // Cleanup on unmount
   React.useEffect(() => {
     return () => {
       cleanup();
       cleanupQueue();
+      // Clear persisted entries when component unmounts completely
+      console.log('🗑️ UNMOUNT: Clearing persisted entries on component unmount');
+      clearFollowingEntries();
     };
-  }, [cleanup, cleanupQueue]);
+  }, [cleanup, cleanupQueue, clearFollowingEntries]);
 
   const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]);
   const loadMoreRef = useRef<HTMLDivElement>(null);
