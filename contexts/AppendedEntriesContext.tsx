@@ -15,8 +15,10 @@ const AppendedEntriesContext = createContext<AppendedEntriesContextType | null>(
 export function useAppendedEntries() {
   const context = useContext(AppendedEntriesContext);
   if (!context) {
+    console.error('❌ CONTEXT: useAppendedEntries called outside of AppendedEntriesProvider!');
     throw new Error('useAppendedEntries must be used within an AppendedEntriesProvider');
   }
+  // Debug: Context accessed successfully
   return context;
 }
 
@@ -69,12 +71,10 @@ export function AppendedEntriesProvider({ children }: AppendedEntriesProviderPro
   useEffect(() => {
     return () => {
       console.log('🚪 CONTEXT: Provider unmounting, clearing appended entries');
-      if (followingEntries.length > 0) {
-        setFollowingEntries([]);
-        setLastAppendTime(0);
-      }
+      setFollowingEntries([]);
+      setLastAppendTime(0);
     };
-  }, [followingEntries.length]);
+  }, []); // Empty deps - only run on unmount
   
   const value = {
     followingEntries,
