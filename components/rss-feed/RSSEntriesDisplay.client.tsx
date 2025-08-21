@@ -1327,11 +1327,11 @@ const RSSEntriesClientComponent = ({
     return () => {
       cleanup();
       cleanupQueue();
-      // Clear persisted entries when component unmounts completely
-      console.log('🗑️ UNMOUNT: Clearing persisted entries on component unmount');
-      clearFollowingEntries();
+      // NOTE: Don't clear persisted entries here - they should persist across tab switches
+      // The context provider handles cleanup when navigating away from the page
+      console.log('🗑️ UNMOUNT: Component unmounting but preserving persisted entries for tab switches');
     };
-  }, [cleanup, cleanupQueue, clearFollowingEntries]);
+  }, [cleanup, cleanupQueue]);
 
   const ITEMS_PER_REQUEST = useMemo(() => pageSize, [pageSize]);
   const loadMoreRef = useRef<HTMLDivElement>(null);

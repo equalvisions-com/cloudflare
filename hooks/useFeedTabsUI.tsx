@@ -48,6 +48,18 @@ export const useFeedTabsUI = ({
   onRetryRSS,
   onRetryFeatured
 }: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
+  
+  // Stabilize the initial data references to prevent unnecessary tab recreation
+  const stableRssDataRef = useRef(rssData);
+  const stableFeaturedDataRef = useRef(featuredData);
+  
+  // Only update the stable refs when data becomes available for the first time
+  if (!stableRssDataRef.current && rssData) {
+    stableRssDataRef.current = rssData;
+  }
+  if (!stableFeaturedDataRef.current && featuredData) {
+    stableFeaturedDataRef.current = featuredData;
+  }
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
 
@@ -132,16 +144,16 @@ export const useFeedTabsUI = ({
           return renderErrorState(featuredError, onRetryFeatured);
         }
         
-        if (isFeaturedLoading || featuredData === null) {
+        if (isFeaturedLoading || !stableFeaturedDataRef.current) {
           return renderLoadingState();
         }
         
         return (
           <div className="min-h-screen">
             <FeaturedFeedClientWithErrorBoundary
-              initialData={featuredData as any /* Type adjustment for compatibility */}
+              initialData={stableFeaturedDataRef.current as any /* Type adjustment for compatibility */}
               pageSize={30}
-              isActive={activeTabIndex === 0}
+              isActive={true}
             />
           </div>
         );
@@ -156,15 +168,15 @@ export const useFeedTabsUI = ({
           return renderErrorState(rssError, onRetryRSS);
         }
         
-        if (isRSSLoading || rssData === null) {
+        if (isRSSLoading || !stableRssDataRef.current) {
           return renderLoadingState();
         }
         
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
-              initialData={rssData as any /* Type adjustment for compatibility */} 
-              pageSize={rssData.entries?.length || 30}
+              initialData={stableRssDataRef.current as any /* Type adjustment for compatibility */} 
+              pageSize={stableRssDataRef.current.entries?.length || 30}
               isActive={true}
             />
           </div>
@@ -172,9 +184,10 @@ export const useFeedTabsUI = ({
       }
     }
   ], [
-    // Removed activeTabIndex to prevent tab recreation and component unmounting
-    rssData,
-    featuredData,
+    // Only recreate tabs if there's a fundamental change (loading, error, data existence)
+    // Use stable references to prevent recreation on data updates
+    !!stableRssDataRef.current,
+    !!stableFeaturedDataRef.current,
     rssError,
     isRSSLoading,
     featuredError,
