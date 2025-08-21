@@ -66,16 +66,28 @@ export function FeedTabsContainer({
   
   // Removed useTransition to fix tab switching timing issues
   
-  // Custom hook for data fetching - simplified to accept callbacks
+  // Memoized callbacks to prevent recreation of fetch functions
+  const handleRSSDataFetched = useCallback(setRssData, []);
+  const handleFeaturedDataFetched = useCallback(setFeaturedData, []);
+  const handleRSSLoadingChange = useCallback((loading: boolean) => 
+    setLoading(prev => ({ ...prev, rss: loading })), []);
+  const handleFeaturedLoadingChange = useCallback((loading: boolean) => 
+    setLoading(prev => ({ ...prev, featured: loading })), []);
+  const handleRSSError = useCallback((error: string | null) => 
+    setErrors(prev => ({ ...prev, rss: error })), []);
+  const handleFeaturedError = useCallback((error: string | null) => 
+    setErrors(prev => ({ ...prev, featured: error })), []);
+
+  // Custom hook for data fetching - now with stable callbacks
   const { fetchRSSData, fetchFeaturedData, cleanup } = useFeedTabsDataFetching({
     isAuthenticated,
     router,
-    onRSSDataFetched: setRssData,
-    onFeaturedDataFetched: setFeaturedData,
-    onRSSLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, rss: loading })),
-    onFeaturedLoadingChange: (loading: boolean) => setLoading(prev => ({ ...prev, featured: loading })),
-    onRSSError: (error: string | null) => setErrors(prev => ({ ...prev, rss: error })),
-    onFeaturedError: (error: string | null) => setErrors(prev => ({ ...prev, featured: error }))
+    onRSSDataFetched: handleRSSDataFetched,
+    onFeaturedDataFetched: handleFeaturedDataFetched,
+    onRSSLoadingChange: handleRSSLoadingChange,
+    onFeaturedLoadingChange: handleFeaturedLoadingChange,
+    onRSSError: handleRSSError,
+    onFeaturedError: handleFeaturedError
   });
   
   // Stable cleanup reference to prevent dependency issues
