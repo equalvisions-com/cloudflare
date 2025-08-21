@@ -1121,13 +1121,11 @@ const RSSEntriesClientComponent = ({
     isRecentlyAppended 
   } = useAppendedEntries();
 
-  // Debug component mount/unmount
+  // Component lifecycle management
   React.useEffect(() => {
-    console.log('🚀 RSS_CLIENT: Component mounted, isActive:', isActive);
-    console.log('🚀 RSS_CLIENT: Persisted entries available:', persistedAppendedEntries.length);
-    
+    // Component mounted - no logging needed
     return () => {
-      console.log('💀 RSS_CLIENT: Component unmounting, isActive:', isActive);
+      // Component unmounting - no logging needed
     };
   }, [isActive, persistedAppendedEntries.length]);
 
@@ -1208,7 +1206,6 @@ const RSSEntriesClientComponent = ({
       payload: { show, count, images } 
     }), []),
     prependEntries: useCallback((entries) => {
-      console.log('📝 PREPEND: Adding', entries.length, 'entries to feed and persisting for tab switches');
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       // Also store in context for persistence across tab switches
       appendFollowingEntries(entries);
@@ -1228,7 +1225,6 @@ const RSSEntriesClientComponent = ({
 
   // Wrapper for refresh attempt that clears persisted entries
   const handleRefreshAttempt = useCallback(() => {
-    console.log('🔄 REFRESH: Manual refresh triggered, clearing persisted entries');
     clearFollowingEntries(); // Clear persisted entries before refresh
     originalHandleRefreshAttempt();
   }, [clearFollowingEntries, originalHandleRefreshAttempt]);
@@ -1289,11 +1285,7 @@ const RSSEntriesClientComponent = ({
       
               // After initialization, restore appended entries if they exist and are recent
         if (isRecentlyAppended() && persistedAppendedEntries.length > 0) {
-          console.log('🔄 RESTORE: Adding', persistedAppendedEntries.length, 'persisted appended entries after initialization');
-          console.log('🔄 RESTORE: Entries being restored:', persistedAppendedEntries.map(e => e.entry.title));
           dispatch({ type: 'PREPEND_ENTRIES', payload: persistedAppendedEntries });
-        } else {
-          console.log('❌ RESTORE: No entries to restore. Recent?', isRecentlyAppended(), 'Count:', persistedAppendedEntries.length);
         }
     }
   }, [canInitialize, performInitialization, isRecentlyAppended, persistedAppendedEntries]);
@@ -1313,13 +1305,10 @@ const RSSEntriesClientComponent = ({
     }
   }, [shouldTriggerRefresh]);
 
-  // Clear persisted entries when switching away from Following tab
+  // Tab state management - context handles expiration automatically
   React.useEffect(() => {
-    if (!isActive) {
-      // Don't clear immediately - let the context handle expiration
-      // This allows quick tab switches to preserve entries
-      console.log('📵 INACTIVE: Component becoming inactive, letting context manage entry expiration');
-    }
+    // Don't clear immediately when inactive - let the context handle expiration
+    // This allows quick tab switches to preserve entries
   }, [isActive]);
 
   // Cleanup on unmount
@@ -1329,7 +1318,6 @@ const RSSEntriesClientComponent = ({
       cleanupQueue();
       // NOTE: Don't clear persisted entries here - they should persist across tab switches
       // The context provider handles cleanup when navigating away from the page
-      console.log('🗑️ UNMOUNT: Component unmounting but preserving persisted entries for tab switches');
     };
   }, [cleanup, cleanupQueue]);
 

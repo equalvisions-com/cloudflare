@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useFeedTabsDataFetching } from '@/hooks/useFeedTabsDataFetching';
 import { useFeedTabsUI } from '@/hooks/useFeedTabsUI';
 import type { FeedTabsContainerProps } from '@/lib/types';
-import { AppendedEntriesProvider } from '@/contexts/AppendedEntriesContext';
+import { AppendedEntriesProviderWithErrorBoundary } from '@/contexts/AppendedEntriesContext';
 
 /**
  * FeedTabsContainer Component
@@ -183,7 +183,7 @@ export function FeedTabsContainer({
   }), [isAuthenticated, displayName, isBoarded, profileImage, pendingFriendRequestCount]);
 
   return (
-    <AppendedEntriesProvider>
+    <AppendedEntriesProviderWithErrorBoundary>
       <div className="w-full">
         <div className="grid grid-cols-2 items-center px-4 pt-2 pb-2 z-50 sm:block md:hidden">
           <div>
@@ -203,7 +203,7 @@ export function FeedTabsContainer({
           defaultTabIndex={activeTabIndex} 
         />
       </div>
-    </AppendedEntriesProvider>
+    </AppendedEntriesProviderWithErrorBoundary>
   );
 }
 

@@ -27,12 +27,12 @@ const FeaturedFeedClientWithErrorBoundary = dynamic(
 /**
  * Custom hook for managing UI rendering logic in FeedTabsContainer
  * 
- * Uses props for state management:
- * - Accepts state as props from parent component
- * - Preserves all dynamic import functionality
- * - Maintains intelligent preloading strategy
- * - Keeps skeleton loading states
- * - Error state rendering with retry functionality
+ * Production-ready implementation with optimizations:
+ * - Stable data references prevent unnecessary component recreation
+ * - Intelligent preloading strategy for better UX
+ * - Memory-efficient tab rendering with proper cleanup
+ * - Development-only logging for debugging
+ * - Error state handling with retry functionality
  * 
  * @param props - Hook configuration props with state and callbacks
  * @returns UI rendering functions and configurations
@@ -50,16 +50,16 @@ export const useFeedTabsUI = ({
 }: UseFeedTabsUIProps): UseFeedTabsUIReturn => {
   
   // Stabilize the initial data references to prevent unnecessary tab recreation
-  const stableRssDataRef = useRef(rssData);
-  const stableFeaturedDataRef = useRef(featuredData);
+  // Use useMemo to create stable references that only change when data becomes available
+  const stableRssData = useMemo(() => {
+    // Only return new data if we don't have stable data yet, or if data is loading/error states
+    return rssData || null;
+  }, [!!rssData]); // Only recalculate when existence changes, not content
   
-  // Only update the stable refs when data becomes available for the first time
-  if (!stableRssDataRef.current && rssData) {
-    stableRssDataRef.current = rssData;
-  }
-  if (!stableFeaturedDataRef.current && featuredData) {
-    stableFeaturedDataRef.current = featuredData;
-  }
+  const stableFeaturedData = useMemo(() => {
+    // Only return new data if we don't have stable data yet, or if data is loading/error states  
+    return featuredData || null;
+  }, [!!featuredData]); // Only recalculate when existence changes, not content
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
 
@@ -144,14 +144,14 @@ export const useFeedTabsUI = ({
           return renderErrorState(featuredError, onRetryFeatured);
         }
         
-        if (isFeaturedLoading || !stableFeaturedDataRef.current) {
+        if (isFeaturedLoading || !stableFeaturedData) {
           return renderLoadingState();
         }
         
         return (
           <div className="min-h-screen">
             <FeaturedFeedClientWithErrorBoundary
-              initialData={stableFeaturedDataRef.current as any /* Type adjustment for compatibility */}
+              initialData={stableFeaturedData as any /* Type adjustment for compatibility */}
               pageSize={30}
               isActive={true}
             />
@@ -168,15 +168,15 @@ export const useFeedTabsUI = ({
           return renderErrorState(rssError, onRetryRSS);
         }
         
-        if (isRSSLoading || !stableRssDataRef.current) {
+        if (isRSSLoading || !stableRssData) {
           return renderLoadingState();
         }
         
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
-              initialData={stableRssDataRef.current as any /* Type adjustment for compatibility */} 
-              pageSize={stableRssDataRef.current.entries?.length || 30}
+              initialData={stableRssData as any /* Type adjustment for compatibility */} 
+              pageSize={stableRssData.entries?.length || 30}
               isActive={true}
             />
           </div>
@@ -186,8 +186,8 @@ export const useFeedTabsUI = ({
   ], [
     // Only recreate tabs if there's a fundamental change (loading, error, data existence)
     // Use stable references to prevent recreation on data updates
-    !!stableRssDataRef.current,
-    !!stableFeaturedDataRef.current,
+    !!stableRssData,
+    !!stableFeaturedData,
     rssError,
     isRSSLoading,
     featuredError,
