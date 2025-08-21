@@ -7,20 +7,20 @@ import type {
   FeedTabsTabConfig
 } from '@/lib/types';
 
-// Optimized dynamic imports for Edge Runtime
+// Optimized dynamic imports for Edge Runtime - enable SSR for faster loading
 const RSSEntriesClientWithErrorBoundary = dynamic(
   () => import("@/components/rss-feed/RSSEntriesDisplay.client").then(mod => mod.RSSEntriesClientWithErrorBoundary),
   { 
-    ssr: false,
-    loading: () => <SkeletonFeed count={5} />
+    ssr: true,  // ✅ Enable SSR for faster loading
+    loading: () => <SkeletonFeed count={3} />  // Reduced skeleton count
   }
 );
 
 const FeaturedFeedClientWithErrorBoundary = dynamic(
   () => import("@/components/featured/FeaturedFeedClient").then(mod => mod.FeaturedFeedClientWithErrorBoundary),
   {
-    ssr: false,
-    loading: () => <SkeletonFeed count={5} />
+    ssr: true,  // ✅ Enable SSR for faster loading  
+    loading: () => <SkeletonFeed count={3} />  // Reduced skeleton count
   }
 );
 
@@ -52,13 +52,11 @@ export const useFeedTabsUI = ({
   // Stabilize the initial data references to prevent unnecessary tab recreation
   // Use useMemo to create stable references that only change when data becomes available
   const stableRssData = useMemo(() => {
-    // Only return new data if we don't have stable data yet, or if data is loading/error states
-    return rssData || null;
+    return rssData;  // ✅ Simplified - return actual data or undefined
   }, [!!rssData]); // Only recalculate when existence changes, not content
   
   const stableFeaturedData = useMemo(() => {
-    // Only return new data if we don't have stable data yet, or if data is loading/error states  
-    return featuredData || null;
+    return featuredData;  // ✅ Simplified - return actual data or undefined
   }, [!!featuredData]); // Only recalculate when existence changes, not content
   // Track if components have been preloaded to avoid duplicate preloads
   const preloadedRef = useRef<Set<string>>(new Set());
@@ -144,10 +142,7 @@ export const useFeedTabsUI = ({
           return renderErrorState(featuredError, onRetryFeatured);
         }
         
-        if (isFeaturedLoading || !stableFeaturedData) {
-          return renderLoadingState();
-        }
-        
+        // ✅ Let the component handle its own loading state - remove double loading
         return (
           <div className="min-h-screen">
             <FeaturedFeedClientWithErrorBoundary
@@ -168,15 +163,12 @@ export const useFeedTabsUI = ({
           return renderErrorState(rssError, onRetryRSS);
         }
         
-        if (isRSSLoading || !stableRssData) {
-          return renderLoadingState();
-        }
-        
+        // ✅ Let the component handle its own loading state - remove double loading
         return (
           <div className="min-h-screen">
             <RSSEntriesClientWithErrorBoundary 
               initialData={stableRssData as any /* Type adjustment for compatibility */} 
-              pageSize={stableRssData.entries?.length || 30}
+              pageSize={stableRssData?.entries?.length || 30}
               isActive={true}
             />
           </div>
@@ -184,16 +176,15 @@ export const useFeedTabsUI = ({
       }
     }
   ], [
-    // Only recreate tabs if there's a fundamental change (loading, error, data existence)
+    // Only recreate tabs if there's a fundamental change (error state or retry handlers)
     // Use stable references to prevent recreation on data updates
     !!stableRssData,
     !!stableFeaturedData,
     rssError,
-    isRSSLoading,
     featuredError,
-    isFeaturedLoading,
     onRetryRSS,
     onRetryFeatured
+    // ✅ Removed loading dependencies - let components handle their own loading
   ]);
 
   /**
@@ -216,13 +207,13 @@ export const useFeedTabsUI = ({
   };
 
   /**
-   * Check if current tab is loading
+   * Check if current tab is loading - simplified
    */
   const isCurrentTabLoading = () => {
     if (activeTabIndex === 0) {
-      return isFeaturedLoading || featuredData === null;
+      return isFeaturedLoading;
     } else if (activeTabIndex === 1) {
-      return isRSSLoading || rssData === null;
+      return isRSSLoading;
     }
     return false;
   };
