@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, useDeferredValue, useReducer } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo, useDeferredValue, useReducer, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Image from "next/image";
@@ -1136,6 +1137,14 @@ const RSSEntriesClientComponent = ({
   const hasMoreRef = useRef(true);
 
   const postTitlesRef = useRef<string[]>([]);
+
+  // Portal container management for notification badge
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
+  
+  // Set up portal container on client-side mount
+  useLayoutEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
   const preRefreshNewestEntryDateRef = useRef<string | undefined>(undefined);
   const feedMetadataCache = useRef<Record<string, RSSEntriesDisplayEntry['postMetadata']>>({});
 
@@ -1419,8 +1428,8 @@ const RSSEntriesClientComponent = ({
         Skip to main content
       </a>
       
-      {/* Notification for new entries */}
-      {state.showNotification && (
+      {/* Notification for new entries - rendered as portal to document body for true viewport positioning */}
+      {state.showNotification && portalContainer && createPortal(
         <div 
           className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
           role="status"
@@ -1454,13 +1463,14 @@ const RSSEntriesClientComponent = ({
             ) : (
               <>
                 <MoveUp className="h-3 w-3" aria-hidden="true" />
-              <span className="text-sm font-medium">
+                <span className="text-sm font-medium">
                   {state.notificationCount} new {state.notificationCount === 1 ? 'post' : 'posts'}
-              </span>
+                </span>
               </>
             )}
           </button>
-        </div>
+        </div>,
+        portalContainer
       )}
       
       {/* Error state for refresh */}
