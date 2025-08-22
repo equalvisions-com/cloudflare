@@ -1255,23 +1255,46 @@ const RSSEntriesClientComponent = ({
 
   postTitlesRef.current = state.postTitles;
   
-  // Get entry GUIDs for batch metrics query
+  // Get entry GUIDs for batch metrics query - include both initial and persisted entries
   const entryGuids = useMemo(() => {
-    if (!initialData?.entries) return [];
-    return initialData.entries.map(entry => entry.entry.guid);
-  }, [initialData?.entries]);
+    const guids: string[] = [];
+    
+    // Add GUIDs from initial server data
+    if (initialData?.entries) {
+      guids.push(...initialData.entries.map(entry => entry.entry.guid));
+    }
+    
+    // Add GUIDs from persisted appended entries (if recent)
+    if (isRecentlyAppended() && persistedAppendedEntries.length > 0) {
+      const appendedGuids = persistedAppendedEntries.map(entry => entry.entry.guid);
+      // Only add GUIDs that aren't already in the list
+      appendedGuids.forEach(guid => {
+        if (!guids.includes(guid)) {
+          guids.push(guid);
+        }
+      });
+    }
+    
+    return guids;
+  }, [initialData?.entries, isRecentlyAppended, persistedAppendedEntries]);
   
   const initialMetrics = useMemo(() => {
-    if (!initialData?.entries) return {};
-    
     const metrics: Record<string, any> = {};
-    initialData.entries.forEach(entry => {
-      if (entry.initialData && entry.entry.guid) {
-        metrics[entry.entry.guid] = entry.initialData;
-      }
-    });
+    
+    // Add metrics from initial server data
+    if (initialData?.entries) {
+      initialData.entries.forEach(entry => {
+        if (entry.initialData && entry.entry.guid) {
+          metrics[entry.entry.guid] = entry.initialData;
+        }
+      });
+    }
+    
+    // NOTE: Don't include metrics from persisted entries - let useBatchEntryMetrics fetch fresh data
+    // This ensures engagement states are always current when component remounts
+    
     return metrics;
-  }, [initialData?.entries]);
+  }, [initialData?.entries]); // Only depend on initial data - persisted entries will get fresh metrics
 
   const { getMetrics, isLoading: metricsLoading } = useBatchEntryMetrics(
     isActive ? entryGuids : [],
