@@ -65,12 +65,12 @@ export const useRSSEntriesNewEntries = ({
     // Show notification with extracted data
     setNotification(true, notificationData.count, notificationData.images);
 
-    // Auto-hide after 5 seconds
+    // Auto-hide after 10 seconds to match CSS animation duration
     createManagedTimeout(() => {
       if (isMountedRef.current) {
         setNotification(false);
       }
-    }, 5000);
+    }, 10000);
   }, [notificationData, isMountedRef, setNotification, createManagedTimeout]);
 
   // Function to handle clicking on notification (dismiss only - entries already prepended)

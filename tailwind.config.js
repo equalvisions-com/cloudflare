@@ -21,12 +21,12 @@ module.exports = {
         mono: ["var(--font-geist-mono)"],
       },
       animation: {
-        "fade-out": "fadeOut 3s ease-in-out forwards",
+        "fade-out": "fadeOut 10s ease-in-out forwards",
       },
       keyframes: {
         fadeOut: {
           "0%": { opacity: "1" },
-          "80%": { opacity: "1" },
+          "85%": { opacity: "1" },
           "100%": { opacity: "0" },
         },
       },
