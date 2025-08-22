@@ -1209,12 +1209,6 @@ const RSSEntriesClientComponent = ({
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       // Also store in context for persistence across tab switches
       appendFollowingEntries(entries);
-      
-      // Scroll to top to show new entries
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
     }, [appendFollowingEntries]),
     createManagedTimeout,
   });
@@ -1428,7 +1422,7 @@ const RSSEntriesClientComponent = ({
       {/* Notification for new entries */}
       {state.showNotification && (
         <div 
-          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50"
+          className="sticky top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
           role="status"
           aria-live="polite"
           aria-atomic="true"

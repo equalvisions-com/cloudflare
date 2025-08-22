@@ -21,10 +21,14 @@ module.exports = {
         mono: ["var(--font-geist-mono)"],
       },
       animation: {
-        // Removed fade-out animation - notification shows/hides instantly
+        "fade-out": "fadeOut 10s ease-in-out forwards",
       },
       keyframes: {
-        // Removed fadeOut keyframes
+        fadeOut: {
+          "0%": { opacity: "1" },
+          "79.9%": { opacity: "1" },
+          "100%": { opacity: "0" },
+        },
       },
       colors: {
         background: "hsl(var(--background))",
