@@ -263,10 +263,9 @@ export const useRSSEntriesQueueRefresh = ({
         return new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime();
       });
       
-      console.log('🎉 QUEUE REFRESH: Found', trulyNewEntries.length, 'truly new entries');
-      console.log('🎉 QUEUE REFRESH: Truly new entries:', trulyNewEntries);
+      // Found truly new entries
     } else {
-      console.log('⚠️ QUEUE REFRESH: No truly new entries found after filtering');
+      // No truly new entries found after filtering
     }
 
     // Extract featured images for notification
@@ -283,7 +282,7 @@ export const useRSSEntriesQueueRefresh = ({
   // Clean up SSE connection
   const cleanupSSE = useCallback(() => {
     if (eventSourceRef.current) {
-      console.log('🔌 SSE: Closing connection');
+      // Closing SSE connection
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
