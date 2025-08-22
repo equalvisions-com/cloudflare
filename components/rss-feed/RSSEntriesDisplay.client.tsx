@@ -977,8 +977,6 @@ function EntriesContentComponent({
         className="focus:outline-none focus-visible:outline-none"
         increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
         restoreStateFrom={undefined}
-        followOutput={false}
-        alignToBottom={false}
       />
     );
   // FIXED: Include paginatedEntries.length so Virtuoso re-renders when entries are added
@@ -1123,8 +1121,6 @@ const RSSEntriesClientComponent = ({
     isRecentlyAppended 
   } = useAppendedEntries();
 
-
-
   // Component lifecycle management - mount only
   React.useEffect(() => {
     // Component mounted
@@ -1213,6 +1209,12 @@ const RSSEntriesClientComponent = ({
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       // Also store in context for persistence across tab switches
       appendFollowingEntries(entries);
+      
+      // Scroll to top to show new entries
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }, [appendFollowingEntries]),
     createManagedTimeout,
   });
@@ -1423,10 +1425,10 @@ const RSSEntriesClientComponent = ({
         Skip to main content
       </a>
       
-      {/* Notification for new entries - overlaid on current content */}
+      {/* Notification for new entries */}
       {state.showNotification && (
         <div 
-          className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50"
           role="status"
           aria-live="polite"
           aria-atomic="true"
