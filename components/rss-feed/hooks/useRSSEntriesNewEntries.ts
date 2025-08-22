@@ -75,6 +75,8 @@ export const useRSSEntriesNewEntries = ({
 
   // Function to handle clicking on notification (dismiss only - entries already prepended)
   const handleNotificationClick = useCallback(() => {
+    console.log('🎯 NOTIFICATION CLICK: Dismissing notification (entries already in feed)');
+    
     if (!isMountedRef.current) {
       return;
     }

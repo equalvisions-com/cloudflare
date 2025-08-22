@@ -280,7 +280,12 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       return { ...state, entries: [...state.entries, ...action.payload] };
     
     case 'PREPEND_ENTRIES':
-      return { ...state, entries: [...action.payload, ...state.entries] };
+      console.log('🚀 REDUCER PREPEND_ENTRIES: Adding', action.payload.length, 'entries to the front');
+      console.log('🚀 REDUCER PREPEND_ENTRIES: Current entries count:', state.entries.length);
+      console.log('🚀 REDUCER PREPEND_ENTRIES: New entries:', action.payload);
+      const newState = { ...state, entries: [...action.payload, ...state.entries] };
+      console.log('🚀 REDUCER PREPEND_ENTRIES: New total entries count:', newState.entries.length);
+      return newState;
     
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload };
@@ -972,6 +977,8 @@ function EntriesContentComponent({
         className="focus:outline-none focus-visible:outline-none"
         increaseViewportBy={VIRTUAL_SCROLL_CONFIG.increaseViewportBy}
         restoreStateFrom={undefined}
+        followOutput={false}
+        alignToBottom={false}
       />
     );
   // FIXED: Include paginatedEntries.length so Virtuoso re-renders when entries are added
@@ -1116,6 +1123,8 @@ const RSSEntriesClientComponent = ({
     isRecentlyAppended 
   } = useAppendedEntries();
 
+
+
   // Component lifecycle management - mount only
   React.useEffect(() => {
     // Component mounted
@@ -1204,20 +1213,6 @@ const RSSEntriesClientComponent = ({
       dispatch({ type: 'PREPEND_ENTRIES', payload: entries });
       // Also store in context for persistence across tab switches
       appendFollowingEntries(entries);
-      
-      // Fast scroll to top to show new entries and badge immediately
-      // Use custom animation for consistent, fast scrolling
-      const scrollToTop = () => {
-        const currentScroll = window.pageYOffset;
-        if (currentScroll > 0) {
-          const scrollStep = Math.max(currentScroll / 15, 50); // Fast scroll in 15 steps, minimum 50px per step
-          window.scrollTo(0, Math.max(currentScroll - scrollStep, 0));
-          if (window.pageYOffset > 0) {
-            requestAnimationFrame(scrollToTop);
-          }
-        }
-      };
-      scrollToTop();
     }, [appendFollowingEntries]),
     createManagedTimeout,
   });
@@ -1428,10 +1423,10 @@ const RSSEntriesClientComponent = ({
         Skip to main content
       </a>
       
-      {/* Notification for new entries */}
+      {/* Notification for new entries - overlaid on current content */}
       {state.showNotification && (
         <div 
-          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
           role="status"
           aria-live="polite"
           aria-atomic="true"

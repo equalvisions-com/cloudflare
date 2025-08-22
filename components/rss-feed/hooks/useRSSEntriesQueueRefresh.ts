@@ -263,9 +263,10 @@ export const useRSSEntriesQueueRefresh = ({
         return new Date(b.entry.pubDate).getTime() - new Date(a.entry.pubDate).getTime();
       });
       
-      // Found truly new entries
+      console.log('🎉 QUEUE REFRESH: Found', trulyNewEntries.length, 'truly new entries');
+      console.log('🎉 QUEUE REFRESH: Truly new entries:', trulyNewEntries);
     } else {
-      // No truly new entries found after filtering
+      console.log('⚠️ QUEUE REFRESH: No truly new entries found after filtering');
     }
 
     // Extract featured images for notification
@@ -282,7 +283,7 @@ export const useRSSEntriesQueueRefresh = ({
   // Clean up SSE connection
   const cleanupSSE = useCallback(() => {
     if (eventSourceRef.current) {
-      // Closing SSE connection
+      console.log('🔌 SSE: Closing connection');
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
