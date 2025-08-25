@@ -57,6 +57,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { NoFocusWrapper, NoFocusLinkWrapper, useFeedFocusPrevention, useDelayedIntersectionObserver } from "@/utils/FeedInteraction";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useBatchEntryMetrics } from "@/hooks/useBatchEntryMetrics";
+import { filterActivitiesWithMissingEntries } from "@/lib/utils/missingEntryHandler";
 
 // BookmarksFeed State Management Types now imported from @/lib/types
 
@@ -862,11 +863,16 @@ const BookmarksFeedComponent = ({ userId, initialData, pageSize = 30, isSearchRe
     isSearchResults
   });
 
-  // Apply memory optimization to prevent excessive memory usage
-  const optimizedBookmarks = useMemo(() => 
-    optimizeBookmarksForMemory(state.bookmarks), 
-    [state.bookmarks]
-  );
+  // Apply memory optimization and filter out missing entries
+  const optimizedBookmarks = useMemo(() => {
+    const bookmarksWithEntries = filterActivitiesWithMissingEntries(
+      state.bookmarks,
+      state.entryDetails,
+      'BookmarksFeed'
+    );
+    
+    return optimizeBookmarksForMemory(bookmarksWithEntries);
+  }, [state.bookmarks, state.entryDetails]);
   
   // Get entry GUIDs for batch metrics query - FIXED: Extract from stable initial data only
   const entryGuids = useMemo(() => {

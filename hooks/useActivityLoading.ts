@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useDelayedIntersectionObserver } from '@/utils/FeedInteraction';
+import { filterActivitiesWithMissingEntries } from '@/lib/utils/missingEntryHandler';
 import type { ActivityFeedActivity, ActivityFeedEntryDetails, ActivityFeedItem, ActivityFeedGroupedActivity } from '@/lib/types';
 
 interface UseActivityLoadingProps {
@@ -216,11 +217,18 @@ export function useActivityLoading({
 
   // Efficiently group activities by entryGuid and type
   const groupedActivities = useMemo(() => {
+    // Filter out activities with missing entry details before grouping
+    const activitiesWithEntries = filterActivitiesWithMissingEntries(
+      activities,
+      entryDetails,
+      'UserActivityFeed'
+    );
+    
     // Create a map to store activities by entry GUID and type
     const groupedMap = new Map<string, Map<string, any[]>>();
 
     // First pass: filter out any activities that are not comments or retweets
-    activities.forEach(activity => {
+    activitiesWithEntries.forEach(activity => {
       const key = activity.entryGuid;
       if (!groupedMap.has(key)) {
         groupedMap.set(key, new Map());
@@ -269,7 +277,7 @@ export function useActivityLoading({
 
     // Sort the result by the timestamp of the first activity (newest first for the feed)
     return result.sort((a, b) => b.firstActivity.timestamp - a.firstActivity.timestamp);
-  }, [activities]);
+  }, [activities, entryDetails]);
 
   // Memoize loading state calculations
   const uiIsInitialLoading = useMemo(() => 

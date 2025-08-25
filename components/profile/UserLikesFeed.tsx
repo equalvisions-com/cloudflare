@@ -30,6 +30,7 @@ import {
   InteractionStates 
 } from "@/lib/types";
 import { useBatchEntryMetrics } from "@/hooks/useBatchEntryMetrics";
+import { filterActivitiesWithMissingEntries } from "@/lib/utils/missingEntryHandler";
 
 // Memory optimization for large datasets - Virtual scrolling configuration
 const VIRTUAL_SCROLL_CONFIG = {
@@ -465,7 +466,7 @@ const ActivityCard = memo(({
   onOpenCommentDrawer
 }: { 
   activity: UserLikesActivityItem; 
-  entryDetails?: UserLikesRSSEntry;
+  entryDetails: UserLikesRSSEntry;
   getEntryMetrics: (entryGuid: string) => InteractionStates;
   onOpenCommentDrawer: (entryGuid: string, feedUrl: string, initialData?: { count: number }) => void;
 }) => {
@@ -532,9 +533,6 @@ const ActivityCard = memo(({
     if (!entryDetails?.image) return '/placeholder-image.jpg';
     return entryDetails.image;
   }, [entryDetails?.image]);
-  
-  // Skip rendering if no entry details
-  if (!entryDetails) return null;
   
   return (
     <article 
@@ -634,6 +632,8 @@ const ActivityCard = memo(({
   );
 });
 ActivityCard.displayName = 'ActivityCard';
+
+
 
 // Fallback UI for error boundary
 const ErrorFallback = memo(({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) => {
@@ -877,19 +877,26 @@ const UserLikesFeedComponent = memo(({ userId, username, initialData, pageSize =
     threshold: 0.1
   });
 
-  // Apply memory optimization to prevent excessive memory usage
-  const optimizedActivities = useMemo(() => 
-    optimizeLikesForMemory(state.activities), 
-    [state.activities]
-  );
+  // Filter out activities with missing entry details and log them using universal utility
+  const optimizedActivities = useMemo(() => {
+    const activitiesWithEntries = filterActivitiesWithMissingEntries(
+      state.activities,
+      state.entryDetails,
+      'UserLikesFeed'
+    );
+    
+    return optimizeLikesForMemory(activitiesWithEntries);
+  }, [state.activities, state.entryDetails]);
 
   // Use a ref to store the itemContent callback to ensure stability - matching RSSEntriesDisplay exactly
   const itemContentCallback = useCallback((index: number, activity: UserLikesActivityItem) => {
-    // Get the details for this activity
+    // At this point, we know entryDetails exists because we filtered out missing ones
+    const entryDetails = state.entryDetails[activity.entryGuid]!;
+    
     return (
       <ActivityCard 
         activity={activity} 
-        entryDetails={state.entryDetails[activity.entryGuid]}
+        entryDetails={entryDetails}
         getEntryMetrics={getMetrics}
         onOpenCommentDrawer={handleOpenCommentDrawer}
       />
