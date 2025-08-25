@@ -65,13 +65,11 @@ export const useRSSEntriesNewEntries = ({
     // Show notification with extracted data
     setNotification(true, notificationData.count, notificationData.images);
 
-    // Auto-hide after 8 seconds
-    createManagedTimeout(() => {
-      if (isMountedRef.current) {
-        setNotification(false);
-      }
+    // Auto-hide after 8 seconds - use regular setTimeout to persist across tab switches
+    setTimeout(() => {
+      setNotification(false);
     }, 8000);
-  }, [notificationData, isMountedRef, setNotification, createManagedTimeout]);
+  }, [notificationData, isMountedRef, setNotification]);
 
   // Function to handle clicking on notification (dismiss only - entries already prepended)
   const handleNotificationClick = useCallback(() => {
