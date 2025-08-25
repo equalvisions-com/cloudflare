@@ -328,12 +328,9 @@ const rssEntriesReducer = (state: RSSEntriesState, action: RSSEntriesAction): RS
       };
     
     case 'SET_NEW_ENTRIES':
-      console.log('📥 REDUCER SET_NEW_ENTRIES: Setting', action.payload.length, 'new entries');
-      console.log('📥 REDUCER SET_NEW_ENTRIES: New entries:', action.payload);
       return { ...state, newEntries: action.payload };
     
     case 'CLEAR_NEW_ENTRIES':
-      console.log('🗑️ REDUCER CLEAR_NEW_ENTRIES: Clearing new entries');
       return { ...state, newEntries: [] };
     
     case 'UPDATE_ENTRY_METRICS':
@@ -1336,6 +1333,15 @@ const RSSEntriesClientComponent = ({
       triggerRefreshRef.current();
     }
   }, [shouldTriggerRefresh]);
+
+  // Trigger notification when new entries are available
+  React.useEffect(() => {
+    if (state.newEntries.length > 0) {
+      showNewEntriesNotification();
+      // Clear new entries after showing notification
+      dispatch({ type: 'CLEAR_NEW_ENTRIES' });
+    }
+  }, [state.newEntries.length, showNewEntriesNotification]);
 
   // Tab state management - context handles expiration automatically
   React.useEffect(() => {
