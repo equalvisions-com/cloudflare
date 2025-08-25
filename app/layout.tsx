@@ -10,7 +10,7 @@ import { Suspense } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ScrollResetter } from "@/components/ui/scroll-resetter";
 import { Toaster } from "@/components/ui/toaster";
-import { AxiomWebVitals } from 'next-axiom';
+
 import { LogClientErrors } from './log-client-errors';
 import Script from "next/script";
 import type { RootLayoutProps } from "@/lib/types";
@@ -179,7 +179,6 @@ export default async function RootLayout({ children }: RootLayoutProps) {
             </ThemeProvider>
           </ConvexClientProvider>
           <LogClientErrors />
-          <AxiomWebVitals />
         </body>
       </html>
     </ConvexAuthNextjsServerProvider>
