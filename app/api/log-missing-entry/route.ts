@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
   try {
     const data: MissingEntryLog = await request.json();
     
-    // Initialize Axiom logger for edge runtime
-    const logger = new Logger({ source: 'missing-entries' });
+    // Initialize Axiom logger for edge runtime - use same source as middleware for consistency
+    const logger = new Logger({ source: 'middleware' });
     
     // Log the missing entry with structured data
     logger.warn('Missing RSS entry details in user feed', {
