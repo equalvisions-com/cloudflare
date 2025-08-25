@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
       loggedAt: new Date().toISOString(),
     });
     
+    // CRITICAL: Flush logs in edge runtime before returning response
+    await logger.flush();
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error logging missing entry:', error);
