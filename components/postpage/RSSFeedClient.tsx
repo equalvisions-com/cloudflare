@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef, useMemo, useCallback, memo, useReducer, useContext, type JSX } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo, useReducer, useContext, useState, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RSSFeedErrorBoundary } from "./RSSFeedErrorBoundary";
@@ -943,6 +944,14 @@ const RSSFeedProvider = ({ children }: { children: React.ReactNode }) => {
 function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30, featuredImg, mediaType, isActive = true, verified, customLoadMore, isSearchMode, externalIsLoading }: RSSFeedClientProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   
+  // Portal container management for notification badge
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
+  
+  // Set up portal container on client-side mount
+  useLayoutEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
+  
   // Get state and dispatch from context
   const { state, dispatch } = useRSSFeedContext();
   
@@ -1099,10 +1108,10 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
                     } 
                   });
                   
-                  // Auto-hide notification after 5 seconds
+                  // Auto-hide notification after 8 seconds
                   setTimeout(() => {
                     dispatch({ type: 'SET_NOTIFICATION', payload: { show: false } });
-                  }, 5000);
+                  }, 8000);
                   
                   console.log('✅ SINGLE FEED: Prepending optimized entries (no Convex query):', enrichedEntries.length);
                   dispatch({ type: 'PREPEND_ENTRIES', payload: enrichedEntries });
@@ -1225,10 +1234,10 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
   
   return (
     <div className="w-full rss-feed-container">
-      {/* Notification badge for new entries */}
-      {state.ui.notification.show && (
+      {/* Notification badge for new entries - rendered as portal to document body for true viewport positioning */}
+      {state.ui.notification.show && portalContainer && createPortal(
         <div 
-          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50"
           role="status"
           aria-live="polite"
           aria-atomic="true"
@@ -1271,7 +1280,8 @@ function RSSFeedClientInternal({ postTitle, feedUrl, initialData, pageSize = 30,
               </>
             )}
           </button>
-        </div>
+        </div>,
+        portalContainer
       )}
       
       <FeedContent

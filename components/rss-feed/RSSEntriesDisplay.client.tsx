@@ -1431,7 +1431,7 @@ const RSSEntriesClientComponent = ({
       {/* Notification for new entries - rendered as portal to document body for true viewport positioning */}
       {state.showNotification && portalContainer && createPortal(
         <div 
-          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-out"
+          className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50"
           role="status"
           aria-live="polite"
           aria-atomic="true"
