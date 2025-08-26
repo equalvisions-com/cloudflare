@@ -1,8 +1,7 @@
 "use server";
 
 import * as z from "zod";
-import { api } from "@/convex/_generated/api";
-import { fetchMutation } from "convex/nextjs";
+// Note: Convex calls moved to the Edge API route to avoid typed API coupling here.
 
 const reportSchema = z.object({
   name: z.string().min(1),
@@ -51,19 +50,8 @@ export async function submitReport(input: ReportInput, headers?: Headers): Promi
     return { success: false, message: "Verification failed" };
   }
 
-  try {
-    await fetchMutation(api.reports.create, {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      reason: parsed.data.reason,
-      description: parsed.data.description,
-      postSlug: parsed.data.postSlug,
-      ip,
-    });
-    return { success: true };
-  } catch (e) {
-    return { success: false, message: "Could not submit report" };
-  }
+  // The action no longer writes to Convex directly; kept for potential reuse.
+  return { success: true };
 }
 
 
