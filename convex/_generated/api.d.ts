@@ -26,6 +26,7 @@ import type * as posts from "../posts.js";
 import type * as r2 from "../r2.js";
 import type * as r2Cleanup from "../r2Cleanup.js";
 import type * as rateLimiters from "../rateLimiters.js";
+import type * as reports from "../reports.js";
 import type * as retweets from "../retweets.js";
 import type * as rssKeys from "../rssKeys.js";
 import type * as sitemap from "../sitemap.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   r2: typeof r2;
   r2Cleanup: typeof r2Cleanup;
   rateLimiters: typeof rateLimiters;
+  reports: typeof reports;
   retweets: typeof retweets;
   rssKeys: typeof rssKeys;
   sitemap: typeof sitemap;

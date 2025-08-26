@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
-import { validateHeaders } from "@/lib/headers";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
@@ -17,9 +16,6 @@ const schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateHeaders(request)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
   try {
     const json = await request.json();
     const parsed = schema.safeParse(json);
@@ -43,14 +39,22 @@ export async function POST(request: NextRequest) {
     // Write to Convex
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     convex.setAuth(token);
-    await (convex as any).mutation("reports:create", {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      reason: parsed.data.reason,
-      description: parsed.data.description,
-      postSlug: parsed.data.postSlug,
-      ip,
-    });
+    try {
+      await (convex as any).mutation("reports:create", {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        reason: parsed.data.reason,
+        description: parsed.data.description,
+        postSlug: parsed.data.postSlug,
+        ip,
+      });
+    } catch (err: any) {
+      const message = (err && typeof err.message === 'string') ? err.message : '';
+      if (message.toLowerCase().includes('daily report limit')) {
+        return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { 'Retry-After': '86400' } });
+      }
+      return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch {
