@@ -125,6 +125,20 @@ export default defineSchema({
   .index("by_comment", ["commentId"])                 // To count likes for a comment
   .index("by_user", ["userId"]),                      // To get all comments liked by a user
 
+  reports: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    email: v.string(),
+    reason: v.string(),
+    description: v.string(),
+    postSlug: v.string(),
+    ip: v.string(),
+    createdAt: v.number(),
+  })
+  .index("by_user", ["userId"])                       // To query reports by user
+  .index("by_time", ["createdAt"])                    // For chronological moderation
+  .index("by_post_slug", ["postSlug"]),               // To group reports by post
+
   trendingTopics: defineTable({
     title: v.string(),        // Human-readable title (e.g. "Sports", "Investing")
     subtopic: v.string(),     // Short subtopic string (e.g. "NFL Free Agency", "Bitcoin")

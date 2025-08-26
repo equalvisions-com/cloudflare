@@ -164,6 +164,14 @@ export const actionLimiter = new RateLimiter(components.rateLimiter, {
     rate: 200,
     capacity: 200,
   },
+  
+  // Reports limits - daily only per user
+  reportsDaily: {
+    kind: "fixed window",
+    period: DAY,
+    rate: 5,
+    capacity: 5,
+  },
 });
 
  
