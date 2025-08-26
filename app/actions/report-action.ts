@@ -1,5 +1,4 @@
 "use server";
-export const runtime = "edge";
 
 import * as z from "zod";
 import { api } from "@/convex/_generated/api";
