@@ -37,8 +37,8 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
     if (username) return username;
     if (!pathname) return "";
     const parts = pathname.split("/").filter(Boolean);
-    // For /profile/[username] URL structure: parts[0] = "profile", parts[1] = username
-    const extractedUsername = parts[1]?.replace("@", "") || "";
+    // For /@username URL structure: parts[0] = "@username"
+    const extractedUsername = parts[0]?.replace("@", "") || "";
     console.log('Extracting username from pathname:', { pathname, parts, extractedUsername });
     return extractedUsername;
   }, [pathname, username]);
@@ -93,6 +93,9 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
     e.preventDefault();
     if (!name || !email || !reason || !description || !turnstileToken) {
       console.log('Missing fields:', { name: !!name, email: !!email, reason: !!reason, description: !!description, turnstileToken: !!turnstileToken, userSlug });
+      if (!userSlug) {
+        toast({ title: "Error", description: "Could not determine which user to report. Please try again from their profile page." });
+      }
       return;
     }
     try {
