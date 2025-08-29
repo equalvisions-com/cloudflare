@@ -149,7 +149,7 @@ export const MenuButton = React.memo(function MenuButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Report</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Report</DialogTitle>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
@@ -162,18 +162,25 @@ export const MenuButton = React.memo(function MenuButton({
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Select a reason</label>
-              <select
-                className="w-full border rounded-md h-9 px-3 bg-background focus:ring-0 focus:outline-none focus-visible:ring-0"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                required
-              >
+              <div className="relative">
+                <select
+                  className="w-full border rounded-md text-sm h-9 px-3 pr-8 bg-background focus:ring-0 focus:outline-none focus-visible:ring-0 appearance-none"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  required
+                >
                 <option value="" disabled></option>
                 <option value="spam/promo">Spam or promotional content</option>
                 <option value="inappropriate/harmful">Inappropriate or harmful content</option>
                 <option value="intellectual">Intellectual property</option>
                 <option value="other">Other (explain)</option>
-              </select>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Please provide more details about this issue</label>
@@ -181,7 +188,7 @@ export const MenuButton = React.memo(function MenuButton({
             </div>
 
             <input type="hidden" value={turnstileToken} readOnly />
-            <Button type="submit" size="sm" className="rounded-lg text-sm font-bold" disabled={submitting || !turnstileToken}>
+            <Button type="submit" size="sm" className="rounded-lg text-sm font-medium" disabled={submitting || !turnstileToken}>
               {submitting ? "Submitting..." : "Submit"}
             </Button>
           </form>
