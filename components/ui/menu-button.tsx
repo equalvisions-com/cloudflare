@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 
 interface MenuButtonProps {
   onClick?: () => void;
@@ -43,55 +42,46 @@ export const MenuButton = React.memo(function MenuButton({
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
-  const widgetRef = useRef<HTMLDivElement | null>(null);
-  const [widgetId, setWidgetId] = useState<any>(null);
-  const { resolvedTheme } = useTheme();
-  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
 
   const handleReportClick = useCallback(() => {
     setOpen(true);
   }, []);
 
-  // Render a fresh Turnstile widget whenever the dialog opens; remove on close
   useEffect(() => {
-    const ts = (window as any).turnstile;
-
-    // When dialog is closed: ensure cleanup and clear token
-    if (!open) {
-      if (ts && widgetId) {
-        try { ts.remove(widgetId); } catch {}
-      }
-      setWidgetId(null);
-      setTurnstileToken("");
-      if (widgetRef.current) {
-        widgetRef.current.innerHTML = "";
-      }
-      return;
-    }
-
-    // When dialog is opened: render a fresh widget once ready
-    if (!(turnstileReady && ts && widgetRef.current)) return;
-
-    // Flush container to avoid stale DOM remnants
-    widgetRef.current.innerHTML = "";
-    let id: any = null;
-    try {
-      id = ts.render(widgetRef.current, {
-        sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
-        theme: resolvedTheme === "dark" ? "dark" : "light",
-        callback: (token: string) => setTurnstileToken(token),
-      });
-      setWidgetId(id);
-    } catch {}
-
-    // Cleanup on unmount/reopen
+    (window as any).onReportTurnstile = (token: string) => setTurnstileToken(token);
     return () => {
-      if (ts && id) {
-        try { ts.remove(id); } catch {}
-      }
+      delete (window as any).onReportTurnstile;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, resolvedTheme, turnstileReady]);
+  }, []);
+
+  // Reset turnstile when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      // Dialog opened - render turnstile after a brief delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        if ((window as any).turnstile && turnstileRef.current) {
+          turnstileWidgetId.current = (window as any).turnstile.render(turnstileRef.current, {
+            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+            callback: (token: string) => setTurnstileToken(token),
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      // Dialog closed - reset turnstile and form
+      if ((window as any).turnstile && turnstileWidgetId.current) {
+        (window as any).turnstile.reset(turnstileWidgetId.current);
+        turnstileWidgetId.current = null;
+      }
+      setTurnstileToken("");
+      setName("");
+      setEmail("");
+      setReason("");
+      setDescription("");
+    }
+  }, [open]);
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,14 +161,14 @@ export const MenuButton = React.memo(function MenuButton({
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <label className="block text-sm font-medium">Select a reason</label>
+              <label className="block text-sm font-medium">Reason</label>
               <select
                 className="w-full border rounded-md h-9 px-3 bg-background"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 required
               >
-                <option value="" disabled></option>
+                <option value="" disabled>Select…</option>
                 <option value="spam/promo">Spam or promotional content</option>
                 <option value="inappropriate/harmful">Inappropriate or harmful content</option>
                 <option value="intellectual">Intellectual property</option>
@@ -186,7 +176,7 @@ export const MenuButton = React.memo(function MenuButton({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Please provide more details about this issue</label>
+              <label className="block text-sm font-medium">Details</label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
             </div>
 
@@ -196,14 +186,9 @@ export const MenuButton = React.memo(function MenuButton({
             </Button>
           </form>
 
-          {/* Turnstile explicit render container */}
-          <div ref={widgetRef} />
-          <Script 
-            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" 
-            async 
-            defer 
-            onLoad={() => setTurnstileReady(true)}
-          />
+          {/* Turnstile widget container */}
+          <div ref={turnstileRef} />
+          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
         </DialogContent>
       </Dialog>
     </>
