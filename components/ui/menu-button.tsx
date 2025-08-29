@@ -46,6 +46,7 @@ export const MenuButton = React.memo(function MenuButton({
   const widgetRef = useRef<HTMLDivElement | null>(null);
   const [widgetId, setWidgetId] = useState<any>(null);
   const { resolvedTheme } = useTheme();
+  const [turnstileReady, setTurnstileReady] = useState(false);
 
   const handleReportClick = useCallback(() => {
     setOpen(true);
@@ -54,7 +55,7 @@ export const MenuButton = React.memo(function MenuButton({
   // Render a fresh Turnstile widget whenever the dialog opens; remove on close
   useEffect(() => {
     const ts = (window as any).turnstile;
-    if (open && ts && widgetRef.current) {
+    if (open && turnstileReady && ts && widgetRef.current) {
       try {
         if (widgetId) {
           ts.remove(widgetId);
@@ -74,7 +75,7 @@ export const MenuButton = React.memo(function MenuButton({
       setTurnstileToken("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, resolvedTheme]);
+  }, [open, resolvedTheme, turnstileReady]);
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,14 +155,14 @@ export const MenuButton = React.memo(function MenuButton({
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <label className="block text-sm font-medium">Reason</label>
+              <label className="block text-sm font-medium">Select a reason</label>
               <select
                 className="w-full border rounded-md h-9 px-3 bg-background"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 required
               >
-                <option value="" disabled>Select…</option>
+                <option value="" disabled></option>
                 <option value="spam/promo">Spam or promotional content</option>
                 <option value="inappropriate/harmful">Inappropriate or harmful content</option>
                 <option value="intellectual">Intellectual property</option>
@@ -169,7 +170,7 @@ export const MenuButton = React.memo(function MenuButton({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Details</label>
+              <label className="block text-sm font-medium">Please provide more details about this issue</label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
             </div>
 
@@ -181,7 +182,12 @@ export const MenuButton = React.memo(function MenuButton({
 
           {/* Turnstile explicit render container */}
           <div ref={widgetRef} />
-          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer />
+          <Script 
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" 
+            async 
+            defer 
+            onLoad={() => setTurnstileReady(true)}
+          />
         </DialogContent>
       </Dialog>
     </>
