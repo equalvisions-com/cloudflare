@@ -88,13 +88,18 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !reason || !description || !turnstileToken) return;
+    if (!name || !email || !reason || !description || !turnstileToken) {
+      console.log('Missing fields:', { name: !!name, email: !!email, reason: !!reason, description: !!description, turnstileToken: !!turnstileToken, userSlug });
+      return;
+    }
     try {
       setSubmitting(true);
+      const payload = { name, email, reason, description, username: userSlug, turnstileToken };
+      console.log('Submitting user report:', payload);
       const res = await fetch("/api/user-reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, reason, description, username: userSlug, turnstileToken }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -106,6 +111,7 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
         setDescription("");
         setTurnstileToken("");
       } else {
+        console.error('User report submission failed:', { status: res.status, data });
         toast({ title: "Submission failed", description: data?.error || "Please try again later." });
       }
     } finally {
@@ -113,7 +119,7 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
     }
   }, [name, email, reason, description, userSlug, turnstileToken, toast]);
 
-  const displayTitle = userSlug ? `Submit Report: @${userSlug}` : "Submit User Report";
+
 
   return (
     <>
@@ -154,7 +160,7 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">{displayTitle}</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Report</DialogTitle>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
