@@ -55,25 +55,41 @@ export const MenuButton = React.memo(function MenuButton({
   // Render a fresh Turnstile widget whenever the dialog opens; remove on close
   useEffect(() => {
     const ts = (window as any).turnstile;
-    if (open && turnstileReady && ts && widgetRef.current) {
-      try {
-        if (widgetId) {
-          ts.remove(widgetId);
-          setWidgetId(null);
-        }
-        const id = ts.render(widgetRef.current, {
-          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
-          callback: (token: string) => setTurnstileToken(token),
-          theme: resolvedTheme === "dark" ? "dark" : "light",
-        });
-        setWidgetId(id);
-      } catch {}
-    }
-    if (!open && widgetId && ts) {
-      try { ts.remove(widgetId); } catch {}
+
+    // When dialog is closed: ensure cleanup and clear token
+    if (!open) {
+      if (ts && widgetId) {
+        try { ts.remove(widgetId); } catch {}
+      }
       setWidgetId(null);
       setTurnstileToken("");
+      if (widgetRef.current) {
+        widgetRef.current.innerHTML = "";
+      }
+      return;
     }
+
+    // When dialog is opened: render a fresh widget once ready
+    if (!(turnstileReady && ts && widgetRef.current)) return;
+
+    // Flush container to avoid stale DOM remnants
+    widgetRef.current.innerHTML = "";
+    let id: any = null;
+    try {
+      id = ts.render(widgetRef.current, {
+        sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+        theme: resolvedTheme === "dark" ? "dark" : "light",
+        callback: (token: string) => setTurnstileToken(token),
+      });
+      setWidgetId(id);
+    } catch {}
+
+    // Cleanup on unmount/reopen
+    return () => {
+      if (ts && id) {
+        try { ts.remove(id); } catch {}
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resolvedTheme, turnstileReady]);
 
