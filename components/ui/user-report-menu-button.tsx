@@ -39,7 +39,6 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
     const parts = pathname.split("/").filter(Boolean);
     // For /@username URL structure: parts[0] = "@username"
     const extractedUsername = parts[0]?.replace("@", "") || "";
-    console.log('Extracting username from pathname:', { pathname, parts, extractedUsername });
     return extractedUsername;
   }, [pathname, username]);
 
@@ -91,21 +90,13 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !reason || !description || !turnstileToken) {
-      console.log('Missing fields:', { name: !!name, email: !!email, reason: !!reason, description: !!description, turnstileToken: !!turnstileToken, userSlug });
-      if (!userSlug) {
-        toast({ title: "Error", description: "Could not determine which user to report. Please try again from their profile page." });
-      }
-      return;
-    }
+    if (!name || !email || !reason || !description || !turnstileToken || !userSlug) return;
     try {
       setSubmitting(true);
-      const payload = { name, email, reason, description, username: userSlug, turnstileToken };
-      console.log('Submitting user report:', payload);
       const res = await fetch("/api/user-reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ name, email, reason, description, username: userSlug, turnstileToken }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -117,7 +108,6 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
         setDescription("");
         setTurnstileToken("");
       } else {
-        console.error('User report submission failed:', { status: res.status, data });
         toast({ title: "Submission failed", description: data?.error || "Please try again later." });
       }
     } finally {

@@ -46,11 +46,7 @@ export async function POST(request: NextRequest) {
     const json = await request.json();
     const parsed = schema.safeParse(json);
     if (!parsed.success) {
-      console.error('User report validation failed:', parsed.error.flatten());
-      return NextResponse.json({ 
-        error: 'Invalid input', 
-        details: parsed.error.flatten().fieldErrors 
-      }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
     // Verify auth (user must be logged in)
