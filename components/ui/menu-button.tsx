@@ -154,21 +154,21 @@ export const MenuButton = React.memo(function MenuButton({
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="focus-visible:ring-0" required />
             </div>
             <div>
               <label className="block text-sm font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="focus-visible:ring-0" required />
             </div>
             <div>
-              <label className="block text-sm font-medium">Reason</label>
+              <label className="block text-sm font-medium">Select a reason</label>
               <select
-                className="w-full border rounded-md h-9 px-3 bg-background"
+                className="w-full border rounded-md h-9 px-3 bg-background focus:ring-0 focus:outline-none focus-visible:ring-0"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 required
               >
-                <option value="" disabled>Select…</option>
+                <option value="" disabled></option>
                 <option value="spam/promo">Spam or promotional content</option>
                 <option value="inappropriate/harmful">Inappropriate or harmful content</option>
                 <option value="intellectual">Intellectual property</option>
@@ -176,8 +176,8 @@ export const MenuButton = React.memo(function MenuButton({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Details</label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
+              <label className="block text-sm font-medium">Please provide more details about this issue</label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none focus-visible:ring-0" required />
             </div>
 
             <input type="hidden" value={turnstileToken} readOnly />
