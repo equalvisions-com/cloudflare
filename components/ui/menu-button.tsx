@@ -141,7 +141,7 @@ export const MenuButton = React.memo(function MenuButton({
             onClick={handleReportClick}
           >
             <Flag className="mr-2 h-4 w-4" />
-            Report
+            Report Profile
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
