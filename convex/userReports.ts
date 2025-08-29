@@ -9,7 +9,7 @@ export const create = mutation({
     email: v.string(),
     reason: v.string(),
     description: v.string(),
-    postSlug: v.string(),
+    reportedUsername: v.string(),
     ip: v.string(),
   },
   handler: async (ctx, args) => {
@@ -21,13 +21,13 @@ export const create = mutation({
       throw new Error("Daily report limit reached. Try again tomorrow.");
     }
 
-    const reportId = await ctx.db.insert("creatorReports", {
+    const reportId = await ctx.db.insert("userReports", {
       userId,
       name: args.name,
       email: args.email.toLowerCase(),
       reason: args.reason,
       description: args.description,
-      postSlug: args.postSlug,
+      reportedUsername: args.reportedUsername,
       ip: args.ip,
       createdAt: Date.now(),
     });
@@ -35,5 +35,3 @@ export const create = mutation({
     return { reportId };
   },
 });
-
-

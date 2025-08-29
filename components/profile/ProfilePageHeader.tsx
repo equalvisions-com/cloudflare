@@ -3,12 +3,14 @@
 import { useState, KeyboardEvent, useCallback, memo, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { X, Search } from "lucide-react";
+import { UserReportMenuButton } from "@/components/ui/user-report-menu-button";
 import { cn } from "@/lib/utils";
 import { UserMenuClientWithErrorBoundary } from "@/components/user-menu/UserMenuClient";
 import { useSidebar } from "@/components/ui/sidebar-context";
 import { BackButton } from "@/components/back-button";
 import { useProfileSearchContext } from "@/lib/contexts/ProfileSearchContext";
 import { useContext } from "react";
+import { usePathname } from "next/navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 
@@ -81,10 +83,12 @@ SearchInput.displayName = 'SearchInput';
 // Performance optimization: Memoized header navigation
 const HeaderNavigation = memo(({ 
   onSearchToggle,
-  hasSearchContext = false
+  hasSearchContext = false,
+  username
 }: {
   onSearchToggle: () => void;
   hasSearchContext?: boolean;
+  username?: string;
 }) => (
   <>
     <div className="w-10 flex items-start justify-start">
@@ -98,7 +102,10 @@ const HeaderNavigation = memo(({
     <div className="flex-1 flex justify-center text-base font-extrabold tracking-tight">
       Profile
     </div>
-    <div className="w-10 flex justify-end">
+    <div className="w-24 flex justify-end items-center gap-2">
+      <div className="hidden md:block">
+        <UserReportMenuButton username={username} />
+      </div>
       {hasSearchContext && (
         <Button 
           onClick={onSearchToggle}
@@ -123,6 +130,10 @@ HeaderNavigation.displayName = 'HeaderNavigation';
 
 const ProfilePageHeaderComponent = () => {
   const { displayName, isBoarded, profileImage, pendingFriendRequestCount } = useSidebar();
+  
+  // Extract username from URL path
+  const pathname = usePathname();
+  const username = pathname ? pathname.split("/").filter(Boolean)[1]?.replace("@", "") : undefined;
   const [isSearchInputVisible, setIsSearchInputVisible] = useState(false);
   const [localSearchValue, setLocalSearchValue] = useState("");
   
@@ -281,6 +292,7 @@ const ProfilePageHeaderComponent = () => {
           <HeaderNavigation
             onSearchToggle={toggleSearchVisibility}
             hasSearchContext={hasSearchContext}
+            username={username}
           />
         </ErrorBoundary>)
       )}

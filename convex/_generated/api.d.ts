@@ -14,6 +14,7 @@ import type * as categories from "../categories.js";
 import type * as chat from "../chat.js";
 import type * as commentLikes from "../commentLikes.js";
 import type * as comments from "../comments.js";
+import type * as creatorReports from "../creatorReports.js";
 import type * as emailVerification_ResendOTPVerify from "../emailVerification/ResendOTPVerify.js";
 import type * as entries from "../entries.js";
 import type * as featured from "../featured.js";
@@ -32,6 +33,7 @@ import type * as rssKeys from "../rssKeys.js";
 import type * as sitemap from "../sitemap.js";
 import type * as trendingTopics from "../trendingTopics.js";
 import type * as userActivity from "../userActivity.js";
+import type * as userReports from "../userReports.js";
 import type * as users from "../users.js";
 import type * as widgets from "../widgets.js";
 
@@ -56,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   commentLikes: typeof commentLikes;
   comments: typeof comments;
+  creatorReports: typeof creatorReports;
   "emailVerification/ResendOTPVerify": typeof emailVerification_ResendOTPVerify;
   entries: typeof entries;
   featured: typeof featured;
@@ -74,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   sitemap: typeof sitemap;
   trendingTopics: typeof trendingTopics;
   userActivity: typeof userActivity;
+  userReports: typeof userReports;
   users: typeof users;
   widgets: typeof widgets;
 }>;
