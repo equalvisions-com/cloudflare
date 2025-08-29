@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Ellipsis, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 
 interface MenuButtonProps {
   onClick?: () => void;
@@ -42,17 +43,38 @@ export const MenuButton = React.memo(function MenuButton({
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const widgetRef = useRef<HTMLDivElement | null>(null);
+  const [widgetId, setWidgetId] = useState<any>(null);
+  const { resolvedTheme } = useTheme();
 
   const handleReportClick = useCallback(() => {
     setOpen(true);
   }, []);
 
+  // Render a fresh Turnstile widget whenever the dialog opens; remove on close
   useEffect(() => {
-    (window as any).onReportTurnstile = (token: string) => setTurnstileToken(token);
-    return () => {
-      delete (window as any).onReportTurnstile;
-    };
-  }, []);
+    const ts = (window as any).turnstile;
+    if (open && ts && widgetRef.current) {
+      try {
+        if (widgetId) {
+          ts.remove(widgetId);
+          setWidgetId(null);
+        }
+        const id = ts.render(widgetRef.current, {
+          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+          callback: (token: string) => setTurnstileToken(token),
+          theme: resolvedTheme === "dark" ? "dark" : "light",
+        });
+        setWidgetId(id);
+      } catch {}
+    }
+    if (!open && widgetId && ts) {
+      try { ts.remove(widgetId); } catch {}
+      setWidgetId(null);
+      setTurnstileToken("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, resolvedTheme]);
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,9 +179,9 @@ export const MenuButton = React.memo(function MenuButton({
             </Button>
           </form>
 
-          {/* Turnstile managed widget */}
-          <div className="cf-turnstile" data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} data-callback="onReportTurnstile" />
-          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+          {/* Turnstile explicit render container */}
+          <div ref={widgetRef} />
+          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer />
         </DialogContent>
       </Dialog>
     </>
