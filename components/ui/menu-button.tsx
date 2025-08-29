@@ -153,15 +153,15 @@ export const MenuButton = React.memo(function MenuButton({
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium">Name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="focus-visible:ring-0" required />
+              <label className="block text-sm font-medium mb-2">Name</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="focus-visible:ring-0 shadow-none" required />
             </div>
             <div>
-              <label className="block text-sm font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="focus-visible:ring-0" required />
+              <label className="block text-sm font-medium mb-2">Email</label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="focus-visible:ring-0 shadow-none" required />
             </div>
             <div>
-              <label className="block text-sm font-medium">Select a reason</label>
+              <label className="block text-sm font-medium mb-2">Select a reason</label>
               <select
                 className="w-full border rounded-md h-9 px-3 bg-background focus:ring-0 focus:outline-none focus-visible:ring-0"
                 value={reason}
@@ -176,12 +176,12 @@ export const MenuButton = React.memo(function MenuButton({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Please provide more details about this issue</label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none focus-visible:ring-0" required />
+              <label className="block text-sm font-medium mb-2">Please provide more details about this issue</label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none focus-visible:ring-0 shadow-none" required />
             </div>
 
             <input type="hidden" value={turnstileToken} readOnly />
-            <Button type="submit" size="sm" className="rounded-lg" disabled={submitting || !turnstileToken}>
+            <Button type="submit" size="sm" className="rounded-lg text-sm font-bold" disabled={submitting || !turnstileToken}>
               {submitting ? "Submitting..." : "Submit"}
             </Button>
           </form>
