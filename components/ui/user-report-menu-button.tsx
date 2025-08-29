@@ -37,7 +37,10 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
     if (username) return username;
     if (!pathname) return "";
     const parts = pathname.split("/").filter(Boolean);
-    return parts[1] || ""; // e.g., /profile/[username]
+    // For /profile/[username] URL structure: parts[0] = "profile", parts[1] = username
+    const extractedUsername = parts[1]?.replace("@", "") || "";
+    console.log('Extracting username from pathname:', { pathname, parts, extractedUsername });
+    return extractedUsername;
   }, [pathname, username]);
 
   const [name, setName] = useState("");
