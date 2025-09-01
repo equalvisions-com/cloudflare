@@ -135,9 +135,9 @@ export const SubmissionDialog = React.memo(function SubmissionDialog({
                   className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-0 focus:outline-none focus-visible:ring-0 appearance-none"
                   required
                 >
-                  <option value="" disabled>Select type</option>
-                  <option value="podcast">Podcast</option>
+                  <option value="" disabled></option>
                   <option value="newsletter">Newsletter</option>
+                  <option value="podcast">Podcast</option>
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,7 +153,7 @@ export const SubmissionDialog = React.memo(function SubmissionDialog({
                 value={publicationName} 
                 onChange={(e) => setPublicationName(e.target.value)} 
                 className="focus-visible:ring-0 shadow-none" 
-                placeholder="e.g., Tech Weekly, Morning Brew"
+                placeholder=""
                 required 
               />
             </div>
@@ -165,23 +165,24 @@ export const SubmissionDialog = React.memo(function SubmissionDialog({
                 value={rssFeed} 
                 onChange={(e) => setRssFeed(e.target.value)} 
                 className="focus-visible:ring-0 shadow-none" 
-                placeholder="https://example.com/feed.xml"
+                placeholder=""
                 required 
               />
             </div>
             
-            <div className="flex justify-center py-4">
-              <div ref={turnstileRef} />
-            </div>
-            
+            <input type="hidden" value={turnstileToken} readOnly />
             <Button 
               type="submit" 
-              className="w-full text-sm font-medium" 
+              size="sm" 
+              className="rounded-lg text-sm font-medium" 
               disabled={submitting || !turnstileToken}
             >
               {submitting ? "Submitting..." : "Submit"}
             </Button>
           </form>
+
+          {/* Turnstile widget container */}
+          <div ref={turnstileRef} />
         </DialogContent>
       </Dialog>
     </>
