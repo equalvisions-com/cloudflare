@@ -464,10 +464,10 @@ const BookmarkCard = memo(({
                     target={entryDetails.post_slug ? "_self" : "_blank"}
                     rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
                   >
-                    <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
+                    <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entryDetails.post_title || entryDetails.feed_title || entryDetails.title}
                       {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                    </h3>
+                    </h2>
                   </Link>
                 </NoFocusLinkWrapper>
                 <span 

@@ -434,10 +434,10 @@ const EntryCardHeader = memo(({
               <EntryLink 
                 entryDetails={entryDetails}
               >
-                <h3 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
+                <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-2 mt-[2.5px]">
                   {displayTitle}
                   {entryDetails.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                </h3>
+                </h2>
               </EntryLink>
             </NoFocusLinkWrapper>
             <span 

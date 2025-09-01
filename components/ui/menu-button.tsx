@@ -125,6 +125,7 @@ export const MenuButton = React.memo(function MenuButton({
             style={{ 
               backgroundColor: "hsl(var(--background))" 
             }}
+            aria-label="Profile menu"
           >
             <Ellipsis 
               width={18} 

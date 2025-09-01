@@ -132,6 +132,7 @@ export const UserReportMenuButton = React.memo(function UserReportMenuButton({
             style={{ 
               backgroundColor: "hsl(var(--background))" 
             }}
+            aria-label="User options menu"
           >
             <Ellipsis 
               width={18} 
