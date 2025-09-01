@@ -347,7 +347,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
           <div className="space-y-4">
             <ul 
               className="space-y-4"
-              role="status"
+              role="list"
               aria-live="polite"
               aria-label={ariaLabels.loading}
             >
@@ -375,7 +375,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
         {/* Show skeleton if no posts (instead of text message) */}
         {!isLoading && postsToShow.length === 0 && (
           <div className="space-y-4">
-            <ul className="space-y-4" role="status" aria-label="No featured posts available">
+            <ul className="space-y-4" role="list" aria-label="No featured posts available">
               {[...Array(3)].map((_, i) => <FeaturedPostSkeleton key={i} />)}
             </ul>
             {/* Show more button skeleton */}
