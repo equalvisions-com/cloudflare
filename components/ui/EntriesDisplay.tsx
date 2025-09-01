@@ -463,14 +463,14 @@ const EntryCard = memo(({ entry, interactions, onOpenCommentDrawer, useBatchMetr
                         <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                           {entry.post_title || decodedContent.title}
                           {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                        </h3>
+                        </h2>
                       </Link>
                     </NoFocusLinkWrapper>
                   ) : (
                     <h2 className="text-[15px] font-bold text-primary leading-tight line-clamp-1 mt-[2.5px]">
                       {entry.post_title || decodedContent.title}
                       {entry.verified && <VerifiedBadge className="inline-block align-middle ml-1" />}
-                    </h3>
+                    </h2>
                   )}
                   <span 
                     className="text-[15px] leading-none text-muted-foreground flex-shrink-0 mt-[5px]"
