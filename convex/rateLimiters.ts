@@ -172,6 +172,14 @@ export const actionLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     capacity: 5,
   },
+  
+  // Submissions limits - daily only per user
+  submissionsDaily: {
+    kind: "fixed window",
+    period: DAY,
+    rate: 3,
+    capacity: 3,
+  },
 });
 
  

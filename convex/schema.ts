@@ -153,6 +153,20 @@ export default defineSchema({
   .index("by_time", ["createdAt"])                    // For chronological moderation
   .index("by_reported_user", ["reportedUsername"]),   // To group reports by reported user
 
+  submissions: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    email: v.string(),
+    type: v.string(),
+    publicationName: v.string(),
+    rssFeed: v.string(),
+    ip: v.string(),
+    createdAt: v.number(),
+  })
+  .index("by_user", ["userId"])                       // To query submissions by user
+  .index("by_time", ["createdAt"])                    // For chronological review
+  .index("by_type", ["type"]),                        // To filter by podcast/newsletter
+
   trendingTopics: defineTable({
     title: v.string(),        // Human-readable title (e.g. "Sports", "Investing")
     subtopic: v.string(),     // Short subtopic string (e.g. "NFL Free Agency", "Bitcoin")
