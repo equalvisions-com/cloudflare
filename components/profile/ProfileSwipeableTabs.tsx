@@ -45,7 +45,7 @@ const TabHeaders = React.memo(({
               : 'text-muted-foreground hover:text-primary/80'
           )}
           role="tab"
-          aria-selected={selectedTab === index}
+          aria-selected={selectedTab === index ? "true" : "false"}
           aria-controls={`panel-${tab.id}`}
           id={`tab-${tab.id}`}
         >

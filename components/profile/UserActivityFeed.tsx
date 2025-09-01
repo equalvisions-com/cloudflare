@@ -1546,6 +1546,7 @@ const ActivityGroupRenderer = React.memo(({
                     onMouseDown={handleLinkInteraction}
                     onClick={(e) => e.stopPropagation()}
                     prefetch={false}
+                    aria-label={`View ${entryDetail.post_title || entryDetail.feed_title || entryDetail.title} ${entryDetail.post_media_type || entryDetail.mediaType || 'content'}`}
                   >
                     <AspectRatio ratio={1}>
                       <Image

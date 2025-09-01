@@ -426,6 +426,7 @@ const BookmarkCard = memo(({
                   entryDetails.link}
                 target={entryDetails.post_slug ? "_self" : "_blank"}
                 rel={entryDetails.post_slug ? "" : "noopener noreferrer"}
+                aria-label={`View ${entryDetails.post_title || entryDetails.feed_title || entryDetails.title} ${entryDetails.post_media_type || 'content'}`}
               >
                 <AspectRatio ratio={1}>
                   <Image
