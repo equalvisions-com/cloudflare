@@ -416,7 +416,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
                     variant="link" 
                     size="sm" 
                     className={cn(
-                      "text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none",
+                      "text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 tracking-tight leading-none mt-4",
                       isPending && "opacity-70"
                     )}
                     disabled={isPending}

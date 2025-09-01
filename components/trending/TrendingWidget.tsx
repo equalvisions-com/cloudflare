@@ -597,9 +597,9 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div 
+          <ul
             className="space-y-4"
-            role="status"
+            role="list"
             aria-live="polite"
             aria-label={ariaLabels.loading}
           >
@@ -608,7 +608,7 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
             ))}
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
-          </div>
+          </ul>
           <span id={loadingId} className="sr-only">
             Loading trending content, please wait
           </span>
@@ -635,17 +635,18 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div 
+          <ul
             className="space-y-4"
-            role="alert"
+            role="list"
             aria-live="assertive"
+            aria-label="Error loading trending content"
           >
             {[...Array(3)].map((_, i) => (
               <TrendingItemSkeleton key={i} />
             ))}
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
-          </div>
+          </ul>
           <span id={errorId} className="sr-only">
             Failed to load trending content. {state.retryCount > 0 && `Retry attempt ${state.retryCount}`}
           </span>
@@ -671,13 +672,17 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div className="space-y-4">
+          <ul
+            className="space-y-4"
+            role="list"
+            aria-label="No trending content available"
+          >
             {[...Array(3)].map((_, i) => (
               <TrendingItemSkeleton key={i} />
             ))}
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
-          </div>
+          </ul>
           <span className="sr-only">
             No trending content available at this time.
           </span>
@@ -746,7 +751,7 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
                   variant="link" 
                   size="sm" 
                   className={cn(
-                    "text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-0 leading-none tracking-tight",
+                    "text-sm font-semibold p-0 h-auto hover:no-underline text-left justify-start mt-4 leading-none tracking-tight",
                     isPending && "opacity-70"
                   )}
                   disabled={isPending}
