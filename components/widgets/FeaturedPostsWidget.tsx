@@ -386,8 +386,8 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
 
         {/* Render list when posts exist */}
         {postsToShow.length > 0 && (
-          <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="space-y-4">
-            <ul className="space-y-4">
+          <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
+            <ul className="space-y-4" role="list" aria-label="Featured posts">
               {initialPosts.map((post) => (
                 <FeaturedPostItem 
                   key={post._id} 
@@ -400,7 +400,7 @@ const FeaturedPostsWidgetComponent = ({ className = "" }: FeaturedPostsWidgetPro
             {hasMorePosts && (
               <>
                 <CollapsibleContent className="space-y-4 mt-4">
-                  <ul className="space-y-4">
+                  <ul className="space-y-4" role="list" aria-label="Additional featured posts">
                     {additionalPosts.map((post) => (
                       <FeaturedPostItem 
                         key={post._id} 
