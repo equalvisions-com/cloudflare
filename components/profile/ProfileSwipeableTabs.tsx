@@ -29,7 +29,11 @@ const TabHeaders = React.memo(({
   onTabClick: (index: number) => void 
 }) => {
   return (
-    <div className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-40 border-b">
+    <div 
+      className="flex w-full sticky top-0 bg-background/85 backdrop-blur-md z-40 border-b"
+      role="tablist"
+      aria-label="Profile content tabs"
+    >
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
@@ -72,7 +76,7 @@ const TabContent = React.memo(({
 }) => {
   return (
     <div 
-      id={`tab-content-${id}`}
+      id={`panel-${id}`}
       className={cn(
         "w-full tab-content", 
         { 
@@ -82,6 +86,7 @@ const TabContent = React.memo(({
       )}
       role="tabpanel"
       aria-labelledby={`tab-${id}`}
+      tabIndex={0}
     >
       {content}
     </div>
