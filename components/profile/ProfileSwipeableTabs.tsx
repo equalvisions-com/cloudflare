@@ -725,7 +725,7 @@ const SwipeableTabsComponent = ({
                   isTransitioning && "transitioning"
                 )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
-                aria-hidden={!isActive}
+                aria-hidden={!isActive ? "true" : "false"}
                 style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
