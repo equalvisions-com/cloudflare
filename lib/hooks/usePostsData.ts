@@ -139,10 +139,18 @@ export const usePostsData = ({
       setNextCursor(undefined); // Will be set when we need to load more
       setIsInitialLoad(false);
     }
+    // Handle case where we have no initial posts
+    else if (!shouldMakeIndividualQuery && initialPosts.length === 0) {
+      setPosts([]);
+      setHasMore(false);
+      setNextCursor(undefined);
+      setIsInitialLoad(false);
+    }
   }, [isVisible, shouldMakeIndividualQuery, postsResult, initialPosts, shouldLoadMore, processNewPosts, searchQuery]);
 
-  // Reset state when query params change (for searches)
+  // Reset state when query params change (for searches or category changes)
   const previousSearchQueryRef = useRef<string>('');
+  const previousCategoryIdRef = useRef<string>('');
   
   useEffect(() => {
     if (!isVisible) return;
@@ -159,8 +167,18 @@ export const usePostsData = ({
         setNextCursor(undefined);
         followStatesProcessedRef.current = false;
       }
+    } else {
+      // For category changes, reset the loading state
+      const isDifferentCategory = previousCategoryIdRef.current !== categoryId;
+      
+      if (isDifferentCategory) {
+        previousCategoryIdRef.current = categoryId;
+        // Reset initial load state for new categories to show skeleton briefly
+        setIsInitialLoad(true);
+        followStatesProcessedRef.current = false;
+      }
     }
-  }, [isVisible, searchQuery]);
+  }, [isVisible, searchQuery, categoryId]);
 
   // Update follow states when they load - handle both global and pagination follow states
   useEffect(() => {

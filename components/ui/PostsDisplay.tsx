@@ -111,6 +111,11 @@ const PostsDisplayComponent = ({
     }
   }, [inView, nextCursor, isInitialLoad, loadMorePosts]);
 
+  // Show skeleton during initial load
+  if (posts.length === 0 && isInitialLoad) {
+    return <PostsDisplaySkeleton count={5} className={className} />;
+  }
+
   // No posts state
   if (posts.length === 0 && !isInitialLoad) {
     return <NoPostsState searchQuery={searchQuery} mediaType={mediaType} className={className} />;
