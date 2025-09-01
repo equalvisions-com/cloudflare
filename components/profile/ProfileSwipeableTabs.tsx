@@ -720,12 +720,16 @@ const SwipeableTabsComponent = ({
             return (
               <div 
                 key={`carousel-${tab.id}`} 
+                id={`panel-${tab.id}`}
+                role="tabpanel"
+                aria-labelledby={`tab-${tab.id}`}
                 className={cn(
                   "min-w-0 flex-[0_0_100%] transform-gpu embla-slide",
                   isTransitioning && "transitioning"
                 )}
                 ref={(el: HTMLDivElement | null) => { slideRefs.current[index] = el; }}
                 aria-hidden={!isActive ? "true" : "false"}
+                tabIndex={isActive ? 0 : -1}
                 style={{
                   willChange: 'transform', 
                   transform: 'translate3d(0,0,0)',
