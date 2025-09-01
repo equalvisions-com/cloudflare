@@ -597,15 +597,17 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div 
-            className="space-y-4"
-            role="status"
-            aria-live="polite"
-            aria-label={ariaLabels.loading}
-          >
-            {[...Array(3)].map((_, i) => (
-              <TrendingItemSkeleton key={i} />
-            ))}
+          <div className="space-y-4">
+            <ul 
+              className="space-y-4"
+              role="status"
+              aria-live="polite"
+              aria-label={ariaLabels.loading}
+            >
+              {[...Array(3)].map((_, i) => (
+                <TrendingItemSkeleton key={i} />
+              ))}
+            </ul>
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
           </div>
@@ -635,14 +637,16 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <div 
-            className="space-y-4"
-            role="alert"
-            aria-live="assertive"
-          >
-            {[...Array(3)].map((_, i) => (
-              <TrendingItemSkeleton key={i} />
-            ))}
+          <div className="space-y-4">
+            <ul 
+              className="space-y-4"
+              role="alert"
+              aria-live="assertive"
+            >
+              {[...Array(3)].map((_, i) => (
+                <TrendingItemSkeleton key={i} />
+              ))}
+            </ul>
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
           </div>
@@ -672,9 +676,11 @@ const TrendingWidgetComponent = ({ className = "" }: TrendingWidgetProps) => {
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <TrendingItemSkeleton key={i} />
-            ))}
+            <ul className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <TrendingItemSkeleton key={i} />
+              ))}
+            </ul>
             {/* Show more button skeleton */}
             <Skeleton className="h-4 w-20 mt-4" />
           </div>
