@@ -132,7 +132,7 @@ export const SubmissionDialog = React.memo(function SubmissionDialog({
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
-                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-0 focus:outline-none focus-visible:ring-0 appearance-none"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-0 focus:outline-none focus-visible:ring-0 appearance-none shadow-none"
                   required
                 >
                   <option value="" disabled></option>
